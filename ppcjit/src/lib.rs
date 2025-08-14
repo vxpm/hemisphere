@@ -122,9 +122,30 @@ impl JIT {
         builder.finish();
 
         let mut ctx = codegen::Context::for_function(func);
-        let compiled = ctx
-            .compile(&*self.isa, &mut codegen::control::ControlPlane::default())
-            .unwrap();
+        println!("{}", ctx.func.display());
+
+        let compiled = match ctx.compile(&*self.isa, &mut codegen::control::ControlPlane::default())
+        {
+            Ok(o) => o,
+            Err(e) => {
+                match e.inner {
+                    codegen::CodegenError::Verifier(verifier_errors) => {
+                        for error in verifier_errors.0 {
+                            println!("{}", error);
+                        }
+                    }
+                    codegen::CodegenError::ImplLimitExceeded => todo!(),
+                    codegen::CodegenError::CodeTooLarge => todo!(),
+                    codegen::CodegenError::Unsupported(feature) => {
+                        println!("{feature}");
+                    }
+                    codegen::CodegenError::RegisterMappingError(register_mapping_error) => todo!(),
+                    codegen::CodegenError::Regalloc(checker_errors) => todo!(),
+                    codegen::CodegenError::Pcc(pcc_error) => todo!(),
+                }
+                panic!();
+            }
+        };
 
         Block::new(compiled.code_buffer())
     }
