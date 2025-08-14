@@ -1,0 +1,16 @@
+[package]
+name = "gui"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+wgpu.workspace = true
+slotmap = "1.0"
+egui_dock = "0.17"
+eframe = { version = "0.32", default-features = false, features = [
+    # "wayland",
+    "x11",
+    "wgpu",
+    "default_fonts",
+    "persistence",
+] }

@@ -1,0 +1,9 @@
+[workspace]
+resolver = "3"
+members = ["ppcjit", "dolfile", "gui"]
+
+[workspace.dependencies]
+easyerr = "0.1"
+bitos = { git = "https://github.com/vxpm/bitos.git" }
+wgpu = "25.0"
+powerpc = "0.4"
