@@ -3,7 +3,10 @@ resolver = "3"
 members = ["ppcjit", "dolfile", "gui"]
 
 [workspace.dependencies]
-easyerr = "0.1"
 bitos = { git = "https://github.com/vxpm/bitos.git" }
-wgpu = "25.0"
+easyerr = "0.1"
 powerpc = "0.4"
+powerpc-asm = "0.4"
+iced-x86 = "1.21"
+memmap2 = "0.9"
+wgpu = "25.0"
