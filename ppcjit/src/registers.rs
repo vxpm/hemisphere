@@ -106,6 +106,7 @@ impl Debug for Registers {
 
                 map.finish_non_exhaustive()
             })
+            .field("cr", &Hex(self.cr.to_bits()))
             .finish()
     }
 }

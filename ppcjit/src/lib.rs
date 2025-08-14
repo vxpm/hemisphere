@@ -168,13 +168,12 @@ mod test {
             Argument::None,
         ];
 
-        let code = assemble("add", &args).expect("Invalid arguments");
-        seq.push(Ins::new(code, powerpc::Extensions::none()))
-            .unwrap();
+        let a = assemble("add.", &args).expect("Invalid arguments");
+        seq.push(Ins::new(a, powerpc::Extensions::none())).unwrap();
 
         let mut registers = Registers::default();
-        registers.gpr[0] = 0;
-        registers.gpr[1] = 1;
+        registers.gpr[0] = 1;
+        registers.gpr[1] = i32::MAX as u32;
 
         let mut jit = JIT::default();
         let block = jit.build(seq);
