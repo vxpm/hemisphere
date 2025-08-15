@@ -38,6 +38,45 @@ pub struct CondReg {
     fields: [Cond; 8],
 }
 
+#[bitos(32)]
+#[derive(Debug, Clone, Copy, Default)]
+pub struct MachineState {
+    /// Whether little endian mode is turned on. Not supported.
+    #[bits(0)]
+    pub little_endian: bool,
+    /// Whether the last exception is recoverable.
+    #[bits(1)]
+    pub recoverable_exception: bool,
+    /// Whether data address translation is enabled.
+    #[bits(4)]
+    pub data_addr_translation: bool,
+    /// Whether instruction address translation is enabled.
+    #[bits(5)]
+    pub instr_addr_translation: bool,
+    /// Whether exception vectors are at 0x000n_nnnn (off) or 0xFFFn_nnnn (on).
+    #[bits(6)]
+    pub exception_prefix: bool,
+    #[bits(8)]
+    pub float_exception_mode_1: bool,
+    #[bits(11)]
+    pub float_exception_mode_0: bool,
+    /// Whether machine check exceptions are enabled.
+    #[bits(12)]
+    pub machine_check: bool,
+    /// Whether floating point instructions can be used.
+    #[bits(13)]
+    pub float_available: bool,
+    /// Whether the processor is running in user mode.
+    #[bits(14)]
+    pub user_mode: bool,
+    /// Whether external interrupts are enabled.
+    #[bits(15)]
+    pub external_interrupts: bool,
+    /// Whether the CPU should be set to little endian mode after an exception occurs.
+    #[bits(16)]
+    pub exception_little_endian: bool,
+}
+
 /// The XER register contains information about overflow and carry operations, and is also used by
 /// the load/store string indexed instructions.
 #[bitos(32)]
@@ -132,42 +171,3 @@ pub struct Registers {
     /// Supervisor level registers
     pub supervisor: Supervisor,
 }
-
-// impl Debug for Registers {
-//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//         struct Hex<T>(T);
-//
-//         impl<T> Debug for Hex<T>
-//         where
-//             T: std::fmt::UpperHex,
-//         {
-//             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//                 write!(f, "0x{:08X}", &self.0)
-//             }
-//         }
-//
-//         f.debug_struct("Registers")
-//             .field_with("gpr", |f| {
-//                 let mut map = f.debug_map();
-//                 for i in 0..32 {
-//                     if self.gpr[i as usize] != 0 {
-//                         map.entry(&i, &Hex(self.gpr[i as usize]));
-//                     }
-//                 }
-//
-//                 map.finish_non_exhaustive()
-//             })
-//             .field_with("fpr", |f| {
-//                 let mut map = f.debug_map();
-//                 for i in 0..32 {
-//                     if self.fpr[i as usize] != 0.0 {
-//                         map.entry(&i, &Hex(self.fpr[i as usize] as u32));
-//                     }
-//                 }
-//
-//                 map.finish_non_exhaustive()
-//             })
-//             .field("cr", &Hex(self.cr.to_bits()))
-//             .finish()
-//     }
-// }
