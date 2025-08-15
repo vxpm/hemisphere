@@ -4,11 +4,11 @@ use comfy_table::{
     Cell, CellAlignment, ContentArrangement, Table, modifiers::UTF8_ROUND_CORNERS,
     presets::UTF8_FULL,
 };
-use dolfile::{Header, binrw::BinRead};
+use dolfile::{Header, SectionInfo, binrw::BinRead};
 use eyre_pretty::{Context, Result};
 use std::path::PathBuf;
 
-/// CLI tool to obtain info about a .dol file.
+/// CLI tool which prints info about a .dol file.
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
@@ -26,15 +26,20 @@ fn main() -> Result<()> {
 
     let meta = file.metadata()?;
 
-    println!(
-        " {} ({})    Entry: 0x{:08X}",
-        config.input.file_name().unwrap().to_string_lossy(),
-        ByteSize(meta.len()).display(),
-        header.entry
-    );
+    let mut info = Table::new();
+    info.load_preset(comfy_table::presets::NOTHING)
+        .set_content_arrangement(ContentArrangement::Dynamic)
+        .set_header(vec![
+            Cell::new(format!(
+                "{} ({})",
+                config.input.file_name().unwrap().to_string_lossy(),
+                ByteSize(meta.len()).display()
+            )),
+            Cell::new(format!("Entry: 0x{:08X}", header.entry)),
+        ]);
 
-    let mut table = Table::new();
-    table
+    let mut sections = Table::new();
+    sections
         .load_preset(UTF8_FULL)
         .apply_modifier(UTF8_ROUND_CORNERS)
         .set_content_arrangement(ContentArrangement::Dynamic)
@@ -46,29 +51,26 @@ fn main() -> Result<()> {
             Cell::new("Length (Bytes)").set_alignment(CellAlignment::Center),
         ]);
 
-    for (i, section) in header.text_sections().enumerate() {
-        table.add_row(vec![
-            Cell::new(format!(".text{i}")),
+    let mut row = |name, section: SectionInfo| {
+        sections.add_row(vec![
+            Cell::new(name),
             Cell::new(format!("0x{:08X}", section.offset)),
             Cell::new(format!("0x{:08X}", section.target)),
             Cell::new(format!("0x{:08X}", section.size)),
             Cell::new(format!("{}", ByteSize(section.size as u64).display()))
                 .set_alignment(CellAlignment::Center),
         ]);
+    };
+
+    for (i, section) in header.text_sections().enumerate() {
+        row(format!(".text{i}"), section)
     }
 
     for (i, section) in header.data_sections().enumerate() {
-        table.add_row(vec![
-            Cell::new(format!(".text{i}")),
-            Cell::new(format!("0x{:08X}", section.offset)),
-            Cell::new(format!("0x{:08X}", section.target)),
-            Cell::new(format!("0x{:08X}", section.size)),
-            Cell::new(format!("{}", ByteSize(section.size as u64).display()))
-                .set_alignment(CellAlignment::Center),
-        ]);
+        row(format!(".data{i}"), section)
     }
 
-    table.add_row(vec![
+    sections.add_row(vec![
         Cell::new(".bss"),
         Cell::new("-").set_alignment(CellAlignment::Center),
         Cell::new(format!("0x{:08X}", header.bss_target)),
@@ -77,7 +79,8 @@ fn main() -> Result<()> {
             .set_alignment(CellAlignment::Center),
     ]);
 
-    println!("{table}");
+    println!("{info}");
+    println!("{sections}");
 
     Ok(())
 }
