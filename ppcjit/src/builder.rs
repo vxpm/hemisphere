@@ -6,6 +6,7 @@ use cranelift::{
     frontend,
     prelude::InstBuilder,
 };
+use easyerr::Error;
 use powerpc::{Ins, Opcode};
 use std::collections::{HashMap, hash_map::Entry};
 
@@ -47,6 +48,14 @@ impl Reg {
 struct Var {
     inner: frontend::Variable,
     modified: bool,
+}
+
+#[derive(Debug, Error)]
+pub enum EmitError {
+    #[error("illegal instruction {f0:?}")]
+    Illegal(Ins),
+    #[error("unimplemented instruction {f0:?}")]
+    Unimplemented(Ins),
 }
 
 pub struct BlockBuilder<'ctx> {
@@ -156,12 +165,14 @@ impl<'ctx> BlockBuilder<'ctx> {
         self.set(Reg::Cr, updated);
     }
 
-    pub fn emit(&mut self, ins: Ins) {
+    pub fn emit(&mut self, ins: Ins) -> Result<(), EmitError> {
         match ins.op {
             Opcode::Add => self.add(ins),
-            Opcode::Illegal => panic!("illegal opcode"),
-            _ => todo!("unimplemented opcode"),
+            Opcode::Illegal => return Err(EmitError::Illegal(ins)),
+            _ => return Err(EmitError::Unimplemented(ins)),
         }
+
+        Ok(())
     }
 
     pub fn finish(mut self) {
