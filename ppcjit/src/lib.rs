@@ -158,33 +158,33 @@ impl JIT {
 
 #[cfg(test)]
 mod test {
-    // use crate::{JIT, Registers, Sequence};
-    // use powerpc::Ins;
-    // use powerpc_asm::{Argument, Arguments, assemble};
+    use crate::{JIT, Registers, Sequence};
+    use powerpc::Ins;
+    use powerpc_asm::{Argument, Arguments, assemble};
 
-    // #[test]
-    // fn test() {
-    //     let mut seq = Sequence::new();
-    //     let args: Arguments = [
-    //         Argument::Unsigned(0),
-    //         Argument::Unsigned(0),
-    //         Argument::Unsigned(1),
-    //         Argument::None,
-    //         Argument::None,
-    //     ];
-    //
-    //     let a = assemble("add.", &args).expect("Invalid arguments");
-    //     seq.push(Ins::new(a, powerpc::Extensions::none())).unwrap();
-    //
-    //     let mut registers = Registers::default();
-    //     registers.gpr[0] = 1;
-    //     registers.gpr[1] = i32::MAX as u32;
-    //
-    //     let mut jit = JIT::default();
-    //     let block = jit.build(seq);
-    //     dbg!(&registers);
-    //     block.run(&mut registers);
-    //     dbg!(&registers);
-    //     println!("{block}");
-    // }
+    #[test]
+    fn test() {
+        let mut seq = Sequence::new();
+        let args: Arguments = [
+            Argument::Unsigned(0),
+            Argument::Unsigned(0),
+            Argument::Unsigned(1),
+            Argument::None,
+            Argument::None,
+        ];
+
+        let a = assemble("add.", &args).expect("Invalid arguments");
+        seq.push(Ins::new(a, powerpc::Extensions::none())).unwrap();
+
+        let mut registers = Registers::default();
+        registers.user.gpr[0] = 1;
+        registers.user.gpr[1] = i32::MAX as u32;
+
+        let mut jit = JIT::default();
+        let block = jit.build(seq).unwrap();
+        println!("{:?}", &registers.user);
+        block.run(&mut registers);
+        println!("{:?}", &registers.user);
+        println!("{block}");
+    }
 }

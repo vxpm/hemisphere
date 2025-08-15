@@ -32,13 +32,13 @@ impl Reg {
         let offset = match self {
             Reg::Gpr(i) => {
                 assert!(i < 32);
-                offset_of!(Registers, gpr) + size_of::<u32>() * (i as usize)
+                offset_of!(Registers, user.gpr) + size_of::<u32>() * (i as usize)
             }
             Reg::Fpr(i) => {
                 assert!(i < 32);
-                offset_of!(Registers, fpr) + size_of::<f64>() * (i as usize)
+                offset_of!(Registers, user.fpr) + size_of::<f64>() * (i as usize)
             }
-            Reg::Cr => offset_of!(Registers, cr),
+            Reg::Cr => offset_of!(Registers, user.cr),
         };
 
         offset as i32
@@ -132,12 +132,6 @@ impl<'ctx> BlockBuilder<'ctx> {
         self.bd.def_var(var, value);
     }
 
-    fn bool_not(&mut self, value: ir::Value) -> ir::Value {
-        let zero = self.bd.ins().iconst(ir::types::I8, 0);
-        let one = self.bd.ins().iconst(ir::types::I8, 1);
-        self.bd.ins().select(value, zero, one)
-    }
-
     fn update_cr0(&mut self, value: ir::Value, overflowed: ir::Value) {
         let cr = self.get(Reg::Cr);
 
@@ -150,16 +144,16 @@ impl<'ctx> BlockBuilder<'ctx> {
         let eq = self.bd.ins().uextend(ir::types::I32, eq);
         let ov = self.bd.ins().uextend(ir::types::I32, overflowed);
 
-        let lt = self.bd.ins().ishl_imm(lt, 0);
-        let gt = self.bd.ins().ishl_imm(gt, 1);
-        let eq = self.bd.ins().ishl_imm(eq, 2);
-        let ov = self.bd.ins().ishl_imm(ov, 3);
+        let lt = self.bd.ins().ishl_imm(lt, 31);
+        let gt = self.bd.ins().ishl_imm(gt, 30);
+        let eq = self.bd.ins().ishl_imm(eq, 29);
+        let ov = self.bd.ins().ishl_imm(ov, 28);
 
-        let value = self.bd.ins().bor(lt, gt);
-        let value = self.bd.ins().bor(value, eq);
-        let value = self.bd.ins().bor(value, ov);
+        let value = self.bd.ins().bor(ov, eq);
+        let value = self.bd.ins().bor(value, gt);
+        let value = self.bd.ins().bor(value, lt);
 
-        let mask = self.bd.ins().iconst(ir::types::I32, 0b1111);
+        let mask = self.bd.ins().iconst(ir::types::I32, 0b1111 << 28);
         let updated = self.bd.ins().bitselect(mask, value, cr);
 
         self.set(Reg::Cr, updated);
