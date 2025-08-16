@@ -4,6 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+hemicore = { path = "../hemicore" }
 dolfile = { path = "../dolfile" }
 ppcjit = { path = "../ppcjit" }
 easyerr.workspace = true
+bitos.workspace = true
+bytesize.workspace = true

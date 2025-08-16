@@ -7,9 +7,11 @@ edition = "2024"
 powerpc-asm.workspace = true
 
 [dependencies]
+hemicore = { path = "../hemicore" }
 bitos.workspace = true
 iced-x86.workspace = true
 easyerr.workspace = true
 powerpc.workspace = true
 memmap2.workspace = true
+bytesize.workspace = true
 cranelift = { version = "0.122", features = ["native"] }

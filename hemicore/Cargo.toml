@@ -1,0 +1,9 @@
+[package]
+name = "hemicore"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+easyerr.workspace = true
+bitos.workspace = true
+zerocopy.workspace = true

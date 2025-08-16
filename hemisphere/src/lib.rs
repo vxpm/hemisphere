@@ -1,79 +1,68 @@
-/// A memory address. This is a thin wrapper around a [`u32`].
-#[repr(transparent)]
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
-pub struct Address(pub u32);
+pub mod mmu;
 
-impl std::fmt::Display for Address {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "0x{:04X}_{:04X}",
-            (self.0 & 0xFFFF_0000) >> 16,
-            self.0 & 0xFFFF
-        )
+use crate::mmu::{Memory, RAM_LEN};
+use hemicore::{Address, Primitive};
+
+#[derive(Default)]
+struct Bus {
+    mem: Memory,
+}
+
+impl Bus {
+    /// Reads a primitive from the given physical address.
+    pub fn read<P: Primitive>(&self, addr: Address) -> P {
+        match addr.value() {
+            0..RAM_LEN => P::read_from_buf(&*self.mem.ram),
+            _ => panic!(),
+        }
+    }
+
+    /// Writes a primitive to the given physical address.
+    pub fn write<P: Primitive>(&mut self, addr: Address, value: P) {
+        match addr.value() {
+            0..RAM_LEN => value.write_to_buf(&mut *self.mem.ram),
+            _ => panic!(),
+        }
     }
 }
 
-impl std::fmt::Debug for Address {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self)
+#[cfg(test)]
+mod test {
+    use bitos::integer::{u11, u15};
+    use hemicore::Address;
+    use ppcjit::registers::Bat;
+
+    pub fn translate(bats: &[Bat; 4], addr: Address) -> Option<Address> {
+        for bat in bats {
+            if (bat.start()..=bat.end()).contains(&addr) {
+                return Some(bat.translate(addr));
+            }
+        }
+
+        None
     }
-}
 
-impl Address {
-    /// Returns the value of this address. Equivalent to `self.0`.
-    #[inline(always)]
-    pub const fn value(self) -> u32 {
-        self.0
-    }
+    #[test]
+    fn test() {
+        let a = Bat::default()
+            .with_effective_page_index(u15::new(0))
+            .with_real_page_number(u15::new(0xFF00))
+            .with_block_length_mask(u11::new(0x0000));
 
-    /// Returns `true` if this address is aligned to the given alignment.
-    #[inline(always)]
-    pub const fn is_aligned(self, alignment: u32) -> bool {
-        self.0 % alignment == 0
-    }
-}
+        dbg!(bytesize::ByteSize(a.block_length() as u64));
+        dbg!(a.start()..a.end());
+        dbg!(a.physical_start()..a.physical_end());
 
-impl std::ops::Add<u32> for Address {
-    type Output = Self;
+        let b = Bat::default()
+            .with_effective_page_index(u15::new(1))
+            .with_real_page_number(u15::new(0xFF00))
+            .with_block_length_mask(u11::new(0x0000));
 
-    fn add(self, rhs: u32) -> Self::Output {
-        Self(self.0.wrapping_add(rhs))
-    }
-}
+        dbg!(bytesize::ByteSize(b.block_length() as u64));
+        dbg!(b.start()..b.end());
+        dbg!(b.physical_start()..b.physical_end());
 
-impl std::ops::Add<i32> for Address {
-    type Output = Self;
-
-    fn add(self, rhs: i32) -> Self::Output {
-        Self(self.0.wrapping_add_signed(rhs))
-    }
-}
-
-impl std::ops::Sub<u32> for Address {
-    type Output = Self;
-
-    fn sub(self, rhs: u32) -> Self::Output {
-        Self(self.0.wrapping_sub(rhs))
-    }
-}
-
-impl std::ops::Sub<i32> for Address {
-    type Output = Self;
-
-    fn sub(self, rhs: i32) -> Self::Output {
-        Self(self.0.wrapping_add_signed(-rhs))
-    }
-}
-
-impl PartialEq<u32> for Address {
-    fn eq(&self, other: &u32) -> bool {
-        self.0 == *other
-    }
-}
-
-impl From<u32> for Address {
-    fn from(value: u32) -> Self {
-        Self(value)
+        let bats = [a, b, Bat::default(), Bat::default()];
+        dbg!(translate(&bats, Address(0x1FFFF + 1)));
     }
 }

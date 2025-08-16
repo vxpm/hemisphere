@@ -1,6 +1,9 @@
+use bitos::{
+    BitUtils, bitos,
+    integer::{u2, u4, u7, u11, u15},
+};
+use hemicore::Address;
 use std::fmt::Debug;
-
-use bitos::{bitos, integer::u7};
 
 #[bitos(4)]
 #[derive(Debug, Clone, Copy, Default)]
@@ -117,12 +120,94 @@ pub struct User {
     pub ctr: u32,
 }
 
+/// The block address translation registers.
+#[bitos(64)]
+#[derive(Debug, Default)]
+pub struct Bat {
+    // lower
+    #[bits(0..2)]
+    pub protection: u2,
+    #[bits(3..7)]
+    pub wimg: u4,
+    #[bits(17..32)]
+    pub real_page_number: u15,
+
+    // upper
+    #[bits(32)]
+    pub user_mode: bool,
+    #[bits(33)]
+    pub supervisor_mode: bool,
+    #[bits(34..45)]
+    pub block_length_mask: u11,
+    #[bits(49..64)]
+    pub effective_page_index: u15,
+}
+
+impl Bat {
+    /// The length of the memory region, in bytes.
+    #[inline(always)]
+    pub fn block_length(&self) -> u32 {
+        (bytesize::kib(128u64) as u32) << (self.block_length_mask().value()).count_ones()
+    }
+
+    /// The start address of the memory region, inclusive.
+    #[inline(always)]
+    pub fn start(&self) -> Address {
+        Address(
+            ((self.effective_page_index().value() as u32) << 17)
+            // mask the EPI with the block length! aka floor it to a multiple of block length
+                & !((self.block_length_mask().value() as u32) << 17),
+        )
+    }
+
+    /// The start address of the physical memory region, inclusive.
+    #[inline(always)]
+    pub fn physical_start(&self) -> Address {
+        Address(
+            ((self.real_page_number().value() as u32) << 17)
+            // mask the EPI with the block length! aka floor it to a multiple of block length
+                & !((self.block_length_mask().value() as u32) << 17),
+        )
+    }
+
+    /// The end address of the memory region, inclusive.
+    #[inline(always)]
+    pub fn end(&self) -> Address {
+        self.start() + (self.block_length() - 1)
+    }
+
+    /// The end address of the memory region, inclusive.
+    #[inline(always)]
+    pub fn physical_end(&self) -> Address {
+        self.physical_start() + (self.block_length() - 1)
+    }
+
+    /// Whether the memory region contains the given effective address.
+    #[inline(always)]
+    pub fn contains(&self, addr: Address) -> bool {
+        (self.start()..=self.end()).contains(&addr)
+    }
+
+    /// Translates an effective address into a physical address.
+    #[inline(always)]
+    pub fn translate(&self, addr: Address) -> Address {
+        let offset = addr.value().bits(0, 17);
+        let region = (addr.value().bits(17, 28)
+            // only allow bits within the block length to be changed
+            & ((self.block_length_mask().value() as u32) << 17))
+            // insert the real page number
+            | ((self.real_page_number().value() as u32) << 17);
+
+        Address(region | offset)
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct MemoryManagement {
     /// Instruction Block Address Translation registers
-    pub ibat: [u32; 8],
+    pub ibat: [Bat; 4],
     /// Data Block Address Translation registers
-    pub dbat: [u32; 8],
+    pub dbat: [Bat; 4],
     /// Segment Registers
     pub sr: [u32; 16],
     /// Page table base address (?)

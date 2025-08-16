@@ -6,7 +6,7 @@ edition = "2024"
 [dependencies]
 dolfile = { path = "../dolfile" }
 eyre-pretty = { path = "/home/vxpm/dev/eyre-pretty" }
+bytesize.workspace = true
 
-bytesize = "2"
 clap = { version = "4.5", features = ["derive"] }
 comfy-table = "7.1"
