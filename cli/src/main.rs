@@ -10,14 +10,14 @@ fn main() -> Result<()> {
     let dol = Dol::read(&mut std::fs::File::open("panda.dol").unwrap()).unwrap();
 
     let mut hemisphere = Hemisphere::new(Config {
-        instructions_per_block: 8,
+        instructions_per_block: 1,
     });
     hemisphere.load(&dol);
 
     loop {
         let executed = hemisphere.exec();
         println!("executed {executed} instructions");
-        dbg!(&hemisphere.cpu.user.gpr[1]);
+        dbg!(&hemisphere.cpu.user.gpr[0]);
     }
 
     Ok(())

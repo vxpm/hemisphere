@@ -14,10 +14,32 @@ use powerpc::{Ins, Opcode};
 use std::collections::{HashMap, hash_map::Entry};
 use std::mem::offset_of;
 
+#[derive(Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive)]
+#[repr(u16)]
+enum Spr {
+    XER = 1,
+    LR = 8,
+    CTR = 9,
+}
+
+impl Spr {
+    fn offset(&self) -> i32 {
+        let offset = match self {
+            Self::XER => offset_of!(Registers, user.xer),
+            Self::LR => offset_of!(Registers, user.lr),
+            Self::CTR => offset_of!(Registers, user.ctr),
+        };
+
+        offset as i32
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[expect(dead_code, reason = "still not used")]
 enum Reg {
     Gpr(u8),
     Fpr(u8),
+    Spr(Spr),
     Cr,
 }
 
@@ -42,34 +64,15 @@ impl Reg {
                 offset_of!(Registers, user.fpr) + size_of::<f64>() * (i as usize)
             }
             Reg::Cr => offset_of!(Registers, user.cr),
+            Reg::Spr(spr) => return spr.offset(),
         };
 
         offset as i32
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive)]
-#[repr(u16)]
-enum Spr {
-    XER = 1,
-    LR = 8,
-    CTR = 9,
-}
-
-impl Spr {
-    fn offset(&self) -> i32 {
-        let offset = match self {
-            Self::XER => offset_of!(Registers, user.xer),
-            Self::LR => offset_of!(Registers, user.lr),
-            Self::CTR => offset_of!(Registers, user.ctr),
-        };
-
-        offset as i32
-    }
-}
-
-struct Var {
-    inner: frontend::Variable,
+struct RegState {
+    var: frontend::Variable,
     modified: bool,
 }
 
@@ -83,7 +86,7 @@ pub enum EmitError {
 
 pub struct BlockBuilder<'ctx> {
     bd: frontend::FunctionBuilder<'ctx>,
-    regs: HashMap<Reg, Var>,
+    regs: HashMap<Reg, RegState>,
     regs_ptr: ir::Value,
     output_ptr: ir::Value,
     current_bb: ir::Block,
@@ -128,13 +131,13 @@ impl<'ctx> BlockBuilder<'ctx> {
 
                 let var = self.bd.declare_var(reg.ty());
                 self.bd.def_var(var, dumped);
-                v.insert(Var {
-                    inner: var,
+                v.insert(RegState {
+                    var,
                     modified: false,
                 })
             }
         }
-        .inner;
+        .var;
 
         self.bd.use_var(var)
     }
@@ -145,12 +148,12 @@ impl<'ctx> BlockBuilder<'ctx> {
                 let var = o.into_mut();
                 var.modified = true;
 
-                var.inner
+                var.var
             }
             Entry::Vacant(v) => {
                 let var = self.bd.declare_var(reg.ty());
-                v.insert(Var {
-                    inner: var,
+                v.insert(RegState {
+                    var,
                     modified: true,
                 });
 
@@ -210,7 +213,7 @@ impl<'ctx> BlockBuilder<'ctx> {
                 continue;
             }
 
-            let value = self.bd.use_var(var.inner);
+            let value = self.bd.use_var(var.var);
             self.bd
                 .ins()
                 .store(ir::MemFlags::trusted(), value, self.regs_ptr, reg.offset());
