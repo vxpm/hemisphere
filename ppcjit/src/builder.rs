@@ -1,5 +1,6 @@
 mod arithmetic;
 mod branch;
+mod others;
 
 use crate::{Registers, block::BlockOutput};
 use cranelift::{
@@ -8,6 +9,7 @@ use cranelift::{
     prelude::InstBuilder,
 };
 use easyerr::Error;
+use num_enum::TryFromPrimitive;
 use powerpc::{Ins, Opcode};
 use std::collections::{HashMap, hash_map::Entry};
 use std::mem::offset_of;
@@ -40,6 +42,26 @@ impl Reg {
                 offset_of!(Registers, user.fpr) + size_of::<f64>() * (i as usize)
             }
             Reg::Cr => offset_of!(Registers, user.cr),
+        };
+
+        offset as i32
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive)]
+#[repr(u16)]
+enum Spr {
+    XER = 1,
+    LR = 8,
+    CTR = 9,
+}
+
+impl Spr {
+    fn offset(&self) -> i32 {
+        let offset = match self {
+            Self::XER => offset_of!(Registers, user.xer),
+            Self::LR => offset_of!(Registers, user.lr),
+            Self::CTR => offset_of!(Registers, user.ctr),
         };
 
         offset as i32
@@ -172,6 +194,7 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Addis => self.addis(ins),
             Opcode::Ori => self.ori(ins),
             Opcode::B => self.branch(ins),
+            Opcode::Mfspr => self.mfspr(ins),
             Opcode::Illegal => return Err(EmitError::Illegal(ins)),
             _ => return Err(EmitError::Unimplemented(ins)),
         }
@@ -182,7 +205,6 @@ impl<'ctx> BlockBuilder<'ctx> {
     }
 
     pub fn finish(mut self) {
-        // emit prologue and finalize
         for (reg, var) in self.regs {
             if !var.modified {
                 continue;

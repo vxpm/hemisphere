@@ -2400,6 +2400,7 @@ dependencies = [
  "hemicore",
  "iced-x86",
  "memmap2",
+ "num_enum",
  "powerpc",
  "powerpc-asm",
  "zerocopy",
