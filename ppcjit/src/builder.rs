@@ -1,6 +1,6 @@
 mod arithmetic;
 
-use crate::Registers;
+use crate::{Registers, block::BlockOutput};
 use cranelift::{
     codegen::ir::{self, condcodes::IntCC},
     frontend,
@@ -9,6 +9,7 @@ use cranelift::{
 use easyerr::Error;
 use powerpc::{Ins, Opcode};
 use std::collections::{HashMap, hash_map::Entry};
+use std::mem::offset_of;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 enum Reg {
@@ -28,7 +29,6 @@ impl Reg {
 
     #[inline]
     fn offset(self) -> i32 {
-        use std::mem::offset_of;
         let offset = match self {
             Reg::Gpr(i) => {
                 assert!(i < 32);
@@ -62,7 +62,9 @@ pub struct BlockBuilder<'ctx> {
     bd: frontend::FunctionBuilder<'ctx>,
     regs: HashMap<Reg, Var>,
     regs_ptr: ir::Value,
+    output_ptr: ir::Value,
     current_bb: ir::Block,
+    executed: u32,
 }
 
 impl<'ctx> BlockBuilder<'ctx> {
@@ -76,13 +78,17 @@ impl<'ctx> BlockBuilder<'ctx> {
         builder.switch_to_block(entry_bb);
         builder.seal_block(entry_bb);
 
-        let regs_ptr = builder.block_params(entry_bb)[0];
+        let params = builder.block_params(entry_bb);
+        let regs_ptr = params[0];
+        let output_ptr = params[1];
 
         Self {
             bd: builder,
             regs: HashMap::new(),
             regs_ptr,
+            output_ptr,
             current_bb: entry_bb,
+            executed: 0,
         }
     }
 
@@ -162,9 +168,13 @@ impl<'ctx> BlockBuilder<'ctx> {
     pub fn emit(&mut self, ins: Ins) -> Result<(), EmitError> {
         match ins.op {
             Opcode::Add => self.add(ins),
+            Opcode::Addis => self.addis(ins),
+            Opcode::Ori => self.ori(ins),
             Opcode::Illegal => return Err(EmitError::Illegal(ins)),
             _ => return Err(EmitError::Unimplemented(ins)),
         }
+
+        self.executed += 1;
 
         Ok(())
     }
@@ -181,6 +191,17 @@ impl<'ctx> BlockBuilder<'ctx> {
                 .ins()
                 .store(ir::MemFlags::trusted(), value, self.regs_ptr, reg.offset());
         }
+
+        let executed = self
+            .bd
+            .ins()
+            .iconst(ir::types::I32, self.executed as u64 as i64);
+        self.bd.ins().store(
+            ir::MemFlags::trusted(),
+            executed,
+            self.output_ptr,
+            offset_of!(BlockOutput, executed) as i32,
+        );
 
         self.bd.ins().return_(&[]);
         self.bd.finalize();

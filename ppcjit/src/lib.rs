@@ -3,99 +3,21 @@
 mod builder;
 mod sequence;
 
+pub mod block;
 pub mod registers;
 
-use crate::builder::BlockBuilder;
+use crate::{block::Block, builder::BlockBuilder};
 use cranelift::{
     codegen::{self, ir},
     frontend, native,
     prelude::Configurable,
 };
 use easyerr::{Error, ResultExt};
-use iced_x86::Formatter;
-use memmap2::{Mmap, MmapOptions};
-use std::{fmt::Display, sync::Arc};
+use std::sync::Arc;
 
 pub use powerpc;
 pub use registers::Registers;
 pub use sequence::{Sequence, SequenceStatus};
-
-pub type BlockFn = extern "sysv64" fn(&mut Registers);
-
-/// A compiled block of PowerPC instructions.
-pub struct Block {
-    seq: Sequence,
-    clir: String,
-    code: Mmap,
-}
-
-impl Block {
-    /// # Safety
-    /// `code` must be the bytes of a valid host function with the [`BlockFn`] signature.
-    unsafe fn new(seq: Sequence, clir: String, code: &[u8]) -> Self {
-        let mut map = MmapOptions::new().len(code.len()).map_anon().unwrap();
-        map.copy_from_slice(code);
-
-        Self {
-            seq,
-            clir,
-            code: map.make_exec().unwrap(),
-        }
-    }
-
-    /// Executes this block of instructions.
-    #[inline(always)]
-    pub fn run(&self, registers: &mut Registers) {
-        let func: BlockFn = unsafe { std::mem::transmute(self.code.as_ptr()) };
-        func(registers);
-    }
-
-    /// Returns the sequence of instructions this block represents.
-    pub fn sequence(&self) -> &Sequence {
-        &self.seq
-    }
-
-    /// Returns the Cranelift IR generated for this block.
-    pub fn clir(&self) -> &str {
-        &self.clir
-    }
-}
-
-impl Display for Block {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut decoder =
-            iced_x86::Decoder::new(usize::BITS, &self.code, iced_x86::DecoderOptions::NONE);
-
-        let mut formatter = iced_x86::NasmFormatter::new();
-        formatter.options_mut().set_digit_separator("_");
-        formatter.options_mut().set_first_operand_char_index(0);
-        formatter
-            .options_mut()
-            .set_space_after_operand_separator(true);
-        formatter
-            .options_mut()
-            .set_space_between_memory_add_operators(true);
-        formatter.options_mut().set_scale_before_index(true);
-        formatter.options_mut().set_decimal_digit_group_size(3);
-        formatter.options_mut().set_hex_prefix("0x");
-        formatter.options_mut().set_binary_prefix("0b");
-        formatter.options_mut().set_uppercase_prefixes(true);
-
-        let mut output = String::new();
-        let mut instruction = iced_x86::Instruction::default();
-        while decoder.can_decode() {
-            decoder.decode_out(&mut instruction);
-
-            output.clear();
-            formatter.format(&instruction, &mut output);
-
-            write!(f, "{:05X} ", instruction.ip())?;
-            writeln!(f, " {}", output)?;
-        }
-
-        Ok(())
-    }
-}
 
 /// A context for JIT compilation of [`Sequence`]s, producing [`Block`]s.
 pub struct JIT {
@@ -140,7 +62,7 @@ impl JIT {
     fn block_signature(&self) -> ir::Signature {
         let ptr = self.isa.pointer_type();
         ir::Signature {
-            params: vec![ir::AbiParam::new(ptr)],
+            params: vec![ir::AbiParam::new(ptr), ir::AbiParam::new(ptr)],
             returns: vec![],
             call_conv: codegen::isa::CallConv::SystemV,
         }

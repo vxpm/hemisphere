@@ -6,7 +6,7 @@ use crate::bus::Bus;
 use dolfile::Dol;
 use hemicore::Address;
 use ppcjit::{
-    Sequence, SequenceStatus,
+    Sequence, SequenceStatus, block,
     powerpc::{Extensions, Ins},
 };
 
@@ -91,10 +91,10 @@ impl Hemisphere {
         }
     }
 
-    /// Executes a single block and returns how many cycles have passed.
+    /// Executes a single block and returns how many instructions were executed.
     pub fn exec(&mut self) -> u32 {
-        match self.blocks.get(self.pc) {
-            Some(_) => todo!(),
+        let output = match self.blocks.get(self.pc) {
+            Some(block) => block.run(&mut self.cpu),
             None => {
                 let mut seq = Sequence::new();
                 let mut current = self.pc;
@@ -107,6 +107,11 @@ impl Hemisphere {
                     let physical = self.translate_instr_addr(current);
                     let ins = Ins::new(self.bus.read(physical), Extensions::gekko_broadway());
 
+                    let mut parsed = ppcjit::powerpc::ParsedIns::new();
+                    ins.parse_basic(&mut parsed);
+
+                    println!("{parsed}");
+
                     match seq.push(ins) {
                         Ok(SequenceStatus::Open) => current += 4,
                         _ => break,
@@ -116,12 +121,18 @@ impl Hemisphere {
                 let block = self.jit.build(seq).unwrap();
                 let block = self.blocks.insert(self.pc, block).unwrap();
 
-                block.run(&mut self.cpu);
+                println!("{}", block);
+
+                block.run(&mut self.cpu)
             }
+        };
+
+        match output.action {
+            block::Action::None => self.pc += 4 * output.executed,
+            block::Action::Jump => self.pc = unsafe { output.data.addr },
         }
 
-        // stub
-        1
+        output.executed
     }
 }
 

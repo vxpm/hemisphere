@@ -1,6 +1,6 @@
 use easyerr::Error;
 use hemicore::Address;
-use ppcjit::Block;
+use ppcjit::block::Block;
 use std::collections::{HashMap, hash_map::Entry};
 
 /// A structure which keeps tracks of compiled [`Block`]s.
