@@ -86,8 +86,13 @@ impl Display for Block {
         formatter.options_mut().set_scale_before_index(true);
         formatter.options_mut().set_decimal_digit_group_size(3);
         formatter.options_mut().set_hex_prefix("0x");
+        formatter.options_mut().set_hex_suffix("");
         formatter.options_mut().set_binary_prefix("0b");
+        formatter.options_mut().set_binary_suffix("");
         formatter.options_mut().set_uppercase_prefixes(true);
+        formatter
+            .options_mut()
+            .set_small_hex_numbers_in_decimal(false);
 
         let mut output = String::new();
         let mut instruction = iced_x86::Instruction::default();
