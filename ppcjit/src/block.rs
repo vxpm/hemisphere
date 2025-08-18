@@ -11,6 +11,8 @@ type WriteFunction<T> = fn(*mut ExternalData, *const Registers, Address, T);
 /// External functions that JITed code calls.
 #[repr(C)]
 pub struct ExternalFunctions {
+    pub read_i16: ReadFunction<i16>,
+    pub write_i16: WriteFunction<i16>,
     pub read_i32: ReadFunction<i32>,
     pub write_i32: WriteFunction<i32>,
 }

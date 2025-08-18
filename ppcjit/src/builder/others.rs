@@ -6,13 +6,13 @@ use powerpc::Ins;
 impl BlockBuilder<'_> {
     pub fn mfspr(&mut self, ins: Ins) {
         let spr = Spr::try_from(ins.field_spr()).unwrap();
-        let value = self.bd.ins().load(
-            ir::types::I32,
-            ir::MemFlags::trusted(),
-            self.ctx.regs_ptr,
-            spr.offset(),
-        );
-
+        let value = self.get(Reg::Spr(spr));
         self.set(Reg::Gpr(ins.field_rd()), value);
+    }
+
+    pub fn mtspr(&mut self, ins: Ins) {
+        let spr = Spr::try_from(ins.field_spr()).unwrap();
+        let value = self.get(Reg::Gpr(ins.field_rs()));
+        self.set(Reg::Spr(spr), value);
     }
 }

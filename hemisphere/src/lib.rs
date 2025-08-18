@@ -46,10 +46,14 @@ fn external_functions() -> ExternalFunctions {
         bus.write(physical, value);
     }
 
+    let read_i16 = unsafe { std::mem::transmute(read::<i16> as extern "sysv64" fn(_, _, _) -> _) };
+    let write_i16 = unsafe { std::mem::transmute(write::<i16> as extern "sysv64" fn(_, _, _, _)) };
     let read_i32 = unsafe { std::mem::transmute(read::<i32> as extern "sysv64" fn(_, _, _) -> _) };
     let write_i32 = unsafe { std::mem::transmute(write::<i32> as extern "sysv64" fn(_, _, _, _)) };
 
     ExternalFunctions {
+        read_i16,
+        write_i16,
         read_i32,
         write_i32,
     }
@@ -127,22 +131,21 @@ impl Hemisphere {
                     let mut parsed = ppcjit::powerpc::ParsedIns::new();
                     ins.parse_basic(&mut parsed);
 
-                    println!("{parsed}");
-
                     match seq.push(ins) {
                         Ok(SequenceStatus::Open) => current += 4,
                         _ => break,
                     }
                 }
 
+                print!("building new block\n{}", &seq);
                 let block = self.jit.build(seq).unwrap();
                 let block = self.blocks.insert(self.pc, block).unwrap();
-
-                println!("{}", block);
 
                 block
             }
         };
+
+        print!("{}", block.sequence());
 
         let funcs = external_functions();
         let output = block.run(&mut self.cpu, &mut self.bus as *mut _ as *mut _, &funcs);

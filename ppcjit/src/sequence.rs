@@ -1,12 +1,12 @@
 use easyerr::Error;
-use powerpc::Ins;
+use powerpc::{Ins, ParsedIns};
 use std::ops::Deref;
 
 /// A sequence of PowerPC instructions which can be contained in a single JIT [`Block`](super::Block).
 pub struct Sequence(Vec<Ins>);
 
 fn is_terminal(ins: &Ins) -> bool {
-    ins.is_branch()
+    ins.is_unconditional_branch()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -43,5 +43,17 @@ impl Deref for Sequence {
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl std::fmt::Display for Sequence {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut parsed = ParsedIns::new();
+        for ins in &self.0 {
+            ins.parse_basic(&mut parsed);
+            writeln!(f, "{parsed}")?;
+        }
+
+        Ok(())
     }
 }

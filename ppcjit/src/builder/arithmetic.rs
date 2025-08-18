@@ -19,6 +19,22 @@ impl BlockBuilder<'_> {
         self.set(Reg::Gpr(ins.field_rd()), value);
     }
 
+    pub fn addi(&mut self, ins: Ins) {
+        let imm = self
+            .bd
+            .ins()
+            .iconst(ir::types::I32, ins.field_simm() as i64);
+
+        let value = if ins.field_ra() == 0 {
+            imm
+        } else {
+            let ra = self.get(Reg::Gpr(ins.field_ra()));
+            self.bd.ins().iadd(ra, imm)
+        };
+
+        self.set(Reg::Gpr(ins.field_rd()), value);
+    }
+
     pub fn add(&mut self, ins: Ins) {
         let ra = self.get(Reg::Gpr(ins.field_ra()));
         let rb = self.get(Reg::Gpr(ins.field_rb()));
