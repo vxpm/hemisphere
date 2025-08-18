@@ -1,13 +1,18 @@
-use std::ops::Deref;
-
 use easyerr::Error;
 use powerpc::Ins;
+use std::ops::Deref;
 
 /// A sequence of PowerPC instructions which can be contained in a single JIT [`Block`](super::Block).
 pub struct Sequence(Vec<Ins>);
 
 fn is_terminal(ins: &Ins) -> bool {
     ins.is_branch()
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum SequenceStatus {
+    Open,
+    Terminated,
 }
 
 #[derive(Debug, Clone, Copy, Error)]
@@ -19,12 +24,16 @@ impl Sequence {
         Self(Vec::new())
     }
 
-    pub fn push(&mut self, ins: Ins) -> Result<(), PushError> {
+    pub fn push(&mut self, ins: Ins) -> Result<SequenceStatus, PushError> {
         if self.0.last().is_some_and(is_terminal) {
             Err(PushError)
         } else {
             self.0.push(ins);
-            Ok(())
+            Ok(if is_terminal(&ins) {
+                SequenceStatus::Terminated
+            } else {
+                SequenceStatus::Open
+            })
         }
     }
 }

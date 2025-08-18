@@ -10,16 +10,16 @@ impl Bus {
     /// Reads a primitive from the given physical address.
     pub fn read<P: Primitive>(&self, addr: Address) -> P {
         match addr.value() {
-            0..RAM_LEN => P::read_from_buf(&*self.mem.ram),
-            _ => panic!(),
+            0..RAM_LEN => P::read_from_buf(&self.mem.ram[addr.value() as usize..]),
+            _ => panic!("{addr}"),
         }
     }
 
     /// Writes a primitive to the given physical address.
     pub fn write<P: Primitive>(&mut self, addr: Address, value: P) {
         match addr.value() {
-            0..RAM_LEN => value.write_to_buf(&mut *self.mem.ram),
-            _ => panic!(),
+            0..RAM_LEN => value.write_to_buf(&mut self.mem.ram[addr.value() as usize..]),
+            _ => panic!("{}", addr),
         }
     }
 }

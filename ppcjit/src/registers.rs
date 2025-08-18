@@ -2,6 +2,7 @@ use bitos::{
     BitUtils, bitos,
     integer::{u2, u4, u7, u11, u15},
 };
+use bytesize::ByteSize;
 use hemicore::Address;
 use std::fmt::Debug;
 
@@ -214,6 +215,54 @@ pub struct MemoryManagement {
     pub sdr1: u32,
 }
 
+impl MemoryManagement {
+    pub fn setup_default_bats(&mut self) {
+        let bat = |upper, lower| {
+            use zerocopy::{
+                big_endian::{U32, U64},
+                transmute,
+            };
+
+            let data: U64 = transmute!([U32::new(upper), U32::new(lower)]);
+            Bat::from_bits(data.get())
+        };
+
+        self.ibat[0] = bat(0x8000_1FFF, 0x0000_0002);
+        self.ibat[1] = bat(0x0000_0000, 0x0000_0000);
+        self.ibat[2] = bat(0x0000_0000, 0x0000_0000);
+        self.ibat[3] = bat(0xFFF0_001F, 0xFFF0_0001);
+
+        self.dbat[0] = bat(0x8000_1FFF, 0x0000_0002);
+        self.dbat[1] = bat(0xC000_1FFF, 0x0000_002A);
+        self.dbat[2] = bat(0x0000_0000, 0x0000_0000);
+        self.dbat[3] = bat(0xFFF0_001F, 0xFFF0_0001);
+
+        for bat in &self.ibat {
+            println!(
+                "{} -> {}, {} -> {} ({})",
+                bat.start(),
+                bat.physical_start(),
+                bat.end(),
+                bat.physical_end(),
+                ByteSize(bat.block_length() as u64),
+            );
+        }
+
+        println!("");
+
+        for bat in &self.dbat {
+            println!(
+                "{} -> {}, {} -> {} ({})",
+                bat.start(),
+                bat.physical_start(),
+                bat.end(),
+                bat.physical_end(),
+                ByteSize(bat.block_length() as u64),
+            );
+        }
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct ExceptionHandling {
     /// Data Address Register
@@ -239,7 +288,7 @@ pub struct Miscellaneous {
 #[derive(Debug, Default)]
 pub struct Supervisor {
     /// Machine State Register
-    pub msr: u32,
+    pub msr: MachineState,
     /// Memory management registers
     pub memory: MemoryManagement,
     /// Exception handling registers

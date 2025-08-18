@@ -3,12 +3,14 @@ pub mod jit;
 pub mod mmu;
 
 use crate::bus::Bus;
+use dolfile::Dol;
 use hemicore::Address;
 use ppcjit::{
-    Sequence,
+    Sequence, SequenceStatus,
     powerpc::{Extensions, Ins},
 };
-use std::collections::hash_map::Entry;
+
+pub use dolfile;
 
 pub struct Config {
     /// Maximum number of instructions per JIT block.
@@ -24,12 +26,12 @@ impl Default for Config {
 }
 
 pub struct Hemisphere {
-    bus: Bus,
-    pc: Address,
-    cpu: ppcjit::Registers,
-    jit: ppcjit::JIT,
-    blocks: jit::BlockStorage,
-    config: Config,
+    pub bus: Bus,
+    pub pc: Address,
+    pub cpu: ppcjit::Registers,
+    pub jit: ppcjit::JIT,
+    pub blocks: jit::BlockStorage,
+    pub config: Config,
 }
 
 impl Hemisphere {
@@ -44,13 +46,56 @@ impl Hemisphere {
         }
     }
 
+    /// Translates an instruction effective address into a physical address.
+    pub fn translate_instr_addr(&self, addr: Address) -> Address {
+        if !self.cpu.supervisor.msr.instr_addr_translation() {
+            return addr;
+        }
+
+        for bat in &self.cpu.supervisor.memory.ibat {
+            if bat.contains(addr) {
+                return bat.translate(addr);
+            }
+        }
+
+        panic!("couldn't translate instr addr with bats!")
+    }
+
+    /// Translates a data effective address into a physical address.
+    pub fn translate_data_addr(&self, addr: Address) -> Address {
+        if !self.cpu.supervisor.msr.data_addr_translation() {
+            return addr;
+        }
+
+        for bat in &self.cpu.supervisor.memory.dbat {
+            if bat.contains(addr) {
+                return bat.translate(addr);
+            }
+        }
+
+        panic!("couldn't translate instr addr with bats!")
+    }
+
+    pub fn load(&mut self, dol: &Dol) {
+        self.pc = Address(dol.entrypoint());
+
+        self.cpu.supervisor.msr.set_instr_addr_translation(true);
+        self.cpu.supervisor.msr.set_data_addr_translation(true);
+        self.cpu.supervisor.memory.setup_default_bats();
+
+        for section in dol.text_sections() {
+            let target = self.translate_instr_addr(Address(section.target));
+            for (i, byte) in section.content.iter().copied().enumerate() {
+                self.bus.write(target + i as u32, byte);
+            }
+        }
+    }
+
     /// Executes a single block and returns how many cycles have passed.
     pub fn exec(&mut self) -> u32 {
-        match self.blocks.entry(self.pc) {
-            Entry::Occupied(o) => {
-                o.get().run(&mut self.cpu);
-            }
-            Entry::Vacant(v) => {
+        match self.blocks.get(self.pc) {
+            Some(_) => todo!(),
+            None => {
                 let mut seq = Sequence::new();
                 let mut current = self.pc;
 
@@ -59,17 +104,17 @@ impl Hemisphere {
                         break;
                     }
 
-                    let code = self.bus.read(current);
-                    let ins = Ins::new(code, Extensions::gekko_broadway());
-                    if seq.push(ins).is_err() {
-                        break;
-                    }
+                    let physical = self.translate_instr_addr(current);
+                    let ins = Ins::new(self.bus.read(physical), Extensions::gekko_broadway());
 
-                    current += 1;
+                    match seq.push(ins) {
+                        Ok(SequenceStatus::Open) => current += 4,
+                        _ => break,
+                    }
                 }
 
                 let block = self.jit.build(seq).unwrap();
-                let block = v.insert(block);
+                let block = self.blocks.insert(self.pc, block).unwrap();
 
                 block.run(&mut self.cpu);
             }

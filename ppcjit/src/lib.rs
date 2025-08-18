@@ -18,7 +18,7 @@ use std::{fmt::Display, sync::Arc};
 
 pub use powerpc;
 pub use registers::Registers;
-pub use sequence::Sequence;
+pub use sequence::{Sequence, SequenceStatus};
 
 pub type BlockFn = extern "sysv64" fn(&mut Registers);
 

@@ -46,7 +46,8 @@ macro_rules! impl_primitive {
                     unsafe fn read_unhappy(buf: &[u8]) -> $type {
                         let mut read_buf = [0u8; SELF_SIZE];
                         unsafe { std::ptr::copy_nonoverlapping(buf.as_ptr(), read_buf.as_mut_ptr(), buf.len()) };
-                        <$type>::from_le_bytes(read_buf)
+
+                        <$type>::from_be_bytes(read_buf)
                     }
 
                     if buf.len() < SELF_SIZE {
@@ -54,7 +55,7 @@ macro_rules! impl_primitive {
                     } else {
                         // TODO: seal the trait to enforce this
                         // SAFETY: this is safe because all primitives are integers, which are POD
-                        unsafe { buf.as_ptr().cast::<Self>().read_unaligned() }
+                        <$type>::from_be_bytes(unsafe { buf.as_ptr().cast::<[u8; SELF_SIZE]>().read_unaligned() })
                     }
                 }
 
@@ -69,7 +70,7 @@ macro_rules! impl_primitive {
                     #[cold]
                     #[inline(never)]
                     unsafe fn write_unhappy(_self: $type, buf: &mut [u8]) {
-                        let bytes = _self.to_le_bytes();
+                        let bytes = _self.to_be_bytes();
                         unsafe { std::ptr::copy_nonoverlapping(bytes.as_ptr(), buf.as_mut_ptr(), buf.len()) };
                     }
 
@@ -78,7 +79,7 @@ macro_rules! impl_primitive {
                     } else {
                         // TODO: seal the trait to enforce this
                         // SAFETY: this is safe because all primitives are integers, which are POD
-                        unsafe { buf.as_mut_ptr().cast::<$type>().write_unaligned(self) };
+                        unsafe { buf.as_mut_ptr().cast::<[u8; SELF_SIZE]>().write_unaligned(self.to_be_bytes()) };
                     }
                 }
             }
