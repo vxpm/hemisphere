@@ -7,6 +7,7 @@ use dolfile::Dol;
 use hemicore::Address;
 use ppcjit::{
     Sequence, SequenceStatus,
+    block::Functions,
     powerpc::{Extensions, Ins},
 };
 
@@ -22,6 +23,37 @@ impl Default for Config {
         Self {
             instructions_per_block: 64,
         }
+    }
+}
+
+fn external_functions(bus: &mut Bus) -> Functions {
+    extern "sysv64" fn read_i32(
+        bus: &mut Bus,
+        registers: &ppcjit::Registers,
+        addr: Address,
+    ) -> i32 {
+        let physical = registers.supervisor.translate_data_addr(addr);
+        bus.read(physical)
+    }
+
+    extern "sysv64" fn write_i32(
+        bus: &mut Bus,
+        registers: &ppcjit::Registers,
+        addr: Address,
+        value: i32,
+    ) {
+        println!("writing {value} to {addr}");
+        let physical = registers.supervisor.translate_data_addr(addr);
+        bus.write(physical, value);
+    }
+
+    let read_i32 = unsafe { std::mem::transmute(read_i32 as extern "sysv64" fn(_, _, _) -> _) };
+    let write_i32 = unsafe { std::mem::transmute(write_i32 as extern "sysv64" fn(_, _, _, _)) };
+
+    Functions {
+        bus: bus as *mut _ as *mut _,
+        read_i32,
+        write_i32,
     }
 }
 
@@ -46,36 +78,6 @@ impl Hemisphere {
         }
     }
 
-    /// Translates an instruction effective address into a physical address.
-    pub fn translate_instr_addr(&self, addr: Address) -> Address {
-        if !self.cpu.supervisor.msr.instr_addr_translation() {
-            return addr;
-        }
-
-        for bat in &self.cpu.supervisor.memory.ibat {
-            if bat.contains(addr) {
-                return bat.translate(addr);
-            }
-        }
-
-        panic!("couldn't translate instr addr with bats!")
-    }
-
-    /// Translates a data effective address into a physical address.
-    pub fn translate_data_addr(&self, addr: Address) -> Address {
-        if !self.cpu.supervisor.msr.data_addr_translation() {
-            return addr;
-        }
-
-        for bat in &self.cpu.supervisor.memory.dbat {
-            if bat.contains(addr) {
-                return bat.translate(addr);
-            }
-        }
-
-        panic!("couldn't translate instr addr with bats!")
-    }
-
     pub fn load(&mut self, dol: &Dol) {
         self.pc = Address(dol.entrypoint());
 
@@ -84,7 +86,11 @@ impl Hemisphere {
         self.cpu.supervisor.memory.setup_default_bats();
 
         for section in dol.text_sections() {
-            let target = self.translate_instr_addr(Address(section.target));
+            let target = self
+                .cpu
+                .supervisor
+                .translate_instr_addr(Address(section.target));
+
             for (i, byte) in section.content.iter().copied().enumerate() {
                 self.bus.write(target + i as u32, byte);
             }
@@ -93,8 +99,8 @@ impl Hemisphere {
 
     /// Executes a single block and returns how many instructions were executed.
     pub fn exec(&mut self) -> u32 {
-        let output = match self.blocks.get(self.pc) {
-            Some(block) => block.run(&mut self.cpu),
+        let block = match self.blocks.get(self.pc) {
+            Some(block) => block,
             None => {
                 let mut seq = Sequence::new();
                 let mut current = self.pc;
@@ -104,7 +110,7 @@ impl Hemisphere {
                         break;
                     }
 
-                    let physical = self.translate_instr_addr(current);
+                    let physical = self.cpu.supervisor.translate_instr_addr(current);
                     let ins = Ins::new(self.bus.read(physical), Extensions::gekko_broadway());
 
                     let mut parsed = ppcjit::powerpc::ParsedIns::new();
@@ -123,12 +129,14 @@ impl Hemisphere {
 
                 println!("{}", block);
 
-                block.run(&mut self.cpu)
+                block
             }
         };
 
-        self.pc += 4 * output.executed;
+        let funcs = external_functions(&mut self.bus);
+        let output = block.run(&mut self.cpu, &funcs);
 
+        self.pc += 4 * output.executed;
         if output.jump.execute {
             if output.jump.link {
                 self.cpu.user.lr = self.pc.0;

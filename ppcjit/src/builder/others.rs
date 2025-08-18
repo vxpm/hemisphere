@@ -9,7 +9,7 @@ impl BlockBuilder<'_> {
         let value = self.bd.ins().load(
             ir::types::I32,
             ir::MemFlags::trusted(),
-            self.regs_ptr,
+            self.ctx.regs_ptr,
             spr.offset(),
         );
 

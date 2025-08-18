@@ -62,7 +62,11 @@ impl JIT {
     fn block_signature(&self) -> ir::Signature {
         let ptr = self.isa.pointer_type();
         ir::Signature {
-            params: vec![ir::AbiParam::new(ptr), ir::AbiParam::new(ptr)],
+            params: vec![
+                ir::AbiParam::new(ptr),
+                ir::AbiParam::new(ptr),
+                ir::AbiParam::new(ptr),
+            ],
             returns: vec![],
             call_conv: codegen::isa::CallConv::SystemV,
         }
@@ -72,7 +76,7 @@ impl JIT {
         let mut func = ir::Function::new();
         func.signature = self.block_signature();
 
-        let mut builder = BlockBuilder::new(&mut func, &mut self.func_ctx);
+        let mut builder = BlockBuilder::new(&*self.isa, &mut func, &mut self.func_ctx);
         for ins in sequence.iter().copied() {
             builder.emit(ins).context(BuildCtx::Builder)?;
         }

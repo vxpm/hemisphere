@@ -1,8 +1,20 @@
 use std::fmt::Display;
 
 use crate::{Registers, Sequence};
+use hemicore::Address;
 use iced_x86::Formatter;
 use memmap2::{Mmap, MmapOptions};
+
+type Bus = std::ffi::c_void;
+type ReadFunction<T> = fn(*mut (), &Registers, Address) -> T;
+type WriteFunction<T> = fn(*mut (), &Registers, Address, T);
+
+/// External functions that JITed code calls.
+pub struct Functions {
+    pub bus: *mut Bus,
+    pub read_i32: ReadFunction<i32>,
+    pub write_i32: WriteFunction<i32>,
+}
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Jump {
@@ -24,7 +36,7 @@ pub struct BlockOutput {
     pub jump: Jump,
 }
 
-pub type BlockFn = extern "sysv64" fn(&mut Registers, &mut BlockOutput);
+pub type BlockFn = extern "sysv64" fn(&mut Registers, &Functions, &mut BlockOutput);
 
 /// A compiled block of PowerPC instructions.
 pub struct Block {
@@ -49,11 +61,11 @@ impl Block {
 
     /// Executes this block of instructions.
     #[inline(always)]
-    pub fn run(&self, registers: &mut Registers) -> BlockOutput {
+    pub fn run(&self, registers: &mut Registers, functions: &Functions) -> BlockOutput {
         let func: BlockFn = unsafe { std::mem::transmute(self.code.as_ptr()) };
 
         let mut output = BlockOutput::default();
-        func(registers, &mut output);
+        func(registers, functions, &mut output);
 
         output
     }

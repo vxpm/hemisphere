@@ -1,12 +1,13 @@
 mod arithmetic;
 mod branch;
+mod memory;
 mod others;
 
 use crate::{Registers, block::BlockOutput};
 use cranelift::{
     codegen::ir::{self, condcodes::IntCC},
     frontend,
-    prelude::InstBuilder,
+    prelude::{InstBuilder, isa::TargetIsa},
 };
 use easyerr::Error;
 use num_enum::TryFromPrimitive;
@@ -84,17 +85,24 @@ pub enum EmitError {
     Unimplemented(Ins),
 }
 
+struct Context {
+    ptr_type: ir::Type,
+    regs_ptr: ir::Value,
+    functions_ptr: ir::Value,
+    output_ptr: ir::Value,
+}
+
 pub struct BlockBuilder<'ctx> {
     bd: frontend::FunctionBuilder<'ctx>,
+    ctx: Context,
     regs: HashMap<Reg, RegState>,
-    regs_ptr: ir::Value,
-    output_ptr: ir::Value,
     current_bb: ir::Block,
     executed: u32,
 }
 
 impl<'ctx> BlockBuilder<'ctx> {
     pub fn new(
+        isa: &'ctx dyn TargetIsa,
         func: &'ctx mut ir::Function,
         ctx: &'ctx mut frontend::FunctionBuilderContext,
     ) -> Self {
@@ -105,14 +113,17 @@ impl<'ctx> BlockBuilder<'ctx> {
         builder.seal_block(entry_bb);
 
         let params = builder.block_params(entry_bb);
-        let regs_ptr = params[0];
-        let output_ptr = params[1];
+        let ctx = Context {
+            ptr_type: isa.pointer_type(),
+            regs_ptr: params[0],
+            functions_ptr: params[1],
+            output_ptr: params[2],
+        };
 
         Self {
             bd: builder,
+            ctx,
             regs: HashMap::new(),
-            regs_ptr,
-            output_ptr,
             current_bb: entry_bb,
             executed: 0,
         }
@@ -125,7 +136,7 @@ impl<'ctx> BlockBuilder<'ctx> {
                 let dumped = self.bd.ins().load(
                     reg.ty(),
                     ir::MemFlags::trusted(),
-                    self.regs_ptr,
+                    self.ctx.regs_ptr,
                     reg.offset(),
                 );
 
@@ -198,6 +209,7 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Ori => self.ori(ins),
             Opcode::B => self.branch(ins),
             Opcode::Mfspr => self.mfspr(ins),
+            Opcode::Stwu => self.stwu(ins),
             Opcode::Illegal => return Err(EmitError::Illegal(ins)),
             _ => return Err(EmitError::Unimplemented(ins)),
         }
@@ -214,9 +226,12 @@ impl<'ctx> BlockBuilder<'ctx> {
             }
 
             let value = self.bd.use_var(var.var);
-            self.bd
-                .ins()
-                .store(ir::MemFlags::trusted(), value, self.regs_ptr, reg.offset());
+            self.bd.ins().store(
+                ir::MemFlags::trusted(),
+                value,
+                self.ctx.regs_ptr,
+                reg.offset(),
+            );
         }
 
         let executed = self
@@ -226,7 +241,7 @@ impl<'ctx> BlockBuilder<'ctx> {
         self.bd.ins().store(
             ir::MemFlags::trusted(),
             executed,
-            self.output_ptr,
+            self.ctx.output_ptr,
             offset_of!(BlockOutput, executed) as i32,
         );
 

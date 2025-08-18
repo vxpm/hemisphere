@@ -12,21 +12,21 @@ impl BlockBuilder<'_> {
         self.bd.ins().store(
             ir::MemFlags::trusted(),
             true_,
-            self.output_ptr,
+            self.ctx.output_ptr,
             offset_of!(BlockOutput, jump.execute) as i32,
         );
 
         self.bd.ins().store(
             ir::MemFlags::trusted(),
             if relative { true_ } else { false_ },
-            self.output_ptr,
+            self.ctx.output_ptr,
             offset_of!(BlockOutput, jump.relative) as i32,
         );
 
         self.bd.ins().store(
             ir::MemFlags::trusted(),
             if link { true_ } else { false_ },
-            self.output_ptr,
+            self.ctx.output_ptr,
             offset_of!(BlockOutput, jump.link) as i32,
         );
 
@@ -34,7 +34,7 @@ impl BlockBuilder<'_> {
         self.bd.ins().store(
             ir::MemFlags::trusted(),
             data,
-            self.output_ptr,
+            self.ctx.output_ptr,
             offset_of!(BlockOutput, jump.data) as i32,
         );
     }
