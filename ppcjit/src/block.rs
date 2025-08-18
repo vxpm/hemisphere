@@ -1,39 +1,27 @@
 use std::fmt::Display;
 
 use crate::{Registers, Sequence};
-use hemicore::Address;
 use iced_x86::Formatter;
 use memmap2::{Mmap, MmapOptions};
 
-#[repr(u8)]
 #[derive(Debug, Clone, Copy, Default)]
-pub enum Action {
-    /// No special action to take
-    #[default]
-    None,
-    /// Jump to the address in the `addr` field
-    Jump,
-}
-
-pub union Data {
-    raw: u32,
-    pub addr: Address,
-}
-
-impl Default for Data {
-    fn default() -> Self {
-        Self { raw: 0 }
-    }
+pub struct Jump {
+    /// Should a jump be executed?
+    pub execute: bool,
+    /// Whether the jump is relative or not.
+    pub relative: bool,
+    /// Whether the CPU should link before the jump.
+    pub link: bool,
+    /// Data associated with the jump. Can be an address or an offset.
+    pub data: i32,
 }
 
 #[derive(Default)]
 pub struct BlockOutput {
     /// How many instructions were executed.
     pub executed: u32,
-    /// An action requested by the block.
-    pub action: Action,
-    /// Data associated with the action.
-    pub data: Data,
+    /// Information regarding jumps.
+    pub jump: Jump,
 }
 
 pub type BlockFn = extern "sysv64" fn(&mut Registers, &mut BlockOutput);

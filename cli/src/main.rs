@@ -10,7 +10,7 @@ fn main() -> Result<()> {
     let dol = Dol::read(&mut std::fs::File::open("panda.dol").unwrap()).unwrap();
 
     let mut hemisphere = Hemisphere::new(Config {
-        instructions_per_block: 2,
+        instructions_per_block: 4,
     });
     hemisphere.load(&dol);
 

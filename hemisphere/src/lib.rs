@@ -6,7 +6,7 @@ use crate::bus::Bus;
 use dolfile::Dol;
 use hemicore::Address;
 use ppcjit::{
-    Sequence, SequenceStatus, block,
+    Sequence, SequenceStatus,
     powerpc::{Extensions, Ins},
 };
 
@@ -127,9 +127,19 @@ impl Hemisphere {
             }
         };
 
-        match output.action {
-            block::Action::None => self.pc += 4 * output.executed,
-            block::Action::Jump => self.pc = unsafe { output.data.addr },
+        self.pc += 4 * output.executed;
+
+        if output.jump.execute {
+            if output.jump.link {
+                self.cpu.user.lr = self.pc.0;
+            }
+
+            if output.jump.relative {
+                self.pc += output.jump.data;
+                self.pc -= 4;
+            } else {
+                self.pc = Address(output.jump.data as u32);
+            }
         }
 
         output.executed

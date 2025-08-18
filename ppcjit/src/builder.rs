@@ -1,4 +1,5 @@
 mod arithmetic;
+mod branch;
 
 use crate::{Registers, block::BlockOutput};
 use cranelift::{
@@ -170,6 +171,7 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Add => self.add(ins),
             Opcode::Addis => self.addis(ins),
             Opcode::Ori => self.ori(ins),
+            Opcode::B => self.branch(ins),
             Opcode::Illegal => return Err(EmitError::Illegal(ins)),
             _ => return Err(EmitError::Unimplemented(ins)),
         }
