@@ -88,7 +88,8 @@ pub enum EmitError {
 struct Context {
     ptr_type: ir::Type,
     regs_ptr: ir::Value,
-    functions_ptr: ir::Value,
+    external_data_ptr: ir::Value,
+    external_functions_ptr: ir::Value,
     output_ptr: ir::Value,
 }
 
@@ -116,8 +117,9 @@ impl<'ctx> BlockBuilder<'ctx> {
         let ctx = Context {
             ptr_type: isa.pointer_type(),
             regs_ptr: params[0],
-            functions_ptr: params[1],
-            output_ptr: params[2],
+            external_data_ptr: params[1],
+            external_functions_ptr: params[2],
+            output_ptr: params[3],
         };
 
         Self {

@@ -1,17 +1,16 @@
-use std::fmt::Display;
-
 use crate::{Registers, Sequence};
 use hemicore::Address;
 use iced_x86::Formatter;
 use memmap2::{Mmap, MmapOptions};
+use std::fmt::Display;
 
-type Bus = std::ffi::c_void;
-type ReadFunction<T> = fn(*mut (), &Registers, Address) -> T;
-type WriteFunction<T> = fn(*mut (), &Registers, Address, T);
+type ExternalData = std::ffi::c_void;
+type ReadFunction<T> = fn(*mut ExternalData, *const Registers, Address) -> T;
+type WriteFunction<T> = fn(*mut ExternalData, *const Registers, Address, T);
 
 /// External functions that JITed code calls.
-pub struct Functions {
-    pub bus: *mut Bus,
+#[repr(C)]
+pub struct ExternalFunctions {
     pub read_i32: ReadFunction<i32>,
     pub write_i32: WriteFunction<i32>,
 }
@@ -36,7 +35,12 @@ pub struct BlockOutput {
     pub jump: Jump,
 }
 
-pub type BlockFn = extern "sysv64" fn(&mut Registers, &Functions, &mut BlockOutput);
+pub type BlockFn = extern "sysv64" fn(
+    *mut Registers,
+    *mut ExternalData,
+    *const ExternalFunctions,
+    *mut BlockOutput,
+);
 
 /// A compiled block of PowerPC instructions.
 pub struct Block {
@@ -61,11 +65,16 @@ impl Block {
 
     /// Executes this block of instructions.
     #[inline(always)]
-    pub fn run(&self, registers: &mut Registers, functions: &Functions) -> BlockOutput {
+    pub fn run(
+        &self,
+        registers: &mut Registers,
+        external_data: *mut ExternalData,
+        external_functions: &ExternalFunctions,
+    ) -> BlockOutput {
         let func: BlockFn = unsafe { std::mem::transmute(self.code.as_ptr()) };
 
         let mut output = BlockOutput::default();
-        func(registers, functions, &mut output);
+        func(registers, external_data, external_functions, &mut output);
 
         output
     }

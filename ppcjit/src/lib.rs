@@ -62,11 +62,7 @@ impl JIT {
     fn block_signature(&self) -> ir::Signature {
         let ptr = self.isa.pointer_type();
         ir::Signature {
-            params: vec![
-                ir::AbiParam::new(ptr),
-                ir::AbiParam::new(ptr),
-                ir::AbiParam::new(ptr),
-            ],
+            params: vec![ir::AbiParam::new(ptr); 4],
             returns: vec![],
             call_conv: codegen::isa::CallConv::SystemV,
         }

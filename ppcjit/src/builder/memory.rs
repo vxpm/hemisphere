@@ -1,5 +1,5 @@
 use super::BlockBuilder;
-use crate::{block::Functions, builder::Reg};
+use crate::{block::ExternalFunctions, builder::Reg};
 use cranelift::{
     codegen::ir,
     prelude::{InstBuilder, isa::CallConv},
@@ -7,7 +7,7 @@ use cranelift::{
 use powerpc::Ins;
 use std::mem::offset_of;
 
-fn read_signature(ptr_type: ir::Type, read_type: ir::Type) -> ir::Signature {
+fn sig_read(ptr_type: ir::Type, read_type: ir::Type) -> ir::Signature {
     ir::Signature {
         params: vec![
             ir::AbiParam::new(ptr_type),       // bus
@@ -19,7 +19,7 @@ fn read_signature(ptr_type: ir::Type, read_type: ir::Type) -> ir::Signature {
     }
 }
 
-fn write_signature(ptr_type: ir::Type, write_type: ir::Type) -> ir::Signature {
+fn sig_write(ptr_type: ir::Type, write_type: ir::Type) -> ir::Signature {
     ir::Signature {
         params: vec![
             ir::AbiParam::new(ptr_type),       // bus
@@ -32,31 +32,43 @@ fn write_signature(ptr_type: ir::Type, write_type: ir::Type) -> ir::Signature {
     }
 }
 
-impl BlockBuilder<'_> {
-    pub fn stwu(&mut self, ins: Ins) {
-        let base = self.get(Reg::Gpr(ins.field_ra()));
-        let addr = self.bd.ins().iadd_imm(base, ins.field_offset() as i64);
+trait IrType {
+    const READ_OFFSET: i32;
+    const WRITE_OFFSET: i32;
+    const IR_TYPE: ir::Type;
+}
 
-        let bus = self.bd.ins().load(
+impl IrType for i32 {
+    const READ_OFFSET: i32 = offset_of!(ExternalFunctions, read_i32) as i32;
+    const WRITE_OFFSET: i32 = offset_of!(ExternalFunctions, write_i32) as i32;
+    const IR_TYPE: ir::Type = ir::types::I32;
+}
+
+impl BlockBuilder<'_> {
+    fn write<P: IrType>(&mut self, addr: ir::Value, value: ir::Value) {
+        let write_fn = self.bd.ins().load(
             self.ctx.ptr_type,
             ir::MemFlags::trusted(),
-            self.ctx.functions_ptr,
-            offset_of!(Functions, bus) as i32,
-        );
-        let to_call = self.bd.ins().load(
-            self.ctx.ptr_type,
-            ir::MemFlags::trusted(),
-            self.ctx.functions_ptr,
-            offset_of!(Functions, write_i32) as i32,
+            self.ctx.external_functions_ptr,
+            P::WRITE_OFFSET,
         );
 
         let sig = self
             .bd
-            .import_signature(write_signature(self.ctx.ptr_type, ir::types::I32));
+            .import_signature(sig_write(self.ctx.ptr_type, P::IR_TYPE));
 
+        self.bd.ins().call_indirect(
+            sig,
+            write_fn,
+            &[self.ctx.external_data_ptr, self.ctx.regs_ptr, addr, value],
+        );
+    }
+
+    pub fn stwu(&mut self, ins: Ins) {
+        let base = self.get(Reg::Gpr(ins.field_ra()));
+        let addr = self.bd.ins().iadd_imm(base, ins.field_offset() as i64);
         let value = self.get(Reg::Gpr(ins.field_rs()));
-        self.bd
-            .ins()
-            .call_indirect(sig, to_call, &[bus, self.ctx.regs_ptr, addr, value]);
+        self.set(Reg::Gpr(ins.field_ra()), addr);
+        self.write::<i32>(addr, value);
     }
 }

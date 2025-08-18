@@ -4,10 +4,10 @@ pub mod mmu;
 
 use crate::bus::Bus;
 use dolfile::Dol;
-use hemicore::Address;
+use hemicore::{Address, Primitive};
 use ppcjit::{
     Sequence, SequenceStatus,
-    block::Functions,
+    block::ExternalFunctions,
     powerpc::{Extensions, Ins},
 };
 
@@ -26,32 +26,30 @@ impl Default for Config {
     }
 }
 
-fn external_functions(bus: &mut Bus) -> Functions {
-    extern "sysv64" fn read_i32(
+fn external_functions() -> ExternalFunctions {
+    extern "sysv64" fn read<T: Primitive>(
         bus: &mut Bus,
         registers: &ppcjit::Registers,
         addr: Address,
-    ) -> i32 {
+    ) -> T {
         let physical = registers.supervisor.translate_data_addr(addr);
         bus.read(physical)
     }
 
-    extern "sysv64" fn write_i32(
+    extern "sysv64" fn write<T: Primitive>(
         bus: &mut Bus,
         registers: &ppcjit::Registers,
         addr: Address,
-        value: i32,
+        value: T,
     ) {
-        println!("writing {value} to {addr}");
         let physical = registers.supervisor.translate_data_addr(addr);
         bus.write(physical, value);
     }
 
-    let read_i32 = unsafe { std::mem::transmute(read_i32 as extern "sysv64" fn(_, _, _) -> _) };
-    let write_i32 = unsafe { std::mem::transmute(write_i32 as extern "sysv64" fn(_, _, _, _)) };
+    let read_i32 = unsafe { std::mem::transmute(read::<i32> as extern "sysv64" fn(_, _, _) -> _) };
+    let write_i32 = unsafe { std::mem::transmute(write::<i32> as extern "sysv64" fn(_, _, _, _)) };
 
-    Functions {
-        bus: bus as *mut _ as *mut _,
+    ExternalFunctions {
         read_i32,
         write_i32,
     }
@@ -133,8 +131,8 @@ impl Hemisphere {
             }
         };
 
-        let funcs = external_functions(&mut self.bus);
-        let output = block.run(&mut self.cpu, &funcs);
+        let funcs = external_functions();
+        let output = block.run(&mut self.cpu, &mut self.bus as *mut _ as *mut _, &funcs);
 
         self.pc += 4 * output.executed;
         if output.jump.execute {
@@ -151,46 +149,5 @@ impl Hemisphere {
         }
 
         output.executed
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use bitos::integer::{u11, u15};
-    use hemicore::Address;
-    use ppcjit::registers::Bat;
-
-    pub fn translate(bats: &[Bat; 4], addr: Address) -> Option<Address> {
-        for bat in bats {
-            if (bat.start()..=bat.end()).contains(&addr) {
-                return Some(bat.translate(addr));
-            }
-        }
-
-        None
-    }
-
-    #[test]
-    fn test() {
-        let a = Bat::default()
-            .with_effective_page_index(u15::new(0))
-            .with_real_page_number(u15::new(0xFF00))
-            .with_block_length_mask(u11::new(0x0000));
-
-        dbg!(bytesize::ByteSize(a.block_length() as u64));
-        dbg!(a.start()..a.end());
-        dbg!(a.physical_start()..a.physical_end());
-
-        let b = Bat::default()
-            .with_effective_page_index(u15::new(1))
-            .with_real_page_number(u15::new(0xFF00))
-            .with_block_length_mask(u11::new(0x0000));
-
-        dbg!(bytesize::ByteSize(b.block_length() as u64));
-        dbg!(b.start()..b.end());
-        dbg!(b.physical_start()..b.physical_end());
-
-        let bats = [a, b, Bat::default(), Bat::default()];
-        dbg!(translate(&bats, Address(0x1FFFF + 1)));
     }
 }
