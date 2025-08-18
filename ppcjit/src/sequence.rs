@@ -3,7 +3,7 @@ use std::ops::Deref;
 use easyerr::Error;
 use powerpc::Ins;
 
-/// A sequence of PowerPC instructions which can be contained in a single block.
+/// A sequence of PowerPC instructions which can be contained in a single JIT [`Block`](super::Block).
 pub struct Sequence(Vec<Ins>);
 
 fn is_terminal(ins: &Ins) -> bool {

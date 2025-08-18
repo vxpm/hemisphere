@@ -2,7 +2,7 @@ use crate::mmu::{Memory, RAM_LEN};
 use hemicore::{Address, Primitive};
 
 #[derive(Default)]
-struct Bus {
+pub struct Bus {
     mem: Memory,
 }
 

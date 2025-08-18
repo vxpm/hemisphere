@@ -3,7 +3,7 @@ pub use primitive::Primitive;
 
 /// A memory address. This is a thin wrapper around a [`u32`].
 #[repr(transparent)]
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Hash)]
 pub struct Address(pub u32);
 
 impl std::fmt::Display for Address {
@@ -53,6 +53,18 @@ impl std::ops::Add<i32> for Address {
     }
 }
 
+impl std::ops::AddAssign<u32> for Address {
+    fn add_assign(&mut self, rhs: u32) {
+        *self = *self + rhs;
+    }
+}
+
+impl std::ops::AddAssign<i32> for Address {
+    fn add_assign(&mut self, rhs: i32) {
+        *self = *self + rhs;
+    }
+}
+
 impl std::ops::Sub<u32> for Address {
     type Output = Self;
 
@@ -66,6 +78,18 @@ impl std::ops::Sub<i32> for Address {
 
     fn sub(self, rhs: i32) -> Self::Output {
         Self(self.0.wrapping_add_signed(-rhs))
+    }
+}
+
+impl std::ops::SubAssign<u32> for Address {
+    fn sub_assign(&mut self, rhs: u32) {
+        *self = *self - rhs;
+    }
+}
+
+impl std::ops::SubAssign<i32> for Address {
+    fn sub_assign(&mut self, rhs: i32) {
+        *self = *self - rhs;
     }
 }
 

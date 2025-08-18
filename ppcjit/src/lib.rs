@@ -16,35 +16,46 @@ use iced_x86::Formatter;
 use memmap2::{Mmap, MmapOptions};
 use std::{fmt::Display, sync::Arc};
 
+pub use powerpc;
 pub use registers::Registers;
 pub use sequence::Sequence;
 
 pub type BlockFn = extern "sysv64" fn(&mut Registers);
 
+/// A compiled block of PowerPC instructions.
 pub struct Block {
+    seq: Sequence,
     clir: String,
-    map: Mmap,
+    code: Mmap,
 }
 
 impl Block {
     /// # Safety
     /// `code` must be the bytes of a valid host function with the [`BlockFn`] signature.
-    unsafe fn new(clir: String, code: &[u8]) -> Self {
+    unsafe fn new(seq: Sequence, clir: String, code: &[u8]) -> Self {
         let mut map = MmapOptions::new().len(code.len()).map_anon().unwrap();
         map.copy_from_slice(code);
 
         Self {
+            seq,
             clir,
-            map: map.make_exec().unwrap(),
+            code: map.make_exec().unwrap(),
         }
     }
 
+    /// Executes this block of instructions.
     #[inline(always)]
     pub fn run(&self, registers: &mut Registers) {
-        let func: BlockFn = unsafe { std::mem::transmute(self.map.as_ptr()) };
+        let func: BlockFn = unsafe { std::mem::transmute(self.code.as_ptr()) };
         func(registers);
     }
 
+    /// Returns the sequence of instructions this block represents.
+    pub fn sequence(&self) -> &Sequence {
+        &self.seq
+    }
+
+    /// Returns the Cranelift IR generated for this block.
     pub fn clir(&self) -> &str {
         &self.clir
     }
@@ -53,7 +64,7 @@ impl Block {
 impl Display for Block {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut decoder =
-            iced_x86::Decoder::new(usize::BITS, &self.map, iced_x86::DecoderOptions::NONE);
+            iced_x86::Decoder::new(usize::BITS, &self.code, iced_x86::DecoderOptions::NONE);
 
         let mut formatter = iced_x86::NasmFormatter::new();
         formatter.options_mut().set_digit_separator("_");
@@ -86,6 +97,7 @@ impl Display for Block {
     }
 }
 
+/// A context for JIT compilation of [`Sequence`]s, producing [`Block`]s.
 pub struct JIT {
     isa: Arc<dyn codegen::isa::TargetIsa>,
     func_ctx: frontend::FunctionBuilderContext,
@@ -152,14 +164,14 @@ impl JIT {
             .map_err(|e| e.inner)
             .context(BuildCtx::Codegen)?;
 
-        Ok(unsafe { Block::new(ir, compiled.code_buffer()) })
+        Ok(unsafe { Block::new(sequence, ir, compiled.code_buffer()) })
     }
 }
 
 #[cfg(test)]
 mod test {
     use crate::{JIT, Registers, Sequence};
-    use powerpc::Ins;
+    use powerpc::{Extensions, Ins};
     use powerpc_asm::{Argument, Arguments, assemble};
 
     #[test]
@@ -174,7 +186,8 @@ mod test {
         ];
 
         let a = assemble("add.", &args).expect("Invalid arguments");
-        seq.push(Ins::new(a, powerpc::Extensions::none())).unwrap();
+        seq.push(Ins::new(a, Extensions::gekko_broadway())).unwrap();
+        seq.push(Ins::new(a, Extensions::gekko_broadway())).unwrap();
 
         let mut registers = Registers::default();
         registers.user.gpr[0] = 1;
@@ -182,9 +195,7 @@ mod test {
 
         let mut jit = JIT::default();
         let block = jit.build(seq).unwrap();
-        println!("{:?}", &registers.user);
-        block.run(&mut registers);
-        println!("{:?}", &registers.user);
+        println!("{}", block.clir());
         println!("{block}");
     }
 }

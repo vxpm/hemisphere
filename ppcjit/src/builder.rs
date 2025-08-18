@@ -149,9 +149,9 @@ impl<'ctx> BlockBuilder<'ctx> {
         let eq = self.bd.ins().ishl_imm(eq, 29);
         let ov = self.bd.ins().ishl_imm(ov, 28);
 
-        let value = self.bd.ins().bor(ov, eq);
-        let value = self.bd.ins().bor(value, gt);
-        let value = self.bd.ins().bor(value, lt);
+        let value = self.bd.ins().bor(lt, gt);
+        let value = self.bd.ins().bor(value, eq);
+        let value = self.bd.ins().bor(value, ov);
 
         let mask = self.bd.ins().iconst(ir::types::I32, 0b1111 << 28);
         let updated = self.bd.ins().bitselect(mask, value, cr);

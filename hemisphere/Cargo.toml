@@ -10,3 +10,4 @@ ppcjit = { path = "../ppcjit" }
 easyerr.workspace = true
 bitos.workspace = true
 bytesize.workspace = true
+slotmap.workspace = true
