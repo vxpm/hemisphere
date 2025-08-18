@@ -17,7 +17,6 @@ fn main() -> Result<()> {
     loop {
         let executed = hemisphere.exec();
         println!("executed {executed} instructions");
-        dbg!(&hemisphere.cpu.user.gpr[0]);
     }
 
     Ok(())

@@ -93,6 +93,19 @@ impl Hemisphere {
                 self.bus.write(target + i as u32, byte);
             }
         }
+
+        for section in dol.data_sections() {
+            let target = self
+                .cpu
+                .supervisor
+                .translate_data_addr(Address(section.target));
+
+            for (i, byte) in section.content.iter().copied().enumerate() {
+                self.bus.write(target + i as u32, byte);
+            }
+        }
+
+        // TODO: zero BSS
     }
 
     /// Executes a single block and returns how many instructions were executed.

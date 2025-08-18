@@ -3,79 +3,19 @@ mod branch;
 mod memory;
 mod others;
 
-use crate::{Registers, block::BlockOutput};
+mod registers;
+
+use crate::block::BlockOutput;
 use cranelift::{
     codegen::ir::{self, condcodes::IntCC},
     frontend,
     prelude::{InstBuilder, isa::TargetIsa},
 };
 use easyerr::Error;
-use num_enum::TryFromPrimitive;
 use powerpc::{Ins, Opcode};
+use registers::*;
 use std::collections::{HashMap, hash_map::Entry};
 use std::mem::offset_of;
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive)]
-#[repr(u16)]
-enum Spr {
-    XER = 1,
-    LR = 8,
-    CTR = 9,
-}
-
-impl Spr {
-    fn offset(&self) -> i32 {
-        let offset = match self {
-            Self::XER => offset_of!(Registers, user.xer),
-            Self::LR => offset_of!(Registers, user.lr),
-            Self::CTR => offset_of!(Registers, user.ctr),
-        };
-
-        offset as i32
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-#[expect(dead_code, reason = "still not used")]
-enum Reg {
-    Gpr(u8),
-    Fpr(u8),
-    Spr(Spr),
-    Cr,
-}
-
-impl Reg {
-    #[inline]
-    fn ty(self) -> ir::Type {
-        match self {
-            Reg::Fpr(_) => ir::types::F64,
-            _ => ir::types::I32,
-        }
-    }
-
-    #[inline]
-    fn offset(self) -> i32 {
-        let offset = match self {
-            Reg::Gpr(i) => {
-                assert!(i < 32);
-                offset_of!(Registers, user.gpr) + size_of::<u32>() * (i as usize)
-            }
-            Reg::Fpr(i) => {
-                assert!(i < 32);
-                offset_of!(Registers, user.fpr) + size_of::<f64>() * (i as usize)
-            }
-            Reg::Cr => offset_of!(Registers, user.cr),
-            Reg::Spr(spr) => return spr.offset(),
-        };
-
-        offset as i32
-    }
-}
-
-struct RegState {
-    var: frontend::Variable,
-    modified: bool,
-}
 
 #[derive(Debug, Error)]
 pub enum EmitError {
@@ -91,6 +31,11 @@ struct Context {
     external_data_ptr: ir::Value,
     external_functions_ptr: ir::Value,
     output_ptr: ir::Value,
+}
+
+struct RegState {
+    var: frontend::Variable,
+    modified: bool,
 }
 
 pub struct BlockBuilder<'ctx> {
@@ -125,7 +70,7 @@ impl<'ctx> BlockBuilder<'ctx> {
         Self {
             bd: builder,
             ctx,
-            regs: HashMap::new(),
+            regs: HashMap::default(),
             current_bb: entry_bb,
             executed: 0,
         }
