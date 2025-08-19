@@ -1,6 +1,7 @@
 pub mod bus;
 pub mod jit;
 pub mod mmu;
+pub mod video;
 
 use crate::bus::Bus;
 use dolfile::Dol;
@@ -93,28 +94,35 @@ impl Hemisphere {
         self.cpu.supervisor.memory.setup_default_bats();
 
         for section in dol.text_sections() {
-            let target = self
-                .cpu
-                .supervisor
-                .translate_instr_addr(Address(section.target));
+            for (offset, byte) in section.content.iter().copied().enumerate() {
+                let target = self
+                    .cpu
+                    .supervisor
+                    .translate_instr_addr(Address(section.target) + offset as u32);
 
-            for (i, byte) in section.content.iter().copied().enumerate() {
-                self.bus.write(target + i as u32, byte);
+                self.bus.write(target, byte);
             }
         }
 
         for section in dol.data_sections() {
-            let target = self
-                .cpu
-                .supervisor
-                .translate_data_addr(Address(section.target));
+            for (offset, byte) in section.content.iter().copied().enumerate() {
+                let target = self
+                    .cpu
+                    .supervisor
+                    .translate_data_addr(Address(section.target) + offset as u32);
 
-            for (i, byte) in section.content.iter().copied().enumerate() {
-                self.bus.write(target + i as u32, byte);
+                self.bus.write(target, byte);
             }
         }
 
-        // TODO: zero BSS
+        for offset in 0..dol.header.bss_size {
+            let target = self
+                .cpu
+                .supervisor
+                .translate_data_addr(Address(dol.header.bss_target + offset as u32));
+
+            self.bus.write(target, 0u8);
+        }
     }
 
     /// Executes a single block and returns how many instructions were executed.

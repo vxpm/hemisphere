@@ -8,7 +8,7 @@ mod registers;
 
 use crate::block::BlockOutput;
 use cranelift::{
-    codegen::ir::{self, condcodes::IntCC},
+    codegen::ir::{self, SigRef, condcodes::IntCC},
     frontend,
     prelude::{InstBuilder, isa::TargetIsa},
 };
@@ -31,6 +31,7 @@ struct Context {
     regs_ptr: ir::Value,
     external_data_ptr: ir::Value,
     external_functions_ptr: ir::Value,
+    external_functions_sigs: HashMap<i32, SigRef>,
     output_ptr: ir::Value,
 }
 
@@ -65,6 +66,7 @@ impl<'ctx> BlockBuilder<'ctx> {
             regs_ptr: params[0],
             external_data_ptr: params[1],
             external_functions_ptr: params[2],
+            external_functions_sigs: HashMap::default(),
             output_ptr: params[3],
         };
 
@@ -181,6 +183,8 @@ impl<'ctx> BlockBuilder<'ctx> {
     }
 
     pub fn emit(&mut self, ins: Ins) -> Result<(), EmitError> {
+        self.bd.set_srcloc(ir::SourceLoc::new(self.executed));
+
         self.executed += 1;
         match ins.op {
             Opcode::Add => self.add(ins),

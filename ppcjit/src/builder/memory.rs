@@ -59,9 +59,14 @@ impl BlockBuilder<'_> {
             P::READ_OFFSET,
         );
 
-        let sig = self
-            .bd
-            .import_signature(sig_read(self.ctx.ptr_type, P::IR_TYPE));
+        let sig = *self
+            .ctx
+            .external_functions_sigs
+            .entry(P::READ_OFFSET)
+            .or_insert_with(|| {
+                self.bd
+                    .import_signature(sig_read(self.ctx.ptr_type, P::IR_TYPE))
+            });
 
         let inst = self.bd.ins().call_indirect(
             sig,
@@ -81,9 +86,14 @@ impl BlockBuilder<'_> {
             P::WRITE_OFFSET,
         );
 
-        let sig = self
-            .bd
-            .import_signature(sig_write(self.ctx.ptr_type, P::IR_TYPE));
+        let sig = *self
+            .ctx
+            .external_functions_sigs
+            .entry(P::WRITE_OFFSET)
+            .or_insert_with(|| {
+                self.bd
+                    .import_signature(sig_write(self.ctx.ptr_type, P::IR_TYPE))
+            });
 
         self.bd.ins().call_indirect(
             sig,

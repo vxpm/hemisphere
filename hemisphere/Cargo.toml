@@ -11,3 +11,5 @@ easyerr.workspace = true
 bitos.workspace = true
 bytesize.workspace = true
 slotmap.workspace = true
+zerocopy.workspace = true
+preinterpret = "0.2"

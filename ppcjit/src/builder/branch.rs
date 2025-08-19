@@ -113,6 +113,14 @@ impl BlockBuilder<'_> {
         let exit_block = self.bd.create_block();
         let continue_block = self.bd.create_block();
 
+        if !(options.ignore_ctr() && options.ignore_cr()) {
+            self.bd.set_cold_block(if options.likely() {
+                continue_block
+            } else {
+                exit_block
+            });
+        }
+
         self.bd
             .ins()
             .brif(branch, exit_block, &[], continue_block, &[]);
@@ -168,6 +176,14 @@ impl BlockBuilder<'_> {
 
         let exit_block = self.bd.create_block();
         let continue_block = self.bd.create_block();
+
+        if !(options.ignore_ctr() && options.ignore_cr()) {
+            self.bd.set_cold_block(if options.likely() {
+                continue_block
+            } else {
+                exit_block
+            });
+        }
 
         self.bd
             .ins()

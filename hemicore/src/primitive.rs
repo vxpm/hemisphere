@@ -19,13 +19,21 @@ pub trait Primitive:
     /// The alignment of this primitive.
     const ALIGNMENT: u32;
 
-    /// Reads a value of this primitive from a buffer. If `buf` does not contain enough data, it's
-    /// going to be completed with zeros.
-    fn read_from_buf(buf: &[u8]) -> Self;
+    /// Reads a value of this primitive from the bytes of a buffer (in big endian). If `buf` does
+    /// not contain enough data, it's going to be completed with zeros.
+    fn read_le_bytes(buf: &[u8]) -> Self;
 
-    /// Writes this primitive to the given buffer. If `buf` is not big enough, remaining bytes are
-    /// going to be silently dropped.
-    fn write_to_buf(self, buf: &mut [u8]);
+    /// Writes this primitive to the given buffer (in big endian). If `buf` is not big enough,
+    /// remaining bytes are going to be silently dropped.
+    fn write_le_bytes(self, buf: &mut [u8]);
+
+    /// Reads a value of this primitive from the bytes of a buffer (in big endian). If `buf` does
+    /// not contain enough data, it's going to be completed with zeros.
+    fn read_be_bytes(buf: &[u8]) -> Self;
+
+    /// Writes this primitive to the given buffer (in big endian). If `buf` is not big enough,
+    /// remaining bytes are going to be silently dropped.
+    fn write_be_bytes(self, buf: &mut [u8]);
 }
 
 macro_rules! impl_primitive {
@@ -35,7 +43,7 @@ macro_rules! impl_primitive {
                 const ALIGNMENT: u32 = align_of::<Self>() as u32;
 
                 #[inline(always)]
-                fn read_from_buf(buf: &[u8]) -> Self {
+                fn read_be_bytes(buf: &[u8]) -> Self {
                     const SELF_SIZE: usize = size_of::<$type>();
 
                     /// Unhappy path for when `buf` is too small.
@@ -61,7 +69,7 @@ macro_rules! impl_primitive {
                 }
 
                 #[inline]
-                fn write_to_buf(self, buf: &mut [u8]) {
+                fn write_be_bytes(self, buf: &mut [u8]) {
                     const SELF_SIZE: usize = size_of::<$type>();
 
                     /// Unhappy path for when `buf` is too small.
@@ -81,6 +89,56 @@ macro_rules! impl_primitive {
                         // TODO: seal the trait to enforce this
                         // SAFETY: this is safe because all primitives are integers, which are POD
                         unsafe { buf.as_mut_ptr().cast::<[u8; SELF_SIZE]>().write_unaligned(self.to_be_bytes()) };
+                    }
+                }
+
+                #[inline(always)]
+                fn read_le_bytes(buf: &[u8]) -> Self {
+                    const SELF_SIZE: usize = size_of::<$type>();
+
+                    /// Unhappy path for when `buf` is too small.
+                    ///
+                    /// # Safety
+                    /// `buf` must be <= `SELF_SIZE`
+                    #[cold]
+                    #[inline(never)]
+                    unsafe fn read_unhappy(buf: &[u8]) -> $type {
+                        let mut read_buf = [0u8; SELF_SIZE];
+                        unsafe { std::ptr::copy_nonoverlapping(buf.as_ptr(), read_buf.as_mut_ptr(), buf.len()) };
+
+                        <$type>::from_le_bytes(read_buf)
+                    }
+
+                    if buf.len() < SELF_SIZE {
+                        unsafe { read_unhappy(buf) }
+                    } else {
+                        // TODO: seal the trait to enforce this
+                        // SAFETY: this is safe because all primitives are integers, which are POD
+                        <$type>::from_le_bytes(unsafe { buf.as_ptr().cast::<[u8; SELF_SIZE]>().read_unaligned() })
+                    }
+                }
+
+                #[inline]
+                fn write_le_bytes(self, buf: &mut [u8]) {
+                    const SELF_SIZE: usize = size_of::<$type>();
+
+                    /// Unhappy path for when `buf` is too small.
+                    ///
+                    /// # Safety
+                    /// `buf` must be <= `SELF_SIZE`
+                    #[cold]
+                    #[inline(never)]
+                    unsafe fn write_unhappy(_self: $type, buf: &mut [u8]) {
+                        let bytes = _self.to_le_bytes();
+                        unsafe { std::ptr::copy_nonoverlapping(bytes.as_ptr(), buf.as_mut_ptr(), buf.len()) };
+                    }
+
+                    if buf.len() < SELF_SIZE {
+                        unsafe { write_unhappy(self, buf) };
+                    } else {
+                        // TODO: seal the trait to enforce this
+                        // SAFETY: this is safe because all primitives are integers, which are POD
+                        unsafe { buf.as_mut_ptr().cast::<[u8; SELF_SIZE]>().write_unaligned(self.to_le_bytes()) };
                     }
                 }
             }
