@@ -51,6 +51,28 @@ impl IrType for i16 {
 }
 
 impl BlockBuilder<'_> {
+    fn read<P: IrType>(&mut self, addr: ir::Value) -> ir::Value {
+        let read_fn = self.bd.ins().load(
+            self.ctx.ptr_type,
+            ir::MemFlags::trusted(),
+            self.ctx.external_functions_ptr,
+            P::READ_OFFSET,
+        );
+
+        let sig = self
+            .bd
+            .import_signature(sig_read(self.ctx.ptr_type, P::IR_TYPE));
+
+        let inst = self.bd.ins().call_indirect(
+            sig,
+            read_fn,
+            &[self.ctx.external_data_ptr, self.ctx.regs_ptr, addr],
+        );
+
+        let ret = self.bd.inst_results(inst);
+        ret[0]
+    }
+
     fn write<P: IrType>(&mut self, addr: ir::Value, value: ir::Value) {
         let write_fn = self.bd.ins().load(
             self.ctx.ptr_type,
@@ -78,6 +100,20 @@ impl BlockBuilder<'_> {
         self.write::<i32>(addr, value);
     }
 
+    pub fn stw(&mut self, ins: Ins) {
+        let addr = if ins.field_ra() == 0 {
+            self.bd
+                .ins()
+                .iconst(ir::types::I32, ins.field_offset() as i64)
+        } else {
+            let ra = self.get(Reg::Gpr(ins.field_ra()));
+            self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
+        };
+
+        let value = self.get(Reg::Gpr(ins.field_rs()));
+        self.write::<i32>(addr, value);
+    }
+
     pub fn sth(&mut self, ins: Ins) {
         let value = self.get(Reg::Gpr(ins.field_rs()));
         let value = self.bd.ins().ireduce(ir::types::I16, value);
@@ -92,5 +128,27 @@ impl BlockBuilder<'_> {
         };
 
         self.write::<i16>(addr, value);
+    }
+
+    pub fn lwz(&mut self, ins: Ins) {
+        let addr = if ins.field_ra() == 0 {
+            self.bd
+                .ins()
+                .iconst(ir::types::I32, ins.field_offset() as i64)
+        } else {
+            let ra = self.get(Reg::Gpr(ins.field_ra()));
+            self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
+        };
+
+        let value = self.read::<i32>(addr);
+        self.set(Reg::Gpr(ins.field_rd()), value);
+    }
+
+    pub fn lwzu(&mut self, ins: Ins) {
+        let base = self.get(Reg::Gpr(ins.field_ra()));
+        let addr = self.bd.ins().iadd_imm(base, ins.field_offset() as i64);
+        let value = self.read::<i32>(addr);
+        self.set(Reg::Gpr(ins.field_rd()), value);
+        self.set(Reg::Gpr(ins.field_ra()), addr);
     }
 }

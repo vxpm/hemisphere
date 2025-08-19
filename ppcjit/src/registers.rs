@@ -131,7 +131,7 @@ pub struct Bat {
     #[bits(3..7)]
     pub wimg: u4,
     #[bits(17..32)]
-    pub real_page_number: u15,
+    pub physical_address_region: u15,
 
     // upper
     #[bits(32)]
@@ -141,7 +141,7 @@ pub struct Bat {
     #[bits(34..45)]
     pub block_length_mask: u11,
     #[bits(49..64)]
-    pub effective_page_index: u15,
+    pub effective_address_region: u15,
 }
 
 impl Bat {
@@ -155,7 +155,7 @@ impl Bat {
     #[inline(always)]
     pub fn start(&self) -> Address {
         Address(
-            ((self.effective_page_index().value() as u32) << 17)
+            ((self.effective_address_region().value() as u32) << 17)
             // mask the EPI with the block length! aka floor it to a multiple of block length
                 & !((self.block_length_mask().value() as u32) << 17),
         )
@@ -165,7 +165,7 @@ impl Bat {
     #[inline(always)]
     pub fn physical_start(&self) -> Address {
         Address(
-            ((self.real_page_number().value() as u32) << 17)
+            ((self.physical_address_region().value() as u32) << 17)
             // mask the EPI with the block length! aka floor it to a multiple of block length
                 & !((self.block_length_mask().value() as u32) << 17),
         )
@@ -193,11 +193,11 @@ impl Bat {
     #[inline(always)]
     pub fn translate(&self, addr: Address) -> Address {
         let offset = addr.value().bits(0, 17);
-        let region = (addr.value().bits(17, 28)
+        let region = (((addr.value().bits(17, 28) << 17)
             // only allow bits within the block length to be changed
-            & ((self.block_length_mask().value() as u32) << 17))
+            & ((self.block_length_mask().value() as u32) << 17)))
             // insert the real page number
-            | ((self.real_page_number().value() as u32) << 17);
+            | ((self.physical_address_region().value() as u32) << 17);
 
         Address(region | offset)
     }
@@ -325,7 +325,7 @@ impl Supervisor {
             }
         }
 
-        panic!("couldn't translate instr addr with bats!")
+        panic!("couldn't translate data addr {addr} with bats!")
     }
 }
 

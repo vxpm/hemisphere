@@ -1,6 +1,5 @@
 use super::BlockBuilder;
 use crate::builder::{Reg, Spr};
-use cranelift::{codegen::ir, prelude::InstBuilder};
 use powerpc::Ins;
 
 impl BlockBuilder<'_> {

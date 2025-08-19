@@ -1,5 +1,6 @@
 mod arithmetic;
 mod branch;
+mod compare;
 mod memory;
 mod others;
 
@@ -192,6 +193,12 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Mtspr => self.mtspr(ins),
             Opcode::Sth => self.sth(ins),
             Opcode::Bc => self.branch_cond(ins),
+            Opcode::Lwz => self.lwz(ins),
+            Opcode::Stw => self.stw(ins),
+            Opcode::Bclr => self.branch_cond_lr(ins),
+            Opcode::Cmpi => self.cmpi(ins),
+            Opcode::Rlwinm => self.rlwinm(ins),
+            Opcode::Lwzu => self.lwzu(ins),
             Opcode::Illegal => {
                 self.executed -= 1;
                 return Err(EmitError::Illegal(ins));

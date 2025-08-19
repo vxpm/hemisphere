@@ -52,4 +52,8 @@ impl BlockStorage {
     pub fn region(&mut self, region: u32) -> Option<&HashMap<Address, Block>> {
         self.regions.get(&region)
     }
+
+    pub fn clear(&mut self) {
+        self.regions.clear();
+    }
 }
