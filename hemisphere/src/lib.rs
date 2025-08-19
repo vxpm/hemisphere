@@ -44,7 +44,6 @@ fn external_functions() -> ExternalFunctions {
         value: T,
     ) {
         let physical = registers.supervisor.translate_data_addr(addr);
-        println!("!! writing to {addr} {physical}");
         bus.write(physical, value);
     }
 
@@ -120,8 +119,6 @@ impl Hemisphere {
 
     /// Executes a single block and returns how many instructions were executed.
     pub fn exec(&mut self) -> u32 {
-        println!("==> exec at {}", self.pc);
-
         let block = match self.blocks.get(self.pc) {
             Some(block) => block,
             None => {
@@ -152,10 +149,6 @@ impl Hemisphere {
             }
         };
 
-        print!("{}", block.sequence());
-        // print!("CLIR:\n{}", block.clir());
-        // print!("ASM:\n{}", block);
-
         let funcs = external_functions();
         let output = block.run(&mut self.cpu, &mut self.bus as *mut _ as *mut _, &funcs);
 
@@ -163,7 +156,6 @@ impl Hemisphere {
         if output.jump.execute {
             if output.jump.link {
                 self.cpu.user.lr = self.pc.0;
-                println!("linking to {}", self.pc);
             }
 
             if output.jump.relative {
@@ -172,11 +164,7 @@ impl Hemisphere {
             } else {
                 self.pc = Address(output.jump.data as u32);
             }
-
-            println!("jumped to {}", self.pc);
         }
-
-        self.blocks.clear();
 
         output.executed
     }

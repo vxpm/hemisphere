@@ -11,6 +11,7 @@ pub trait Primitive:
     + Immutable
     + FromBytes
     + IntoBytes
+    + Default
     + Send
     + Sync
     + 'static

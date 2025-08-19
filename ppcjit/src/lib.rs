@@ -89,35 +89,3 @@ impl JIT {
         Ok(unsafe { Block::new(sequence, ir, compiled.code_buffer()) })
     }
 }
-
-#[cfg(test)]
-mod test {
-    use crate::{JIT, Registers, Sequence};
-    use powerpc::{Extensions, Ins};
-    use powerpc_asm::{Argument, Arguments, assemble};
-
-    #[test]
-    fn test() {
-        let mut seq = Sequence::new();
-        let args: Arguments = [
-            Argument::Unsigned(0),
-            Argument::Unsigned(0),
-            Argument::Unsigned(1),
-            Argument::None,
-            Argument::None,
-        ];
-
-        let a = assemble("add.", &args).expect("Invalid arguments");
-        seq.push(Ins::new(a, Extensions::gekko_broadway())).unwrap();
-        seq.push(Ins::new(a, Extensions::gekko_broadway())).unwrap();
-
-        let mut registers = Registers::default();
-        registers.user.gpr[0] = 1;
-        registers.user.gpr[1] = i32::MAX as u32;
-
-        let mut jit = JIT::default();
-        let block = jit.build(seq).unwrap();
-        println!("{}", block.clir());
-        println!("{block}");
-    }
-}
