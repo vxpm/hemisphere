@@ -4,8 +4,10 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+hemisphere = { path = "../hemisphere" }
+slotmap.workspace = true
 wgpu.workspace = true
-slotmap = "1.0"
+
 egui_dock = "0.17"
 eframe = { version = "0.32", default-features = false, features = [
     # "wayland",

@@ -18,7 +18,13 @@ fn main() -> Result<()> {
         println!("==> executing at {}", hemisphere.pc);
         let executed = hemisphere.exec();
         println!("executed {executed} instructions");
+
+        if hemisphere.pc == 0x8000_4010 {
+            break;
+        }
     }
+
+    dbg!(&hemisphere.bus.video);
 
     Ok(())
 }

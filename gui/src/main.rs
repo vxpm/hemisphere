@@ -1,14 +1,16 @@
 mod tab;
 
-use std::sync::Arc;
+mod control;
 
+use crate::control::ControlTab;
 use crate::tab::Tab;
 use eframe::egui;
 use egui::{CentralPanel, Frame, TopBottomPanel, Ui, ViewportBuilder, WidgetText, vec2};
 use egui_dock::tab_viewer::OnCloseResponse;
-use egui_dock::{DockArea, DockState, TabViewer};
+use egui_dock::{DockArea, DockState, NodeIndex, TabViewer};
 use slotmap::SlotMap;
 use slotmap::new_key_type;
+use std::sync::Arc;
 
 type BoxedTab = Box<dyn Tab>;
 
@@ -55,16 +57,23 @@ struct App {
 
 impl Default for App {
     fn default() -> Self {
-        let mut tabs = SlotMap::with_key();
+        let mut tabs: SlotMap<TabId, BoxedTab> = SlotMap::with_key();
         let mut dock_state = DockState::new(vec![]);
-
         "Undock".clone_into(&mut dock_state.translations.tab_context_menu.eject_button);
 
-        // let [a, b] = dock_state.main_surface_mut().split_left(
-        //     NodeIndex::root(),
-        //     0.3,
-        //     vec!["Inspector".to_owned()],
-        // );
+        let control_tab = tabs.insert(Box::new(ControlTab {}));
+
+        dock_state
+            .main_surface_mut()
+            .root_node_mut()
+            .unwrap()
+            .append_tab(control_tab);
+
+        // let [a, b] =
+        //     dock_state
+        //         .main_surface_mut()
+        //         .split_left(NodeIndex::root(), 0.3, vec![control_tab]);
+
         //
         // let [_, _] = dock_state.main_surface_mut().split_below(
         //     a,
