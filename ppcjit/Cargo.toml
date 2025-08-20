@@ -14,6 +14,7 @@ easyerr.workspace = true
 iced-x86.workspace = true
 memmap2.workspace = true
 powerpc.workspace = true
+rustc-hash.workspace = true
 zerocopy.workspace = true
 
 cranelift = { version = "0.122", features = ["native"] }

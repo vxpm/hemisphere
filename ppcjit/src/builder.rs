@@ -15,7 +15,8 @@ use cranelift::{
 use easyerr::Error;
 use powerpc::{Ins, Opcode};
 use registers::*;
-use std::collections::{HashMap, hash_map::Entry};
+use rustc_hash::FxHashMap;
+use std::collections::hash_map::Entry;
 use std::mem::offset_of;
 
 #[derive(Debug, Error)]
@@ -31,7 +32,7 @@ struct Context {
     regs_ptr: ir::Value,
     external_data_ptr: ir::Value,
     external_functions_ptr: ir::Value,
-    external_functions_sigs: HashMap<i32, SigRef>,
+    external_functions_sigs: FxHashMap<i32, SigRef>,
     output_ptr: ir::Value,
 }
 
@@ -43,7 +44,7 @@ struct RegState {
 pub struct BlockBuilder<'ctx> {
     bd: frontend::FunctionBuilder<'ctx>,
     ctx: Context,
-    regs: HashMap<Reg, RegState>,
+    regs: FxHashMap<Reg, RegState>,
     current_bb: ir::Block,
     executed: u32,
 }
@@ -66,14 +67,14 @@ impl<'ctx> BlockBuilder<'ctx> {
             regs_ptr: params[0],
             external_data_ptr: params[1],
             external_functions_ptr: params[2],
-            external_functions_sigs: HashMap::default(),
+            external_functions_sigs: FxHashMap::default(),
             output_ptr: params[3],
         };
 
         Self {
             bd: builder,
             ctx,
-            regs: HashMap::default(),
+            regs: FxHashMap::default(),
             current_bb: entry_bb,
             executed: 0,
         }

@@ -12,4 +12,5 @@ bitos.workspace = true
 bytesize.workspace = true
 slotmap.workspace = true
 zerocopy.workspace = true
+rustc-hash.workspace = true
 bimap = "0.6"

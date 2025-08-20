@@ -11,7 +11,7 @@ use ppcjit::{
     block::ExternalFunctions,
     powerpc::{Extensions, Ins},
 };
-use std::collections::HashSet;
+use rustc_hash::FxHashSet;
 
 pub use dolfile;
 pub use hemicore;
@@ -31,7 +31,7 @@ impl Default for Config {
 
 struct ExternalData<'a> {
     bus: &'a mut Bus,
-    invalidated: &'a mut HashSet<Address>,
+    invalidated: &'a mut FxHashSet<Address>,
 }
 
 impl<'a> ExternalData<'a> {
@@ -88,7 +88,7 @@ pub struct Hemisphere {
     pub jit: ppcjit::JIT,
     pub blocks: jit::BlockStorage,
     pub config: Config,
-    invalidated: HashSet<Address>,
+    invalidated: FxHashSet<Address>,
 }
 
 impl Hemisphere {
@@ -99,7 +99,7 @@ impl Hemisphere {
             cpu: ppcjit::Registers::default(),
             jit: ppcjit::JIT::default(),
             blocks: jit::BlockStorage::default(),
-            invalidated: HashSet::new(),
+            invalidated: FxHashSet::default(),
             config,
         }
     }

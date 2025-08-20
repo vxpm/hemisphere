@@ -1,9 +1,9 @@
-use bimap::BiMap;
+use bimap::BiHashMap;
 use easyerr::Error;
 use hemicore::Address;
 use ppcjit::block::Block;
+use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
 use slotmap::{SlotMap, new_key_type};
-use std::collections::{HashMap, HashSet};
 
 new_key_type! {
     /// The ID of a JIT block in a [`BlockStorage`].
@@ -22,8 +22,8 @@ new_key_type! {
 #[derive(Default)]
 pub struct BlockStorage {
     blocks: SlotMap<BlockId, Block>,
-    mapping: BiMap<Address, BlockId>,
-    regions: HashMap<u32, HashSet<BlockId>>,
+    mapping: BiHashMap<Address, BlockId, FxBuildHasher, FxBuildHasher>,
+    regions: FxHashMap<u32, FxHashSet<BlockId>>,
 }
 
 pub fn region(addr: Address) -> u32 {

@@ -1437,6 +1437,7 @@ dependencies = [
  "easyerr",
  "hemicore",
  "ppcjit",
+ "rustc-hash 2.1.1",
  "slotmap",
  "zerocopy",
 ]
@@ -2412,6 +2413,7 @@ dependencies = [
  "num_enum",
  "powerpc",
  "powerpc-asm",
+ "rustc-hash 2.1.1",
  "zerocopy",
 ]
 
