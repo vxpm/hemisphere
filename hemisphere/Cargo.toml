@@ -12,4 +12,4 @@ bitos.workspace = true
 bytesize.workspace = true
 slotmap.workspace = true
 zerocopy.workspace = true
-preinterpret = "0.2"
+bimap = "0.6"

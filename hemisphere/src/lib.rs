@@ -11,6 +11,7 @@ use ppcjit::{
     block::ExternalFunctions,
     powerpc::{Extensions, Ins},
 };
+use std::collections::HashSet;
 
 pub use dolfile;
 pub use hemicore;
@@ -28,40 +29,55 @@ impl Default for Config {
     }
 }
 
-fn external_functions() -> ExternalFunctions {
-    extern "sysv64" fn read<T: Primitive>(
-        bus: &mut Bus,
-        registers: &ppcjit::Registers,
-        addr: Address,
-    ) -> T {
-        let physical = registers.supervisor.translate_data_addr(addr);
-        bus.read(physical)
-    }
+struct ExternalData<'a> {
+    bus: &'a mut Bus,
+    invalidated: &'a mut HashSet<Address>,
+}
 
-    extern "sysv64" fn write<T: Primitive>(
-        bus: &mut Bus,
-        registers: &ppcjit::Registers,
-        addr: Address,
-        value: T,
-    ) {
-        let physical = registers.supervisor.translate_data_addr(addr);
-        bus.write(physical, value);
-    }
+impl<'a> ExternalData<'a> {
+    fn functions() -> ExternalFunctions {
+        extern "sysv64" fn read<T: Primitive>(
+            external: &mut ExternalData,
+            registers: &ppcjit::Registers,
+            addr: Address,
+        ) -> T {
+            let physical = registers.supervisor.translate_data_addr(addr);
+            external.bus.read(physical)
+        }
 
-    let read_i8 = unsafe { std::mem::transmute(read::<i8> as extern "sysv64" fn(_, _, _) -> _) };
-    let write_i8 = unsafe { std::mem::transmute(write::<i8> as extern "sysv64" fn(_, _, _, _)) };
-    let read_i16 = unsafe { std::mem::transmute(read::<i16> as extern "sysv64" fn(_, _, _) -> _) };
-    let write_i16 = unsafe { std::mem::transmute(write::<i16> as extern "sysv64" fn(_, _, _, _)) };
-    let read_i32 = unsafe { std::mem::transmute(read::<i32> as extern "sysv64" fn(_, _, _) -> _) };
-    let write_i32 = unsafe { std::mem::transmute(write::<i32> as extern "sysv64" fn(_, _, _, _)) };
+        extern "sysv64" fn write<T: Primitive>(
+            external: &mut ExternalData,
+            registers: &ppcjit::Registers,
+            addr: Address,
+            value: T,
+        ) {
+            external.invalidated.insert(addr);
 
-    ExternalFunctions {
-        read_i8,
-        write_i8,
-        read_i16,
-        write_i16,
-        read_i32,
-        write_i32,
+            let physical = registers.supervisor.translate_data_addr(addr);
+            external.bus.write(physical, value);
+        }
+
+        let read_i8 =
+            unsafe { std::mem::transmute(read::<i8> as extern "sysv64" fn(_, _, _) -> _) };
+        let write_i8 =
+            unsafe { std::mem::transmute(write::<i8> as extern "sysv64" fn(_, _, _, _)) };
+        let read_i16 =
+            unsafe { std::mem::transmute(read::<i16> as extern "sysv64" fn(_, _, _) -> _) };
+        let write_i16 =
+            unsafe { std::mem::transmute(write::<i16> as extern "sysv64" fn(_, _, _, _)) };
+        let read_i32 =
+            unsafe { std::mem::transmute(read::<i32> as extern "sysv64" fn(_, _, _) -> _) };
+        let write_i32 =
+            unsafe { std::mem::transmute(write::<i32> as extern "sysv64" fn(_, _, _, _)) };
+
+        ExternalFunctions {
+            read_i8,
+            write_i8,
+            read_i16,
+            write_i16,
+            read_i32,
+            write_i32,
+        }
     }
 }
 
@@ -72,6 +88,7 @@ pub struct Hemisphere {
     pub jit: ppcjit::JIT,
     pub blocks: jit::BlockStorage,
     pub config: Config,
+    invalidated: HashSet<Address>,
 }
 
 impl Hemisphere {
@@ -82,6 +99,7 @@ impl Hemisphere {
             cpu: ppcjit::Registers::default(),
             jit: ppcjit::JIT::default(),
             blocks: jit::BlockStorage::default(),
+            invalidated: HashSet::new(),
             config,
         }
     }
@@ -89,9 +107,9 @@ impl Hemisphere {
     pub fn load(&mut self, dol: &Dol) {
         self.pc = Address(dol.entrypoint());
 
+        self.cpu.supervisor.memory.setup_default_bats();
         self.cpu.supervisor.msr.set_instr_addr_translation(true);
         self.cpu.supervisor.msr.set_data_addr_translation(true);
-        self.cpu.supervisor.memory.setup_default_bats();
 
         for section in dol.text_sections() {
             for (offset, byte) in section.content.iter().copied().enumerate() {
@@ -153,12 +171,20 @@ impl Hemisphere {
                 let block = self.jit.build(seq).unwrap();
                 let block = self.blocks.insert(self.pc, block).unwrap();
 
-                block
+                self.blocks.get_by_id(block).unwrap()
             }
         };
 
-        let funcs = external_functions();
-        let output = block.run(&mut self.cpu, &mut self.bus as *mut _ as *mut _, &funcs);
+        let mut external = ExternalData {
+            bus: &mut self.bus,
+            invalidated: &mut self.invalidated,
+        };
+        let funcs = ExternalData::functions();
+        let output = block.run(&mut self.cpu, &mut external as *mut _ as *mut _, &funcs);
+
+        for addr in self.invalidated.drain() {
+            self.blocks.invalidate(addr);
+        }
 
         self.pc += 4 * output.executed;
         if output.jump.execute {

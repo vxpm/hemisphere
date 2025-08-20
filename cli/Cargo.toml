@@ -6,4 +6,3 @@ edition = "2024"
 [dependencies]
 eyre-pretty = { path = "/home/vxpm/dev/eyre-pretty" }
 hemisphere = { path = "../hemisphere" }
-image = "0.25"

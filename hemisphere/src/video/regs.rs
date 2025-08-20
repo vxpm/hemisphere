@@ -2,6 +2,7 @@ use bitos::{
     bitos,
     integer::{u4, u5, u7, u9, u10, u11, u15},
 };
+use hemicore::Address;
 
 // LINE = one horizontal line
 // FIELD = number of lines in a scan
@@ -107,11 +108,17 @@ pub struct FieldBurstBlankingInteval {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct FieldBase {
     #[bits(9..24)]
-    pub xfb_address: u15,
+    pub xfb_addr_offset: u15,
     #[bits(24..28)]
     pub horizontal_offset: u4,
     #[bits(28)]
     pub shift_addr: bool,
+}
+
+impl FieldBase {
+    pub fn xfb_address(&self) -> Address {
+        Address((self.xfb_addr_offset().value() as u32) << 9)
+    }
 }
 
 #[repr(C)]
