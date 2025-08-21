@@ -236,30 +236,6 @@ impl MemoryManagement {
         self.dbat[1] = bat(0xC000_1FFF, 0x0000_002A);
         self.dbat[2] = bat(0x0000_0000, 0x0000_0000);
         self.dbat[3] = bat(0xFFF0_001F, 0xFFF0_0001);
-
-        for bat in &self.ibat {
-            println!(
-                "{} -> {}, {} -> {} ({})",
-                bat.start(),
-                bat.physical_start(),
-                bat.end(),
-                bat.physical_end(),
-                ByteSize(bat.block_length() as u64),
-            );
-        }
-
-        println!("");
-
-        for bat in &self.dbat {
-            println!(
-                "{} -> {}, {} -> {} ({})",
-                bat.start(),
-                bat.physical_start(),
-                bat.end(),
-                bat.physical_end(),
-                ByteSize(bat.block_length() as u64),
-            );
-        }
     }
 }
 

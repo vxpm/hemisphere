@@ -1,5 +1,6 @@
 pub mod cpu;
 
+use crate::emulator::State;
 use cpu::CpuTab;
 use eframe::egui;
 use egui_dock::{DockState, TabViewer, tab_viewer::OnCloseResponse};
@@ -7,7 +8,7 @@ use slotmap::{SlotMap, new_key_type};
 
 pub trait Tab {
     fn title(&mut self) -> egui::WidgetText;
-    fn ui(&mut self, ui: &mut egui::Ui);
+    fn ui(&mut self, state: &mut State, ui: &mut egui::Ui);
 
     fn is_closeable(&self) -> bool {
         true
@@ -20,18 +21,12 @@ new_key_type! {
     pub struct TabId;
 }
 
-#[derive(Default)]
-pub struct Viewer {
-    tabs: SlotMap<TabId, BoxedTab>,
+pub struct Viewer<'a> {
+    pub tabs: &'a mut SlotMap<TabId, BoxedTab>,
+    pub state: &'a mut State,
 }
 
-impl Viewer {
-    pub fn new(tabs: SlotMap<TabId, BoxedTab>) -> Self {
-        Self { tabs }
-    }
-}
-
-impl TabViewer for Viewer {
+impl<'a> TabViewer for Viewer<'a> {
     type Tab = TabId;
 
     fn title(&mut self, tab: &mut Self::Tab) -> egui::WidgetText {
@@ -39,7 +34,7 @@ impl TabViewer for Viewer {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, tab: &mut Self::Tab) {
-        self.tabs[*tab].ui(ui)
+        self.tabs[*tab].ui(self.state, ui)
     }
 
     fn is_closeable(&self, tab: &Self::Tab) -> bool {
@@ -53,7 +48,7 @@ impl TabViewer for Viewer {
 }
 
 pub struct Manager {
-    pub viewer: Viewer,
+    pub tabs: SlotMap<TabId, BoxedTab>,
     pub dock: DockState<TabId>,
 }
 
@@ -86,9 +81,6 @@ impl Default for Manager {
         //         .main_surface_mut()
         //         .split_below(b, 0.5, vec!["Hierarchy".to_owned()]);
 
-        Self {
-            viewer: Viewer::new(tabs),
-            dock,
-        }
+        Self { tabs, dock }
     }
 }

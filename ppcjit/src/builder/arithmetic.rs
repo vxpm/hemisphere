@@ -73,8 +73,6 @@ impl BlockBuilder<'_> {
             0.with_bits(start, end + 1, !0)
         };
 
-        println!("0b{mask:032b}");
-
         let masked = self.bd.ins().band_imm(rotated, mask as i64);
         self.set(Reg::Gpr(ins.field_ra()), masked);
     }

@@ -1,5 +1,7 @@
+mod emulator;
 mod tab;
 
+use crate::{emulator::Emulator, tab::Viewer};
 use eframe::egui::{self, Color32};
 use egui::{CentralPanel, Frame, TopBottomPanel, ViewportBuilder, vec2};
 use egui_dock::DockArea;
@@ -7,12 +9,14 @@ use std::sync::Arc;
 
 struct App {
     tabs: tab::Manager,
+    emulator: Emulator,
 }
 
-impl Default for App {
-    fn default() -> Self {
+impl App {
+    fn new() -> Self {
         Self {
             tabs: tab::Manager::default(),
+            emulator: Emulator::new(),
         }
     }
 }
@@ -25,6 +29,12 @@ impl eframe::App for App {
             })
         });
 
+        let mut state = self.emulator.state();
+        let mut viewer = Viewer {
+            tabs: &mut self.tabs.tabs,
+            state: &mut state,
+        };
+
         CentralPanel::default()
             .frame(Frame::central_panel(&ctx.style()).inner_margin(0.))
             .show(ctx, |ui| {
@@ -32,7 +42,7 @@ impl eframe::App for App {
                     .show_close_buttons(true)
                     .show_add_buttons(true)
                     .draggable_tabs(true)
-                    .show_inside(ui, &mut self.tabs.viewer);
+                    .show_inside(ui, &mut viewer);
             });
     }
 }
@@ -149,7 +159,7 @@ fn main() -> eframe::Result<()> {
             cc.egui_ctx.set_visuals(visuals());
             cc.egui_ctx.set_zoom_factor(1.25);
 
-            Ok(Box::<App>::default())
+            Ok(Box::new(App::new()))
         }),
     )
 }
