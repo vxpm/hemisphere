@@ -9,6 +9,7 @@ slotmap.workspace = true
 wgpu.workspace = true
 
 egui_dock = "0.17"
+egui_flex = "0.4.0"
 eframe = { version = "0.32", default-features = false, features = [
     # "wayland",
     "x11",

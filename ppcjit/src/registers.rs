@@ -11,16 +11,16 @@ use std::fmt::Debug;
 pub struct Cond {
     /// Whether the result has overflowed.
     #[bits(0)]
-    pub overflow: bool,
+    pub ov: bool,
     /// Whether the operands are equal.
     #[bits(1)]
-    pub equal: bool,
+    pub eq: bool,
     /// Whether the first operand is greater than the second.
     #[bits(2)]
-    pub greater_than: bool,
+    pub gt: bool,
     /// Whether the first operand is less than the second.
     #[bits(3)]
-    pub less_than: bool,
+    pub lt: bool,
 }
 
 /// The condition register (CR) contains 8 fields, named CR0-CR7, each containing flags
@@ -39,7 +39,7 @@ pub struct Cond {
 pub struct CondReg {
     // NOTE: CR0 is actually index 7! PPC bit order is big endian
     #[bits(..)]
-    fields: [Cond; 8],
+    pub fields: [Cond; 8],
 }
 
 #[bitos(32)]

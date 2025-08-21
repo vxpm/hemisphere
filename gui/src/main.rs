@@ -3,7 +3,6 @@ mod tab;
 
 use crate::{emulator::Emulator, tab::Viewer};
 use eframe::egui::{self, Color32};
-use egui::{CentralPanel, Frame, TopBottomPanel, ViewportBuilder, vec2};
 use egui_dock::DockArea;
 use std::sync::Arc;
 
@@ -21,9 +20,16 @@ impl App {
     }
 }
 
+fn dock_style(ui: &egui::Ui) -> egui_dock::Style {
+    let mut style = egui_dock::Style::from_egui(ui.style().as_ref());
+    style.tab.tab_body.stroke = egui::Stroke::NONE;
+
+    style
+}
+
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        TopBottomPanel::top("hemisphere_menu_bar").show(ctx, |ui| {
+        egui::TopBottomPanel::top("hemisphere_menu_bar").show(ctx, |ui| {
             egui::MenuBar::new().ui(ui, |ui| {
                 ui.menu_button("View", |_| {});
             })
@@ -35,10 +41,11 @@ impl eframe::App for App {
             state: &mut state,
         };
 
-        CentralPanel::default()
-            .frame(Frame::central_panel(&ctx.style()).inner_margin(0.))
+        egui::CentralPanel::default()
+            .frame(egui::Frame::central_panel(&ctx.style()).inner_margin(0.))
             .show(ctx, |ui| {
                 DockArea::new(&mut self.tabs.dock)
+                    .style(dock_style(ui))
                     .show_close_buttons(true)
                     .show_add_buttons(true)
                     .draggable_tabs(true)
@@ -132,7 +139,7 @@ fn visuals() -> egui::Visuals {
 fn main() -> eframe::Result<()> {
     let instance = wgpu::InstanceDescriptor::from_env_or_default();
     let mut native_options = eframe::NativeOptions {
-        viewport: ViewportBuilder::default().with_inner_size(vec2(1024.0, 1024.0)),
+        viewport: egui::ViewportBuilder::default().with_inner_size(egui::vec2(1024.0, 1024.0)),
         hardware_acceleration: eframe::HardwareAcceleration::Required,
         ..Default::default()
     };

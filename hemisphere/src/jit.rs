@@ -96,6 +96,12 @@ impl BlockStorage {
         }
     }
 
+    pub fn iter(&self) -> impl Iterator<Item = (Address, &Block)> {
+        self.mapping
+            .iter()
+            .map(|(addr, id)| (*addr, &self.blocks[*id]))
+    }
+
     pub fn clear(&mut self) {
         self.regions.clear();
     }

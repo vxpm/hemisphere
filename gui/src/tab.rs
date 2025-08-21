@@ -1,6 +1,7 @@
+pub mod blocks;
 pub mod cpu;
 
-use crate::emulator::State;
+use crate::{emulator::State, tab::blocks::BlocksTab};
 use cpu::CpuTab;
 use eframe::egui;
 use egui_dock::{DockState, TabViewer, tab_viewer::OnCloseResponse};
@@ -45,6 +46,10 @@ impl<'a> TabViewer for Viewer<'a> {
         self.tabs.remove(*tab);
         OnCloseResponse::Close
     }
+
+    fn scroll_bars(&self, _tab: &Self::Tab) -> [bool; 2] {
+        [false, false]
+    }
 }
 
 pub struct Manager {
@@ -59,16 +64,17 @@ impl Default for Manager {
         "Undock".clone_into(&mut dock.translations.tab_context_menu.eject_button);
 
         let control_tab = tabs.insert(Box::new(CpuTab {}));
+        let blocks_tab = tabs.insert(Box::new(BlocksTab {}));
 
         dock.main_surface_mut()
             .root_node_mut()
             .unwrap()
             .append_tab(control_tab);
 
-        // let [a, b] =
-        //     dock_state
-        //         .main_surface_mut()
-        //         .split_left(NodeIndex::root(), 0.3, vec![control_tab]);
+        let [a, b] =
+            dock.main_surface_mut()
+                .split_left(egui_dock::NodeIndex::root(), 0.5, vec![blocks_tab]);
+
         //
         // let [_, _] = dock_state.main_surface_mut().split_below(
         //     a,
