@@ -1,13 +1,11 @@
 mod tab;
 
-mod control;
-
-use crate::control::ControlTab;
 use crate::tab::Tab;
+use crate::tab::control::ControlTab;
 use eframe::egui;
 use egui::{CentralPanel, Frame, TopBottomPanel, Ui, ViewportBuilder, WidgetText, vec2};
 use egui_dock::tab_viewer::OnCloseResponse;
-use egui_dock::{DockArea, DockState, NodeIndex, TabViewer};
+use egui_dock::{DockArea, DockState, TabViewer};
 use slotmap::SlotMap;
 use slotmap::new_key_type;
 use std::sync::Arc;
@@ -139,6 +137,6 @@ fn main() -> eframe::Result<()> {
     eframe::run_native(
         "hemisphere",
         native_options,
-        Box::new(|_cc| Ok(Box::<App>::default())),
+        Box::new(|_| Ok(Box::<App>::default())),
     )
 }

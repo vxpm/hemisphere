@@ -1,3 +1,5 @@
+pub mod control;
+
 use eframe::egui;
 
 pub trait Tab {
