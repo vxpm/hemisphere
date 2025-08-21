@@ -7,5 +7,7 @@ impl Tab for ControlTab {
         "Control".into()
     }
 
-    fn ui(&mut self, ui: &mut eframe::egui::Ui) {}
+    fn ui(&mut self, ui: &mut eframe::egui::Ui) {
+        ui.label("hi i'm a label");
+    }
 }
