@@ -1,92 +1,18 @@
 mod tab;
 
-use crate::tab::Tab;
-use crate::tab::control::ControlTab;
 use eframe::egui::{self, Color32};
-use egui::{CentralPanel, Frame, TopBottomPanel, Ui, ViewportBuilder, WidgetText, vec2};
-use egui_dock::tab_viewer::OnCloseResponse;
-use egui_dock::{DockArea, DockState, TabViewer};
-use slotmap::SlotMap;
-use slotmap::new_key_type;
+use egui::{CentralPanel, Frame, TopBottomPanel, ViewportBuilder, vec2};
+use egui_dock::DockArea;
 use std::sync::Arc;
 
-type BoxedTab = Box<dyn Tab>;
-
-new_key_type! {
-    struct TabId;
-}
-
-#[derive(Default)]
-struct Context {
-    tabs: SlotMap<TabId, BoxedTab>,
-}
-
-impl Context {
-    pub fn new(tabs: SlotMap<TabId, BoxedTab>) -> Self {
-        Self { tabs }
-    }
-}
-
-impl TabViewer for Context {
-    type Tab = TabId;
-
-    fn title(&mut self, tab: &mut Self::Tab) -> WidgetText {
-        self.tabs[*tab].title()
-    }
-
-    fn ui(&mut self, ui: &mut Ui, tab: &mut Self::Tab) {
-        self.tabs[*tab].ui(ui)
-    }
-
-    fn is_closeable(&self, tab: &Self::Tab) -> bool {
-        self.tabs[*tab].is_closeable()
-    }
-
-    fn on_close(&mut self, tab: &mut Self::Tab) -> OnCloseResponse {
-        self.tabs.remove(*tab);
-        OnCloseResponse::Close
-    }
-}
-
 struct App {
-    context: Context,
-    tree: DockState<TabId>,
+    tabs: tab::Manager,
 }
 
 impl Default for App {
     fn default() -> Self {
-        let mut tabs: SlotMap<TabId, BoxedTab> = SlotMap::with_key();
-        let mut dock_state = DockState::new(vec![]);
-        "Undock".clone_into(&mut dock_state.translations.tab_context_menu.eject_button);
-
-        let control_tab = tabs.insert(Box::new(ControlTab {}));
-
-        dock_state
-            .main_surface_mut()
-            .root_node_mut()
-            .unwrap()
-            .append_tab(control_tab);
-
-        // let [a, b] =
-        //     dock_state
-        //         .main_surface_mut()
-        //         .split_left(NodeIndex::root(), 0.3, vec![control_tab]);
-
-        //
-        // let [_, _] = dock_state.main_surface_mut().split_below(
-        //     a,
-        //     0.7,
-        //     vec!["File Browser".to_owned(), "Asset Manager".to_owned()],
-        // );
-        //
-        // let [_, _] =
-        //     dock_state
-        //         .main_surface_mut()
-        //         .split_below(b, 0.5, vec!["Hierarchy".to_owned()]);
-
         Self {
-            context: Context::new(tabs),
-            tree: dock_state,
+            tabs: tab::Manager::default(),
         }
     }
 }
@@ -95,18 +21,18 @@ impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         TopBottomPanel::top("hemisphere_menu_bar").show(ctx, |ui| {
             egui::MenuBar::new().ui(ui, |ui| {
-                ui.menu_button("View", |ui| {});
+                ui.menu_button("View", |_| {});
             })
         });
 
         CentralPanel::default()
             .frame(Frame::central_panel(&ctx.style()).inner_margin(0.))
             .show(ctx, |ui| {
-                DockArea::new(&mut self.tree)
+                DockArea::new(&mut self.tabs.dock)
                     .show_close_buttons(true)
                     .show_add_buttons(true)
                     .draggable_tabs(true)
-                    .show_inside(ui, &mut self.context);
+                    .show_inside(ui, &mut self.tabs.viewer);
             });
     }
 }
@@ -115,6 +41,7 @@ fn visuals() -> egui::Visuals {
     let hex = |s| Color32::from_hex(s).unwrap();
 
     // background - gamecube purple
+    let outline_light = hex("#3B3361");
     let outline = hex("#302950");
     let bg_color_light = hex("#1B172C");
     let bg_color = hex("#151223");
@@ -127,12 +54,12 @@ fn visuals() -> egui::Visuals {
         bg_fill,
         weak_bg_fill: bg_fill,
         bg_stroke: egui::Stroke {
-            color: outline,
-            ..Default::default()
+            color: outline_light,
+            width: 1.0,
         },
         fg_stroke: egui::Stroke {
             color: text,
-            ..Default::default()
+            width: 1.0,
         },
         corner_radius: egui::CornerRadius {
             nw: 2,
@@ -149,7 +76,7 @@ fn visuals() -> egui::Visuals {
         panel_fill: bg_color,
         window_stroke: egui::Stroke {
             color: outline,
-            ..Default::default()
+            width: 1.0,
         },
 
         faint_bg_color: bg_color_light,
@@ -163,6 +90,13 @@ fn visuals() -> egui::Visuals {
             active: widget(bg_color),
             ..Default::default()
         },
+
+        selection: egui::style::Selection {
+            bg_fill: outline_light,
+            stroke: egui::Stroke::NONE,
+        },
+
+        indent_has_left_vline: true,
 
         ..Default::default()
     }
