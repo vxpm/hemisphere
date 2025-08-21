@@ -91,6 +91,11 @@ impl Block {
     pub fn clir(&self) -> &str {
         &self.clir
     }
+
+    /// Returns the length, in bytes, of this block.
+    pub fn len(&self) -> usize {
+        self.code.len()
+    }
 }
 
 impl Display for Block {

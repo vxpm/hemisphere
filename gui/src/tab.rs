@@ -47,9 +47,9 @@ impl<'a> TabViewer for Viewer<'a> {
         OnCloseResponse::Close
     }
 
-    fn scroll_bars(&self, _tab: &Self::Tab) -> [bool; 2] {
-        [false, false]
-    }
+    // fn scroll_bars(&self, _tab: &Self::Tab) -> [bool; 2] {
+    //     [false, false]
+    // }
 }
 
 pub struct Manager {
@@ -64,7 +64,7 @@ impl Default for Manager {
         "Undock".clone_into(&mut dock.translations.tab_context_menu.eject_button);
 
         let control_tab = tabs.insert(Box::new(CpuTab {}));
-        let blocks_tab = tabs.insert(Box::new(BlocksTab {}));
+        let blocks_tab = tabs.insert(Box::new(BlocksTab::default()));
 
         dock.main_surface_mut()
             .root_node_mut()

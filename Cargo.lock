@@ -1394,6 +1394,7 @@ dependencies = [
 name = "gui"
 version = "0.1.0"
 dependencies = [
+ "bytesize",
  "eframe",
  "egui_dock",
  "egui_flex",

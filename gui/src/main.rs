@@ -6,6 +6,31 @@ use eframe::egui::{self, Color32};
 use egui_dock::DockArea;
 use std::sync::Arc;
 
+struct Colors {
+    outline_light: Color32,
+    outline: Color32,
+    bg_color_light: Color32,
+    bg_color: Color32,
+    bg_color_dark: Color32,
+    text: Color32,
+}
+
+fn colors() -> &'static Colors {
+    static COLORS: std::sync::LazyLock<Colors> = std::sync::LazyLock::new(|| {
+        let hex = |s| Color32::from_hex(s).unwrap();
+        Colors {
+            outline_light: hex("#3B3361"),
+            outline: hex("#302950"),
+            bg_color_light: hex("#2b2547"),
+            bg_color: hex("#151223"),
+            bg_color_dark: hex("#0B0912"),
+            text: hex("#CFBEC6"),
+        }
+    });
+
+    &COLORS
+}
+
 struct App {
     tabs: tab::Manager,
     emulator: Emulator,
@@ -55,25 +80,19 @@ impl eframe::App for App {
 }
 
 fn visuals() -> egui::Visuals {
-    let hex = |s| Color32::from_hex(s).unwrap();
-
-    // background - gamecube purple
-    let outline_light = hex("#3B3361");
-    let outline = hex("#302950");
-    let bg_color_light = hex("#1B172C");
-    let bg_color = hex("#151223");
-    let bg_color_dark = hex("#0B0912");
-
-    // text - ash white
-    let text = hex("#CFBEC6");
+    let Colors {
+        outline_light,
+        outline,
+        bg_color_light,
+        bg_color,
+        bg_color_dark,
+        text,
+    } = *colors();
 
     let widget = |bg_fill| egui::style::WidgetVisuals {
         bg_fill,
         weak_bg_fill: bg_fill,
-        bg_stroke: egui::Stroke {
-            color: outline_light,
-            width: 1.0,
-        },
+        bg_stroke: egui::Stroke::NONE,
         fg_stroke: egui::Stroke {
             color: text,
             width: 1.0,
@@ -101,10 +120,24 @@ fn visuals() -> egui::Visuals {
         code_bg_color: bg_color_dark,
 
         widgets: egui::style::Widgets {
-            noninteractive: widget(bg_color_light),
+            noninteractive: {
+                egui::style::WidgetVisuals {
+                    bg_stroke: egui::Stroke {
+                        color: outline,
+                        width: 0.5,
+                    },
+                    ..widget(bg_color_light)
+                }
+            },
             inactive: widget(bg_color_light),
-            hovered: widget(bg_color),
-            active: widget(bg_color),
+            hovered: egui::style::WidgetVisuals {
+                bg_stroke: egui::Stroke {
+                    color: outline_light,
+                    width: 1.25,
+                },
+                ..widget(bg_color_light)
+            },
+            active: widget(bg_color_light),
             ..Default::default()
         },
 
@@ -165,6 +198,9 @@ fn main() -> eframe::Result<()> {
         Box::new(|cc| {
             cc.egui_ctx.set_visuals(visuals());
             cc.egui_ctx.set_zoom_factor(1.25);
+            cc.egui_ctx.options_mut(|options| {
+                options.max_passes = std::num::NonZero::new(3).unwrap();
+            });
 
             Ok(Box::new(App::new()))
         }),
