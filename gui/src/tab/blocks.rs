@@ -1,6 +1,9 @@
-use crate::{colors, emulator::State, tab::Tab};
+use crate::{
+    colors,
+    tab::{Context, Tab},
+};
 use bytesize::ByteSize;
-use eframe::egui::{self, Color32, vec2};
+use eframe::egui::{self, vec2};
 use egui_flex::{Flex, item};
 use hemisphere::jit::BlockId;
 
@@ -25,7 +28,8 @@ impl Tab for BlocksTab {
         "🗖 JIT Blocks".into()
     }
 
-    fn ui(&mut self, state: &mut State, ui: &mut eframe::egui::Ui) {
+    fn ui(&mut self, ctx: Context, ui: &mut eframe::egui::Ui) {
+        let state = ctx.state;
         Flex::horizontal().wrap(true).show(ui, |flex| {
             for (addr, id) in state.emulator.blocks.iter() {
                 let block = state.emulator.blocks.get_by_id(id).unwrap();

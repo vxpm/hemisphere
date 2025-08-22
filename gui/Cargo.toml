@@ -8,6 +8,7 @@ hemisphere = { path = "../hemisphere" }
 slotmap.workspace = true
 wgpu.workspace = true
 bytesize.workspace = true
+tinylog.workspace = true
 
 egui_dock = "0.17"
 egui_flex = "0.4.0"

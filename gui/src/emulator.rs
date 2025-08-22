@@ -11,6 +11,7 @@ use std::{
     },
     thread::{self, Thread},
 };
+use tinylog::{Logger, drain::buf::RecordBuf, logger::LoggerFamily};
 
 pub struct State {
     pub emulator: Hemisphere,
@@ -55,8 +56,12 @@ pub struct Emulator {
 }
 
 impl Emulator {
-    pub fn new() -> Self {
-        let mut hemisphere = Hemisphere::new(Config::default());
+    pub fn new(logger: Logger) -> Self {
+        let mut hemisphere = Hemisphere::new(Config {
+            instructions_per_block: 64,
+            logger,
+        });
+
         let dol = Dol::read(&mut BufReader::new(
             std::fs::File::open("panda.dol").unwrap(),
         ))

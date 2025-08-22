@@ -7,10 +7,11 @@ edition = "2024"
 hemicore = { path = "../hemicore" }
 dolfile = { path = "../dolfile" }
 ppcjit = { path = "../ppcjit" }
-easyerr.workspace = true
 bitos.workspace = true
 bytesize.workspace = true
-slotmap.workspace = true
-zerocopy.workspace = true
+easyerr.workspace = true
 rustc-hash.workspace = true
+slotmap.workspace = true
+tinylog.workspace = true
+zerocopy.workspace = true
 bimap = "0.6"

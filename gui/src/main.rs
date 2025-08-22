@@ -1,10 +1,14 @@
 mod emulator;
 mod tab;
 
-use crate::{emulator::Emulator, tab::Viewer};
+use crate::{
+    emulator::Emulator,
+    tab::{Context, Viewer},
+};
 use eframe::egui::{self, Color32};
 use egui_dock::DockArea;
 use std::{sync::Arc, time::Duration};
+use tinylog::{drain::buf::RecordBuf, logger::LoggerFamily};
 
 struct Colors {
     outline_light: Color32,
@@ -34,13 +38,21 @@ fn colors() -> &'static Colors {
 struct App {
     tabs: tab::Manager,
     emulator: Emulator,
+    loggers: LoggerFamily,
+    log_records: RecordBuf,
 }
 
 impl App {
     fn new() -> Self {
+        let records = RecordBuf::new();
+        let loggers = LoggerFamily::builder().with_drain(records.drain()).build();
+        let root_logger = loggers.logger("core", tinylog::Level::Trace);
+
         Self {
             tabs: tab::Manager::default(),
-            emulator: Emulator::new(),
+            emulator: Emulator::new(root_logger),
+            loggers,
+            log_records: records,
         }
     }
 }
@@ -62,14 +74,16 @@ impl eframe::App for App {
                         ui.menu_button("View", |_| {});
                     },
                     |ui| {
-                        if self.emulator.running() {
-                            if ui.button("⏸").clicked() {
-                                self.emulator.stop();
-                            }
+                        let height = ui.available_height();
+                        let (text, action) = if self.emulator.running() {
+                            ("⏸", Emulator::stop as fn(_))
                         } else {
-                            if ui.button("▶").clicked() {
-                                self.emulator.run();
-                            }
+                            ("▶", Emulator::run as fn(_))
+                        };
+
+                        let button = egui::Button::new(text).min_size(egui::vec2(height, height));
+                        if ui.add(button).clicked() {
+                            action(&mut self.emulator);
                         }
                     },
                 );
@@ -80,6 +94,7 @@ impl eframe::App for App {
         let mut viewer = Viewer {
             tabs: &mut self.tabs.tabs,
             state: &mut state,
+            records: &self.log_records,
         };
 
         egui::CentralPanel::default()
