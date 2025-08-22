@@ -1,20 +1,15 @@
 pub mod blocks;
 pub mod cpu;
-pub mod logs;
 
-use crate::{
-    emulator::State,
-    tab::{blocks::BlocksTab, logs::LogsTab},
-};
+use crate::{emulator::State, tab::blocks::BlocksTab};
 use cpu::CpuTab;
 use eframe::egui;
 use egui_dock::{DockState, TabViewer, tab_viewer::OnCloseResponse};
 use slotmap::{SlotMap, new_key_type};
-use tinylog::{drain::buf::RecordBuf, logger::LoggerFamily};
 
 pub trait Tab {
     fn title(&mut self) -> egui::WidgetText;
-    fn ui(&mut self, ctx: Context, ui: &mut egui::Ui);
+    fn ui(&mut self, state: &mut State, ui: &mut egui::Ui);
 
     fn is_closeable(&self) -> bool {
         true
@@ -27,17 +22,9 @@ new_key_type! {
     pub struct TabId;
 }
 
-pub struct Context<'a> {
-    pub state: &'a mut State,
-    pub records: &'a RecordBuf,
-    pub loggers: &'a LoggerFamily,
-}
-
 pub struct Viewer<'a> {
     pub tabs: &'a mut SlotMap<TabId, BoxedTab>,
     pub state: &'a mut State,
-    pub records: &'a RecordBuf,
-    pub loggers: &'a LoggerFamily,
 }
 
 impl<'a> TabViewer for Viewer<'a> {
@@ -48,14 +35,7 @@ impl<'a> TabViewer for Viewer<'a> {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, tab: &mut Self::Tab) {
-        self.tabs[*tab].ui(
-            Context {
-                state: self.state,
-                records: self.records,
-                loggers: self.loggers,
-            },
-            ui,
-        )
+        self.tabs[*tab].ui(self.state, ui)
     }
 
     fn is_closeable(&self, tab: &Self::Tab) -> bool {
@@ -85,7 +65,6 @@ impl Default for Manager {
 
         let control_tab = tabs.insert(Box::new(CpuTab {}));
         let blocks_tab = tabs.insert(Box::new(BlocksTab::default()));
-        let logs_tab = tabs.insert(Box::new(LogsTab::default()));
 
         dock.main_surface_mut()
             .root_node_mut()
@@ -96,8 +75,8 @@ impl Default for Manager {
             dock.main_surface_mut()
                 .split_left(egui_dock::NodeIndex::root(), 0.5, vec![blocks_tab]);
 
-        dock.main_surface_mut()
-            .split_below(rhs, 0.5, vec![logs_tab]);
+        // dock.main_surface_mut()
+        //     .split_below(rhs, 0.5, vec![logs_tab]);
 
         //
         // let [_, _] = dock_state.main_surface_mut().split_below(

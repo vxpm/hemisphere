@@ -25,9 +25,6 @@ opt-level = 3
 
 [workspace.dependencies]
 bitos = { git = "https://github.com/vxpm/bitos.git", features = ["zerocopy"] }
-# tinylog = { git = "https://github.com/vxpm/tinylog.git" }
-tinylog = { path = "../tinylog/tinylog" }
-
 bytesize = "2"
 easyerr = "0.1"
 iced-x86 = "1.21"

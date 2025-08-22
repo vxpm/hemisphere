@@ -12,7 +12,6 @@ use ppcjit::{
     powerpc::{Extensions, Ins},
 };
 use rustc_hash::FxHashSet;
-use tinylog::{Logger, info};
 
 pub use dolfile;
 pub use hemicore;
@@ -20,15 +19,12 @@ pub use hemicore;
 pub struct Config {
     /// Maximum number of instructions per JIT block.
     pub instructions_per_block: u16,
-    /// Root logger for the emulator.
-    pub logger: Logger,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
             instructions_per_block: 64,
-            logger: Logger::dummy(),
         }
     }
 }
@@ -97,9 +93,8 @@ pub struct Hemisphere {
 
 impl Hemisphere {
     pub fn new(config: Config) -> Self {
-        let bus_logger = config.logger.child("bus", tinylog::Level::Trace);
         Self {
-            bus: Bus::new(bus_logger),
+            bus: Bus::new(),
             pc: Address(0),
             cpu: ppcjit::Registers::default(),
             jit: ppcjit::JIT::default(),
@@ -150,7 +145,6 @@ impl Hemisphere {
 
     /// Executes a single block and returns how many instructions were executed.
     pub fn exec(&mut self) -> u32 {
-        info!(self.bus.logger, "hi");
         let block = match self.blocks.get(self.pc) {
             Some(block) => block,
             None => {

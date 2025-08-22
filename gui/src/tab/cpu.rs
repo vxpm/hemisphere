@@ -1,7 +1,4 @@
-use crate::{
-    emulator::State,
-    tab::{Context, Tab},
-};
+use crate::{emulator::State, tab::Tab};
 use eframe::egui::{self, CollapsingHeader};
 
 pub struct CpuTab {}
@@ -58,9 +55,7 @@ impl Tab for CpuTab {
         "CPU View".into()
     }
 
-    fn ui(&mut self, ctx: Context, ui: &mut eframe::egui::Ui) {
-        let state = ctx.state;
-
+    fn ui(&mut self, state: &mut State, ui: &mut eframe::egui::Ui) {
         ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
         ui.label(format!("PC: 0x{:08X}", state.emulator.pc.value()));
 

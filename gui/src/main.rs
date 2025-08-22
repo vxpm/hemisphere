@@ -1,14 +1,10 @@
 mod emulator;
 mod tab;
 
-use crate::{
-    emulator::Emulator,
-    tab::{Context, Viewer},
-};
+use crate::{emulator::Emulator, tab::Viewer};
 use eframe::egui::{self, Color32};
 use egui_dock::DockArea;
 use std::{sync::Arc, time::Duration};
-use tinylog::{drain::buf::RecordBuf, logger::LoggerFamily};
 
 struct Colors {
     outline_light: Color32,
@@ -38,21 +34,13 @@ fn colors() -> &'static Colors {
 struct App {
     tabs: tab::Manager,
     emulator: Emulator,
-    loggers: LoggerFamily,
-    log_records: RecordBuf,
 }
 
 impl App {
     fn new() -> Self {
-        let records = RecordBuf::new();
-        let loggers = LoggerFamily::builder().with_drain(records.drain()).build();
-        let root_logger = loggers.logger("core", tinylog::Level::Trace);
-
         Self {
             tabs: tab::Manager::default(),
-            emulator: Emulator::new(root_logger),
-            loggers,
-            log_records: records,
+            emulator: Emulator::new(),
         }
     }
 }
@@ -94,8 +82,6 @@ impl eframe::App for App {
         let mut viewer = Viewer {
             tabs: &mut self.tabs.tabs,
             state: &mut state,
-            records: &self.log_records,
-            loggers: &self.loggers,
         };
 
         egui::CentralPanel::default()

@@ -3,22 +3,18 @@ use crate::{
     video::VideoInterface,
 };
 use hemicore::{Address, Primitive};
-use tinylog::{Logger, error, warn};
 use zerocopy::IntoBytes;
 
 pub struct Bus {
     pub mem: Memory,
     pub video: VideoInterface,
-    pub logger: Logger,
 }
 
 impl Bus {
-    pub fn new(logger: Logger) -> Self {
-        let vi_logger = logger.child("video", logger.level());
+    pub fn new() -> Self {
         Self {
             mem: Memory::default(),
-            video: VideoInterface::new(vi_logger),
-            logger,
+            video: VideoInterface::new(),
         }
     }
 }
@@ -45,7 +41,7 @@ impl Bus {
                         }
                     )*
                     _ => {
-                        error!(self.logger, "read from unimplemented address {addr}");
+                        todo!("read from unimplemented address {addr}");
                         P::default()
                     }
                 }
@@ -103,7 +99,7 @@ impl Bus {
                         }
                     )*
                     _ => {
-                        warn!(self.logger, "write to unimplemented address {addr} ({value:08X})");
+                        todo!("write to unimplemented address {addr} ({value:08X})");
                     }
                 }
             };
