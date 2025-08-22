@@ -1,7 +1,7 @@
 pub const RAM_LEN: u32 = 24 * bytesize::MIB as u32;
 pub const EFB_LEN: u32 = 2 * bytesize::MIB as u32;
 pub const L2C_LEN: u32 = 16 * bytesize::KIB as u32;
-pub const IPL_LEN: u32 = 1 * bytesize::MIB as u32;
+pub const IPL_LEN: u32 = bytesize::MIB as u32;
 
 #[inline]
 fn boxed_array<T: Clone, const LEN: usize>(elem: T) -> Box<[T; LEN]> {

@@ -7,6 +7,12 @@ pub struct VideoInterface {
     pub regs: Registers,
 }
 
+impl Default for VideoInterface {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl VideoInterface {
     pub fn new() -> Self {
         Self {

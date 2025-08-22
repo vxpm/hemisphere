@@ -2,7 +2,6 @@ use bitos::{
     BitUtils, bitos,
     integer::{u2, u4, u7, u11, u15},
 };
-use bytesize::ByteSize;
 use hemicore::Address;
 use std::fmt::Debug;
 

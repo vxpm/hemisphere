@@ -33,7 +33,7 @@ impl Address {
     /// Returns `true` if this address is aligned to the given alignment.
     #[inline(always)]
     pub const fn is_aligned(self, alignment: u32) -> bool {
-        self.0 % alignment == 0
+        self.0.is_multiple_of(alignment)
     }
 }
 

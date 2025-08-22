@@ -65,7 +65,7 @@ impl BlockBuilder<'_> {
     }
 
     pub fn setup_jump_imm(&mut self, relative: bool, link: bool, data: i32) {
-        let data = self.bd.ins().iconst(ir::types::I32, data as i32 as i64);
+        let data = self.bd.ins().iconst(ir::types::I32, data as i64);
         self.setup_jump(relative, link, data);
     }
 

@@ -137,7 +137,7 @@ impl Hemisphere {
             let target = self
                 .cpu
                 .supervisor
-                .translate_data_addr(Address(dol.header.bss_target + offset as u32));
+                .translate_data_addr(Address(dol.header.bss_target + offset));
 
             self.bus.write(target, 0u8);
         }

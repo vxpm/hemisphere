@@ -19,6 +19,12 @@ pub enum SequenceStatus {
 #[error("failed to push instruction: sequence is complete")]
 pub struct PushError;
 
+impl Default for Sequence {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Sequence {
     pub fn new() -> Self {
         Self(Vec::new())
