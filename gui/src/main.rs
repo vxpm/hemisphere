@@ -95,6 +95,7 @@ impl eframe::App for App {
             tabs: &mut self.tabs.tabs,
             state: &mut state,
             records: &self.log_records,
+            loggers: &self.loggers,
         };
 
         egui::CentralPanel::default()
@@ -176,10 +177,14 @@ fn visuals() -> egui::Visuals {
 
         selection: egui::style::Selection {
             bg_fill: outline_light,
-            stroke: egui::Stroke::NONE,
+            stroke: egui::Stroke {
+                width: 1.0,
+                color: text,
+            },
         },
 
         indent_has_left_vline: true,
+        striped: true,
 
         ..Default::default()
     }

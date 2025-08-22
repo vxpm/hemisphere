@@ -12,7 +12,7 @@ use ppcjit::{
     powerpc::{Extensions, Ins},
 };
 use rustc_hash::FxHashSet;
-use tinylog::Logger;
+use tinylog::{Logger, info};
 
 pub use dolfile;
 pub use hemicore;
@@ -150,6 +150,7 @@ impl Hemisphere {
 
     /// Executes a single block and returns how many instructions were executed.
     pub fn exec(&mut self) -> u32 {
+        info!(self.bus.logger, "hi");
         let block = match self.blocks.get(self.pc) {
             Some(block) => block,
             None => {

@@ -10,7 +10,7 @@ use cpu::CpuTab;
 use eframe::egui;
 use egui_dock::{DockState, TabViewer, tab_viewer::OnCloseResponse};
 use slotmap::{SlotMap, new_key_type};
-use tinylog::drain::buf::RecordBuf;
+use tinylog::{drain::buf::RecordBuf, logger::LoggerFamily};
 
 pub trait Tab {
     fn title(&mut self) -> egui::WidgetText;
@@ -30,12 +30,14 @@ new_key_type! {
 pub struct Context<'a> {
     pub state: &'a mut State,
     pub records: &'a RecordBuf,
+    pub loggers: &'a LoggerFamily,
 }
 
 pub struct Viewer<'a> {
     pub tabs: &'a mut SlotMap<TabId, BoxedTab>,
     pub state: &'a mut State,
     pub records: &'a RecordBuf,
+    pub loggers: &'a LoggerFamily,
 }
 
 impl<'a> TabViewer for Viewer<'a> {
@@ -50,6 +52,7 @@ impl<'a> TabViewer for Viewer<'a> {
             Context {
                 state: self.state,
                 records: self.records,
+                loggers: self.loggers,
             },
             ui,
         )
