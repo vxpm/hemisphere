@@ -4,7 +4,7 @@ mod tab;
 use crate::{emulator::Emulator, tab::Viewer};
 use eframe::egui::{self, Color32};
 use egui_dock::DockArea;
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 struct Colors {
     outline_light: Color32,
@@ -56,8 +56,24 @@ impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::TopBottomPanel::top("hemisphere_menu_bar").show(ctx, |ui| {
             egui::MenuBar::new().ui(ui, |ui| {
-                ui.menu_button("View", |_| {});
-            })
+                egui::Sides::new().show(
+                    ui,
+                    |ui| {
+                        ui.menu_button("View", |_| {});
+                    },
+                    |ui| {
+                        if self.emulator.running() {
+                            if ui.button("⏸").clicked() {
+                                self.emulator.stop();
+                            }
+                        } else {
+                            if ui.button("▶").clicked() {
+                                self.emulator.run();
+                            }
+                        }
+                    },
+                );
+            });
         });
 
         let mut state = self.emulator.state();
@@ -76,6 +92,8 @@ impl eframe::App for App {
                     .draggable_tabs(true)
                     .show_inside(ui, &mut viewer);
             });
+
+        ctx.request_repaint_after(Duration::from_millis(16));
     }
 }
 
@@ -199,7 +217,7 @@ fn main() -> eframe::Result<()> {
             cc.egui_ctx.set_visuals(visuals());
             cc.egui_ctx.set_zoom_factor(1.25);
             cc.egui_ctx.options_mut(|options| {
-                options.max_passes = std::num::NonZero::new(3).unwrap();
+                options.max_passes = std::num::NonZero::new(5).unwrap();
             });
 
             Ok(Box::new(App::new()))

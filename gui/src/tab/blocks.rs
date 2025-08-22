@@ -36,30 +36,46 @@ impl Tab for BlocksTab {
                         .corner_radius(egui::CornerRadius::same(4))
                         .inner_margin(egui::Margin::symmetric(4, 4))
                         .show(ui, |ui| {
-                            Flex::vertical().show(ui, |flex| {
-                                flex.add_ui(item(), |ui| {
-                                    ui.label(format!("{}", addr));
-                                    ui.label(format!("{} instructions", block.sequence().len(),));
-                                    ui.label(format!("{} of code", ByteSize(block.len() as u64)));
-                                });
+                            Flex::vertical()
+                                .align_items(egui_flex::FlexAlign::Center)
+                                .show(ui, |flex| {
+                                    let title =
+                                        egui::RichText::new(format!("{}", addr)).monospace();
+                                    flex.add(item(), egui::Label::new(title));
 
-                                flex.add_ui(item(), |ui| {
-                                    ui.horizontal(|ui| {
-                                        if ui.button("Instructions").clicked() {
-                                            self.block_id = id;
-                                            self.modal_mode = Some(ModalMode::Instructions);
-                                        }
-                                        if ui.button("CLIR").clicked() {
-                                            self.block_id = id;
-                                            self.modal_mode = Some(ModalMode::CLIR);
-                                        }
-                                        if ui.button("ASM").clicked() {
-                                            self.block_id = id;
-                                            self.modal_mode = Some(ModalMode::ASM);
-                                        }
+                                    flex.add(
+                                        item(),
+                                        egui::Label::new(format!(
+                                            "{} instructions",
+                                            block.sequence().len(),
+                                        )),
+                                    );
+
+                                    flex.add(
+                                        item(),
+                                        egui::Label::new(format!(
+                                            "{} of code",
+                                            ByteSize(block.len() as u64)
+                                        )),
+                                    );
+
+                                    flex.add_ui(item(), |ui| {
+                                        ui.horizontal(|ui| {
+                                            if ui.button("PPC").clicked() {
+                                                self.block_id = id;
+                                                self.modal_mode = Some(ModalMode::Instructions);
+                                            }
+                                            if ui.button("CLIR").clicked() {
+                                                self.block_id = id;
+                                                self.modal_mode = Some(ModalMode::CLIR);
+                                            }
+                                            if ui.button("ASM").clicked() {
+                                                self.block_id = id;
+                                                self.modal_mode = Some(ModalMode::ASM);
+                                            }
+                                        });
                                     });
                                 });
-                            });
                         })
                 });
             }
@@ -71,7 +87,7 @@ impl Tab for BlocksTab {
             let id = egui::Id::new("blocks-modal");
             let modal = egui::Modal::new(id).show(ui.ctx(), |ui| {
                 ui.label(format!("Instructions: {}", block.sequence().len()));
-                ui.allocate_ui(vec2(250.0, 500.0), |ui| {
+                ui.allocate_ui(vec2(250.0, 400.0), |ui| {
                     egui::Frame::new()
                         .fill(colors().bg_color_dark)
                         .show(ui, |ui| {
