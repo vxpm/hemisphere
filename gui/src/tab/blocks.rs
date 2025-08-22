@@ -38,11 +38,9 @@ impl Tab for BlocksTab {
                         .show(ui, |ui| {
                             Flex::vertical().show(ui, |flex| {
                                 flex.add_ui(item(), |ui| {
-                                    ui.label(format!(
-                                        "{}  ({})",
-                                        addr,
-                                        ByteSize(block.len() as u64)
-                                    ))
+                                    ui.label(format!("{}", addr));
+                                    ui.label(format!("{} instructions", block.sequence().len(),));
+                                    ui.label(format!("{} of code", ByteSize(block.len() as u64)));
                                 });
 
                                 flex.add_ui(item(), |ui| {
@@ -69,35 +67,33 @@ impl Tab for BlocksTab {
 
         if let Some(mode) = &self.modal_mode {
             let block = state.emulator.blocks.get_by_id(self.block_id).unwrap();
-            ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
 
-            let modal = egui::Modal::new(egui::Id::new("blocks-modal")).show(ui.ctx(), |ui| {
-                egui::Sides::new().show(
-                    ui,
-                    |_| {},
-                    |ui| {
-                        if ui.button("Close").clicked() {
-                            ui.close();
-                        }
-                    },
-                );
-
-                let width = ui.available_width();
-                egui::ScrollArea::vertical().show(ui, |ui| {
-                    ui.set_width(width);
-                    ui.set_height_range(250.0..=500.0);
-                    ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
-                    match mode {
-                        ModalMode::Instructions => {
-                            ui.label(block.sequence().to_string());
-                        }
-                        ModalMode::CLIR => {
-                            ui.label(block.clir());
-                        }
-                        ModalMode::ASM => {
-                            ui.label(block.to_string());
-                        }
-                    }
+            let id = egui::Id::new("blocks-modal");
+            let modal = egui::Modal::new(id).show(ui.ctx(), |ui| {
+                ui.label(format!("Instructions: {}", block.sequence().len()));
+                ui.allocate_ui(vec2(250.0, 500.0), |ui| {
+                    egui::Frame::new()
+                        .fill(colors().bg_color_dark)
+                        .show(ui, |ui| {
+                            egui::ScrollArea::vertical()
+                                .auto_shrink([false, true])
+                                .show(ui, |ui| {
+                                    ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
+                                    ui.style_mut().override_text_style =
+                                        Some(egui::TextStyle::Monospace);
+                                    match mode {
+                                        ModalMode::Instructions => {
+                                            ui.label(block.sequence().to_string());
+                                        }
+                                        ModalMode::CLIR => {
+                                            ui.label(block.clir());
+                                        }
+                                        ModalMode::ASM => {
+                                            ui.label(block.to_string());
+                                        }
+                                    }
+                                });
+                        });
                 });
             });
 

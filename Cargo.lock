@@ -2297,25 +2297,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e3148f5046208a5d56bcfc03053e3ca6334e51da8dfb19b6cdc8b306fae3283e"
 
 [[package]]
-name = "phf"
-version = "0.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "913273894cec178f401a31ec4b656318d95473527be05c0752cc41cdc32be8b7"
-dependencies = [
- "phf_shared",
- "serde",
-]
-
-[[package]]
-name = "phf_shared"
-version = "0.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "06005508882fb681fd97892ecff4b7fd0fee13ef1aa569f8695dae7ab9099981"
-dependencies = [
- "siphasher",
-]
-
-[[package]]
 name = "pin-project"
 version = "1.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2402,16 +2383,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f9cac36a8d92f3c9d38ebfa606e3bbbbec229a8d757f03de0999898522856e33"
 
 [[package]]
-name = "powerpc-asm"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6279a5e74397a442815266b75cba540630860f62cc306e324079e3056a27225b"
-dependencies = [
- "phf",
- "thiserror 2.0.14",
-]
-
-[[package]]
 name = "ppcjit"
 version = "0.1.0"
 dependencies = [
@@ -2424,7 +2395,6 @@ dependencies = [
  "memmap2",
  "num_enum",
  "powerpc",
- "powerpc-asm",
  "rustc-hash 2.1.1",
  "zerocopy",
 ]
@@ -2661,12 +2631,6 @@ name = "simd-adler32"
 version = "0.3.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d66dc143e6b11c1eddc06d5c423cfc97062865baf299914ab64caa38182078fe"
-
-[[package]]
-name = "siphasher"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "56199f7ddabf13fe5074ce809e7d3f42b42ae711800501b5b16ea82ad029c39d"
 
 [[package]]
 name = "slab"

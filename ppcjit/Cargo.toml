@@ -3,9 +3,6 @@ name = "ppcjit"
 version = "0.1.0"
 edition = "2024"
 
-[dev-dependencies]
-powerpc-asm.workspace = true
-
 [dependencies]
 hemicore = { path = "../hemicore" }
 bitos.workspace = true
