@@ -12,5 +12,6 @@ bytesize.workspace = true
 easyerr.workspace = true
 rustc-hash.workspace = true
 slotmap.workspace = true
+tracing.workspace = true
 zerocopy.workspace = true
 bimap = "0.6"

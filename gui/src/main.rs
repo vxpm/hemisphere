@@ -5,6 +5,7 @@ use crate::{emulator::Emulator, tab::Viewer};
 use eframe::egui::{self, Color32};
 use egui_dock::DockArea;
 use std::{sync::Arc, time::Duration};
+use tracing_subscriber::util::SubscriberInitExt;
 
 struct Colors {
     outline_light: Color32,
@@ -193,7 +194,40 @@ fn visuals() -> egui::Visuals {
 //     });
 // }
 
+fn setup_tracing() -> [tracing_appender::non_blocking::WorkerGuard; 2] {
+    use tracing_subscriber::layer::SubscriberExt;
+    use tracing_subscriber::*;
+
+    let file = std::fs::File::options()
+        .truncate(true)
+        .create(true)
+        .write(true)
+        .open("log.txt")
+        .unwrap();
+
+    let (file, _guard_file) = tracing_appender::non_blocking(file);
+    let (stderr, _guard_stderr) = tracing_appender::non_blocking(std::io::stderr());
+
+    let env_filter = EnvFilter::try_from_default_env().unwrap_or(EnvFilter::new(
+        "hemisphere=trace,hemicore=trace,ppcjit=trace",
+    ));
+
+    let file_layer = fmt::layer().with_writer(file).with_ansi(false);
+    let stderr_layer = fmt::layer().with_writer(stderr).with_ansi(true);
+
+    let subscriber = tracing_subscriber::registry()
+        .with(file_layer)
+        .with(stderr_layer)
+        .with(env_filter);
+
+    subscriber.init();
+
+    [_guard_file, _guard_stderr]
+}
+
 fn main() -> eframe::Result<()> {
+    let _guard = setup_tracing();
+
     let instance = wgpu::InstanceDescriptor::from_env_or_default();
     let mut native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default().with_inner_size(egui::vec2(1024.0, 1024.0)),

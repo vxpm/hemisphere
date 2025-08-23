@@ -15,6 +15,7 @@ use rustc_hash::FxHashSet;
 
 pub use dolfile;
 pub use hemicore;
+use tracing::{info, info_span};
 
 pub struct Config {
     /// Maximum number of instructions per JIT block.
@@ -148,6 +149,8 @@ impl Hemisphere {
         let block = match self.blocks.get(self.pc) {
             Some(block) => block,
             None => {
+                let _span = info_span!("building new block", addr = ?self.pc).entered();
+
                 let mut seq = Sequence::new();
                 let mut current = self.pc;
 
@@ -167,6 +170,8 @@ impl Hemisphere {
                         _ => break,
                     }
                 }
+
+                info!(instructions = seq.len(), "block sequence built");
 
                 let block = self.jit.build(seq).unwrap();
                 let block = self.blocks.insert(self.pc, block).unwrap();

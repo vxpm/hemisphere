@@ -4,6 +4,7 @@ use hemicore::Address;
 use ppcjit::block::Block;
 use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
 use slotmap::{SlotMap, new_key_type};
+use tracing::warn;
 
 new_key_type! {
     /// The ID of a JIT block in a [`BlockStorage`].
@@ -85,14 +86,19 @@ impl BlockStorage {
     }
 
     pub fn invalidate(&mut self, addr: Address) {
-        let region = region(addr);
-        let Some(region) = self.regions.get_mut(&region) else {
+        let r = region(addr);
+        let Some(region) = self.regions.get_mut(&r) else {
             return;
         };
 
+        let count = region.len();
         for id in region.drain() {
             self.blocks.remove(id);
             self.mapping.remove_by_right(&id);
+        }
+
+        if count != 0 {
+            warn!(region = r, count = ?count, "invalidated region");
         }
     }
 

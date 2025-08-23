@@ -5,9 +5,12 @@ edition = "2024"
 
 [dependencies]
 hemisphere = { path = "../hemisphere" }
-slotmap.workspace = true
-wgpu.workspace = true
 bytesize.workspace = true
+slotmap.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+tracing-appender = "0.2"
+wgpu.workspace = true
 
 egui_dock = "0.17"
 egui_flex = "0.4.0"
