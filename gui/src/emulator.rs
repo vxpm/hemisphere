@@ -10,6 +10,7 @@ use std::{
         atomic::{AtomicBool, Ordering},
     },
     thread::{self, Thread},
+    time::{Duration, Instant},
 };
 
 pub struct State {
@@ -116,7 +117,29 @@ impl Emulator {
     }
 }
 
+const FREQUENCY: u32 = 486_000_000;
+const CYCLES_PER_SLICE: u32 = FREQUENCY / 200_000;
+
+#[derive(Default)]
+struct MainLoop {}
+
+impl MainLoop {
+    fn emulate(&mut self, state: &mut State) {
+        let slice_duration = Duration::from_secs_f64(CYCLES_PER_SLICE as f64 / FREQUENCY as f64);
+        let begin = Instant::now();
+
+        let mut emulated = 0;
+        while emulated < CYCLES_PER_SLICE {
+            // assume an average of 2 cycles per instruction
+            emulated += state.emulator.exec() * 2;
+        }
+
+        while begin.elapsed() < slice_duration {}
+    }
+}
+
 fn emulator_thread(shared: Arc<Shared>) {
+    let mut main_loop = MainLoop::default();
     loop {
         while !shared.advance.load(Ordering::Acquire) {
             thread::park();
@@ -124,7 +147,7 @@ fn emulator_thread(shared: Arc<Shared>) {
 
         let mut state = shared.state.lock().unwrap();
         while shared.advance.load(Ordering::Relaxed) {
-            state.emulator.exec();
+            main_loop.emulate(&mut state);
         }
     }
 }
