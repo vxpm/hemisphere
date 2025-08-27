@@ -72,19 +72,19 @@ impl Bus {
 
             // === MMIO ===
             // --> VI
-            0x0C00_2000, 2 => ll!(self.video.regs.vtr.as_bytes());
-            0x0C00_2002, 2 => ll!(self.video.regs.dcr.as_bytes());
-            0x0C00_2004, 8 => ll!(self.video.regs.htr.as_bytes());
-            0x0C00_200C, 4 => ll!(self.video.regs.vto.as_bytes());
-            0x0C00_2010, 4 => ll!(self.video.regs.vte.as_bytes());
-            0x0C00_2014, 4 => ll!(self.video.regs.bbei.as_bytes());
-            0x0C00_2018, 4 => ll!(self.video.regs.bboi.as_bytes());
-            0x0C00_201C, 4 => ll!(self.video.regs.tfbl.as_bytes());
+            0x0C00_2000, 2 => ll!(self.video.regs.vertical_timing.as_bytes());
+            0x0C00_2002, 2 => ll!(self.video.regs.display_config.as_bytes());
+            0x0C00_2004, 8 => ll!(self.video.regs.horizontal_timing.as_bytes());
+            0x0C00_200C, 4 => ll!(self.video.regs.odd_field_vertical_timing.as_bytes());
+            0x0C00_2010, 4 => ll!(self.video.regs.even_field_vertical_timing.as_bytes());
+            0x0C00_2014, 4 => ll!(self.video.regs.odd_field_bb_interval.as_bytes());
+            0x0C00_2018, 4 => ll!(self.video.regs.even_field_bb_interval.as_bytes());
+            0x0C00_201C, 4 => ll!(self.video.regs.top_field_base.as_bytes());
             0x0C00_2020, 4 => ll!(self.video.regs.tfbr.as_bytes());
-            0x0C00_2024, 4 => ll!(self.video.regs.bfbl.as_bytes());
+            0x0C00_2024, 4 => ll!(self.video.regs.bottom_field_base.as_bytes());
             0x0C00_2028, 4 => ll!(self.video.regs.bfbr.as_bytes());
-            0x0C00_204A, 2 => ll!(self.video.regs.hsr.as_bytes());
-            0x0C00_206C, 2 => ll!(self.video.regs.clk.as_bytes());
+            0x0C00_204A, 2 => ll!(self.video.regs.horizontal_scaling.as_bytes());
+            0x0C00_206C, 2 => ll!(self.video.regs.clock.as_bytes());
             0x0C00_2070, 2 => ll!(self.video.regs._2070.as_bytes());
         }
     }
@@ -129,19 +129,19 @@ impl Bus {
 
             // === MMIO ===
             // --> VI
-            0x0C00_2000, 2 => ll!(self.video.regs.vtr.as_mut_bytes());
-            0x0C00_2002, 2 => ll!(self.video.regs.dcr.as_mut_bytes());
-            0x0C00_2004, 8 => ll!(self.video.regs.htr.as_mut_bytes());
-            0x0C00_200C, 4 => ll!(self.video.regs.vto.as_mut_bytes());
-            0x0C00_2010, 4 => ll!(self.video.regs.vte.as_mut_bytes());
-            0x0C00_2014, 4 => ll!(self.video.regs.bbei.as_mut_bytes());
-            0x0C00_2018, 4 => ll!(self.video.regs.bboi.as_mut_bytes());
-            0x0C00_201C, 4 => ll!(self.video.regs.tfbl.as_mut_bytes());
+            0x0C00_2000, 2 => ll!(self.video.regs.vertical_timing.as_mut_bytes());
+            0x0C00_2002, 2 => ll!(self.video.regs.display_config.as_mut_bytes());
+            0x0C00_2004, 8 => ll!(self.video.regs.horizontal_timing.as_mut_bytes());
+            0x0C00_200C, 4 => ll!(self.video.regs.odd_field_vertical_timing.as_mut_bytes());
+            0x0C00_2010, 4 => ll!(self.video.regs.even_field_vertical_timing.as_mut_bytes());
+            0x0C00_2014, 4 => ll!(self.video.regs.odd_field_bb_interval.as_mut_bytes());
+            0x0C00_2018, 4 => ll!(self.video.regs.even_field_bb_interval.as_mut_bytes());
+            0x0C00_201C, 4 => ll!(self.video.regs.top_field_base.as_mut_bytes());
             0x0C00_2020, 4 => ll!(self.video.regs.tfbr.as_mut_bytes());
-            0x0C00_2024, 4 => ll!(self.video.regs.bfbl.as_mut_bytes());
+            0x0C00_2024, 4 => ll!(self.video.regs.bottom_field_base.as_mut_bytes());
             0x0C00_2028, 4 => ll!(self.video.regs.bfbr.as_mut_bytes());
-            0x0C00_204A, 2 => ll!(self.video.regs.hsr.as_mut_bytes());
-            0x0C00_206C, 2 => ll!(self.video.regs.clk.as_mut_bytes());
+            0x0C00_204A, 2 => ll!(self.video.regs.horizontal_scaling.as_mut_bytes());
+            0x0C00_206C, 2 => ll!(self.video.regs.clock.as_mut_bytes());
             0x0C00_2070, 2 => ll!(self.video.regs._2070.as_mut_bytes());
 
             // FCT0 - FCT6 - stubbed, coefficients related to AA i guess?

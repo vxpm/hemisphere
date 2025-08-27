@@ -12,10 +12,13 @@ use ppcjit::{
     powerpc::{Extensions, Ins},
 };
 use rustc_hash::FxHashSet;
+use tracing::{info, info_span};
 
 pub use dolfile;
 pub use hemicore;
-use tracing::{info, info_span};
+
+/// The CPU frequency.
+pub const FREQUENCY: u64 = 486_000_000;
 
 pub struct Config {
     /// Maximum number of instructions per JIT block.

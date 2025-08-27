@@ -65,7 +65,7 @@ pub struct DisplayConfig {
 #[bitos(64)]
 #[derive(Debug, Clone, Copy, Default)]
 pub struct HorizontalTiming {
-    /// The width of a halfline, in (?)
+    /// The width of a halfline, in samples
     #[bits(0..9)]
     pub halfline_width: u9,
     /// (?) between the start of a HSync and the end of the color burst.
@@ -95,7 +95,7 @@ pub struct FieldVerticalTiming {
 
 #[bitos(32)]
 #[derive(Debug, Clone, Copy, Default)]
-pub struct FieldBurstBlankingInteval {
+pub struct FieldBurstBlankingInterval {
     /// In half lines
     #[bits(0..5)]
     pub field_start_to_burst_blanking_start: u5,
@@ -115,6 +115,22 @@ pub struct FieldBase {
     pub shift_addr: bool,
 }
 
+#[bitos(16)]
+#[derive(Debug, Clone, Copy, Default)]
+pub struct HorizontalScaling {
+    #[bits(0..9)]
+    pub step_size: u9,
+    #[bits(12)]
+    pub enabled: bool,
+}
+
+#[bitos(16)]
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ClockMode {
+    #[bits(0)]
+    pub double: bool,
+}
+
 impl FieldBase {
     pub fn xfb_address(&self) -> Address {
         Address((self.xfb_addr_offset().value() as u32) << 9)
@@ -124,19 +140,19 @@ impl FieldBase {
 #[repr(C)]
 #[derive(Debug, Default)]
 pub struct Registers {
-    pub vtr: VerticalTiming,
-    pub dcr: DisplayConfig,
-    pub htr: HorizontalTiming,
-    pub vto: FieldVerticalTiming,
-    pub vte: FieldVerticalTiming,
-    pub bbei: FieldBurstBlankingInteval,
-    pub bboi: FieldBurstBlankingInteval,
-    pub tfbl: FieldBase,
+    pub vertical_timing: VerticalTiming,
+    pub display_config: DisplayConfig,
+    pub horizontal_timing: HorizontalTiming,
+    pub odd_field_vertical_timing: FieldVerticalTiming,
+    pub even_field_vertical_timing: FieldVerticalTiming,
+    pub odd_field_bb_interval: FieldBurstBlankingInterval,
+    pub even_field_bb_interval: FieldBurstBlankingInterval,
+    pub top_field_base: FieldBase,
     pub tfbr: u32,
-    pub bfbl: FieldBase,
+    pub bottom_field_base: FieldBase,
     pub bfbr: u32,
-    pub hsr: u16,
-    pub clk: u16,
+    pub horizontal_scaling: HorizontalScaling,
+    pub clock: ClockMode,
 
     pub _2070: u16,
 }
