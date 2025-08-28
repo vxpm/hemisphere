@@ -5,7 +5,7 @@ mod sequence;
 
 pub mod block;
 
-use crate::{block::Block, builder::BlockBuilder};
+use crate::builder::BlockBuilder;
 use cranelift::{
     codegen::{self, ir},
     frontend, native,
@@ -14,6 +14,7 @@ use cranelift::{
 use easyerr::{Error, ResultExt};
 use std::sync::Arc;
 
+pub use block::{Block, BlockFn, BlockOutput};
 pub use sequence::{Sequence, SequenceStatus};
 
 /// A context for JIT compilation of [`Sequence`]s, producing [`Block`]s.
@@ -65,7 +66,7 @@ impl JIT {
         }
     }
 
-    pub fn build(&mut self, sequence: Sequence) -> Result<Block, BuildError> {
+    pub fn compile(&mut self, sequence: Sequence) -> Result<Block, BuildError> {
         let mut func = ir::Function::new();
         func.signature = self.block_signature();
 

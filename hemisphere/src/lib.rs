@@ -146,46 +146,40 @@ impl Hemisphere {
         }
     }
 
-    /// Executes a single block and returns how many instructions were executed.
-    pub fn exec(&mut self) -> u32 {
-        let block = match self.blocks.get(self.cpu.pc) {
-            Some(block) => block,
-            None => {
-                let _span = info_span!("building new block", addr = ?self.cpu.pc).entered();
+    fn compile(&mut self, addr: Address, limit: u16) -> ppcjit::Block {
+        let _span = info_span!("compiling new block", addr = ?self.cpu.pc).entered();
 
-                let mut seq = Sequence::new();
-                let mut current = self.cpu.pc;
+        let mut seq = Sequence::new();
+        let mut current = addr;
 
-                loop {
-                    if seq.len() >= self.config.instructions_per_block as usize {
-                        break;
-                    }
-
-                    let physical = self.cpu.supervisor.translate_instr_addr(current);
-                    let ins = Ins::new(self.bus.read(physical), Extensions::gekko_broadway());
-
-                    let mut parsed = ParsedIns::new();
-                    ins.parse_basic(&mut parsed);
-
-                    match seq.push(ins) {
-                        Ok(SequenceStatus::Open) => current += 4,
-                        _ => break,
-                    }
-                }
-
-                info!(instructions = seq.len(), "block sequence built");
-
-                let block = self.jit.build(seq).unwrap();
-                let block = self.blocks.insert(self.cpu.pc, block).unwrap();
-
-                self.blocks.get_by_id(block).unwrap()
+        loop {
+            if seq.len() >= limit as usize {
+                break;
             }
-        };
 
+            let physical = self.cpu.supervisor.translate_instr_addr(current);
+            let ins = Ins::new(self.bus.read(physical), Extensions::gekko_broadway());
+
+            let mut parsed = ParsedIns::new();
+            ins.parse_basic(&mut parsed);
+
+            match seq.push(ins) {
+                Ok(SequenceStatus::Open) => current += 4,
+                _ => break,
+            }
+        }
+
+        info!(instructions = seq.len(), "block sequence built");
+        self.jit.compile(seq).unwrap()
+    }
+
+    fn exec_inner(&mut self, block: jit::BlockId) -> u32 {
+        let block = self.blocks.get_by_id(block).unwrap();
         let mut external = ExternalData {
             bus: &mut self.bus,
             invalidated: &mut self.invalidated,
         };
+
         let funcs = ExternalData::functions();
         let output = block.run(&mut self.cpu, &mut external as *mut _ as *mut _, &funcs);
 
@@ -208,5 +202,25 @@ impl Hemisphere {
         }
 
         output.executed
+    }
+
+    /// Executes a single block with a limit of instructions and returns how many instructions were
+    /// executed. This will _always_ compile a new block and it won't be cached in the storage.
+    pub fn exec_limited(&mut self, limit: u16) -> u32 {
+        let block = self.compile(self.cpu.pc, self.config.instructions_per_block);
+        self.exec_inner(block)
+    }
+
+    /// Executes a single block and returns how many instructions were executed.
+    pub fn exec(&mut self) -> u32 {
+        let block = match self.blocks.get(self.cpu.pc) {
+            Some(block) => block,
+            None => {
+                let block = self.compile(self.cpu.pc, self.config.instructions_per_block);
+                self.blocks.insert(self.cpu.pc, block).unwrap()
+            }
+        };
+
+        self.exec_inner(block)
     }
 }

@@ -76,13 +76,12 @@ impl BlockStorage {
         Some(block)
     }
 
-    pub fn get_by_id(&self, id: BlockId) -> Option<&Block> {
-        self.blocks.get(id)
+    pub fn get(&self, addr: Address) -> Option<BlockId> {
+        self.mapping.get_by_left(&addr).copied()
     }
 
-    pub fn get(&self, addr: Address) -> Option<&Block> {
-        let id = self.mapping.get_by_left(&addr)?;
-        self.blocks.get(*id)
+    pub fn get_by_id(&self, id: BlockId) -> Option<&Block> {
+        self.blocks.get(id)
     }
 
     pub fn invalidate(&mut self, addr: Address) {
