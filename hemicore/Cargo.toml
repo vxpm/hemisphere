@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-easyerr.workspace = true
 bitos.workspace = true
+bytesize.workspace = true
+easyerr.workspace = true
+powerpc.workspace = true
 zerocopy.workspace = true
+
+num_enum = { version = "0.7", default-features = false }

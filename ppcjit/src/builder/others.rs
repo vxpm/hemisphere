@@ -1,17 +1,14 @@
 use super::BlockBuilder;
-use crate::builder::{Reg, Spr};
-use powerpc::Ins;
+use hemicore::arch::{InsExt, powerpc::Ins};
 
 impl BlockBuilder<'_> {
     pub fn mfspr(&mut self, ins: Ins) {
-        let spr = Spr::try_from(ins.field_spr()).unwrap();
-        let value = self.get(Reg::Spr(spr));
-        self.set(Reg::Gpr(ins.field_rd()), value);
+        let value = self.get(ins.spr());
+        self.set(ins.gpr_d(), value);
     }
 
     pub fn mtspr(&mut self, ins: Ins) {
-        let spr = Spr::try_from(ins.field_spr()).unwrap();
-        let value = self.get(Reg::Gpr(ins.field_rs()));
-        self.set(Reg::Spr(spr), value);
+        let value = self.get(ins.gpr_s());
+        self.set(ins.spr(), value);
     }
 }

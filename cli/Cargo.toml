@@ -6,3 +6,10 @@ edition = "2024"
 [dependencies]
 eyre-pretty = { path = "/home/vxpm/dev/eyre-pretty" }
 hemisphere = { path = "../hemisphere" }
+
+tracing.workspace = true
+tracing-subscriber.workspace = true
+binrw.workspace = true
+
+gdbstub = "0.7"
+gdbstub_arch = "0.3"

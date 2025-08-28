@@ -5,12 +5,14 @@ pub mod video;
 
 use crate::bus::Bus;
 use dolfile::Dol;
-use hemicore::{Address, Primitive};
-use ppcjit::{
-    Sequence, SequenceStatus,
-    block::ExternalFunctions,
-    powerpc::{Extensions, Ins},
+use hemicore::{
+    Address, Primitive,
+    arch::{
+        Registers,
+        powerpc::{Extensions, Ins, ParsedIns},
+    },
 };
+use ppcjit::{Sequence, SequenceStatus, block::ExternalFunctions};
 use rustc_hash::FxHashSet;
 use tracing::{info, info_span};
 
@@ -42,7 +44,7 @@ impl<'a> ExternalData<'a> {
     fn functions() -> ExternalFunctions {
         extern "sysv64" fn read<T: Primitive>(
             external: &mut ExternalData,
-            registers: &ppcjit::Registers,
+            registers: &Registers,
             addr: Address,
         ) -> T {
             let physical = registers.supervisor.translate_data_addr(addr);
@@ -51,7 +53,7 @@ impl<'a> ExternalData<'a> {
 
         extern "sysv64" fn write<T: Primitive>(
             external: &mut ExternalData,
-            registers: &ppcjit::Registers,
+            registers: &Registers,
             addr: Address,
             value: T,
         ) {
@@ -88,7 +90,7 @@ impl<'a> ExternalData<'a> {
 pub struct Hemisphere {
     pub bus: Bus,
     pub pc: Address,
-    pub cpu: ppcjit::Registers,
+    pub cpu: Registers,
     pub jit: ppcjit::JIT,
     pub blocks: jit::BlockStorage,
     pub config: Config,
@@ -100,7 +102,7 @@ impl Hemisphere {
         Self {
             bus: Bus::new(),
             pc: Address(0),
-            cpu: ppcjit::Registers::default(),
+            cpu: Registers::default(),
             jit: ppcjit::JIT::default(),
             blocks: jit::BlockStorage::default(),
             invalidated: FxHashSet::default(),
@@ -165,7 +167,7 @@ impl Hemisphere {
                     let physical = self.cpu.supervisor.translate_instr_addr(current);
                     let ins = Ins::new(self.bus.read(physical), Extensions::gekko_broadway());
 
-                    let mut parsed = ppcjit::powerpc::ParsedIns::new();
+                    let mut parsed = ParsedIns::new();
                     ins.parse_basic(&mut parsed);
 
                     match seq.push(ins) {
@@ -210,13 +212,4 @@ impl Hemisphere {
 
         output.executed
     }
-}
-
-#[test]
-fn test() {
-    let ins = Ins::new(0x80010000, ppcjit::powerpc::Extensions::gekko_broadway());
-    let mut parsed = ppcjit::powerpc::ParsedIns::new();
-    ins.parse_basic(&mut parsed);
-
-    println!("{parsed}");
 }

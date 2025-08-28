@@ -1,11 +1,8 @@
 use super::BlockBuilder;
-use crate::{
-    block::BlockOutput,
-    builder::registers::{Reg, Spr},
-};
+use crate::block::BlockOutput;
 use bitos::{bitos, integer::u5};
 use cranelift::{codegen::ir, prelude::InstBuilder};
-use powerpc::Ins;
+use hemicore::arch::{Reg, SPR, powerpc::Ins};
 use std::mem::offset_of;
 
 #[bitos(1)]
@@ -79,7 +76,7 @@ impl BlockBuilder<'_> {
 
         let mut branch = self.bd.ins().iconst(ir::types::I8, 1);
         if !options.ignore_cr() {
-            let cr = self.get(Reg::Cr);
+            let cr = self.get(Reg::CR);
             let cond = self.bd.ins().band_imm(cr, 1 << cond_bit);
 
             let cond_ok = match options.desired_cr() {
@@ -94,9 +91,9 @@ impl BlockBuilder<'_> {
         }
 
         if !options.ignore_ctr() {
-            let ctr = self.get(Reg::Spr(Spr::CTR));
+            let ctr = self.get(SPR::CTR);
             let ctr = self.bd.ins().iadd_imm(ctr, -1);
-            self.set(Reg::Spr(Spr::CTR), ctr);
+            self.set(SPR::CTR, ctr);
 
             let ctr_ok = match options.ctr_cond() {
                 CtrCond::NotEqZero => {
@@ -139,11 +136,11 @@ impl BlockBuilder<'_> {
     pub fn branch_cond_lr(&mut self, ins: Ins) {
         let options = BranchOptions::from_bits(u5::new(ins.field_bo()));
         let cond_bit = 31 - ins.field_bi();
-        let addr = self.get(Reg::Spr(Spr::LR));
+        let addr = self.get(SPR::LR);
 
         let mut branch = self.bd.ins().iconst(ir::types::I8, 1);
         if !options.ignore_cr() {
-            let cr = self.get(Reg::Cr);
+            let cr = self.get(Reg::CR);
             let cond = self.bd.ins().band_imm(cr, 1 << cond_bit);
 
             let cond_ok = match options.desired_cr() {
@@ -158,9 +155,9 @@ impl BlockBuilder<'_> {
         }
 
         if !options.ignore_ctr() {
-            let ctr = self.get(Reg::Spr(Spr::CTR));
+            let ctr = self.get(SPR::CTR);
             let ctr = self.bd.ins().iadd_imm(ctr, -1);
-            self.set(Reg::Spr(Spr::CTR), ctr);
+            self.set(SPR::CTR, ctr);
 
             let ctr_ok = match options.ctr_cond() {
                 CtrCond::NotEqZero => {

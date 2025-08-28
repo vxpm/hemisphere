@@ -1,4 +1,7 @@
 mod primitive;
+
+pub mod arch;
+
 pub use primitive::Primitive;
 
 /// A memory address. This is a thin wrapper around a [`u32`].

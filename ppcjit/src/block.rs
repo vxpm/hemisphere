@@ -1,5 +1,5 @@
-use crate::{Registers, Sequence};
-use hemicore::Address;
+use crate::Sequence;
+use hemicore::{Address, arch::Registers};
 use iced_x86::Formatter;
 use memmap2::{Mmap, MmapOptions};
 use std::fmt::Display;

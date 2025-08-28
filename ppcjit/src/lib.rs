@@ -4,7 +4,6 @@ mod builder;
 mod sequence;
 
 pub mod block;
-pub mod registers;
 
 use crate::{block::Block, builder::BlockBuilder};
 use cranelift::{
@@ -15,8 +14,6 @@ use cranelift::{
 use easyerr::{Error, ResultExt};
 use std::sync::Arc;
 
-pub use powerpc;
-pub use registers::Registers;
 pub use sequence::{Sequence, SequenceStatus};
 
 /// A context for JIT compilation of [`Sequence`]s, producing [`Block`]s.

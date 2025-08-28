@@ -4,4 +4,4 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-binrw = { version = "0.15", features = ["std"], default-features = false }
+binrw.workspace = true

@@ -1,18 +1,18 @@
 use super::BlockBuilder;
-use crate::builder::{Reg, registers::Spr};
+use crate::builder::Reg;
 use cranelift::{
     codegen::ir,
     prelude::{InstBuilder, IntCC},
 };
-use powerpc::Ins;
+use hemicore::arch::{InsExt, SPR, powerpc::Ins};
 
 impl BlockBuilder<'_> {
     pub fn cmpi(&mut self, ins: Ins) {
-        let ra = self.get(Reg::Gpr(ins.field_ra()));
+        let ra = self.get(ins.gpr_a());
         let imm = ins.field_simm() as i64;
         let shift_factor = (4 * (7 - ins.field_crfd())) as i64;
 
-        let xer = self.get(Reg::Spr(Spr::XER));
+        let xer = self.get(SPR::XER);
         let ov = self.bd.ins().ushr_imm(xer, 31);
 
         let lt = self.bd.ins().icmp_imm(IntCC::SignedLessThan, ra, imm);
@@ -36,8 +36,8 @@ impl BlockBuilder<'_> {
         let mask = self.bd.ins().iconst(ir::types::I32, 0b1111);
         let mask = self.bd.ins().ishl_imm(mask, shift_factor);
 
-        let cr = self.get(Reg::Cr);
+        let cr = self.get(Reg::CR);
         let updated = self.bd.ins().bitselect(mask, value, cr);
-        self.set(Reg::Cr, updated);
+        self.set(Reg::CR, updated);
     }
 }

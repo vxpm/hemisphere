@@ -1,9 +1,47 @@
+use crate::Address;
 use bitos::{
     BitUtils, bitos,
     integer::{u2, u4, u7, u11, u15},
 };
-use hemicore::Address;
-use std::fmt::Debug;
+use num_enum::TryFromPrimitive;
+use std::{fmt::Debug, mem::offset_of};
+
+pub use powerpc;
+
+pub trait InsExt {
+    fn gpr_a(&self) -> GPR;
+    fn gpr_b(&self) -> GPR;
+    fn gpr_s(&self) -> GPR;
+    fn gpr_d(&self) -> GPR;
+    fn spr(&self) -> SPR;
+}
+
+impl InsExt for powerpc::Ins {
+    #[inline(always)]
+    fn gpr_a(&self) -> GPR {
+        GPR::new(self.field_ra())
+    }
+
+    #[inline(always)]
+    fn gpr_b(&self) -> GPR {
+        GPR::new(self.field_rb())
+    }
+
+    #[inline(always)]
+    fn gpr_s(&self) -> GPR {
+        GPR::new(self.field_rs())
+    }
+
+    #[inline(always)]
+    fn gpr_d(&self) -> GPR {
+        GPR::new(self.field_rd())
+    }
+
+    #[inline(always)]
+    fn spr(&self) -> SPR {
+        SPR::new(self.field_spr())
+    }
+}
 
 #[bitos(4)]
 #[derive(Debug, Clone, Copy, Default)]
@@ -311,4 +349,154 @@ pub struct Registers {
     pub user: User,
     /// Supervisor level registers
     pub supervisor: Supervisor,
+}
+
+/// A General Purpose Register
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive)]
+#[repr(u8)]
+pub enum GPR {
+    R0,
+    R1,
+    R2,
+    R3,
+    R4,
+    R5,
+    R6,
+    R7,
+    R8,
+    R9,
+    R10,
+    R11,
+    R12,
+    R13,
+    R14,
+    R15,
+    R16,
+    R17,
+    R18,
+    R19,
+    R20,
+    R21,
+    R22,
+    R23,
+    R24,
+    R25,
+    R26,
+    R27,
+    R28,
+    R29,
+    R30,
+    R31,
+}
+
+impl GPR {
+    #[inline(always)]
+    pub fn new(index: u8) -> Self {
+        Self::try_from_primitive(index).unwrap()
+    }
+}
+
+/// A Floating Point Register
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive)]
+#[repr(u8)]
+pub enum FPR {
+    R0,
+    R1,
+    R2,
+    R3,
+    R4,
+    R5,
+    R6,
+    R7,
+    R8,
+    R9,
+    R10,
+    R11,
+    R12,
+    R13,
+    R14,
+    R15,
+    R16,
+    R17,
+    R18,
+    R19,
+    R20,
+    R21,
+    R22,
+    R23,
+    R24,
+    R25,
+    R26,
+    R27,
+    R28,
+    R29,
+    R30,
+    R31,
+}
+
+/// A Special Register
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive)]
+#[repr(u16)]
+pub enum SPR {
+    XER = 1,
+    LR = 8,
+    CTR = 9,
+}
+
+impl SPR {
+    #[inline(always)]
+    pub fn new(index: u16) -> Self {
+        Self::try_from_primitive(index).unwrap()
+    }
+
+    /// Offset of this SPR in the [`Registers`] struct.
+    pub fn offset(&self) -> usize {
+        match self {
+            Self::XER => offset_of!(Registers, user.xer),
+            Self::LR => offset_of!(Registers, user.lr),
+            Self::CTR => offset_of!(Registers, user.ctr),
+        }
+    }
+}
+
+/// A register in the Gekko CPU.
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Reg {
+    GPR(GPR),
+    FPR(FPR),
+    SPR(SPR),
+    CR,
+}
+
+impl Reg {
+    /// Offset of this register in the [`Registers`] struct.
+    ///
+    /// # Panics
+    /// Panics if the register is invalid (e.g. Gpr or Fpr out of range)
+    pub fn offset(self) -> usize {
+        match self {
+            Reg::GPR(i) => offset_of!(Registers, user.gpr) + size_of::<u32>() * (i as usize),
+            Reg::FPR(i) => offset_of!(Registers, user.fpr) + size_of::<f64>() * (i as usize),
+            Reg::CR => offset_of!(Registers, user.cr),
+            Reg::SPR(spr) => return spr.offset(),
+        }
+    }
+}
+
+impl From<GPR> for Reg {
+    fn from(value: GPR) -> Self {
+        Self::GPR(value)
+    }
+}
+
+impl From<FPR> for Reg {
+    fn from(value: FPR) -> Self {
+        Self::FPR(value)
+    }
+}
+
+impl From<SPR> for Reg {
+    fn from(value: SPR) -> Self {
+        Self::SPR(value)
+    }
 }

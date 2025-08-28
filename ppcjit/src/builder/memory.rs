@@ -1,10 +1,10 @@
 use super::BlockBuilder;
-use crate::{block::ExternalFunctions, builder::Reg};
+use crate::block::ExternalFunctions;
 use cranelift::{
     codegen::ir,
     prelude::{InstBuilder, isa::CallConv},
 };
-use powerpc::Ins;
+use hemicore::arch::{InsExt, powerpc::Ins};
 use std::mem::offset_of;
 
 fn sig_read(ptr_type: ir::Type, read_type: ir::Type) -> ir::Signature {
@@ -103,10 +103,10 @@ impl BlockBuilder<'_> {
     }
 
     pub fn stwu(&mut self, ins: Ins) {
-        let value = self.get(Reg::Gpr(ins.field_rs()));
-        let base = self.get(Reg::Gpr(ins.field_ra()));
+        let value = self.get(ins.gpr_s());
+        let base = self.get(ins.gpr_a());
         let addr = self.bd.ins().iadd_imm(base, ins.field_offset() as i64);
-        self.set(Reg::Gpr(ins.field_ra()), addr);
+        self.set(ins.gpr_a(), addr);
         self.write::<i32>(addr, value);
     }
 
@@ -116,16 +116,16 @@ impl BlockBuilder<'_> {
                 .ins()
                 .iconst(ir::types::I32, ins.field_offset() as i64)
         } else {
-            let ra = self.get(Reg::Gpr(ins.field_ra()));
+            let ra = self.get(ins.gpr_a());
             self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
         };
 
-        let value = self.get(Reg::Gpr(ins.field_rs()));
+        let value = self.get(ins.gpr_s());
         self.write::<i32>(addr, value);
     }
 
     pub fn sth(&mut self, ins: Ins) {
-        let value = self.get(Reg::Gpr(ins.field_rs()));
+        let value = self.get(ins.gpr_s());
         let value = self.bd.ins().ireduce(ir::types::I16, value);
 
         let addr = if ins.field_ra() == 0 {
@@ -133,7 +133,7 @@ impl BlockBuilder<'_> {
                 .ins()
                 .iconst(ir::types::I32, ins.field_offset() as i64)
         } else {
-            let ra = self.get(Reg::Gpr(ins.field_ra()));
+            let ra = self.get(ins.gpr_a());
             self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
         };
 
@@ -146,19 +146,19 @@ impl BlockBuilder<'_> {
                 .ins()
                 .iconst(ir::types::I32, ins.field_offset() as i64)
         } else {
-            let ra = self.get(Reg::Gpr(ins.field_ra()));
+            let ra = self.get(ins.gpr_a());
             self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
         };
 
         let value = self.read::<i32>(addr);
-        self.set(Reg::Gpr(ins.field_rd()), value);
+        self.set(ins.gpr_d(), value);
     }
 
     pub fn lwzu(&mut self, ins: Ins) {
-        let base = self.get(Reg::Gpr(ins.field_ra()));
+        let base = self.get(ins.gpr_a());
         let addr = self.bd.ins().iadd_imm(base, ins.field_offset() as i64);
         let value = self.read::<i32>(addr);
-        self.set(Reg::Gpr(ins.field_rd()), value);
-        self.set(Reg::Gpr(ins.field_ra()), addr);
+        self.set(ins.gpr_d(), value);
+        self.set(ins.gpr_a(), addr);
     }
 }

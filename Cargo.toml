@@ -3,12 +3,6 @@ resolver = "3"
 members = ["hemicore", "ppcjit", "dolfile", "dolinfo", "hemisphere", "cli"]
 default-members = ["hemicore", "ppcjit", "dolfile", "hemisphere", "cli"]
 
-[profile.dev.package."egui"]
-opt-level = 2
-
-[profile.dev.package."eframe"]
-opt-level = 2
-
 [profile.dev.package."binrw"]
 opt-level = 3
 
@@ -16,6 +10,7 @@ opt-level = 3
 opt-level = 3
 
 [workspace.dependencies]
+binrw = { version = "0.15", features = ["std"], default-features = false }
 bitos = { git = "https://github.com/vxpm/bitos.git", features = ["zerocopy"] }
 bytesize = "2"
 easyerr = "0.1"

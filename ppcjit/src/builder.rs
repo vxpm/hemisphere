@@ -4,8 +4,6 @@ mod compare;
 mod memory;
 mod others;
 
-mod registers;
-
 use crate::block::BlockOutput;
 use cranelift::{
     codegen::ir::{self, SigRef, condcodes::IntCC},
@@ -13,11 +11,20 @@ use cranelift::{
     prelude::{InstBuilder, isa::TargetIsa},
 };
 use easyerr::Error;
-use powerpc::{Ins, Opcode};
-use registers::*;
+use hemicore::arch::{
+    Reg,
+    powerpc::{Ins, Opcode},
+};
 use rustc_hash::FxHashMap;
 use std::collections::hash_map::Entry;
 use std::mem::offset_of;
+
+fn reg_ty(reg: Reg) -> ir::Type {
+    match reg {
+        Reg::FPR(_) => ir::types::F64,
+        _ => ir::types::I32,
+    }
+}
 
 #[derive(Debug, Error)]
 pub enum EmitError {
@@ -80,18 +87,20 @@ impl<'ctx> BlockBuilder<'ctx> {
         }
     }
 
-    fn get(&mut self, reg: Reg) -> ir::Value {
+    fn get(&mut self, reg: impl Into<Reg>) -> ir::Value {
+        let reg = reg.into();
         let var = match self.regs.entry(reg) {
             Entry::Occupied(o) => o.into_mut(),
             Entry::Vacant(v) => {
+                let reg_ty = reg_ty(reg);
                 let dumped = self.bd.ins().load(
-                    reg.ty(),
+                    reg_ty,
                     ir::MemFlags::trusted(),
                     self.ctx.regs_ptr,
-                    reg.offset(),
+                    reg.offset() as i32,
                 );
 
-                let var = self.bd.declare_var(reg.ty());
+                let var = self.bd.declare_var(reg_ty);
                 self.bd.def_var(var, dumped);
                 v.insert(RegState {
                     var,
@@ -104,7 +113,8 @@ impl<'ctx> BlockBuilder<'ctx> {
         self.bd.use_var(var)
     }
 
-    fn set(&mut self, reg: Reg, value: ir::Value) {
+    fn set(&mut self, reg: impl Into<Reg>, value: ir::Value) {
+        let reg = reg.into();
         let var = match self.regs.entry(reg) {
             Entry::Occupied(o) => {
                 let var = o.into_mut();
@@ -113,7 +123,7 @@ impl<'ctx> BlockBuilder<'ctx> {
                 var.var
             }
             Entry::Vacant(v) => {
-                let var = self.bd.declare_var(reg.ty());
+                let var = self.bd.declare_var(reg_ty(reg));
                 v.insert(RegState {
                     var,
                     modified: true,
@@ -127,7 +137,7 @@ impl<'ctx> BlockBuilder<'ctx> {
     }
 
     fn update_cr0(&mut self, value: ir::Value, overflowed: ir::Value) {
-        let cr = self.get(Reg::Cr);
+        let cr = self.get(Reg::CR);
 
         let lt = self.bd.ins().icmp_imm(IntCC::SignedLessThan, value, 0);
         let gt = self.bd.ins().icmp_imm(IntCC::SignedGreaterThan, value, 0);
@@ -150,7 +160,7 @@ impl<'ctx> BlockBuilder<'ctx> {
         let mask = self.bd.ins().iconst(ir::types::I32, 0b1111 << 28);
         let updated = self.bd.ins().bitselect(mask, value, cr);
 
-        self.set(Reg::Cr, updated);
+        self.set(Reg::CR, updated);
     }
 
     fn prologue(&mut self) {
@@ -164,7 +174,7 @@ impl<'ctx> BlockBuilder<'ctx> {
                 ir::MemFlags::trusted(),
                 value,
                 self.ctx.regs_ptr,
-                reg.offset(),
+                reg.offset() as i32,
             );
         }
 
