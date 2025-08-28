@@ -1,14 +1,6 @@
 [workspace]
 resolver = "3"
-members = [
-    "hemicore",
-    "ppcjit",
-    "dolfile",
-    "dolinfo",
-    "hemisphere",
-    "cli",
-    "gui",
-]
+members = ["hemicore", "ppcjit", "dolfile", "dolinfo", "hemisphere", "cli"]
 default-members = ["hemicore", "ppcjit", "dolfile", "hemisphere", "cli"]
 
 [profile.dev.package."egui"]
