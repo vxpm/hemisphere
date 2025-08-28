@@ -13,6 +13,5 @@ memmap2.workspace = true
 powerpc.workspace = true
 rustc-hash.workspace = true
 zerocopy.workspace = true
-
-cranelift = { version = "0.122", features = ["native"] }
-num_enum = "0.7"
+cranelift = { version = "0.122", features = ["frontend", "native"] }
+num_enum = { version = "0.7", default-features = false }

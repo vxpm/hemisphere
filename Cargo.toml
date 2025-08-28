@@ -19,12 +19,16 @@ opt-level = 3
 bitos = { git = "https://github.com/vxpm/bitos.git", features = ["zerocopy"] }
 bytesize = "2"
 easyerr = "0.1"
-iced-x86 = "1.21"
+iced-x86 = { version = "1.21", features = [
+    "decoder",
+    "nasm",
+    "std",
+], default-features = false }
 memmap2 = "0.9"
 powerpc = "0.4"
 rustc-hash = "2"
 slotmap = "1.0"
-tracing = "0.1"
+tracing = { version = "0.1", default-features = false, features = ["std"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 wgpu = "25.0"
 zerocopy = { version = "0.8", features = ["derive"] }
