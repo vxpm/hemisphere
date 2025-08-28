@@ -1,4 +1,4 @@
-// mod gdb;
+mod gdb;
 
 use eyre_pretty::eyre::Result;
 use hemisphere::{
@@ -22,7 +22,7 @@ fn main() -> Result<()> {
 
     loop {
         let executed = hemisphere.exec();
-        if hemisphere.pc == 0x8000_4010 {
+        if hemisphere.cpu.pc == 0x8000_4010 {
             break;
         }
     }

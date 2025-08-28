@@ -1,3 +1,4 @@
+use crate::arch::{Reg, Registers};
 use binrw::{BinRead, BinWrite};
 use gdbstub::arch::Arch;
 
@@ -5,14 +6,15 @@ impl gdbstub::arch::Registers for Registers {
     type ProgramCounter = u32;
 
     fn pc(&self) -> Self::ProgramCounter {
-        self.pc
+        self.pc.value()
     }
 
     fn gdb_serialize(&self, mut write_byte: impl FnMut(Option<u8>)) {
-        let mut buf = std::io::Cursor::new(Vec::new());
-        self.write_be(&mut buf).unwrap();
+        let mut buf = [0; size_of::<Self>()];
+        let mut cursor = std::io::Cursor::new(&mut buf[..]);
+        self.write_be(&mut cursor).unwrap();
 
-        for byte in buf.into_inner() {
+        for byte in buf {
             write_byte(Some(byte));
         }
     }
@@ -25,39 +27,18 @@ impl gdbstub::arch::Registers for Registers {
     }
 }
 
-#[derive(Debug)]
-pub enum Reg {
-    Gpr(u8),
-    Fpr(u8),
-    PC,
-    MSR,
-    CR,
-    LR,
-    CTR,
-    XER,
-    FPSCR,
-}
-
 impl gdbstub::arch::RegId for Reg {
     fn from_raw_id(id: usize) -> Option<(Self, Option<std::num::NonZeroUsize>)> {
-        use Reg::*;
+        Reg::iter().nth(id).map(|reg| {
+            let size = std::num::NonZeroUsize::new(if matches!(reg, Reg::FPR(_)) { 8 } else { 4 })
+                .unwrap();
 
-        let reg = |reg, size| Some((reg, Some(std::num::NonZeroUsize::new(size).unwrap())));
-        match id {
-            0..32 => reg(Gpr(id as u8), 4),
-            32..64 => reg(Fpr((id - 32) as u8), 8),
-            64 => reg(PC, 4),
-            65 => reg(MSR, 4),
-            66 => reg(CR, 4),
-            67 => reg(LR, 4),
-            68 => reg(CTR, 4),
-            69 => reg(XER, 4),
-            70 => reg(FPSCR, 4),
-            _ => None,
-        }
+            (reg, Some(size))
+        })
     }
 }
 
+/// Gekko arch for gdbstub.
 pub enum Gekko {}
 
 impl Arch for Gekko {

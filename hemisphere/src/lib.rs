@@ -17,7 +17,7 @@ use rustc_hash::FxHashSet;
 use tracing::{info, info_span};
 
 pub use dolfile;
-pub use hemicore;
+pub use hemicore as core;
 
 /// The CPU frequency.
 pub const FREQUENCY: u64 = 486_000_000;
@@ -89,7 +89,6 @@ impl<'a> ExternalData<'a> {
 
 pub struct Hemisphere {
     pub bus: Bus,
-    pub pc: Address,
     pub cpu: Registers,
     pub jit: ppcjit::JIT,
     pub blocks: jit::BlockStorage,
@@ -101,7 +100,6 @@ impl Hemisphere {
     pub fn new(config: Config) -> Self {
         Self {
             bus: Bus::new(),
-            pc: Address(0),
             cpu: Registers::default(),
             jit: ppcjit::JIT::default(),
             blocks: jit::BlockStorage::default(),
@@ -111,8 +109,7 @@ impl Hemisphere {
     }
 
     pub fn load(&mut self, dol: &Dol) {
-        self.pc = Address(dol.entrypoint());
-
+        self.cpu.pc = Address(dol.entrypoint());
         self.cpu.supervisor.memory.setup_default_bats();
         self.cpu.supervisor.msr.set_instr_addr_translation(true);
         self.cpu.supervisor.msr.set_data_addr_translation(true);
@@ -151,13 +148,13 @@ impl Hemisphere {
 
     /// Executes a single block and returns how many instructions were executed.
     pub fn exec(&mut self) -> u32 {
-        let block = match self.blocks.get(self.pc) {
+        let block = match self.blocks.get(self.cpu.pc) {
             Some(block) => block,
             None => {
-                let _span = info_span!("building new block", addr = ?self.pc).entered();
+                let _span = info_span!("building new block", addr = ?self.cpu.pc).entered();
 
                 let mut seq = Sequence::new();
-                let mut current = self.pc;
+                let mut current = self.cpu.pc;
 
                 loop {
                     if seq.len() >= self.config.instructions_per_block as usize {
@@ -179,7 +176,7 @@ impl Hemisphere {
                 info!(instructions = seq.len(), "block sequence built");
 
                 let block = self.jit.build(seq).unwrap();
-                let block = self.blocks.insert(self.pc, block).unwrap();
+                let block = self.blocks.insert(self.cpu.pc, block).unwrap();
 
                 self.blocks.get_by_id(block).unwrap()
             }
@@ -196,17 +193,17 @@ impl Hemisphere {
             self.blocks.invalidate(addr);
         }
 
-        self.pc += 4 * output.executed;
+        self.cpu.pc += 4 * output.executed;
         if output.jump.execute {
             if output.jump.link {
-                self.cpu.user.lr = self.pc.0;
+                self.cpu.user.lr = self.cpu.pc.0;
             }
 
             if output.jump.relative {
-                self.pc += output.jump.data;
-                self.pc -= 4;
+                self.cpu.pc += output.jump.data;
+                self.cpu.pc -= 4;
             } else {
-                self.pc = Address(output.jump.data as u32);
+                self.cpu.pc = Address(output.jump.data as u32);
             }
         }
 

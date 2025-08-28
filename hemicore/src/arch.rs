@@ -1,18 +1,25 @@
 use crate::Address;
+use binrw::{BinRead, BinWrite};
 use bitos::{
     BitUtils, bitos,
     integer::{u2, u4, u7, u11, u15},
 };
-use num_enum::TryFromPrimitive;
 use std::{fmt::Debug, mem::offset_of};
+use strum::{FromRepr, VariantArray};
 
 pub use powerpc;
 
+/// Extension trait for [`Ins`](powerpc::Ins).
 pub trait InsExt {
+    /// GPR indicated by field rA.
     fn gpr_a(&self) -> GPR;
+    /// GPR indicated by field rB.
     fn gpr_b(&self) -> GPR;
+    /// GPR indicated by field rS.
     fn gpr_s(&self) -> GPR;
+    /// GPR indicated by field rD.
     fn gpr_d(&self) -> GPR;
+    /// SPR indicated by field SPR.
     fn spr(&self) -> SPR;
 }
 
@@ -72,7 +79,7 @@ pub struct Cond {
 /// Other than that, comparison instructions specify one of the fields to receive the results of
 /// the comparison.
 #[bitos(32)]
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, PartialEq, Default, BinRead, BinWrite)]
 pub struct CondReg {
     // NOTE: CR0 is actually index 7! PPC bit order is big endian
     #[bits(..)]
@@ -80,7 +87,7 @@ pub struct CondReg {
 }
 
 #[bitos(32)]
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, PartialEq, Default, BinRead, BinWrite)]
 pub struct MachineState {
     /// Whether little endian mode is turned on. Not supported.
     #[bits(0)]
@@ -121,7 +128,7 @@ pub struct MachineState {
 /// The XER register contains information about overflow and carry operations, and is also used by
 /// the load/store string indexed instructions.
 #[bitos(32)]
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, PartialEq, Default, BinRead, BinWrite)]
 pub struct XerReg {
     /// The number of bytes to be transferred by a lswx or stswx.
     #[bits(0..7)]
@@ -139,7 +146,7 @@ pub struct XerReg {
 
 /// User level registers
 #[repr(C)]
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, PartialEq, Default, BinRead, BinWrite)]
 pub struct User {
     /// General Purpose Registers
     pub gpr: [u32; 32],
@@ -160,7 +167,7 @@ pub struct User {
 
 /// The block address translation registers.
 #[bitos(64)]
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, PartialEq, Default, BinRead, BinWrite)]
 pub struct Bat {
     // lower
     #[bits(0..2)]
@@ -240,7 +247,7 @@ impl Bat {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, PartialEq, Default, BinRead, BinWrite)]
 pub struct MemoryManagement {
     /// Instruction Block Address Translation registers
     pub ibat: [Bat; 4],
@@ -276,7 +283,7 @@ impl MemoryManagement {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, PartialEq, Default, BinRead, BinWrite)]
 pub struct ExceptionHandling {
     /// Data Address Register
     pub dar: u32,
@@ -288,7 +295,7 @@ pub struct ExceptionHandling {
     pub srr: [u32; 2],
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, PartialEq, Default, BinRead, BinWrite)]
 pub struct Miscellaneous {
     /// Time Base
     pub tbl: u64,
@@ -298,7 +305,7 @@ pub struct Miscellaneous {
 
 /// Supervisor level registers
 #[repr(C)]
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, PartialEq, Default, BinRead, BinWrite)]
 pub struct Supervisor {
     /// Machine State Register
     pub msr: MachineState,
@@ -343,8 +350,10 @@ impl Supervisor {
 }
 
 #[repr(C)]
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, PartialEq, Default, BinRead, BinWrite)]
 pub struct Registers {
+    /// Program Counter
+    pub pc: Address,
     /// User level registers
     pub user: User,
     /// Supervisor level registers
@@ -352,7 +361,7 @@ pub struct Registers {
 }
 
 /// A General Purpose Register
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, FromRepr, VariantArray)]
 #[repr(u8)]
 pub enum GPR {
     R0,
@@ -390,14 +399,24 @@ pub enum GPR {
 }
 
 impl GPR {
+    /// Creates a new GPR with the given index.
+    ///
+    /// # Panics
+    /// Panics if index is out of range.
     #[inline(always)]
     pub fn new(index: u8) -> Self {
-        Self::try_from_primitive(index).unwrap()
+        Self::from_repr(index).unwrap()
+    }
+
+    /// Offset of this GPR in the [`Registers`] struct.
+    #[inline(always)]
+    pub fn offset(self) -> usize {
+        offset_of!(Registers, user.gpr) + size_of::<u32>() * (self as usize)
     }
 }
 
 /// A Floating Point Register
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, FromRepr, VariantArray)]
 #[repr(u8)]
 pub enum FPR {
     R0,
@@ -434,8 +453,25 @@ pub enum FPR {
     R31,
 }
 
+impl FPR {
+    /// Creates a new FPR with the given index.
+    ///
+    /// # Panics
+    /// Panics if index is out of range.
+    #[inline(always)]
+    pub fn new(index: u8) -> Self {
+        Self::from_repr(index).unwrap()
+    }
+
+    /// Offset of this FPR in the [`Registers`] struct.
+    #[inline(always)]
+    pub fn offset(self) -> usize {
+        offset_of!(Registers, user.fpr) + size_of::<f64>() * (self as usize)
+    }
+}
+
 /// A Special Register
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, FromRepr, VariantArray)]
 #[repr(u16)]
 pub enum SPR {
     XER = 1,
@@ -444,13 +480,17 @@ pub enum SPR {
 }
 
 impl SPR {
+    /// Creates a new SPR with the given index.
+    ///
+    /// # Panics
+    /// Panics if index is out of range or is unknown.
     #[inline(always)]
     pub fn new(index: u16) -> Self {
-        Self::try_from_primitive(index).unwrap()
+        Self::from_repr(index).unwrap()
     }
 
     /// Offset of this SPR in the [`Registers`] struct.
-    pub fn offset(&self) -> usize {
+    pub fn offset(self) -> usize {
         match self {
             Self::XER => offset_of!(Registers, user.xer),
             Self::LR => offset_of!(Registers, user.lr),
@@ -460,7 +500,7 @@ impl SPR {
 }
 
 /// A register in the Gekko CPU.
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Reg {
     GPR(GPR),
     FPR(FPR),
@@ -470,32 +510,43 @@ pub enum Reg {
 
 impl Reg {
     /// Offset of this register in the [`Registers`] struct.
-    ///
-    /// # Panics
-    /// Panics if the register is invalid (e.g. Gpr or Fpr out of range)
+    #[inline(always)]
     pub fn offset(self) -> usize {
         match self {
-            Reg::GPR(i) => offset_of!(Registers, user.gpr) + size_of::<u32>() * (i as usize),
-            Reg::FPR(i) => offset_of!(Registers, user.fpr) + size_of::<f64>() * (i as usize),
+            Reg::GPR(gpr) => gpr.offset(),
+            Reg::FPR(fpr) => fpr.offset(),
+            Reg::SPR(spr) => spr.offset(),
             Reg::CR => offset_of!(Registers, user.cr),
-            Reg::SPR(spr) => return spr.offset(),
         }
+    }
+
+    #[inline(always)]
+    pub fn iter() -> impl Iterator<Item = Self> {
+        let gpr = GPR::VARIANTS.iter().copied().map(Self::GPR);
+        let fpr = FPR::VARIANTS.iter().copied().map(Self::FPR);
+        let spr = SPR::VARIANTS.iter().copied().map(Self::SPR);
+        let others = [Self::CR].into_iter();
+
+        gpr.chain(fpr).chain(spr).chain(others)
     }
 }
 
 impl From<GPR> for Reg {
+    #[inline(always)]
     fn from(value: GPR) -> Self {
         Self::GPR(value)
     }
 }
 
 impl From<FPR> for Reg {
+    #[inline(always)]
     fn from(value: FPR) -> Self {
         Self::FPR(value)
     }
 }
 
 impl From<SPR> for Reg {
+    #[inline(always)]
     fn from(value: SPR) -> Self {
         Self::SPR(value)
     }
