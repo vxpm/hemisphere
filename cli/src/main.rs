@@ -2,13 +2,14 @@ mod gdb;
 
 use binrw::io::BufReader;
 use eyre_pretty::eyre::Result;
+use gdbstub::stub::DisconnectReason;
 use hemisphere::{
     Config, Hemisphere,
     dolfile::{Dol, binrw::BinRead},
 };
 use tracing::info;
 
-struct App {
+pub struct App {
     hemisphere: Hemisphere,
 }
 
@@ -56,14 +57,45 @@ fn main() -> Result<()> {
 
     info!("loading panda.dol");
     hemisphere.state.load(&dol);
+    let mut app = App { hemisphere };
 
-    info!("main loop start");
-    loop {
-        hemisphere.exec();
-        if hemisphere.state.cpu.pc == 0x8000_4010 {
-            break;
+    let conn = gdb::connect(5555)?;
+    let debugger = gdbstub::stub::GdbStub::new(conn);
+    match debugger.run_blocking::<gdb::EventLoop>(&mut app) {
+        Ok(disconnect_reason) => match disconnect_reason {
+            DisconnectReason::Disconnect => {
+                println!("Client disconnected")
+            }
+            DisconnectReason::TargetExited(code) => {
+                println!("Target exited with code {}", code)
+            }
+            DisconnectReason::TargetTerminated(sig) => {
+                println!("Target terminated with signal {}", sig)
+            }
+            DisconnectReason::Kill => println!("GDB sent a kill command"),
+        },
+        Err(e) => {
+            if e.is_target_error() {
+                println!(
+                    "target encountered a fatal error: {}",
+                    e.into_target_error().unwrap()
+                )
+            } else if e.is_connection_error() {
+                let (e, kind) = e.into_connection_error().unwrap();
+                println!("connection error: {:?} - {}", kind, e,)
+            } else {
+                println!("gdbstub encountered a fatal error: {}", e)
+            }
         }
     }
+
+    // info!("main loop start");
+    // loop {
+    //     hemisphere.exec();
+    //     if hemisphere.state.cpu.pc == 0x8000_4010 {
+    //         break;
+    //     }
+    // }
 
     Ok(())
 }

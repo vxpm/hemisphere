@@ -1,6 +1,27 @@
-use crate::arch::{Reg, Registers};
-use binrw::{BinRead, BinWrite};
+use crate::arch::{FPR, GPR, Reg, Registers};
 use gdbstub::arch::Arch;
+
+impl gdbstub::arch::RegId for Reg {
+    fn from_raw_id(id: usize) -> Option<(Self, Option<std::num::NonZeroUsize>)> {
+        fn reg(r: impl Into<Reg>, size: usize) -> (Reg, Option<std::num::NonZeroUsize>) {
+            let size = std::num::NonZeroUsize::new(size).unwrap();
+            (r.into(), Some(size))
+        }
+
+        Some(match id {
+            0..32 => reg(GPR::new(id as u8), 4),
+            32..64 => reg(FPR::new((id - 32) as u8), 4),
+            64 => reg(Reg::PC, 4),
+            65 => reg(Reg::MSR, 4),
+            66 => reg(Reg::CR, 4),
+            67 => reg(Reg::LR, 4),
+            68 => reg(Reg::CTR, 4),
+            69 => reg(Reg::XER, 4),
+            70 => reg(Reg::FPSCR, 4),
+            _ => return None,
+        })
+    }
+}
 
 impl gdbstub::arch::Registers for Registers {
     type ProgramCounter = u32;
@@ -10,31 +31,34 @@ impl gdbstub::arch::Registers for Registers {
     }
 
     fn gdb_serialize(&self, mut write_byte: impl FnMut(Option<u8>)) {
-        let mut buf = [0; size_of::<Self>()];
-        let mut cursor = std::io::Cursor::new(&mut buf[..]);
-        self.write_be(&mut cursor).unwrap();
+        let mut write = |bytes: &[u8]| {
+            for &byte in bytes {
+                write_byte(Some(byte))
+            }
+        };
 
-        for byte in buf {
-            write_byte(Some(byte));
+        for gpr in self.user.gpr {
+            write(&gpr.to_be_bytes());
         }
+
+        for fpr in self.user.fpr {
+            write(&fpr.to_be_bytes());
+        }
+
+        write(&self.pc.value().to_be_bytes());
+        write(&self.supervisor.msr.to_bits().to_be_bytes());
+        write(&self.user.cr.to_bits().to_be_bytes());
+        write(&self.user.lr.to_be_bytes());
+        write(&self.user.ctr.to_be_bytes());
+        write(&self.user.xer.to_bits().to_be_bytes());
+        write(&self.user.fpscr.to_be_bytes());
     }
 
     fn gdb_deserialize(&mut self, bytes: &[u8]) -> Result<(), ()> {
-        let mut buf = std::io::Cursor::new(bytes);
-        *self = Self::read_be(&mut buf).map_err(|_| ())?;
+        // let mut buf = std::io::Cursor::new(bytes);
+        // *self = Self::read_be(&mut buf).map_err(|_| ())?;
 
         Ok(())
-    }
-}
-
-impl gdbstub::arch::RegId for Reg {
-    fn from_raw_id(id: usize) -> Option<(Self, Option<std::num::NonZeroUsize>)> {
-        Reg::iter().nth(id).map(|reg| {
-            let size = std::num::NonZeroUsize::new(if matches!(reg, Reg::FPR(_)) { 8 } else { 4 })
-                .unwrap();
-
-            (reg, Some(size))
-        })
     }
 }
 
