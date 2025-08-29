@@ -1,15 +1,12 @@
 mod primitive;
 
 pub mod arch;
-pub mod gdb;
-
-use binrw::{BinRead, BinWrite};
 
 pub use primitive::Primitive;
 
 /// A memory address. This is a thin wrapper around a [`u32`].
 #[repr(transparent)]
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Hash, BinRead, BinWrite)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Hash)]
 pub struct Address(pub u32);
 
 impl std::fmt::Display for Address {

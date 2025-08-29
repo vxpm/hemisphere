@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-gdbstub.workspace = true
 bitos.workspace = true
 bytesize.workspace = true
 binrw.workspace = true

@@ -3,6 +3,8 @@ pub mod jit;
 pub mod mmu;
 pub mod video;
 
+pub mod runner;
+
 use crate::{
     bus::Bus,
     jit::{ExternalData, JIT},
@@ -22,7 +24,7 @@ pub use dolfile;
 pub use hemicore as core;
 
 /// The CPU frequency.
-pub const FREQUENCY: u64 = 486_000_000;
+pub const FREQUENCY: u32 = 486_000_000;
 
 /// Emulator configuration.
 pub struct Config {

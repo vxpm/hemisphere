@@ -1,5 +1,4 @@
 use crate::Address;
-use binrw::{BinRead, BinWrite};
 use bitos::{
     BitUtils, bitos,
     integer::{u2, u4, u7, u11, u15},
@@ -79,7 +78,7 @@ pub struct Cond {
 /// Other than that, comparison instructions specify one of the fields to receive the results of
 /// the comparison.
 #[bitos(32)]
-#[derive(Debug, Clone, PartialEq, Default, BinRead, BinWrite)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct CondReg {
     // NOTE: CR0 is actually index 7! PPC bit order is big endian
     #[bits(..)]
@@ -87,7 +86,7 @@ pub struct CondReg {
 }
 
 #[bitos(32)]
-#[derive(Debug, Clone, PartialEq, Default, BinRead, BinWrite)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct MachineState {
     /// Whether little endian mode is turned on. Not supported.
     #[bits(0)]
@@ -128,7 +127,7 @@ pub struct MachineState {
 /// The XER register contains information about overflow and carry operations, and is also used by
 /// the load/store string indexed instructions.
 #[bitos(32)]
-#[derive(Debug, Clone, PartialEq, Default, BinRead, BinWrite)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct XerReg {
     /// The number of bytes to be transferred by a lswx or stswx.
     #[bits(0..7)]
@@ -146,7 +145,7 @@ pub struct XerReg {
 
 /// User level registers
 #[repr(C)]
-#[derive(Debug, Clone, PartialEq, Default, BinRead, BinWrite)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct User {
     /// General Purpose Registers
     pub gpr: [u32; 32],
@@ -167,7 +166,7 @@ pub struct User {
 
 /// The block address translation registers.
 #[bitos(64)]
-#[derive(Debug, Clone, PartialEq, Default, BinRead, BinWrite)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct Bat {
     // lower
     #[bits(0..2)]
@@ -247,7 +246,7 @@ impl Bat {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Default, BinRead, BinWrite)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct MemoryManagement {
     /// Instruction Block Address Translation registers
     pub ibat: [Bat; 4],
@@ -283,7 +282,7 @@ impl MemoryManagement {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Default, BinRead, BinWrite)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct ExceptionHandling {
     /// Data Address Register
     pub dar: u32,
@@ -295,7 +294,7 @@ pub struct ExceptionHandling {
     pub srr: [u32; 2],
 }
 
-#[derive(Debug, Clone, PartialEq, Default, BinRead, BinWrite)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct Miscellaneous {
     /// Time Base
     pub tbl: u64,
@@ -305,7 +304,7 @@ pub struct Miscellaneous {
 
 /// Supervisor level registers
 #[repr(C)]
-#[derive(Debug, Clone, PartialEq, Default, BinRead, BinWrite)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct Supervisor {
     /// Machine State Register
     pub msr: MachineState,
@@ -350,7 +349,7 @@ impl Supervisor {
 }
 
 #[repr(C)]
-#[derive(Debug, Clone, PartialEq, Default, BinRead, BinWrite)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct Registers {
     /// Program Counter
     pub pc: Address,

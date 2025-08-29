@@ -1,0 +1,2 @@
+2025-08-29T19:09:04.898577Z  INFO cli: loading panda.dol
+2025-08-29T19:09:04.912823Z  INFO cli: starting interface

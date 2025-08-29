@@ -10,10 +10,10 @@ opt-level = 3
 opt-level = 3
 
 [workspace.dependencies]
-gdbstub = "0.7"
 binrw = { version = "0.15", features = ["std"], default-features = false }
 bitos = { git = "https://github.com/vxpm/bitos.git", features = ["zerocopy"] }
 bytesize = "2"
+clap = { version = "4.5", features = ["derive"] }
 easyerr = "0.1"
 iced-x86 = { version = "1.21", features = [
     "decoder",
@@ -26,6 +26,6 @@ rustc-hash = "2"
 slotmap = "1.0"
 tracing = { version = "0.1", default-features = false, features = ["std"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-wgpu = "25.0"
+wgpu = "26.0"
 strum = { version = "0.27", features = ["derive"] }
 zerocopy = { version = "0.8", features = ["derive"] }

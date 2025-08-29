@@ -9,9 +9,11 @@ dolfile = { path = "../dolfile" }
 ppcjit = { path = "../ppcjit" }
 bitos.workspace = true
 bytesize.workspace = true
+clap.workspace = true
 easyerr.workspace = true
 rustc-hash.workspace = true
 slotmap.workspace = true
 tracing.workspace = true
 zerocopy.workspace = true
+
 schnellru = "0.2"
