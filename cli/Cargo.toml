@@ -12,4 +12,4 @@ tracing-subscriber.workspace = true
 binrw.workspace = true
 
 gdbstub = "0.7"
-gdbstub_arch = "0.3"
+tracing-appender = "0.2"

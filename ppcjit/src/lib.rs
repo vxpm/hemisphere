@@ -17,13 +17,13 @@ use std::sync::Arc;
 pub use block::{Block, BlockFn, BlockOutput};
 pub use sequence::{Sequence, SequenceStatus};
 
-/// A context for JIT compilation of [`Sequence`]s, producing [`Block`]s.
-pub struct JIT {
+/// A JIT compiler of [`Sequence`]s, producing [`Block`]s.
+pub struct Compiler {
     isa: Arc<dyn codegen::isa::TargetIsa>,
     func_ctx: frontend::FunctionBuilderContext,
 }
 
-impl Default for JIT {
+impl Default for Compiler {
     fn default() -> Self {
         let mut builder = codegen::settings::builder();
         builder.set("use_colocated_libcalls", "false").unwrap();
@@ -56,7 +56,7 @@ pub enum BuildError {
     Codegen { source: codegen::CodegenError },
 }
 
-impl JIT {
+impl Compiler {
     fn block_signature(&self) -> ir::Signature {
         let ptr = self.isa.pointer_type();
         ir::Signature {

@@ -1,4 +1,4 @@
-use crate::Emulator;
+use crate::App;
 use gdbstub::target::Target;
 use gdbstub::target::ext::base::BaseOps;
 use gdbstub::target::ext::base::singlethread::SingleThreadBase;
@@ -18,7 +18,7 @@ pub fn connect(port: u16) -> io::Result<TcpStream> {
     Ok(stream)
 }
 
-impl Target for Emulator {
+impl Target for App {
     type Arch = Gekko;
     type Error = ();
 
@@ -27,12 +27,12 @@ impl Target for Emulator {
     }
 }
 
-impl SingleThreadBase for Emulator {
+impl SingleThreadBase for App {
     fn read_registers(
         &mut self,
         regs: &mut <Self::Arch as gdbstub::arch::Arch>::Registers,
     ) -> gdbstub::target::TargetResult<(), Self> {
-        *regs = self.hemisphere.cpu.clone();
+        *regs = self.hemisphere.state.cpu.clone();
         Ok(())
     }
 
@@ -40,7 +40,7 @@ impl SingleThreadBase for Emulator {
         &mut self,
         regs: &<Self::Arch as gdbstub::arch::Arch>::Registers,
     ) -> gdbstub::target::TargetResult<(), Self> {
-        self.hemisphere.cpu = regs.clone();
+        self.hemisphere.state.cpu = regs.clone();
         Ok(())
     }
 

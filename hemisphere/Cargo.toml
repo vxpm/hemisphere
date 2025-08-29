@@ -14,4 +14,4 @@ rustc-hash.workspace = true
 slotmap.workspace = true
 tracing.workspace = true
 zerocopy.workspace = true
-bimap = "0.6"
+schnellru = "0.2"
