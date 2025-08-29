@@ -75,7 +75,7 @@ impl SingleThreadBase for App {
                 .state
                 .cpu
                 .supervisor
-                .translate_data_addr(current);
+                .translate_instr_addr(current);
 
             *byte = self.hemisphere.state.bus.read(physical);
             current += 1;
