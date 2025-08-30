@@ -40,15 +40,15 @@ impl Default for Config {
     }
 }
 
-/// Emulator state.
-pub struct State {
+/// System state.
+pub struct System {
     pub cpu: Registers,
     pub bus: Bus,
 }
 
-impl State {
+impl System {
     pub fn new() -> Self {
-        State {
+        System {
             cpu: Registers::default(),
             bus: Bus::new(),
         }
@@ -125,7 +125,7 @@ impl State {
 /// The Hemisphere emulator.
 pub struct Hemisphere {
     pub config: Config,
-    pub state: State,
+    pub system: System,
     pub jit: JIT,
     invalidated: Vec<Address>,
 }
@@ -134,14 +134,14 @@ impl Hemisphere {
     pub fn new(config: Config) -> Self {
         Self {
             config,
-            state: State::new(),
+            system: System::new(),
             jit: JIT::new(),
             invalidated: Vec::new(),
         }
     }
 
     fn compile(&mut self, addr: Address, limit: u16) -> ppcjit::Block {
-        let _span = info_span!("compiling new block", addr = ?self.state.cpu.pc).entered();
+        let _span = info_span!("compiling new block", addr = ?self.system.cpu.pc).entered();
 
         let mut seq = Sequence::new();
         let mut current = addr;
@@ -151,8 +151,8 @@ impl Hemisphere {
                 break;
             }
 
-            let physical = self.state.cpu.supervisor.translate_instr_addr(current);
-            let ins = Ins::new(self.state.bus.read(physical), Extensions::gekko_broadway());
+            let physical = self.system.cpu.supervisor.translate_instr_addr(current);
+            let ins = Ins::new(self.system.bus.read(physical), Extensions::gekko_broadway());
 
             let mut parsed = ParsedIns::new();
             ins.parse_basic(&mut parsed);
@@ -170,8 +170,8 @@ impl Hemisphere {
     /// Executes a single block with a limit of instructions and returns how many instructions were
     /// executed. This will _always_ compile a new block and it won't be cached in the storage.
     pub fn exec_limited(&mut self, limit: u16) -> u32 {
-        let block = self.compile(self.state.cpu.pc, limit);
-        let executed = self.state.exec(&block, &mut self.invalidated);
+        let block = self.compile(self.system.cpu.pc, limit);
+        let executed = self.system.exec(&block, &mut self.invalidated);
         self.jit.blocks.invalidate(&self.invalidated);
 
         executed
@@ -179,15 +179,15 @@ impl Hemisphere {
 
     /// Executes a single block and returns how many instructions were executed.
     pub fn exec(&mut self) -> u32 {
-        let block = match self.jit.blocks.get(self.state.cpu.pc) {
+        let block = match self.jit.blocks.get(self.system.cpu.pc) {
             Some(block) => block,
             None => {
-                let block = self.compile(self.state.cpu.pc, self.config.instructions_per_block);
-                self.jit.blocks.insert(self.state.cpu.pc, block)
+                let block = self.compile(self.system.cpu.pc, self.config.instructions_per_block);
+                self.jit.blocks.insert(self.system.cpu.pc, block)
             }
         };
 
-        let executed = self.state.exec(block, &mut self.invalidated);
+        let executed = self.system.exec(block, &mut self.invalidated);
         self.jit.blocks.invalidate(&self.invalidated);
 
         executed

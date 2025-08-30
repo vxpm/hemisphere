@@ -32,7 +32,7 @@ fn run(state: Arc<Mutex<State>>, control: Arc<Control>) {
         }
 
         // wait until the next slice should run
-        while next < Instant::now() {
+        while next > Instant::now() {
             std::hint::spin_loop();
         }
 
@@ -52,6 +52,7 @@ fn run(state: Arc<Mutex<State>>, control: Arc<Control>) {
     }
 }
 
+/// A simple runner for the Hemisphere emulator.
 pub struct Runner {
     state: Arc<Mutex<State>>,
     control: Arc<Control>,
@@ -65,12 +66,15 @@ impl Runner {
             should_run: AtomicBool::new(false),
         });
 
-        let handle = std::thread::spawn({
-            let state = state.clone();
-            let control = control.clone();
+        let handle = std::thread::Builder::new()
+            .name("hemi-runner".to_owned())
+            .spawn({
+                let state = state.clone();
+                let control = control.clone();
 
-            || run(state, control)
-        });
+                || run(state, control)
+            })
+            .unwrap();
 
         Self {
             state,

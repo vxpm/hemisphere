@@ -107,12 +107,19 @@ fn main() -> Result<()> {
     let dol = Dol::read(&mut BufReader::new(file)).unwrap();
 
     let mut app = App::new();
-    app.runner.state().hemisphere.state.load(&dol);
+    app.runner.state().hemisphere.system.load(&dol);
+    app.runner.set_run(true);
 
-    info!("starting interface");
-    let terminal = ratatui::init();
-    app.run(terminal)?;
-    ratatui::restore();
+    loop {
+        if app.runner.state().hemisphere.system.cpu.pc == 0x8000_4010 {
+            break;
+        }
+    }
+
+    // info!("starting interface");
+    // let terminal = ratatui::init();
+    // app.run(terminal)?;
+    // ratatui::restore();
 
     Ok(())
 }
