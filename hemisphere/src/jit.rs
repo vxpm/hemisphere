@@ -46,6 +46,8 @@ impl BlockStorage {
     #[inline(always)]
     pub fn get(&mut self, addr: Address) -> Option<&Block> {
         let id = *self.mapping.get(&addr)?;
+
+        // SAFETY: if the block exists in the mapping, it should exist in the blocks!
         unsafe { Some(self.blocks.get_unchecked(id)) }
     }
 

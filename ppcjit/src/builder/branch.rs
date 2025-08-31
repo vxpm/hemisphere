@@ -1,9 +1,7 @@
 use super::BlockBuilder;
-use crate::block::BlockOutput;
 use bitos::{bitos, integer::u5};
 use cranelift::{codegen::ir, prelude::InstBuilder};
 use hemicore::arch::{Reg, SPR, powerpc::Ins};
-use std::mem::offset_of;
 
 #[bitos(1)]
 #[derive(Debug, Clone, Copy)]
@@ -28,51 +26,35 @@ struct BranchOptions {
 }
 
 impl BlockBuilder<'_> {
-    pub fn setup_jump(&mut self, relative: bool, link: bool, data: ir::Value) {
-        let false_ = self.bd.ins().iconst(ir::types::I8, 0);
-        let true_ = self.bd.ins().iconst(ir::types::I8, 1);
+    fn setup_jump(&mut self, relative: bool, link: bool, data: ir::Value) {
+        let current_pc = self.get(Reg::PC);
+        if link {
+            let target = self.bd.ins().iadd_imm(current_pc, 4);
+            self.set(SPR::LR, target);
+        }
 
-        self.bd.ins().store(
-            ir::MemFlags::trusted(),
-            true_,
-            self.ctx.output_ptr,
-            offset_of!(BlockOutput, jump.execute) as i32,
-        );
-
-        self.bd.ins().store(
-            ir::MemFlags::trusted(),
-            if relative { true_ } else { false_ },
-            self.ctx.output_ptr,
-            offset_of!(BlockOutput, jump.relative) as i32,
-        );
-
-        self.bd.ins().store(
-            ir::MemFlags::trusted(),
-            if link { true_ } else { false_ },
-            self.ctx.output_ptr,
-            offset_of!(BlockOutput, jump.link) as i32,
-        );
-
-        self.bd.ins().store(
-            ir::MemFlags::trusted(),
-            data,
-            self.ctx.output_ptr,
-            offset_of!(BlockOutput, jump.data) as i32,
-        );
+        if relative {
+            let target = self.bd.ins().iadd(current_pc, data);
+            self.set(Reg::PC, target);
+        } else {
+            self.set(Reg::PC, data);
+        }
     }
 
-    pub fn setup_jump_imm(&mut self, relative: bool, link: bool, data: i32) {
+    fn setup_jump_imm(&mut self, relative: bool, link: bool, data: i32) {
         let data = self.bd.ins().iconst(ir::types::I32, data as i64);
         self.setup_jump(relative, link, data);
     }
 
     pub fn branch(&mut self, ins: Ins) {
-        self.setup_jump_imm(!ins.field_aa(), ins.field_lk(), ins.field_li());
+        // NOTE: the minus 4 is to work around the automatic PC increase in the emit method
+        self.setup_jump_imm(!ins.field_aa(), ins.field_lk(), ins.field_li() - 4);
     }
 
     pub fn branch_cond(&mut self, ins: Ins) {
         let options = BranchOptions::from_bits(u5::new(ins.field_bo()));
         let cond_bit = 31 - ins.field_bi();
+        let current_pc = self.get(Reg::PC);
 
         let mut branch = self.bd.ins().iconst(ir::types::I8, 1);
         if !options.ignore_cr() {
@@ -131,12 +113,14 @@ impl BlockBuilder<'_> {
 
         self.bd.switch_to_block(continue_block);
         self.current_bb = continue_block;
+        self.set(Reg::PC, current_pc);
     }
 
     pub fn branch_cond_lr(&mut self, ins: Ins) {
         let options = BranchOptions::from_bits(u5::new(ins.field_bo()));
         let cond_bit = 31 - ins.field_bi();
         let addr = self.get(SPR::LR);
+        let current_pc = self.get(Reg::PC);
 
         let mut branch = self.bd.ins().iconst(ir::types::I8, 1);
         if !options.ignore_cr() {
@@ -190,11 +174,11 @@ impl BlockBuilder<'_> {
         self.bd.seal_block(continue_block);
 
         self.bd.switch_to_block(exit_block);
-
         self.setup_jump(false, ins.field_lk(), addr);
         self.prologue();
 
         self.bd.switch_to_block(continue_block);
         self.current_bb = continue_block;
+        self.set(Reg::PC, current_pc);
     }
 }

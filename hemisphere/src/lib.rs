@@ -105,27 +105,13 @@ impl System {
             invalidated,
         };
 
-        let output = block.run(
+        let executed = block.run(
             &mut self.cpu,
             &mut external as *mut _ as *mut _,
             &EXTERNAL_FUNCTIONS,
         );
 
-        self.cpu.pc += 4 * output.executed;
-        if output.jump.execute {
-            if output.jump.link {
-                self.cpu.user.lr = self.cpu.pc.0;
-            }
-
-            if output.jump.relative {
-                self.cpu.pc += output.jump.data;
-                self.cpu.pc -= 4;
-            } else {
-                self.cpu.pc = Address(output.jump.data as u32);
-            }
-        }
-
-        output.executed
+        executed
     }
 }
 

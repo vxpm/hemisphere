@@ -2,7 +2,7 @@ use crate::Sequence;
 use hemicore::{Address, arch::Registers};
 use iced_x86::Formatter;
 use memmap2::{Mmap, MmapOptions};
-use std::{fmt::Display, mem::MaybeUninit};
+use std::fmt::Display;
 
 type ExternalData = std::ffi::c_void;
 type ReadFunction<T> = fn(*mut ExternalData, *const Registers, Address) -> T;
@@ -18,32 +18,8 @@ pub struct ExternalFunctions {
     pub write_i32: WriteFunction<i32>,
 }
 
-#[derive(Debug, Clone, Copy, Default)]
-pub struct Jump {
-    /// Should a jump be executed?
-    pub execute: bool,
-    /// Whether the jump is relative or not.
-    pub relative: bool,
-    /// Whether the CPU should link before the jump.
-    pub link: bool,
-    /// Data associated with the jump. Can be an address or an offset.
-    pub data: i32,
-}
-
-#[derive(Default)]
-pub struct BlockOutput {
-    /// How many instructions were executed.
-    pub executed: u32,
-    /// Information regarding jumps.
-    pub jump: Jump,
-}
-
-pub type BlockFn = extern "sysv64" fn(
-    *mut Registers,
-    *mut ExternalData,
-    *const ExternalFunctions,
-    *mut BlockOutput,
-);
+pub type BlockFn =
+    extern "sysv64" fn(*mut Registers, *mut ExternalData, *const ExternalFunctions) -> u32;
 
 /// A compiled block of PowerPC instructions.
 pub struct Block {
@@ -73,19 +49,9 @@ impl Block {
         registers: &mut Registers,
         external_data: *mut ExternalData,
         external_functions: &ExternalFunctions,
-    ) -> BlockOutput {
+    ) -> u32 {
         let func: BlockFn = unsafe { std::mem::transmute(self.code.as_ptr()) };
-
-        let mut output = MaybeUninit::uninit();
-        func(
-            registers,
-            external_data,
-            external_functions,
-            &mut output as *mut _ as *mut _,
-        );
-
-        // SAFETY: output has been initialized by the JIT block
-        unsafe { output.assume_init() }
+        func(registers, external_data, external_functions)
     }
 
     /// Returns the sequence of instructions this block represents.

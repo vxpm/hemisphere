@@ -74,7 +74,7 @@ fn setup_tracing() -> tracing_appender::non_blocking::WorkerGuard {
         .truncate(true)
         .create(true)
         .write(true)
-        .open("logs.txt")
+        .open("log.txt")
         .unwrap();
 
     let (file, _guard_file) = tracing_appender::non_blocking(file);

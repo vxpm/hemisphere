@@ -65,7 +65,7 @@ fn run(state: Arc<Mutex<State>>, control: Arc<Control>) {
             emulated += guard.hemisphere.exec();
         }
 
-        if guard.stats.slice_freqs.len() >= 128 {
+        if guard.stats.slice_freqs.len() >= 1024 {
             guard.stats.slice_freqs.pop_back();
         }
 

@@ -14,7 +14,7 @@ use cranelift::{
 use easyerr::{Error, ResultExt};
 use std::sync::Arc;
 
-pub use block::{Block, BlockFn, BlockOutput};
+pub use block::{Block, BlockFn};
 pub use sequence::{Sequence, SequenceStatus};
 
 /// A JIT compiler of [`Sequence`]s, producing [`Block`]s.
@@ -61,7 +61,7 @@ impl Compiler {
         let ptr = self.isa.pointer_type();
         ir::Signature {
             params: vec![ir::AbiParam::new(ptr); 4],
-            returns: vec![],
+            returns: vec![ir::AbiParam::new(ir::types::I32)],
             call_conv: codegen::isa::CallConv::SystemV,
         }
     }

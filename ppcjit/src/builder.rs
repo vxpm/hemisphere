@@ -4,7 +4,6 @@ mod compare;
 mod memory;
 mod others;
 
-use crate::block::BlockOutput;
 use cranelift::{
     codegen::ir::{self, SigRef, condcodes::IntCC},
     frontend,
@@ -17,7 +16,6 @@ use hemicore::arch::{
 };
 use rustc_hash::FxHashMap;
 use std::collections::hash_map::Entry;
-use std::mem::offset_of;
 
 fn reg_ty(reg: Reg) -> ir::Type {
     match reg {
@@ -40,7 +38,6 @@ struct Context {
     external_data_ptr: ir::Value,
     external_functions_ptr: ir::Value,
     external_functions_sigs: FxHashMap<i32, SigRef>,
-    output_ptr: ir::Value,
 }
 
 struct RegState {
@@ -75,7 +72,6 @@ impl<'ctx> BlockBuilder<'ctx> {
             external_data_ptr: params[1],
             external_functions_ptr: params[2],
             external_functions_sigs: FxHashMap::default(),
-            output_ptr: params[3],
         };
 
         Self {
@@ -164,6 +160,11 @@ impl<'ctx> BlockBuilder<'ctx> {
     }
 
     fn prologue(&mut self) {
+        let executed = self
+            .bd
+            .ins()
+            .iconst(ir::types::I32, (4 * self.executed) as u64 as i64);
+
         for (reg, var) in &self.regs {
             if !var.modified {
                 continue;
@@ -178,25 +179,11 @@ impl<'ctx> BlockBuilder<'ctx> {
             );
         }
 
-        let executed = self
-            .bd
-            .ins()
-            .iconst(ir::types::I32, self.executed as u64 as i64);
-
-        self.bd.ins().store(
-            ir::MemFlags::trusted(),
-            executed,
-            self.ctx.output_ptr,
-            offset_of!(BlockOutput, executed) as i32,
-        );
-
-        self.bd.ins().return_(&[]);
+        self.bd.ins().return_(&[executed]);
     }
 
     pub fn emit(&mut self, ins: Ins) -> Result<(), EmitError> {
         self.bd.set_srcloc(ir::SourceLoc::new(self.executed));
-
-        self.executed += 1;
         match ins.op {
             Opcode::Add => self.add(ins),
             Opcode::Addis => self.addis(ins),
@@ -215,15 +202,18 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Rlwinm => self.rlwinm(ins),
             Opcode::Lwzu => self.lwzu(ins),
             Opcode::Illegal => {
-                self.executed -= 1;
                 return Err(EmitError::Illegal(ins));
             }
             _ => {
-                self.executed -= 1;
                 return Err(EmitError::Unimplemented(ins));
             }
         }
 
+        let old_pc = self.get(Reg::PC);
+        let new_pc = self.bd.ins().iadd_imm(old_pc, 4);
+        self.set(Reg::PC, new_pc);
+
+        self.executed += 1;
         Ok(())
     }
 

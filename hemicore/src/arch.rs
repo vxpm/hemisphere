@@ -507,9 +507,6 @@ pub enum Reg {
     PC,
     MSR,
     CR,
-    LR,
-    CTR,
-    XER,
     FPSCR,
 }
 
@@ -524,30 +521,9 @@ impl Reg {
             Reg::PC => offset_of!(Registers, pc),
             Reg::MSR => offset_of!(Registers, supervisor.msr),
             Reg::CR => offset_of!(Registers, user.cr),
-            Reg::LR => offset_of!(Registers, user.lr),
-            Reg::CTR => offset_of!(Registers, user.ctr),
-            Reg::XER => offset_of!(Registers, user.xer),
             Reg::FPSCR => offset_of!(Registers, user.fpscr),
         }
     }
-
-    // #[inline(always)]
-    // pub fn iter() -> impl Iterator<Item = Self> {
-    //     let gpr = GPR::VARIANTS.iter().copied().map(Self::GPR);
-    //     let fpr = FPR::VARIANTS.iter().copied().map(Self::FPR);
-    //     let spr = SPR::VARIANTS.iter().copied().map(Self::SPR);
-    //     let others = [
-    //         Self::PC,
-    //         Self::MSR,
-    //         Self::CR,
-    //         Self::LR,
-    //         Self::CTR,
-    //         Self::XER,
-    //     ]
-    //     .into_iter();
-    //
-    //     gpr.chain(fpr).chain(spr).chain(others)
-    // }
 }
 
 impl From<GPR> for Reg {
