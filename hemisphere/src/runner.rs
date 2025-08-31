@@ -1,7 +1,8 @@
 use crate::{FREQUENCY, Hemisphere};
 use std::{
+    collections::VecDeque,
     sync::{
-        Arc, Mutex, MutexGuard,
+        Arc, Mutex,
         atomic::{AtomicBool, Ordering},
     },
     thread::JoinHandle,
@@ -10,12 +11,28 @@ use std::{
 
 const STEP_SIZE: u32 = 4096;
 
+#[inline(always)]
 fn to_duration(cycles: u32) -> Duration {
     Duration::from_secs_f64(cycles as f64 / FREQUENCY as f64)
 }
 
+#[derive(Default)]
+pub struct Stats {
+    pub slice_freqs: VecDeque<f32>,
+}
+
 pub struct State {
     pub hemisphere: Hemisphere,
+    pub stats: Stats,
+}
+
+impl State {
+    pub fn new(hemisphere: Hemisphere) -> Self {
+        Self {
+            hemisphere,
+            stats: Stats::default(),
+        }
+    }
 }
 
 struct Control {
@@ -24,10 +41,16 @@ struct Control {
 
 fn run(state: Arc<Mutex<State>>, control: Arc<Control>) {
     let mut next = Instant::now();
-
+    let mut guard = state.lock().unwrap();
     loop {
-        while !control.should_run.load(Ordering::Relaxed) {
-            std::thread::park();
+        if !control.should_run.load(Ordering::Relaxed) {
+            std::mem::drop(guard);
+
+            while !control.should_run.load(Ordering::Relaxed) {
+                std::thread::park();
+            }
+
+            guard = state.lock().unwrap();
             next = Instant::now();
         }
 
@@ -37,15 +60,22 @@ fn run(state: Arc<Mutex<State>>, control: Arc<Control>) {
         }
 
         // emulate
-        let mut state = state.lock().unwrap();
         let mut emulated = 0;
         while emulated < STEP_SIZE {
-            emulated += state.hemisphere.exec();
+            emulated += guard.hemisphere.exec();
         }
 
+        if guard.stats.slice_freqs.len() >= 128 {
+            guard.stats.slice_freqs.pop_back();
+        }
+
+        guard
+            .stats
+            .slice_freqs
+            .push_front(emulated as f32 / next.elapsed().as_secs_f32());
+
         // calculate when the next slice should run
-        let extra = emulated - STEP_SIZE;
-        next += to_duration(STEP_SIZE + extra);
+        next += to_duration(emulated);
 
         // avoid acumulating slowdowns
         next = next.max(Instant::now());
@@ -61,7 +91,7 @@ pub struct Runner {
 
 impl Runner {
     pub fn new(hemisphere: Hemisphere) -> Self {
-        let state = Arc::new(Mutex::new(State { hemisphere }));
+        let state = Arc::new(Mutex::new(State::new(hemisphere)));
         let control = Arc::new(Control {
             should_run: AtomicBool::new(false),
         });
@@ -90,7 +120,21 @@ impl Runner {
         }
     }
 
-    pub fn state(&mut self) -> MutexGuard<'_, State> {
-        self.state.lock().unwrap()
+    pub fn with_state<F, R>(&mut self, f: F) -> R
+    where
+        F: FnOnce(&mut State) -> R,
+    {
+        let run = self.control.should_run.load(Ordering::Relaxed);
+        self.control.should_run.store(false, Ordering::Relaxed);
+
+        let mut state = self.state.lock().unwrap();
+        let result = f(&mut state);
+
+        if run {
+            self.control.should_run.store(true, Ordering::Relaxed);
+            self.handle.thread().unpark();
+        }
+
+        result
     }
 }

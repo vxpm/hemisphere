@@ -1,3 +1,5 @@
+#![feature(cold_path)]
+
 pub mod bus;
 pub mod jit;
 pub mod mmu;
@@ -7,7 +9,7 @@ pub mod runner;
 
 use crate::{
     bus::Bus,
-    jit::{ExternalData, JIT},
+    jit::{EXTERNAL_FUNCTIONS, ExternalData, JIT},
 };
 use dolfile::Dol;
 use hemicore::{
@@ -95,14 +97,19 @@ impl System {
     /// Executes the given block on this state and fills `invalidated` with addresses that have
     /// been written to.
     fn exec(&mut self, block: &ppcjit::Block, invalidated: &mut Vec<Address>) -> u32 {
-        invalidated.clear();
+        // SAFETY: invalidated is a Vec of (Address)es, which are simple wrappers around u32s
+        unsafe { invalidated.set_len(0) };
+
         let mut external = ExternalData {
             bus: &mut self.bus,
             invalidated,
         };
 
-        let funcs = ExternalData::functions();
-        let output = block.run(&mut self.cpu, &mut external as *mut _ as *mut _, &funcs);
+        let output = block.run(
+            &mut self.cpu,
+            &mut external as *mut _ as *mut _,
+            &EXTERNAL_FUNCTIONS,
+        );
 
         self.cpu.pc += 4 * output.executed;
         if output.jump.execute {
@@ -158,7 +165,13 @@ impl Hemisphere {
             ins.parse_basic(&mut parsed);
 
             match seq.push(ins) {
-                Ok(SequenceStatus::Open) => current += 4,
+                Ok(SequenceStatus::Open) => {
+                    if current == u32::MAX {
+                        break;
+                    } else {
+                        current += 4
+                    }
+                }
                 _ => break,
             }
         }
@@ -167,28 +180,34 @@ impl Hemisphere {
         self.jit.compiler.compile(seq).unwrap()
     }
 
-    /// Executes a single block with a limit of instructions and returns how many instructions were
-    /// executed. This will _always_ compile a new block and it won't be cached in the storage.
-    pub fn exec_limited(&mut self, limit: u16) -> u32 {
-        let block = self.compile(self.system.cpu.pc, limit);
-        let executed = self.system.exec(&block, &mut self.invalidated);
-        self.jit.blocks.invalidate(&self.invalidated);
-
-        executed
-    }
+    ///// Executes a single block with a limit of instructions and returns how many instructions were
+    ///// executed. This will _always_ compile a new block and it won't be cached in the storage.
+    //pub fn exec_limited(&mut self, limit: u16) -> u32 {
+    //    let block = self.compile(self.system.cpu.pc, limit);
+    //    let executed = self.system.exec(&block, &mut self.invalidated);
+    //    self.jit.blocks.invalidate(&self.invalidated);
+    //
+    //    executed
+    //}
 
     /// Executes a single block and returns how many instructions were executed.
     pub fn exec(&mut self) -> u32 {
         let block = match self.jit.blocks.get(self.system.cpu.pc) {
             Some(block) => block,
             None => {
+                std::hint::cold_path();
+
                 let block = self.compile(self.system.cpu.pc, self.config.instructions_per_block);
                 self.jit.blocks.insert(self.system.cpu.pc, block)
             }
         };
 
         let executed = self.system.exec(block, &mut self.invalidated);
-        self.jit.blocks.invalidate(&self.invalidated);
+        if !self.invalidated.is_empty() {
+            for invalidated in self.invalidated.drain(..) {
+                self.jit.blocks.invalidate(invalidated);
+            }
+        }
 
         executed
     }

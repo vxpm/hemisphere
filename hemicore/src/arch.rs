@@ -329,7 +329,7 @@ impl Supervisor {
             }
         }
 
-        panic!("couldn't translate instr addr with bats!")
+        panic!("couldn't translate instr addr {addr} with bats!")
     }
 
     /// Translates a data effective address into a physical address.

@@ -17,3 +17,4 @@ tracing.workspace = true
 zerocopy.workspace = true
 
 schnellru = "0.2"
+interavl = "0.3.0"

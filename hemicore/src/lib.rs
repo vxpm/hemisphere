@@ -43,6 +43,7 @@ impl Address {
 impl std::ops::Add<u32> for Address {
     type Output = Self;
 
+    #[inline(always)]
     fn add(self, rhs: u32) -> Self::Output {
         Self(self.0.wrapping_add(rhs))
     }
@@ -51,18 +52,21 @@ impl std::ops::Add<u32> for Address {
 impl std::ops::Add<i32> for Address {
     type Output = Self;
 
+    #[inline(always)]
     fn add(self, rhs: i32) -> Self::Output {
         Self(self.0.wrapping_add_signed(rhs))
     }
 }
 
 impl std::ops::AddAssign<u32> for Address {
+    #[inline(always)]
     fn add_assign(&mut self, rhs: u32) {
         *self = *self + rhs;
     }
 }
 
 impl std::ops::AddAssign<i32> for Address {
+    #[inline(always)]
     fn add_assign(&mut self, rhs: i32) {
         *self = *self + rhs;
     }
@@ -71,6 +75,7 @@ impl std::ops::AddAssign<i32> for Address {
 impl std::ops::Sub<u32> for Address {
     type Output = Self;
 
+    #[inline(always)]
     fn sub(self, rhs: u32) -> Self::Output {
         Self(self.0.wrapping_sub(rhs))
     }
@@ -79,30 +84,35 @@ impl std::ops::Sub<u32> for Address {
 impl std::ops::Sub<i32> for Address {
     type Output = Self;
 
+    #[inline(always)]
     fn sub(self, rhs: i32) -> Self::Output {
         Self(self.0.wrapping_add_signed(-rhs))
     }
 }
 
 impl std::ops::SubAssign<u32> for Address {
+    #[inline(always)]
     fn sub_assign(&mut self, rhs: u32) {
         *self = *self - rhs;
     }
 }
 
 impl std::ops::SubAssign<i32> for Address {
+    #[inline(always)]
     fn sub_assign(&mut self, rhs: i32) {
         *self = *self - rhs;
     }
 }
 
 impl PartialEq<u32> for Address {
+    #[inline(always)]
     fn eq(&self, other: &u32) -> bool {
         self.0 == *other
     }
 }
 
 impl From<u32> for Address {
+    #[inline(always)]
     fn from(value: u32) -> Self {
         Self(value)
     }

@@ -107,11 +107,21 @@ fn main() -> Result<()> {
     let dol = Dol::read(&mut BufReader::new(file)).unwrap();
 
     let mut app = App::new();
-    app.runner.state().hemisphere.system.load(&dol);
+    app.runner
+        .with_state(|state| state.hemisphere.system.load(&dol));
     app.runner.set_run(true);
 
     loop {
-        if app.runner.state().hemisphere.system.cpu.pc == 0x8000_4010 {
+        std::thread::sleep(Duration::from_millis(10));
+        let stop = app.runner.with_state(|state| {
+            let avg_freq =
+                state.stats.slice_freqs.iter().sum::<f32>() / state.stats.slice_freqs.len() as f32;
+            println!("{} MHz", avg_freq / 1_000_000.0);
+            // state.hemisphere.system.cpu.pc == 0x8000_4010
+            false
+        });
+
+        if stop {
             break;
         }
     }

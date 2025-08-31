@@ -2,7 +2,7 @@ use crate::Sequence;
 use hemicore::{Address, arch::Registers};
 use iced_x86::Formatter;
 use memmap2::{Mmap, MmapOptions};
-use std::fmt::Display;
+use std::{fmt::Display, mem::MaybeUninit};
 
 type ExternalData = std::ffi::c_void;
 type ReadFunction<T> = fn(*mut ExternalData, *const Registers, Address) -> T;
@@ -76,10 +76,16 @@ impl Block {
     ) -> BlockOutput {
         let func: BlockFn = unsafe { std::mem::transmute(self.code.as_ptr()) };
 
-        let mut output = BlockOutput::default();
-        func(registers, external_data, external_functions, &mut output);
+        let mut output = MaybeUninit::uninit();
+        func(
+            registers,
+            external_data,
+            external_functions,
+            &mut output as *mut _ as *mut _,
+        );
 
-        output
+        // SAFETY: output has been initialized by the JIT block
+        unsafe { output.assume_init() }
     }
 
     /// Returns the sequence of instructions this block represents.
