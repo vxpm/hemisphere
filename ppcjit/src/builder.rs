@@ -163,7 +163,7 @@ impl<'ctx> BlockBuilder<'ctx> {
         let executed = self
             .bd
             .ins()
-            .iconst(ir::types::I32, (4 * self.executed) as u64 as i64);
+            .iconst(ir::types::I32, self.executed as u64 as i64);
 
         for (reg, var) in &self.regs {
             if !var.modified {

@@ -5,7 +5,7 @@ use binrw::io::BufReader;
 use clap::Parser;
 use eyre_pretty::eyre::Result;
 use hemisphere::{
-    Config, Hemisphere,
+    Config, FREQUENCY, Hemisphere,
     dolfile::{Dol, binrw::BinRead},
     runner::Runner,
 };
@@ -114,9 +114,13 @@ fn main() -> Result<()> {
     loop {
         std::thread::sleep(Duration::from_millis(10));
         let stop = app.runner.with_state(|state| {
-            let avg_freq =
-                state.stats.slice_freqs.iter().sum::<f32>() / state.stats.slice_freqs.len() as f32;
-            println!("{} MHz", avg_freq / 1_000_000.0);
+            let avg_ips = state.stats.ips.iter().sum::<f32>() / state.stats.ips.len() as f32;
+            println!(
+                "{} MIPS ({:.02}x)",
+                avg_ips / 1_000_000.0,
+                avg_ips / (FREQUENCY as f32)
+            );
+
             // state.hemisphere.system.cpu.pc == 0x8000_4010
             false
         });

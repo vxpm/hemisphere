@@ -96,6 +96,7 @@ impl System {
 
     /// Executes the given block on this state and fills `invalidated` with addresses that have
     /// been written to.
+    #[inline(always)]
     fn exec(&mut self, block: &ppcjit::Block, invalidated: &mut Vec<Address>) -> u32 {
         // SAFETY: invalidated is a Vec of (Address)es, which are simple wrappers around u32s
         unsafe { invalidated.set_len(0) };

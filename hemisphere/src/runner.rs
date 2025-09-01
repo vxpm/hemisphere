@@ -18,7 +18,8 @@ fn to_duration(cycles: u32) -> Duration {
 
 #[derive(Default)]
 pub struct Stats {
-    pub slice_freqs: VecDeque<f32>,
+    /// Instructions per second, for the last 1024 slices.
+    pub ips: VecDeque<f32>,
 }
 
 pub struct State {
@@ -56,7 +57,7 @@ fn run(state: Arc<Mutex<State>>, control: Arc<Control>) {
 
         // wait until the next slice should run
         while next > Instant::now() {
-            std::hint::spin_loop();
+            std::thread::yield_now();
         }
 
         // emulate
@@ -65,13 +66,13 @@ fn run(state: Arc<Mutex<State>>, control: Arc<Control>) {
             emulated += guard.hemisphere.exec();
         }
 
-        if guard.stats.slice_freqs.len() >= 1024 {
-            guard.stats.slice_freqs.pop_back();
+        if guard.stats.ips.len() >= 1024 {
+            guard.stats.ips.pop_back();
         }
 
         guard
             .stats
-            .slice_freqs
+            .ips
             .push_front(emulated as f32 / next.elapsed().as_secs_f32());
 
         // calculate when the next slice should run
