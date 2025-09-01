@@ -15,6 +15,7 @@ pub struct BlockStorage {
     mapping: BTreeMap<Address, BlockId>,
     intervals: IntervalTree<u64, BlockId>,
     buffer: Vec<(Range<u64>, BlockId)>,
+    last_query: Option<(Address, BlockId)>,
 }
 
 impl Default for BlockStorage {
@@ -24,6 +25,7 @@ impl Default for BlockStorage {
             mapping: BTreeMap::default(),
             intervals: IntervalTree::default(),
             buffer: Vec::with_capacity(64),
+            last_query: None,
         }
     }
 }
@@ -45,7 +47,16 @@ impl BlockStorage {
     /// Returns the block starting at `addr`.
     #[inline(always)]
     pub fn get(&mut self, addr: Address) -> Option<&Block> {
-        let id = *self.mapping.get(&addr)?;
+        let id = if let Some((last_addr, id)) = self.last_query
+            && last_addr == addr
+        {
+            std::hint::cold_path();
+            id
+        } else {
+            let id = *self.mapping.get(&addr)?;
+            self.last_query = Some((addr, id));
+            id
+        };
 
         // SAFETY: if the block exists in the mapping, it should exist in the blocks!
         unsafe { Some(self.blocks.get_unchecked(id)) }
