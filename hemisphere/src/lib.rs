@@ -167,15 +167,19 @@ impl Hemisphere {
         self.jit.compiler.compile(seq).unwrap()
     }
 
-    ///// Executes a single block with a limit of instructions and returns how many instructions were
-    ///// executed. This will _always_ compile a new block and it won't be cached in the storage.
-    //pub fn exec_limited(&mut self, limit: u16) -> u32 {
-    //    let block = self.compile(self.system.cpu.pc, limit);
-    //    let executed = self.system.exec(&block, &mut self.invalidated);
-    //    self.jit.blocks.invalidate(&self.invalidated);
-    //
-    //    executed
-    //}
+    /// Executes a single block with a limit of instructions and returns how many instructions were
+    /// executed. This will _always_ compile a new block and it won't be cached in the storage.
+    pub fn exec_limited(&mut self, limit: u16) -> u32 {
+        let block = self.compile(self.system.cpu.pc, limit);
+        let executed = self.system.exec(&block, &mut self.invalidated);
+        if !self.invalidated.is_empty() {
+            for invalidated in self.invalidated.drain(..) {
+                self.jit.blocks.invalidate(invalidated);
+            }
+        }
+
+        executed
+    }
 
     /// Executes a single block and returns how many instructions were executed.
     pub fn exec(&mut self) -> u32 {

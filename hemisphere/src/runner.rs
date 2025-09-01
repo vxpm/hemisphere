@@ -23,8 +23,8 @@ pub struct Stats {
 }
 
 pub struct State {
-    pub hemisphere: Hemisphere,
-    pub stats: Stats,
+    hemisphere: Hemisphere,
+    stats: Stats,
 }
 
 impl State {
@@ -33,6 +33,18 @@ impl State {
             hemisphere,
             stats: Stats::default(),
         }
+    }
+
+    pub fn hemisphere(&self) -> &Hemisphere {
+        &self.hemisphere
+    }
+
+    pub fn hemisphere_mut(&mut self) -> &mut Hemisphere {
+        &mut self.hemisphere
+    }
+
+    pub fn stats(&self) -> &Stats {
+        &self.stats
     }
 }
 
@@ -67,7 +79,8 @@ fn run(state: Arc<Mutex<State>>, control: Arc<Control>) {
         // emulate
         let mut emulated = 0;
         while emulated < STEP_SIZE {
-            emulated += guard.hemisphere.exec();
+            // NOTE: assume 2 cycles per instruction
+            emulated += 2 * guard.hemisphere.exec();
         }
 
         if guard.stats.ips.len() >= 1024 {
@@ -116,6 +129,10 @@ impl Runner {
             control,
             handle,
         }
+    }
+
+    pub fn running(&self) -> bool {
+        self.control.should_run.load(Ordering::Relaxed)
     }
 
     pub fn set_run(&mut self, run: bool) {

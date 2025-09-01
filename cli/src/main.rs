@@ -19,6 +19,9 @@ use crate::app::App;
 struct CliArgs {
     /// Path to a .dol file to load and execute
     input: PathBuf,
+    /// Whether to start running right away
+    #[arg(short, long, default_value_t = false)]
+    run: bool,
 }
 
 fn setup_tracing() -> tracing_appender::non_blocking::WorkerGuard {
@@ -61,29 +64,10 @@ fn main() -> Result<()> {
     let dol = Dol::read(&mut BufReader::new(file)).unwrap();
 
     let mut runner = Runner::new(Hemisphere::new(Config::default()));
-    runner.with_state(|state| state.hemisphere.system.load(&dol));
-    runner.set_run(true);
+    runner.with_state(|state| state.hemisphere_mut().system.load(&dol));
+    runner.set_run(args.run);
 
     let mut app = App::new(runner);
-
-    // loop {
-    //     std::thread::sleep(Duration::from_millis(25));
-    //     let stop = app.runner.with_state(|state| {
-    //         let avg_ips = state.stats.ips.iter().sum::<f32>() / state.stats.ips.len() as f32;
-    //         println!(
-    //             "{:.02} MIPS ({:.02}x)",
-    //             avg_ips / 1_000_000.0,
-    //             avg_ips / (FREQUENCY as f32)
-    //         );
-    //
-    //         // state.hemisphere.system.cpu.pc == 0x8000_4010
-    //         false
-    //     });
-    //
-    //     if stop {
-    //         break;
-    //     }
-    // }
 
     info!("starting interface");
     let terminal = ratatui::init();

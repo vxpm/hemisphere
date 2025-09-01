@@ -22,10 +22,15 @@ fn center(area: Rect, horizontal: Constraint, vertical: Constraint) -> Rect {
     area
 }
 
+fn block_style(focused: bool) -> Style {
+    Style::default().fg(if focused { Color::Green } else { Color::White })
+}
+
 /// Actions a tab might request the app to do.
 enum Action {
+    RunStep,
+    RunToggle,
     Unfocus,
-    Quit,
 }
 
 pub struct App {
@@ -42,11 +47,7 @@ fn render_tabs(frame: &mut Frame, area: Rect, focused: bool, current: usize) {
         .map(|t| t.white())
         .collect::<Vec<_>>();
 
-    let block = Block::default()
-        .title("Tabs")
-        .borders(Borders::ALL)
-        .style(Style::default().fg(if focused { Color::Green } else { Color::White }));
-
+    let block = Block::bordered().title("Tabs").style(block_style(focused));
     frame.render_widget(block, area);
 
     let chunks = Layout::horizontal([Constraint::Min(1); 3]).split(area);
@@ -91,8 +92,13 @@ impl App {
                     self.current_tab as usize,
                 );
 
+                let mut control = tab::Control {
+                    running: self.runner.running(),
+                };
+
                 self.runner.with_state(|state| {
                     let ctx = tab::Context {
+                        control: &mut control,
                         state,
                         frame,
                         area: chunks[1],
@@ -105,6 +111,8 @@ impl App {
                         Tab::Blocks => (),
                     }
                 });
+
+                self.runner.set_run(control.running);
             })?;
 
             if self.handle_events()? {
@@ -124,7 +132,9 @@ impl App {
                 KeyCode::Right | KeyCode::Char('l') => {
                     self.current_tab = self.current_tab.next();
                 }
-                KeyCode::Char('q') => return Some(Action::Quit),
+                KeyCode::Down | KeyCode::Char('j') => {
+                    self.tab_focused = true;
+                }
                 _ => (),
             },
             _ => (),
@@ -134,13 +144,17 @@ impl App {
     }
 
     pub fn handle_events(&mut self) -> Result<bool> {
-        while event::poll(Duration::from_millis(10))? {
+        while event::poll(Duration::from_millis(20))? {
             let event = event::read()?;
-            if let Event::Key(key) = event
-                && key.modifiers.contains(KeyModifiers::CONTROL)
-                && key.code == KeyCode::Char('c')
-            {
-                return Ok(true);
+            match event {
+                Event::Key(key) => match key.code {
+                    KeyCode::Char('q') => return Ok(true),
+                    KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                        return Ok(true);
+                    }
+                    _ => (),
+                },
+                _ => (),
             }
 
             let action = if self.tab_focused {
@@ -155,8 +169,17 @@ impl App {
 
             let Some(action) = action else { continue };
             match action {
+                Action::RunStep => {
+                    if !self.runner.running() {
+                        self.runner
+                            .with_state(|s| s.hemisphere_mut().exec_limited(1));
+                    }
+                }
+                Action::RunToggle => {
+                    let running = self.runner.running();
+                    self.runner.set_run(!running);
+                }
                 Action::Unfocus => self.tab_focused = false,
-                Action::Quit => return Ok(true),
             }
         }
 

@@ -524,6 +524,16 @@ impl Reg {
             Reg::FPSCR => offset_of!(Registers, user.fpscr),
         }
     }
+
+    #[inline(always)]
+    pub fn iter() -> impl Iterator<Item = Self> {
+        let gpr = GPR::VARIANTS.iter().copied().map(Self::GPR);
+        let fpr = FPR::VARIANTS.iter().copied().map(Self::FPR);
+        let spr = SPR::VARIANTS.iter().copied().map(Self::SPR);
+        let others = [Self::PC, Self::MSR, Self::CR, Self::FPSCR].into_iter();
+
+        others.chain(gpr).chain(spr).chain(fpr)
+    }
 }
 
 impl From<GPR> for Reg {
