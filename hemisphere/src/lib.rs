@@ -37,7 +37,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            instructions_per_block: 64,
+            instructions_per_block: 128,
         }
     }
 }

@@ -1,63 +1,17 @@
-mod tab;
+mod app;
 
-use crate::tab::Tab;
 use binrw::io::BufReader;
 use clap::Parser;
 use eyre_pretty::eyre::Result;
 use hemisphere::{
-    Config, FREQUENCY, Hemisphere,
+    Config, Hemisphere,
     dolfile::{Dol, binrw::BinRead},
     runner::Runner,
 };
-use ratatui::DefaultTerminal;
-use std::{path::PathBuf, time::Duration};
+use std::path::PathBuf;
 use tracing::info;
 
-enum Action {
-    None,
-    NextTab,
-    PreviousTab,
-    Quit,
-}
-
-pub struct App {
-    runner: Runner,
-    current_tab: Tab,
-}
-
-impl App {
-    pub fn new() -> Self {
-        Self {
-            runner: Runner::new(Hemisphere::new(Config::default())),
-            current_tab: Tab::Main,
-        }
-    }
-
-    pub fn run(&mut self, mut terminal: DefaultTerminal) -> Result<()> {
-        loop {
-            terminal.draw(|frame| self.current_tab.render(frame))?;
-            if self.handle_events()? {
-                break;
-            }
-        }
-
-        Ok(())
-    }
-
-    pub fn handle_events(&mut self) -> Result<bool> {
-        while crossterm::event::poll(Duration::from_millis(10))? {
-            let event = crossterm::event::read()?;
-            match self.current_tab.handle_event(event)? {
-                Action::None => (),
-                Action::NextTab => todo!(),
-                Action::PreviousTab => todo!(),
-                Action::Quit => return Ok(true),
-            }
-        }
-
-        Ok(false)
-    }
-}
+use crate::app::App;
 
 /// Hemisphere: GameCube emulator
 #[derive(Parser, Debug)]
@@ -106,34 +60,35 @@ fn main() -> Result<()> {
     let file = std::fs::File::open(args.input).unwrap();
     let dol = Dol::read(&mut BufReader::new(file)).unwrap();
 
-    let mut app = App::new();
-    app.runner
-        .with_state(|state| state.hemisphere.system.load(&dol));
-    app.runner.set_run(true);
+    let mut runner = Runner::new(Hemisphere::new(Config::default()));
+    runner.with_state(|state| state.hemisphere.system.load(&dol));
+    runner.set_run(true);
 
-    loop {
-        std::thread::sleep(Duration::from_millis(10));
-        let stop = app.runner.with_state(|state| {
-            let avg_ips = state.stats.ips.iter().sum::<f32>() / state.stats.ips.len() as f32;
-            println!(
-                "{} MIPS ({:.02}x)",
-                avg_ips / 1_000_000.0,
-                avg_ips / (FREQUENCY as f32)
-            );
+    let mut app = App::new(runner);
 
-            // state.hemisphere.system.cpu.pc == 0x8000_4010
-            false
-        });
+    // loop {
+    //     std::thread::sleep(Duration::from_millis(25));
+    //     let stop = app.runner.with_state(|state| {
+    //         let avg_ips = state.stats.ips.iter().sum::<f32>() / state.stats.ips.len() as f32;
+    //         println!(
+    //             "{:.02} MIPS ({:.02}x)",
+    //             avg_ips / 1_000_000.0,
+    //             avg_ips / (FREQUENCY as f32)
+    //         );
+    //
+    //         // state.hemisphere.system.cpu.pc == 0x8000_4010
+    //         false
+    //     });
+    //
+    //     if stop {
+    //         break;
+    //     }
+    // }
 
-        if stop {
-            break;
-        }
-    }
-
-    // info!("starting interface");
-    // let terminal = ratatui::init();
-    // app.run(terminal)?;
-    // ratatui::restore();
+    info!("starting interface");
+    let terminal = ratatui::init();
+    app.run(terminal)?;
+    ratatui::restore();
 
     Ok(())
 }

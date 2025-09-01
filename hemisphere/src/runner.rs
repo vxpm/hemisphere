@@ -43,7 +43,7 @@ struct Control {
 fn run(state: Arc<Mutex<State>>, control: Arc<Control>) {
     let mut next = Instant::now();
     let mut guard = state.lock().unwrap();
-    loop {
+    'outer: loop {
         if !control.should_run.load(Ordering::Relaxed) {
             std::mem::drop(guard);
 
@@ -52,11 +52,15 @@ fn run(state: Arc<Mutex<State>>, control: Arc<Control>) {
             }
 
             guard = state.lock().unwrap();
-            next = Instant::now();
+            next = next.max(Instant::now());
         }
 
         // wait until the next slice should run
         while next > Instant::now() {
+            if !control.should_run.load(Ordering::Relaxed) {
+                continue 'outer;
+            }
+
             std::thread::yield_now();
         }
 
