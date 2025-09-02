@@ -54,6 +54,10 @@ impl State {
     pub fn breakpoints(&self) -> &[Address] {
         &self.breakpoints
     }
+
+    pub fn breakpoints_mut(&mut self) -> &mut Vec<Address> {
+        &mut self.breakpoints
+    }
 }
 
 struct Control {

@@ -2,7 +2,7 @@ mod tab;
 
 use crate::app::tab::Tab;
 use eyre_pretty::eyre::Result;
-use hemisphere::runner::Runner;
+use hemisphere::{core::Address, runner::Runner};
 use ratatui::{
     DefaultTerminal, Frame,
     crossterm::event::{self, Event, KeyCode, KeyModifiers},
@@ -32,6 +32,7 @@ fn border_style(focused: bool) -> Style {
 
 /// Actions a tab might request the app to do.
 enum Action {
+    AddBreakpoint(Address),
     RunStep,
     RunToggle,
     Unfocus,
@@ -150,7 +151,10 @@ impl App {
     }
 
     pub fn handle_events(&mut self) -> Result<bool> {
-        while event::poll(Duration::from_millis(20))? {
+        let mut timeout = Duration::from_millis(20);
+        while event::poll(timeout)? {
+            timeout = Duration::from_millis(5);
+
             let event = event::read()?;
             match event {
                 Event::Key(key) => match key.code {
@@ -175,6 +179,9 @@ impl App {
 
             let Some(action) = action else { continue };
             match action {
+                Action::AddBreakpoint(addr) => {
+                    self.runner.with_state(|s| s.breakpoints_mut().push(addr));
+                }
                 Action::RunStep => {
                     if !self.runner.running() {
                         self.runner

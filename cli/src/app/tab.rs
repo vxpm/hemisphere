@@ -16,7 +16,6 @@ use ratatui::{
     Frame,
     crossterm::event::{Event, KeyCode},
     layout::{Constraint, Flex, Layout, Rect},
-    style::{Style, Stylize},
     widgets::Block,
 };
 
@@ -67,7 +66,7 @@ pub struct Main {
 }
 
 impl Main {
-    fn render_help(&mut self, ctx: &mut Context, area: Rect) {
+    fn render_cmd(&mut self, ctx: &mut Context, area: Rect) {
         let help: [&[_]; 4] = [
             // disasm
             &[
@@ -89,16 +88,20 @@ impl Main {
                 "[space] edit",
             ],
             // breakpoints
-            &[
-                "[k] move up",
-                "[j] move down",
-                "[a] add",
-                "[d] delete",
-                "[space] edit",
-            ],
+            if let Some(input) = self.breakpoints.input() {
+                &[input, "[enter] confirm"]
+            } else {
+                &[
+                    "[k] move up",
+                    "[j] move down",
+                    "[a] add",
+                    "[d] delete",
+                    "[space] edit",
+                ]
+            },
         ];
 
-        let block = Block::bordered().title("Help").style(Style::new().gray());
+        let block = Block::bordered().title("Command");
         let inner = block.inner(area);
         ctx.frame.render_widget(block, area);
 
@@ -127,7 +130,7 @@ impl Main {
     }
 
     pub fn render(&mut self, mut ctx: Context) {
-        let [content, help] =
+        let [content, cmd] =
             Layout::vertical([Constraint::Min(1), Constraint::Length(3)]).areas(ctx.area);
 
         let [disasm, right] =
@@ -151,7 +154,7 @@ impl Main {
         self.status.render(&mut ctx, status, focused(1));
         self.registers.render(&mut ctx, registers, focused(2));
         self.breakpoints.render(&mut ctx, breakpoints, focused(3));
-        self.render_help(&mut ctx, help);
+        self.render_cmd(&mut ctx, cmd);
     }
 
     pub fn handle_event(&mut self, event: Event) -> Result<Option<Action>> {
@@ -192,15 +195,7 @@ impl Main {
                         }
                         _ => (),
                     },
-                    3 => match code {
-                        KeyCode::Down | KeyCode::Char('j') => {
-                            self.breakpoints.scroll_down();
-                        }
-                        KeyCode::Up | KeyCode::Char('k') => {
-                            self.breakpoints.scroll_up();
-                        }
-                        _ => (),
-                    },
+                    3 => return Ok(self.breakpoints.handle_key(key)),
                     _ => unreachable!(),
                 },
             }
