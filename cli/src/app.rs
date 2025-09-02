@@ -22,7 +22,7 @@ fn center(area: Rect, horizontal: Constraint, vertical: Constraint) -> Rect {
     area
 }
 
-fn block_style(focused: bool) -> Style {
+fn border_style(focused: bool) -> Style {
     Style::default().fg(if focused { Color::Green } else { Color::White })
 }
 
@@ -47,7 +47,9 @@ fn render_tabs(frame: &mut Frame, area: Rect, focused: bool, current: usize) {
         .map(|t| t.white())
         .collect::<Vec<_>>();
 
-    let block = Block::bordered().title("Tabs").style(block_style(focused));
+    let block = Block::bordered()
+        .title("Tabs")
+        .border_style(border_style(focused));
     frame.render_widget(block, area);
 
     let chunks = Layout::horizontal([Constraint::Min(1); 3]).split(area);

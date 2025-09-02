@@ -1,4 +1,4 @@
-use crate::app::{Action, block_style, center};
+use crate::app::{Action, border_style, center};
 use eyre_pretty::eyre::Result;
 use hemisphere::{
     FREQUENCY,
@@ -18,10 +18,9 @@ use ratatui::{
     style::{Style, Stylize},
     symbols,
     text::Text,
-    widgets::{Axis, Block, Borders, Chart, Dataset, GraphType, Row, Table},
+    widgets::{Axis, Block, Borders, Chart, Dataset, GraphType, Row, Table, TableState},
 };
 use std::collections::VecDeque;
-use tui_scrollview::{ScrollView, ScrollViewState, ScrollbarVisibility};
 
 pub struct Control {
     pub running: bool,
@@ -64,7 +63,8 @@ pub struct Main {
     focused_pane: usize,
     average_ips: VecDeque<f32>,
     simplified_asm: bool,
-    regs_scroll_state: ScrollViewState,
+
+    gpr_state: TableState,
 }
 
 impl Default for Main {
@@ -73,7 +73,7 @@ impl Default for Main {
             focused_pane: Default::default(),
             average_ips: Default::default(),
             simplified_asm: true,
-            regs_scroll_state: ScrollViewState::new(),
+            gpr_state: TableState::new().with_selected(Some(0)),
         }
     }
 }
@@ -124,7 +124,7 @@ impl Main {
                 Block::new()
                     .title("Disassembly")
                     .borders(Borders::ALL)
-                    .style(block_style(ctx.focused && self.focused_pane == 0)),
+                    .style(border_style(ctx.focused && self.focused_pane == 0)),
             );
 
         ctx.frame.render_widget(table, area);
@@ -133,7 +133,7 @@ impl Main {
     fn render_control(&mut self, ctx: &mut Context, area: Rect) {
         let block = Block::bordered()
             .title("Control")
-            .style(block_style(ctx.focused && self.focused_pane == 1));
+            .style(border_style(ctx.focused && self.focused_pane == 1));
         let inner = block.inner(area);
         ctx.frame.render_widget(block, area);
 
@@ -161,7 +161,7 @@ impl Main {
         );
 
         if ctx.control.running {
-            if self.average_ips.len() >= 32 {
+            if self.average_ips.len() >= 128 {
                 self.average_ips.pop_front();
             }
             self.average_ips.push_back(avg_mips);
@@ -181,7 +181,7 @@ impl Main {
             .style(Style::default().magenta())
             .data(&ips_data);
 
-        let x_axis = Axis::default().bounds([0.0, 31.0]);
+        let x_axis = Axis::default().bounds([0.0, 127.0]);
         let y_axis = Axis::default().bounds([0.0, 486.0]);
         let chart = Chart::new(vec![ips_dataset]).x_axis(x_axis).y_axis(y_axis);
 
@@ -191,15 +191,6 @@ impl Main {
     }
 
     fn render_regs(&mut self, ctx: &mut Context, area: Rect) {
-        // let block = Block::bordered()
-        //     .title("Registers")
-        //     .style(block_style(ctx.focused && self.focused_pane == 2));
-        // let inner = block.inner(area);
-        // ctx.frame.render_widget(block, area);
-
-        let mut scroll_view = ScrollView::new(Size::new(area.width, 35))
-            .horizontal_scrollbar_visibility(ScrollbarVisibility::Never);
-
         let cpu = &ctx.state.hemisphere().system.cpu;
 
         let header = Row::new(vec!["GPR", "Value"]).light_magenta();
@@ -219,19 +210,26 @@ impl Main {
                 Block::new()
                     .title("Registers")
                     .borders(Borders::ALL)
-                    .style(block_style(ctx.focused && self.focused_pane == 2)),
-            );
-
-        scroll_view.render_widget(table, scroll_view.area());
+                    .border_style(border_style(ctx.focused && self.focused_pane == 2)),
+            )
+            .row_highlight_style(Style::new().light_blue())
+            .highlight_symbol("> ");
 
         ctx.frame
-            .render_stateful_widget(scroll_view, area, &mut self.regs_scroll_state);
+            .render_stateful_widget(table, area, &mut self.gpr_state);
     }
 
     fn render_help(&mut self, ctx: &mut Context, area: Rect) {
-        const HELP: [&[&'static str]; 3] = [
+        let help: [&[_]; 3] = [
             // disasm
-            &["[a] toggle simplified asm", "[s] step"],
+            &[
+                if self.simplified_asm {
+                    "[a] use basic asm"
+                } else {
+                    "[a] use simplified asm"
+                },
+                "[s] step",
+            ],
             // control
             &["[r] toggle running", "[s] step"],
             // regs
@@ -246,7 +244,7 @@ impl Main {
             return;
         }
 
-        let current_help = HELP[self.focused_pane];
+        let current_help = help[self.focused_pane];
         let percent = 100 / (current_help.len().max(1));
         let chunks = Layout::horizontal(
             (0..current_help.len()).map(|_| Constraint::Percentage(percent as u16)),
@@ -288,18 +286,26 @@ impl Main {
             Event::Key(key) => match key.code {
                 KeyCode::Esc => return Ok(Some(Action::Unfocus)),
                 KeyCode::Tab => self.focused_pane = (self.focused_pane + 1) % 3,
-                other => match self.focused_pane {
-                    0 => match other {
+                code => match self.focused_pane {
+                    0 => match code {
                         KeyCode::Char('s') => return Ok(Some(Action::RunStep)),
                         KeyCode::Char('a') => self.simplified_asm = !self.simplified_asm,
                         _ => (),
                     },
-                    1 => match other {
+                    1 => match code {
                         KeyCode::Char('s') => return Ok(Some(Action::RunStep)),
                         KeyCode::Char('r') => return Ok(Some(Action::RunToggle)),
                         _ => (),
                     },
-                    2 => (),
+                    2 => match code {
+                        KeyCode::Down | KeyCode::Char('j') => {
+                            self.gpr_state.scroll_down_by(1);
+                        }
+                        KeyCode::Up | KeyCode::Char('k') => {
+                            self.gpr_state.scroll_up_by(1);
+                        }
+                        _ => (),
+                    },
                     _ => unreachable!(),
                 },
             },

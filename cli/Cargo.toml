@@ -12,5 +12,4 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 
 ratatui = "0.29"
-tui-scrollview = "0.5"
 tracing-appender = "0.2"
