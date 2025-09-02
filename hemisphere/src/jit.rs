@@ -41,7 +41,7 @@ impl BlockStorage {
         self.mapping.insert(addr, id);
         self.intervals.insert(range, id);
 
-        &self.blocks.get(id).unwrap()
+        self.blocks.get(id).unwrap()
     }
 
     /// Returns the block starting at `addr`.
@@ -129,6 +129,12 @@ pub static EXTERNAL_FUNCTIONS: ExternalFunctions = {
 pub struct JIT {
     pub compiler: ppcjit::Compiler,
     pub blocks: BlockStorage,
+}
+
+impl Default for JIT {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl JIT {

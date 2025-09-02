@@ -48,6 +48,12 @@ pub struct System {
     pub bus: Bus,
 }
 
+impl Default for System {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl System {
     pub fn new() -> Self {
         System {
@@ -106,13 +112,13 @@ impl System {
             invalidated,
         };
 
-        let executed = block.run(
+        
+
+        block.run(
             &mut self.cpu,
             &mut external as *mut _ as *mut _,
             &EXTERNAL_FUNCTIONS,
-        );
-
-        executed
+        )
     }
 }
 

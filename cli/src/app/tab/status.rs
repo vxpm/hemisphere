@@ -9,17 +9,11 @@ use ratatui::{
 };
 use std::collections::VecDeque;
 
+#[derive(Default)]
 pub struct StatusPane {
     average_ips: VecDeque<f32>,
 }
 
-impl Default for StatusPane {
-    fn default() -> Self {
-        Self {
-            average_ips: Default::default(),
-        }
-    }
-}
 
 impl StatusPane {
     pub fn render(&mut self, ctx: &mut Context, area: Rect, focused: bool) {
