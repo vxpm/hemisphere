@@ -1,7 +1,10 @@
 use crate::bus::Bus;
 use hemicore::{Address, Primitive, arch::Registers};
 use interavl::IntervalTree;
-use ppcjit::{Block, block::ExternalFunctions};
+use ppcjit::{
+    Block,
+    block::{ExternalFunctions, ReadFunction, WriteFunction},
+};
 use slotmap::{SlotMap, new_key_type};
 use std::{collections::BTreeMap, ops::Range};
 
@@ -108,20 +111,33 @@ pub static EXTERNAL_FUNCTIONS: ExternalFunctions = {
         external.bus.write(physical, value);
     }
 
-    let read_i8 = unsafe { std::mem::transmute(read::<i8> as extern "sysv64" fn(_, _, _) -> _) };
-    let write_i8 = unsafe { std::mem::transmute(write::<i8> as extern "sysv64" fn(_, _, _, _)) };
-    let read_i16 = unsafe { std::mem::transmute(read::<i16> as extern "sysv64" fn(_, _, _) -> _) };
-    let write_i16 = unsafe { std::mem::transmute(write::<i16> as extern "sysv64" fn(_, _, _, _)) };
-    let read_i32 = unsafe { std::mem::transmute(read::<i32> as extern "sysv64" fn(_, _, _) -> _) };
-    let write_i32 = unsafe { std::mem::transmute(write::<i32> as extern "sysv64" fn(_, _, _, _)) };
+    #[expect(
+        clippy::missing_transmute_annotations,
+        reason = "unnecessary - the definitions are above"
+    )]
+    unsafe {
+        use std::mem::transmute;
+        let read_i8 =
+            transmute::<_, ReadFunction<i8>>(read::<i8> as extern "sysv64" fn(_, _, _) -> _);
+        let write_i8 =
+            transmute::<_, WriteFunction<i8>>(write::<i8> as extern "sysv64" fn(_, _, _, _));
+        let read_i16 =
+            transmute::<_, ReadFunction<i16>>(read::<i16> as extern "sysv64" fn(_, _, _) -> _);
+        let write_i16 =
+            transmute::<_, WriteFunction<i16>>(write::<i16> as extern "sysv64" fn(_, _, _, _));
+        let read_i32 =
+            transmute::<_, ReadFunction<i32>>(read::<i32> as extern "sysv64" fn(_, _, _) -> _);
+        let write_i32 =
+            transmute::<_, WriteFunction<i32>>(write::<i32> as extern "sysv64" fn(_, _, _, _));
 
-    ExternalFunctions {
-        read_i8,
-        write_i8,
-        read_i16,
-        write_i16,
-        read_i32,
-        write_i32,
+        ExternalFunctions {
+            read_i8,
+            write_i8,
+            read_i16,
+            write_i16,
+            read_i32,
+            write_i32,
+        }
     }
 };
 

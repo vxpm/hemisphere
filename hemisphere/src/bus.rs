@@ -3,6 +3,7 @@ use crate::{
     video::VideoInterface,
 };
 use hemicore::{Address, Primitive};
+use tracing::{error, warn};
 use zerocopy::IntoBytes;
 
 pub struct Bus {
@@ -47,7 +48,7 @@ impl Bus {
                         }
                     )*
                     _ => {
-                        todo!("read from unimplemented address {addr}");
+                        error!("read from unimplemented address {addr}");
                         P::default()
                     }
                 }
@@ -105,7 +106,7 @@ impl Bus {
                         }
                     )*
                     _ => {
-                        todo!("write to unimplemented address {addr} ({value:08X})");
+                        warn!("write to unimplemented address {addr} ({value:08X})");
                     }
                 }
             };

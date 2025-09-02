@@ -53,6 +53,7 @@ impl Tab {
     }
 }
 
+#[derive(Default)]
 pub struct Main {
     focused_pane: usize,
     disasm: DisasmPane,
@@ -60,16 +61,6 @@ pub struct Main {
     registers: RegistersPane,
 }
 
-impl Default for Main {
-    fn default() -> Self {
-        Self {
-            focused_pane: Default::default(),
-            disasm: Default::default(),
-            status: Default::default(),
-            registers: Default::default(),
-        }
-    }
-}
 
 impl Main {
     fn render_help(&mut self, ctx: &mut Context, area: Rect) {
@@ -147,43 +138,40 @@ impl Main {
     }
 
     pub fn handle_event(&mut self, event: Event) -> Result<Option<Action>> {
-        match event {
-            Event::Key(key) => match key.code {
-                KeyCode::Esc => return Ok(Some(Action::Unfocus)),
-                KeyCode::Tab => self.focused_pane = (self.focused_pane + 1) % 3,
-                code => match self.focused_pane {
-                    0 => match code {
-                        KeyCode::Char('s') => return Ok(Some(Action::RunStep)),
-                        KeyCode::Char('a') => {
-                            self.disasm.simplified_asm = !self.disasm.simplified_asm
-                        }
-                        _ => (),
-                    },
-                    1 => match code {
-                        KeyCode::Char('s') => return Ok(Some(Action::RunStep)),
-                        KeyCode::Char('r') => return Ok(Some(Action::RunToggle)),
-                        _ => (),
-                    },
-                    2 => match code {
-                        KeyCode::Left | KeyCode::Char('h') => {
-                            self.registers.previous();
-                        }
-                        KeyCode::Right | KeyCode::Char('l') => {
-                            self.registers.next();
-                        }
-                        KeyCode::Down | KeyCode::Char('j') => {
-                            self.registers.scroll_down();
-                        }
-                        KeyCode::Up | KeyCode::Char('k') => {
-                            self.registers.scroll_up();
-                        }
-                        _ => (),
-                    },
-                    _ => unreachable!(),
+        if let Event::Key(key) = event { match key.code {
+            KeyCode::Esc => return Ok(Some(Action::Unfocus)),
+            KeyCode::Tab => self.focused_pane = (self.focused_pane + 1) % 3,
+            code => match self.focused_pane {
+                0 => match code {
+                    KeyCode::Char('s') => return Ok(Some(Action::RunStep)),
+                    KeyCode::Char('a') => {
+                        self.disasm.simplified_asm = !self.disasm.simplified_asm
+                    }
+                    _ => (),
                 },
+                1 => match code {
+                    KeyCode::Char('s') => return Ok(Some(Action::RunStep)),
+                    KeyCode::Char('r') => return Ok(Some(Action::RunToggle)),
+                    _ => (),
+                },
+                2 => match code {
+                    KeyCode::Left | KeyCode::Char('h') => {
+                        self.registers.previous();
+                    }
+                    KeyCode::Right | KeyCode::Char('l') => {
+                        self.registers.next();
+                    }
+                    KeyCode::Down | KeyCode::Char('j') => {
+                        self.registers.scroll_down();
+                    }
+                    KeyCode::Up | KeyCode::Char('k') => {
+                        self.registers.scroll_up();
+                    }
+                    _ => (),
+                },
+                _ => unreachable!(),
             },
-            _ => (),
-        }
+        } }
 
         Ok(None)
     }

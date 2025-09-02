@@ -236,9 +236,9 @@ impl Bat {
     #[inline(always)]
     pub fn translate(&self, addr: Address) -> Address {
         let offset = addr.value().bits(0, 17);
-        let region = (((addr.value().bits(17, 28) << 17)
+        let region = ((addr.value().bits(17, 28) << 17)
             // only allow bits within the block length to be changed
-            & ((self.block_length_mask().value() as u32) << 17)))
+            & ((self.block_length_mask().value() as u32) << 17))
             // insert the real page number
             | ((self.physical_address_region().value() as u32) << 17);
 

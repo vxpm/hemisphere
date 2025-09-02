@@ -4,9 +4,9 @@ use iced_x86::Formatter;
 use memmap2::{Mmap, MmapOptions};
 use std::fmt::Display;
 
-type ExternalData = std::ffi::c_void;
-type ReadFunction<T> = fn(*mut ExternalData, *const Registers, Address) -> T;
-type WriteFunction<T> = fn(*mut ExternalData, *const Registers, Address, T);
+pub type ExternalData = std::ffi::c_void;
+pub type ReadFunction<T> = fn(*mut ExternalData, *const Registers, Address) -> T;
+pub type WriteFunction<T> = fn(*mut ExternalData, *const Registers, Address, T);
 
 /// External functions that JITed code calls.
 pub struct ExternalFunctions {
