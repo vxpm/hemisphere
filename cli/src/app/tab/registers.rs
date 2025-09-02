@@ -1,5 +1,6 @@
-use crate::app::{border_style, tab::Context};
+use crate::app::{Action, border_style, tab::Context};
 use ratatui::{
+    crossterm::event::{KeyCode, KeyEvent},
     layout::{Constraint, Layout, Rect},
     style::{Style, Stylize},
     symbols,
@@ -22,24 +23,6 @@ impl Default for RegistersPane {
 }
 
 impl RegistersPane {
-    pub fn next(&mut self) {
-        self.current = (self.current + 1) % 2;
-        self.table_state.select(Some(0));
-    }
-
-    pub fn previous(&mut self) {
-        self.current = self.current.checked_sub(1).unwrap_or(1);
-        self.table_state.select(Some(0));
-    }
-
-    pub fn scroll_up(&mut self) {
-        self.table_state.select_previous();
-    }
-
-    pub fn scroll_down(&mut self) {
-        self.table_state.select_next();
-    }
-
     fn render_int_formats(&mut self, ctx: &mut Context, area: Rect, value: u32) {
         let header = Row::new(vec!["Format", "Value"]).light_magenta().not_dim();
         let widths = [Constraint::Length(8), Constraint::Min(1)];
@@ -166,6 +149,28 @@ impl RegistersPane {
 
         ctx.frame
             .render_stateful_widget(table, regs, &mut self.table_state);
+    }
+
+    pub fn handle_key(&mut self, key: KeyEvent) -> Option<Action> {
+        match key.code {
+            KeyCode::Left | KeyCode::Char('h') => {
+                self.current = self.current.checked_sub(1).unwrap_or(1);
+                self.table_state.select(Some(0));
+            }
+            KeyCode::Right | KeyCode::Char('l') => {
+                self.current = (self.current + 1) % 2;
+                self.table_state.select(Some(0));
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                self.table_state.select_next();
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                self.table_state.select_previous();
+            }
+            _ => (),
+        }
+
+        None
     }
 
     pub fn render(&mut self, ctx: &mut Context, area: Rect, focused: bool) {

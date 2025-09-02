@@ -10,7 +10,6 @@ use crate::app::{
         status::StatusPane,
     },
 };
-use eyre_pretty::eyre::Result;
 use hemisphere::runner::State;
 use ratatui::{
     Frame,
@@ -151,50 +150,26 @@ impl Main {
         self.render_cmd(&mut ctx, cmd);
     }
 
-    pub fn handle_event(&mut self, event: Event) -> Result<Option<Action>> {
+    pub fn handle_event(&mut self, event: Event) -> Option<Action> {
         if let Event::Key(key) = event {
             match key.code {
-                KeyCode::Esc => return Ok(Some(Action::Unfocus)),
+                KeyCode::Esc => return Some(Action::Unfocus),
                 KeyCode::Char('[') | KeyCode::Char('\'') => {
                     self.focused_pane = self.focused_pane.checked_sub(1).unwrap_or(3)
                 }
                 KeyCode::Char(']') | KeyCode::Tab => {
                     self.focused_pane = (self.focused_pane + 1) % 4
                 }
-                code => match self.focused_pane {
-                    0 => match code {
-                        KeyCode::Char('s') => return Ok(Some(Action::RunStep)),
-                        KeyCode::Char('a') => {
-                            self.disasm.simplified_asm = !self.disasm.simplified_asm
-                        }
-                        _ => (),
-                    },
-                    1 => match code {
-                        KeyCode::Char('s') => return Ok(Some(Action::RunStep)),
-                        KeyCode::Char('r') => return Ok(Some(Action::RunToggle)),
-                        _ => (),
-                    },
-                    2 => match code {
-                        KeyCode::Left | KeyCode::Char('h') => {
-                            self.registers.previous();
-                        }
-                        KeyCode::Right | KeyCode::Char('l') => {
-                            self.registers.next();
-                        }
-                        KeyCode::Down | KeyCode::Char('j') => {
-                            self.registers.scroll_down();
-                        }
-                        KeyCode::Up | KeyCode::Char('k') => {
-                            self.registers.scroll_up();
-                        }
-                        _ => (),
-                    },
-                    3 => return Ok(self.breakpoints.handle_key(key)),
+                _ => match self.focused_pane {
+                    0 => return self.disasm.handle_key(key),
+                    1 => return self.status.handle_key(key),
+                    2 => return self.registers.handle_key(key),
+                    3 => return self.breakpoints.handle_key(key),
                     _ => unreachable!(),
                 },
             }
         }
 
-        Ok(None)
+        None
     }
 }

@@ -171,9 +171,9 @@ impl App {
             let action = if self.tab_focused {
                 match self.current_tab {
                     Tab::Main => self.main_tab.handle_event(event),
-                    Tab::Memory => Ok(None),
-                    Tab::Blocks => Ok(None),
-                }?
+                    Tab::Memory => None,
+                    Tab::Blocks => None,
+                }
             } else {
                 self.handle_event_tabs(event)
             };

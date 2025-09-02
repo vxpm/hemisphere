@@ -1,6 +1,7 @@
-use crate::app::{border_style, tab::Context};
+use crate::app::{Action, border_style, tab::Context};
 use hemisphere::FREQUENCY;
 use ratatui::{
+    crossterm::event::{KeyCode, KeyEvent},
     layout::{Constraint, Layout, Rect},
     style::{Style, Stylize},
     symbols,
@@ -15,6 +16,14 @@ pub struct StatusPane {
 }
 
 impl StatusPane {
+    pub fn handle_key(&mut self, key: KeyEvent) -> Option<Action> {
+        match key.code {
+            KeyCode::Char('s') => Some(Action::RunStep),
+            KeyCode::Char('r') => Some(Action::RunToggle),
+            _ => None,
+        }
+    }
+
     pub fn render(&mut self, ctx: &mut Context, area: Rect, focused: bool) {
         let block = Block::bordered()
             .title("Status")

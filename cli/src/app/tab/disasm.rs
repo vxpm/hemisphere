@@ -1,9 +1,10 @@
-use crate::app::{border_style, tab::Context};
+use crate::app::{Action, border_style, tab::Context};
 use hemisphere::core::{
     Address,
     arch::powerpc::{Extensions, Ins, Opcode, ParsedIns},
 };
 use ratatui::{
+    crossterm::event::{KeyCode, KeyEvent},
     layout::{Constraint, Rect},
     style::{Style, Stylize},
     text::Text,
@@ -23,6 +24,16 @@ impl Default for DisasmPane {
 }
 
 impl DisasmPane {
+    pub fn handle_key(&mut self, key: KeyEvent) -> Option<Action> {
+        match key.code {
+            KeyCode::Char('s') => return Some(Action::RunStep),
+            KeyCode::Char('a') => self.simplified_asm = !self.simplified_asm,
+            _ => (),
+        }
+
+        None
+    }
+
     pub fn render(&mut self, ctx: &mut Context, area: Rect, focused: bool) {
         let header = Row::new(vec!["Address", "Instruction"]).light_magenta();
         let widths = [Constraint::Length(11), Constraint::Min(1)];
