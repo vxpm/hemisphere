@@ -8,7 +8,7 @@ use ratatui::{
     crossterm::event::{self, Event, KeyCode, KeyModifiers},
     layout::{Constraint, Direction, Flex, Layout, Rect},
     style::{Color, Style, Stylize},
-    widgets::{Block, Borders},
+    widgets::Block,
 };
 use std::time::Duration;
 
