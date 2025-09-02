@@ -46,7 +46,7 @@ pub struct App {
 }
 
 fn render_tabs(frame: &mut Frame, area: Rect, focused: bool, current: usize) {
-    let titles = vec!["Main", "Memory", "Logs", "Blocks"]
+    let titles = vec!["Main", "Memory", "Blocks"]
         .into_iter()
         .map(|t| t.white())
         .collect::<Vec<_>>();
@@ -56,7 +56,7 @@ fn render_tabs(frame: &mut Frame, area: Rect, focused: bool, current: usize) {
         .border_style(border_style(focused));
     frame.render_widget(block, area);
 
-    let chunks = Layout::horizontal([Constraint::Min(1); 4]).split(area);
+    let chunks = Layout::horizontal([Constraint::Min(1); 3]).split(area);
     for (index, (chunk, title)) in chunks.iter().zip(titles).enumerate() {
         let style = if index == current {
             Style::default().blue().underlined()
