@@ -1,4 +1,5 @@
 use hemicore::Address;
+use tracing::debug;
 
 use crate::{FREQUENCY, Hemisphere};
 use std::{
@@ -89,10 +90,42 @@ fn run(state: Arc<Mutex<State>>, control: Arc<Control>) {
         }
 
         // emulate
+        // NOTE: assume 2 cycles per instruction
         let mut emulated = 0;
         while emulated < STEP_SIZE {
-            // NOTE: assume 2 cycles per instruction
-            emulated += 2 * guard.hemisphere.exec();
+            if guard.breakpoints.is_empty() {
+                emulated += 2 * guard.hemisphere.exec();
+                continue;
+            } else {
+                std::hint::cold_path();
+            }
+
+            let mut target = Address(0);
+            let mut min_distance = u32::MAX;
+            for breakpoint in guard.breakpoints.iter().copied() {
+                let distance = breakpoint
+                    .value()
+                    .checked_sub(guard.hemisphere.system.cpu.pc.value());
+
+                if let Some(distance) = distance
+                    && distance <= min_distance
+                    && distance != 0
+                {
+                    target = breakpoint;
+                    min_distance = distance;
+                }
+            }
+
+            let target_distance = min_distance / 4;
+            if target_distance <= guard.hemisphere.config.instructions_per_block as u32 {
+                emulated += 2 * guard.hemisphere.exec_limited(target_distance as u16);
+                if guard.hemisphere.system.cpu.pc == target {
+                    control.should_run.store(false, Ordering::Relaxed);
+                    break;
+                }
+            } else {
+                emulated += 2 * guard.hemisphere.exec();
+            }
         }
 
         if guard.stats.ips.len() >= 1024 {

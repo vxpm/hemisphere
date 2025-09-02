@@ -112,8 +112,6 @@ impl System {
             invalidated,
         };
 
-        
-
         block.run(
             &mut self.cpu,
             &mut external as *mut _ as *mut _,
@@ -174,9 +172,19 @@ impl Hemisphere {
     }
 
     /// Executes a single block with a limit of instructions and returns how many instructions were
-    /// executed. This will _always_ compile a new block and it won't be cached in the storage.
+    /// executed.
     pub fn exec_limited(&mut self, limit: u16) -> u32 {
-        let block = self.compile(self.system.cpu.pc, limit);
+        let compiled: ppcjit::Block;
+        let block = if let Some(in_storage) = self.jit.blocks.get(self.system.cpu.pc)
+            && in_storage.sequence().len() <= limit as usize
+        {
+            in_storage
+        } else {
+            std::hint::cold_path();
+            compiled = self.compile(self.system.cpu.pc, limit);
+            &compiled
+        };
+
         let executed = self.system.exec(&block, &mut self.invalidated);
         if !self.invalidated.is_empty() {
             for invalidated in self.invalidated.drain(..) {
