@@ -67,7 +67,6 @@ impl StatusPane {
             .collect::<Vec<_>>();
 
         let ips_dataset = Dataset::default()
-            .name("data1")
             .marker(symbols::Marker::Braille)
             .graph_type(GraphType::Line)
             .style(Style::default().magenta())

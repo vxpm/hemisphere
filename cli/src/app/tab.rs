@@ -32,6 +32,7 @@ pub struct Context<'ctx, 'frame> {
 pub enum Tab {
     Main,
     Memory,
+    Logs,
     Blocks,
 }
 
@@ -39,7 +40,8 @@ impl Tab {
     pub fn next(self) -> Tab {
         match self {
             Self::Main => Self::Memory,
-            Self::Memory => Self::Blocks,
+            Self::Memory => Self::Logs,
+            Self::Logs => Self::Blocks,
             Self::Blocks => Self::Main,
         }
     }
@@ -48,7 +50,8 @@ impl Tab {
         match self {
             Self::Main => Self::Blocks,
             Self::Memory => Self::Main,
-            Self::Blocks => Self::Memory,
+            Self::Logs => Self::Memory,
+            Self::Blocks => Self::Logs,
         }
     }
 }
@@ -132,7 +135,7 @@ impl Main {
                 .areas(content);
 
         let [status, registers] =
-            Layout::vertical([Constraint::Length(5), Constraint::Min(10)]).areas(right);
+            Layout::vertical([Constraint::Min(3), Constraint::Percentage(85)]).areas(right);
 
         let focused = {
             let focused = ctx.focused;
