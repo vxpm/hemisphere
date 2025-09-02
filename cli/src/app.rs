@@ -114,7 +114,6 @@ impl App {
                     match self.current_tab {
                         Tab::Main => self.main_tab.render(ctx),
                         Tab::Memory => (),
-                        Tab::Logs => (),
                         Tab::Blocks => (),
                     }
                 });
@@ -168,7 +167,6 @@ impl App {
                 match self.current_tab {
                     Tab::Main => self.main_tab.handle_event(event),
                     Tab::Memory => Ok(None),
-                    Tab::Logs => Ok(None),
                     Tab::Blocks => Ok(None),
                 }?
             } else {

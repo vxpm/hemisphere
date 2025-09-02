@@ -35,18 +35,13 @@ fn setup_tracing() -> tracing_appender::non_blocking::WorkerGuard {
         .unwrap();
 
     let (file, _guard_file) = tracing_appender::non_blocking(file);
-    // let (stderr, _guard_stderr) = tracing_appender::non_blocking(std::io::stderr());
-
+    let file_layer = fmt::layer().with_writer(file).with_ansi(false);
     let env_filter = EnvFilter::try_from_default_env().unwrap_or(EnvFilter::new(
         "cli=trace,hemisphere=trace,hemicore=trace,ppcjit=trace",
     ));
 
-    let file_layer = fmt::layer().with_writer(file).with_ansi(false);
-    // let stderr_layer = fmt::layer().with_writer(stderr).with_ansi(true);
-
     let subscriber = tracing_subscriber::registry()
         .with(file_layer)
-        // .with(stderr_layer)
         .with(env_filter);
 
     subscriber.init();

@@ -32,7 +32,6 @@ pub struct Context<'ctx, 'frame> {
 pub enum Tab {
     Main,
     Memory,
-    Logs,
     Blocks,
 }
 
@@ -40,8 +39,7 @@ impl Tab {
     pub fn next(self) -> Tab {
         match self {
             Self::Main => Self::Memory,
-            Self::Memory => Self::Logs,
-            Self::Logs => Self::Blocks,
+            Self::Memory => Self::Blocks,
             Self::Blocks => Self::Main,
         }
     }
@@ -50,8 +48,7 @@ impl Tab {
         match self {
             Self::Main => Self::Blocks,
             Self::Memory => Self::Main,
-            Self::Logs => Self::Memory,
-            Self::Blocks => Self::Logs,
+            Self::Blocks => Self::Memory,
         }
     }
 }
