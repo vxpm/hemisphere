@@ -14,11 +14,10 @@ pub struct StatusPane {
     average_ips: VecDeque<f32>,
 }
 
-
 impl StatusPane {
     pub fn render(&mut self, ctx: &mut Context, area: Rect, focused: bool) {
         let block = Block::bordered()
-            .title("Control")
+            .title("Status")
             .border_style(border_style(focused));
         let inner = block.inner(area);
         ctx.frame.render_widget(block, area);

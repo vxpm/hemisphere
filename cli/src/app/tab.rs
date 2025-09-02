@@ -1,10 +1,14 @@
+mod breakpoints;
 mod disasm;
 mod registers;
 mod status;
 
 use crate::app::{
     Action, center,
-    tab::{disasm::DisasmPane, registers::RegistersPane, status::StatusPane},
+    tab::{
+        breakpoints::BreakpointsPane, disasm::DisasmPane, registers::RegistersPane,
+        status::StatusPane,
+    },
 };
 use eyre_pretty::eyre::Result;
 use hemisphere::runner::State;
@@ -59,12 +63,12 @@ pub struct Main {
     disasm: DisasmPane,
     status: StatusPane,
     registers: RegistersPane,
+    breakpoints: BreakpointsPane,
 }
-
 
 impl Main {
     fn render_help(&mut self, ctx: &mut Context, area: Rect) {
-        let help: [&[_]; 3] = [
+        let help: [&[_]; 4] = [
             // disasm
             &[
                 if self.disasm.simplified_asm {
@@ -82,6 +86,14 @@ impl Main {
                 "[j] move down",
                 "[h] previous",
                 "[l] next",
+                "[space] edit",
+            ],
+            // breakpoints
+            &[
+                "[k] move up",
+                "[j] move down",
+                "[a] add",
+                "[d] delete",
                 "[space] edit",
             ],
         ];
@@ -122,8 +134,12 @@ impl Main {
             Layout::horizontal([Constraint::Percentage(35), Constraint::Percentage(65)])
                 .areas(content);
 
-        let [status, registers] =
-            Layout::vertical([Constraint::Min(3), Constraint::Percentage(85)]).areas(right);
+        let [status, registers, breakpoints] = Layout::vertical([
+            Constraint::Length(5),
+            Constraint::Min(9),
+            Constraint::Percentage(40),
+        ])
+        .areas(right);
 
         let focused = {
             let focused = ctx.focused;
@@ -134,44 +150,53 @@ impl Main {
         self.disasm.render(&mut ctx, disasm, focused(0));
         self.status.render(&mut ctx, status, focused(1));
         self.registers.render(&mut ctx, registers, focused(2));
+        self.breakpoints.render(&mut ctx, breakpoints, focused(3));
         self.render_help(&mut ctx, help);
     }
 
     pub fn handle_event(&mut self, event: Event) -> Result<Option<Action>> {
-        if let Event::Key(key) = event { match key.code {
-            KeyCode::Esc => return Ok(Some(Action::Unfocus)),
-            KeyCode::Tab => self.focused_pane = (self.focused_pane + 1) % 3,
-            code => match self.focused_pane {
-                0 => match code {
-                    KeyCode::Char('s') => return Ok(Some(Action::RunStep)),
-                    KeyCode::Char('a') => {
-                        self.disasm.simplified_asm = !self.disasm.simplified_asm
-                    }
-                    _ => (),
+        if let Event::Key(key) = event {
+            match key.code {
+                KeyCode::Esc => return Ok(Some(Action::Unfocus)),
+                KeyCode::Char('[') | KeyCode::Char('\'') => {
+                    self.focused_pane = self.focused_pane.checked_sub(1).unwrap_or(3)
+                }
+                KeyCode::Char(']') | KeyCode::Tab => {
+                    self.focused_pane = (self.focused_pane + 1) % 4
+                }
+                code => match self.focused_pane {
+                    0 => match code {
+                        KeyCode::Char('s') => return Ok(Some(Action::RunStep)),
+                        KeyCode::Char('a') => {
+                            self.disasm.simplified_asm = !self.disasm.simplified_asm
+                        }
+                        _ => (),
+                    },
+                    1 => match code {
+                        KeyCode::Char('s') => return Ok(Some(Action::RunStep)),
+                        KeyCode::Char('r') => return Ok(Some(Action::RunToggle)),
+                        _ => (),
+                    },
+                    2 => match code {
+                        KeyCode::Left | KeyCode::Char('h') => {
+                            self.registers.previous();
+                        }
+                        KeyCode::Right | KeyCode::Char('l') => {
+                            self.registers.next();
+                        }
+                        KeyCode::Down | KeyCode::Char('j') => {
+                            self.registers.scroll_down();
+                        }
+                        KeyCode::Up | KeyCode::Char('k') => {
+                            self.registers.scroll_up();
+                        }
+                        _ => (),
+                    },
+                    3 => (),
+                    _ => unreachable!(),
                 },
-                1 => match code {
-                    KeyCode::Char('s') => return Ok(Some(Action::RunStep)),
-                    KeyCode::Char('r') => return Ok(Some(Action::RunToggle)),
-                    _ => (),
-                },
-                2 => match code {
-                    KeyCode::Left | KeyCode::Char('h') => {
-                        self.registers.previous();
-                    }
-                    KeyCode::Right | KeyCode::Char('l') => {
-                        self.registers.next();
-                    }
-                    KeyCode::Down | KeyCode::Char('j') => {
-                        self.registers.scroll_down();
-                    }
-                    KeyCode::Up | KeyCode::Char('k') => {
-                        self.registers.scroll_up();
-                    }
-                    _ => (),
-                },
-                _ => unreachable!(),
-            },
-        } }
+            }
+        }
 
         Ok(None)
     }
