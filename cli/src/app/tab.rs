@@ -91,13 +91,7 @@ impl Main {
             if let Some(input) = self.breakpoints.input() {
                 &[input, "[enter] confirm"]
             } else {
-                &[
-                    "[k] move up",
-                    "[j] move down",
-                    "[a] add",
-                    "[d] delete",
-                    "[space] edit",
-                ]
+                &["[k] move up", "[j] move down", "[a] add", "[d] delete"]
             },
         ];
 

@@ -33,6 +33,7 @@ fn border_style(focused: bool) -> Style {
 /// Actions a tab might request the app to do.
 enum Action {
     AddBreakpoint(Address),
+    RemoveBreakpoint(usize),
     RunStep,
     RunToggle,
     Unfocus,
@@ -180,7 +181,18 @@ impl App {
             let Some(action) = action else { continue };
             match action {
                 Action::AddBreakpoint(addr) => {
-                    self.runner.with_state(|s| s.breakpoints_mut().push(addr));
+                    self.runner.with_state(|s| {
+                        let breakpoints = s.breakpoints_mut();
+                        if !breakpoints.contains(&addr) {
+                            breakpoints.push(addr)
+                        }
+                    });
+                }
+                Action::RemoveBreakpoint(index) => {
+                    self.runner.with_state(|s| {
+                        let breakpoints = s.breakpoints_mut();
+                        breakpoints.remove(index);
+                    });
                 }
                 Action::RunStep => {
                     if !self.runner.running() {

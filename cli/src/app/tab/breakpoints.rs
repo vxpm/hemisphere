@@ -54,6 +54,11 @@ impl BreakpointsPane {
                 KeyCode::Char('a') => {
                     self.input = Some(String::new());
                 }
+                KeyCode::Char('d') => {
+                    if let Some(selected) = self.list_state.selected() {
+                        return Some(Action::RemoveBreakpoint(selected));
+                    }
+                }
                 _ => (),
             }
         }

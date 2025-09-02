@@ -1,7 +1,5 @@
-use hemicore::Address;
-use tracing::debug;
-
 use crate::{FREQUENCY, Hemisphere};
+use hemicore::Address;
 use std::{
     collections::VecDeque,
     sync::{
