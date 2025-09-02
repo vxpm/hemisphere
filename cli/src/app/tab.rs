@@ -86,10 +86,16 @@ impl Main {
             // control
             &["[r] toggle running", "[s] step"],
             // regs
-            &[],
+            &[
+                "[k] move up",
+                "[j] move down",
+                "[h] previous",
+                "[l] next",
+                "[space] edit",
+            ],
         ];
 
-        let block = Block::bordered().title("Help").style(Style::new().dim());
+        let block = Block::bordered().title("Help").style(Style::new().gray());
         let inner = block.inner(area);
         ctx.frame.render_widget(block, area);
 
@@ -159,6 +165,12 @@ impl Main {
                         _ => (),
                     },
                     2 => match code {
+                        KeyCode::Left | KeyCode::Char('h') => {
+                            self.registers.previous();
+                        }
+                        KeyCode::Right | KeyCode::Char('l') => {
+                            self.registers.next();
+                        }
                         KeyCode::Down | KeyCode::Char('j') => {
                             self.registers.scroll_down();
                         }

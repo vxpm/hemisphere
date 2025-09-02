@@ -68,7 +68,7 @@ impl DisasmPane {
                 Block::new()
                     .title("Disassembly")
                     .borders(Borders::ALL)
-                    .style(border_style(focused)),
+                    .border_style(border_style(focused)),
             );
 
         ctx.frame.render_widget(table, area);

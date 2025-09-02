@@ -23,7 +23,11 @@ fn center(area: Rect, horizontal: Constraint, vertical: Constraint) -> Rect {
 }
 
 fn border_style(focused: bool) -> Style {
-    Style::default().fg(if focused { Color::Green } else { Color::White })
+    if focused {
+        Style::default().fg(Color::LightGreen)
+    } else {
+        Style::default().fg(Color::White).dim()
+    }
 }
 
 /// Actions a tab might request the app to do.
