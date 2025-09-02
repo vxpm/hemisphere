@@ -1,3 +1,5 @@
+use hemicore::Address;
+
 use crate::{FREQUENCY, Hemisphere};
 use std::{
     collections::VecDeque,
@@ -24,6 +26,7 @@ pub struct Stats {
 
 pub struct State {
     hemisphere: Hemisphere,
+    breakpoints: Vec<Address>,
     stats: Stats,
 }
 
@@ -31,6 +34,7 @@ impl State {
     pub fn new(hemisphere: Hemisphere) -> Self {
         Self {
             hemisphere,
+            breakpoints: Vec::new(),
             stats: Stats::default(),
         }
     }
@@ -45,6 +49,10 @@ impl State {
 
     pub fn stats(&self) -> &Stats {
         &self.stats
+    }
+
+    pub fn breakpoints(&self) -> &[Address] {
+        &self.breakpoints
     }
 }
 

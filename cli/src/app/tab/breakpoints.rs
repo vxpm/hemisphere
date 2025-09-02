@@ -1,39 +1,43 @@
 use crate::app::{border_style, tab::Context};
 use ratatui::{
-    layout::{Constraint, Layout, Rect},
-    style::{Style, Stylize},
-    symbols,
-    text::Text,
-    widgets::{Block, Borders, Row, Table, TableState, Tabs},
+    layout::Rect,
+    widgets::{Block, HighlightSpacing, List, ListDirection, ListState},
 };
 
 pub struct BreakpointsPane {
-    table_state: TableState,
+    list_state: ListState,
 }
 
 impl Default for BreakpointsPane {
     fn default() -> Self {
         Self {
-            table_state: TableState::new().with_selected(Some(0)),
+            list_state: ListState::default(),
         }
     }
 }
 
 impl BreakpointsPane {
     pub fn scroll_up(&mut self) {
-        self.table_state.scroll_up_by(1);
+        self.list_state.select_previous();
     }
 
     pub fn scroll_down(&mut self) {
-        self.table_state.scroll_down_by(1);
+        self.list_state.select_next();
     }
 
     pub fn render(&mut self, ctx: &mut Context, area: Rect, focused: bool) {
-        let block = Block::new()
-            .title("Breakpoints")
-            .borders(Borders::ALL)
-            .border_style(border_style(focused));
-        let inner = block.inner(area);
-        ctx.frame.render_widget(block, area);
+        let items = ctx.state.breakpoints().iter().map(|bp| bp.to_string());
+        let list = List::new(items)
+            .block(
+                Block::bordered()
+                    .title("Breakpoints")
+                    .border_style(border_style(focused)),
+            )
+            .direction(ListDirection::TopToBottom)
+            .highlight_symbol(" > ")
+            .highlight_spacing(HighlightSpacing::Always);
+
+        ctx.frame
+            .render_stateful_widget(list, area, &mut self.list_state);
     }
 }

@@ -192,7 +192,15 @@ impl Main {
                         }
                         _ => (),
                     },
-                    3 => (),
+                    3 => match code {
+                        KeyCode::Down | KeyCode::Char('j') => {
+                            self.breakpoints.scroll_down();
+                        }
+                        KeyCode::Up | KeyCode::Char('k') => {
+                            self.breakpoints.scroll_up();
+                        }
+                        _ => (),
+                    },
                     _ => unreachable!(),
                 },
             }

@@ -33,11 +33,11 @@ impl RegistersPane {
     }
 
     pub fn scroll_up(&mut self) {
-        self.table_state.scroll_up_by(1);
+        self.table_state.select_previous();
     }
 
     pub fn scroll_down(&mut self) {
-        self.table_state.scroll_down_by(1);
+        self.table_state.select_next();
     }
 
     fn render_int_formats(&mut self, ctx: &mut Context, area: Rect, value: u32) {
