@@ -65,12 +65,16 @@ impl Main {
         let help: [&[_]; 4] = [
             // disasm
             &[
+                "[k] move up",
+                "[j] move down",
+                "[r] toggle running",
+                "[s] step",
+                "[f] follow pc",
                 if self.disasm.simplified_asm {
                     "[a] use basic asm"
                 } else {
                     "[a] use simplified asm"
                 },
-                "[s] step",
             ],
             // control
             &["[r] toggle running", "[s] step"],

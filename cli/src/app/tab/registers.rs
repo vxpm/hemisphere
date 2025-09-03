@@ -1,5 +1,7 @@
 use crate::app::{Action, border_style, tab::Context};
+use hemisphere::core::arch::{CondReg, MachineState};
 use ratatui::{
+    Frame,
     crossterm::event::{KeyCode, KeyEvent},
     layout::{Constraint, Layout, Rect},
     style::{Style, Stylize},
@@ -22,22 +24,25 @@ impl Default for RegistersPane {
     }
 }
 
+macro_rules! row {
+    ($name:expr; $fmt:literal, $($args:expr),*) => {
+        Row::new(vec![
+            Text::raw(format!($name)),
+            format!($fmt, $($args),*).into(),
+        ])
+    };
+}
+
 impl RegistersPane {
-    fn render_int_formats(&mut self, ctx: &mut Context, area: Rect, value: u32) {
+    fn render_int_formats(&mut self, frame: &mut Frame, area: Rect, value: u32) {
         let header = Row::new(vec!["Format", "Value"]).light_magenta().not_dim();
         let widths = [Constraint::Length(8), Constraint::Min(1)];
         let rows = vec![
-            Row::new(vec![Text::raw("Unsigned"), format!("{value}").into()]),
-            Row::new(vec![
-                Text::raw("Signed"),
-                format!("{}", value as i32).into(),
-            ]),
-            Row::new(vec![
-                Text::raw("Float"),
-                format!("{:?}", value as f32).into(),
-            ]),
-            Row::new(vec![Text::raw("Hex"), format!("{value:08X}").into()]),
-            Row::new(vec![Text::raw("Binary"), format!("{:032b}", value).into()]),
+            row!("Unsigned"; "{}", value),
+            row!("Signed"; "{}", value as i32),
+            row!("Float"; "{:?}", value as f32),
+            row!("Hex"; "{:08X}", value),
+            row!("Binary"; "{:032b}", value),
         ];
 
         let table = Table::new(rows, widths)
@@ -45,30 +50,18 @@ impl RegistersPane {
             .header(header)
             .style(Style::new().blue());
 
-        ctx.frame.render_widget(table, area);
+        frame.render_widget(table, area);
     }
 
-    fn render_float_formats(&mut self, ctx: &mut Context, area: Rect, value: f64) {
+    fn render_float_formats(&mut self, frame: &mut Frame, area: Rect, value: f64) {
         let header = Row::new(vec!["Format", "Value"]).light_magenta().not_dim();
         let widths = [Constraint::Length(8), Constraint::Min(1)];
         let rows = vec![
-            Row::new(vec![
-                Text::raw("Unsigned"),
-                format!("{}", value as u64).into(),
-            ]),
-            Row::new(vec![
-                Text::raw("Signed"),
-                format!("{}", value as i64).into(),
-            ]),
-            Row::new(vec![Text::raw("Float"), format!("{value:?}").into()]),
-            Row::new(vec![
-                Text::raw("Hex"),
-                format!("{:016X}", value as u64).into(),
-            ]),
-            Row::new(vec![
-                Text::raw("Binary"),
-                format!("{:064b}", value as u64).into(),
-            ]),
+            row!("Unsigned"; "{}", value as u64),
+            row!("Signed"; "{}", value as i64),
+            row!("Float"; "{:?}", value),
+            row!("Hex"; "{:016X}", value as u64),
+            row!("Binary"; "{:064b}", value as u64),
         ];
 
         let table = Table::new(rows, widths)
@@ -76,12 +69,111 @@ impl RegistersPane {
             .header(header)
             .style(Style::new().blue());
 
-        ctx.frame.render_widget(table, area);
+        frame.render_widget(table, area);
+    }
+
+    fn render_msr(&self, frame: &mut Frame, area: Rect, msr: MachineState) {
+        let header = Row::new(vec!["Field", "Value"]).light_magenta().not_dim();
+        let widths = [Constraint::Length(24), Constraint::Min(1)];
+        let rows = vec![
+            row!("Little Endian"; "{}", msr.little_endian()),
+            row!("Exception Recoverable"; "{}", msr.recoverable_exception()),
+            row!("Data Addr. Translation"; "{}", msr.data_addr_translation()),
+            row!("Instr. Addr. Translation"; "{}", msr.instr_addr_translation()),
+            row!("High Exceptions Vectors"; "{}", msr.exception_prefix()),
+            row!("Machine Check Exceptions"; "{}", msr.machine_check()),
+            row!("Float Available"; "{}", msr.float_available()),
+            row!("User Mode"; "{}", msr.user_mode()),
+            row!("External Interrupts"; "{}", msr.external_interrupts()),
+            row!("Little Endian Exception"; "{}", msr.exception_little_endian()),
+        ];
+
+        let table = Table::new(rows, widths)
+            .column_spacing(2)
+            .header(header)
+            .style(Style::new().blue());
+
+        frame.render_widget(table, area);
+    }
+
+    fn render_cr(&self, frame: &mut Frame, area: Rect, cr: CondReg) {
+        let header = Row::new(vec!["Field", "Value"]).light_magenta().not_dim();
+        let widths = [Constraint::Length(24), Constraint::Min(1)];
+        let bit = |b| if b { "1" } else { "0" };
+        let mut rows = Vec::new();
+
+        for (i, cond) in cr.fields().iter().rev().enumerate() {
+            rows.push(row!(
+                "CR{i}"; "ov: {} eq: {} gt: {} lt: {}",
+                bit(cond.ov()),
+                bit(cond.eq()),
+                bit(cond.gt()),
+                bit(cond.lt())
+            ));
+        }
+
+        let table = Table::new(rows, widths)
+            .column_spacing(2)
+            .header(header)
+            .style(Style::new().blue());
+
+        frame.render_widget(table, area);
+    }
+
+    fn render_core(&mut self, ctx: &mut Context, area: Rect) {
+        let [regs, formats] =
+            Layout::horizontal([Constraint::Percentage(20), Constraint::Percentage(80)])
+                .areas(area);
+
+        let header = Row::new(vec!["Reg", "Value"]).light_magenta().not_dim();
+        let widths = [Constraint::Length(5), Constraint::Min(1)];
+        let mut rows = Vec::new();
+
+        let mut current = 0;
+        macro_rules! reg {
+            ($name:expr, $value:expr, $render:ident, $($conversion:ident)?) => {
+                rows.push(Row::new(vec![
+                    $name.to_string(),
+                    format!("{:08X}", $value $(.$conversion())?),
+                ]));
+
+                if self
+                    .table_state
+                    .selected()
+                    .is_some_and(|selected| selected == current)
+                {
+                    self.$render(&mut ctx.frame, formats, $value);
+                }
+
+                #[allow(unused_assignments)]
+                {
+                    current += 1;
+                }
+            };
+            ($name:expr, $value:expr) => {
+                reg!($name, $value, render_int_formats,);
+            };
+        }
+
+        let cpu = &ctx.state.hemisphere().system.cpu;
+        reg!("MSR", cpu.supervisor.msr.clone(), render_msr, to_bits);
+        reg!("CR", cpu.user.cr.clone(), render_cr, to_bits);
+        reg!("CTR", cpu.user.ctr);
+
+        let table = Table::new(rows, widths)
+            .column_spacing(2)
+            .header(header)
+            .style(Style::new().blue().dim())
+            .row_highlight_style(Style::new().light_blue().not_dim())
+            .highlight_symbol("> ");
+
+        ctx.frame
+            .render_stateful_widget(table, regs, &mut self.table_state);
     }
 
     fn render_gpr(&mut self, ctx: &mut Context, area: Rect) {
         let [regs, formats] =
-            Layout::horizontal([Constraint::Percentage(25), Constraint::Percentage(75)])
+            Layout::horizontal([Constraint::Percentage(20), Constraint::Percentage(80)])
                 .areas(area);
 
         let header = Row::new(vec!["Reg", "Value"]).light_magenta().not_dim();
@@ -100,7 +192,7 @@ impl RegistersPane {
                 .selected()
                 .is_some_and(|selected| selected == i)
             {
-                self.render_int_formats(ctx, formats, cpu.user.gpr[i]);
+                self.render_int_formats(&mut ctx.frame, formats, cpu.user.gpr[i]);
             }
         }
 
@@ -117,7 +209,7 @@ impl RegistersPane {
 
     fn render_fpr(&mut self, ctx: &mut Context, area: Rect) {
         let [regs, formats] =
-            Layout::horizontal([Constraint::Percentage(25), Constraint::Percentage(75)])
+            Layout::horizontal([Constraint::Percentage(20), Constraint::Percentage(80)])
                 .areas(area);
 
         let header = Row::new(vec!["Reg", "Value"]).light_magenta().not_dim();
@@ -136,7 +228,7 @@ impl RegistersPane {
                 .selected()
                 .is_some_and(|selected| selected == i)
             {
-                self.render_float_formats(ctx, formats, cpu.user.fpr[i]);
+                self.render_float_formats(&mut ctx.frame, formats, cpu.user.fpr[i]);
             }
         }
 
@@ -154,11 +246,11 @@ impl RegistersPane {
     pub fn handle_key(&mut self, key: KeyEvent) -> Option<Action> {
         match key.code {
             KeyCode::Left | KeyCode::Char('h') => {
-                self.current = self.current.checked_sub(1).unwrap_or(1);
+                self.current = self.current.checked_sub(1).unwrap_or(2);
                 self.table_state.select(Some(0));
             }
             KeyCode::Right | KeyCode::Char('l') => {
-                self.current = (self.current + 1) % 2;
+                self.current = (self.current + 1) % 3;
                 self.table_state.select(Some(0));
             }
             KeyCode::Down | KeyCode::Char('j') => {
@@ -184,7 +276,7 @@ impl RegistersPane {
         let [tabs_area, bottom] =
             Layout::vertical([Constraint::Length(2), Constraint::Min(1)]).areas(inner);
 
-        let tabs = Tabs::new(vec!["GPR", "FPR"])
+        let tabs = Tabs::new(vec!["Core", "GPR", "FPR"])
             .block(
                 Block::new()
                     .borders(Borders::BOTTOM)
@@ -199,8 +291,9 @@ impl RegistersPane {
         ctx.frame.render_widget(tabs, tabs_area);
 
         match self.current {
-            0 => self.render_gpr(ctx, bottom),
-            1 => self.render_fpr(ctx, bottom),
+            0 => self.render_core(ctx, bottom),
+            1 => self.render_gpr(ctx, bottom),
+            2 => self.render_fpr(ctx, bottom),
             _ => unreachable!(),
         }
     }
