@@ -708,6 +708,7 @@ dependencies = [
  "easyerr",
  "hemicore",
  "interavl",
+ "parking_lot",
  "ppcjit",
  "rustc-hash",
  "schnellru",

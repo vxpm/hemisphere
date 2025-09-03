@@ -18,3 +18,4 @@ zerocopy.workspace = true
 
 schnellru = "0.2"
 interavl = "0.3.0"
+parking_lot = "0.12"

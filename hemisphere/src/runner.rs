@@ -1,9 +1,10 @@
 use crate::{FREQUENCY, Hemisphere};
 use hemicore::Address;
+use parking_lot::FairMutex;
 use std::{
     collections::VecDeque,
     sync::{
-        Arc, Mutex,
+        Arc,
         atomic::{AtomicBool, Ordering},
     },
     thread::JoinHandle,
@@ -63,18 +64,14 @@ struct Control {
     should_run: AtomicBool,
 }
 
-fn run(state: Arc<Mutex<State>>, control: Arc<Control>) {
+fn run(state: Arc<FairMutex<State>>, control: Arc<Control>) {
     let mut next = Instant::now();
-    let mut guard = state.lock().unwrap();
     'outer: loop {
         if !control.should_run.load(Ordering::Relaxed) {
-            std::mem::drop(guard);
-
             while !control.should_run.load(Ordering::Relaxed) {
                 std::thread::park();
             }
 
-            guard = state.lock().unwrap();
             next = next.max(Instant::now());
         }
 
@@ -89,6 +86,7 @@ fn run(state: Arc<Mutex<State>>, control: Arc<Control>) {
 
         // emulate
         // NOTE: assume 2 cycles per instruction
+        let mut guard = state.lock();
         let mut emulated = 0;
         if guard.breakpoints.is_empty() {
             while emulated < STEP_SIZE {
@@ -145,14 +143,14 @@ fn run(state: Arc<Mutex<State>>, control: Arc<Control>) {
 
 /// A simple runner for the Hemisphere emulator.
 pub struct Runner {
-    state: Arc<Mutex<State>>,
+    state: Arc<FairMutex<State>>,
     control: Arc<Control>,
     handle: JoinHandle<()>,
 }
 
 impl Runner {
     pub fn new(hemisphere: Hemisphere) -> Self {
-        let state = Arc::new(Mutex::new(State::new(hemisphere)));
+        let state = Arc::new(FairMutex::new(State::new(hemisphere)));
         let control = Arc::new(Control {
             should_run: AtomicBool::new(false),
         });
@@ -189,16 +187,8 @@ impl Runner {
     where
         F: FnOnce(&mut State) -> R,
     {
-        let run = self.control.should_run.load(Ordering::Relaxed);
-        self.control.should_run.store(false, Ordering::Relaxed);
-
-        let mut state = self.state.lock().unwrap();
+        let mut state = self.state.lock();
         let result = f(&mut state);
-
-        if run {
-            self.control.should_run.store(true, Ordering::Relaxed);
-            self.handle.thread().unpark();
-        }
 
         result
     }
