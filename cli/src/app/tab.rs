@@ -70,6 +70,7 @@ impl Main {
                 "[r] toggle running",
                 "[s] step",
                 "[f] follow pc",
+                "[b] breakpoint",
                 if self.disasm.simplified_asm {
                     "[a] use basic asm"
                 } else {

@@ -42,6 +42,7 @@ impl DisasmPane {
             KeyCode::Char('s') => return Some(Action::RunStep),
             KeyCode::Char('a') => self.simplified_asm = !self.simplified_asm,
             KeyCode::Char('f') => self.follow_pc = true,
+            KeyCode::Char('b') => return Some(Action::AddBreakpoint(self.target)),
 
             _ => (),
         }
