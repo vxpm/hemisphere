@@ -476,6 +476,8 @@ pub enum SPR {
     XER = 1,
     LR = 8,
     CTR = 9,
+    SRR0 = 26,
+    SRR1 = 27,
 }
 
 impl SPR {
@@ -485,7 +487,10 @@ impl SPR {
     /// Panics if index is out of range or is unknown.
     #[inline(always)]
     pub fn new(index: u16) -> Self {
-        Self::from_repr(index).unwrap()
+        match Self::from_repr(index) {
+            Some(spr) => spr,
+            None => panic!("unknown SPR {index}"),
+        }
     }
 
     /// Offset of this SPR in the [`Registers`] struct.
@@ -494,6 +499,8 @@ impl SPR {
             Self::XER => offset_of!(Registers, user.xer),
             Self::LR => offset_of!(Registers, user.lr),
             Self::CTR => offset_of!(Registers, user.ctr),
+            Self::SRR0 => offset_of!(Registers, supervisor.exception.srr),
+            Self::SRR1 => offset_of!(Registers, supervisor.exception.srr) + size_of::<u32>(),
         }
     }
 }

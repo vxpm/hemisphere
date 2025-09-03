@@ -1,0 +1,28 @@
+use super::BlockBuilder;
+use cranelift::{codegen::ir, prelude::InstBuilder};
+use hemicore::arch::{Reg, SPR, powerpc::Ins};
+
+impl BlockBuilder<'_> {
+    pub fn rfi(&mut self, _: Ins) {
+        let msr = self.get(Reg::MSR);
+        let srr0 = self.get(SPR::SRR1);
+        let srr1 = self.get(SPR::SRR1);
+
+        let mask = 0b1000_0111_1100_0000_1111_1111_0111_0011 as u32;
+        let mask = self.bd.ins().iconst(ir::types::I32, mask as u64 as i64);
+
+        // move only some bits from srr1
+        let new_msr = self.bd.ins().bitselect(mask, srr1, msr);
+
+        // clear bit 18
+        let new_msr = self.bd.ins().band_imm(new_msr, !(1 << 18));
+
+        // TODO: deal with new_msr exceptions enabled
+
+        let new_pc = self.bd.ins().ishl_imm(srr0, 2);
+        let new_pc = self.bd.ins().iadd_imm(new_pc, -4);
+
+        self.set(Reg::PC, new_pc);
+        self.set(Reg::MSR, new_msr);
+    }
+}

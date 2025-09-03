@@ -1,12 +1,12 @@
 use easyerr::Error;
-use hemicore::arch::powerpc::{Ins, ParsedIns};
+use hemicore::arch::powerpc::{Ins, Opcode, ParsedIns};
 use std::ops::Deref;
 
 /// A sequence of PowerPC instructions which can be contained in a single JIT [`Block`](super::Block).
 pub struct Sequence(Vec<Ins>);
 
 fn is_terminal(ins: &Ins) -> bool {
-    ins.is_unconditional_branch()
+    ins.is_unconditional_branch() || matches!(ins.op, Opcode::Rfi)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

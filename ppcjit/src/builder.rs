@@ -1,6 +1,7 @@
 mod arithmetic;
 mod branch;
 mod compare;
+mod exception;
 mod memory;
 mod others;
 
@@ -201,21 +202,24 @@ impl<'ctx> BlockBuilder<'ctx> {
         self.bd.set_srcloc(ir::SourceLoc::new(self.executed));
         match ins.op {
             Opcode::Add => self.add(ins),
-            Opcode::Addis => self.addis(ins),
-            Opcode::Ori => self.ori(ins),
-            Opcode::B => self.branch(ins),
-            Opcode::Mfspr => self.mfspr(ins),
-            Opcode::Stwu => self.stwu(ins),
             Opcode::Addi => self.addi(ins),
-            Opcode::Mtspr => self.mtspr(ins),
-            Opcode::Sth => self.sth(ins),
+            Opcode::Addis => self.addis(ins),
+            Opcode::B => self.branch(ins),
             Opcode::Bc => self.branch_cond(ins),
-            Opcode::Lwz => self.lwz(ins),
-            Opcode::Stw => self.stw(ins),
             Opcode::Bclr => self.branch_cond_lr(ins),
             Opcode::Cmpi => self.cmpi(ins),
-            Opcode::Rlwinm => self.rlwinm(ins),
+            Opcode::Lwz => self.lwz(ins),
             Opcode::Lwzu => self.lwzu(ins),
+            Opcode::Mfspr => self.mfspr(ins),
+            Opcode::Mtspr => self.mtspr(ins),
+            Opcode::Mfmsr => self.mfmsr(ins),
+            Opcode::Ori => self.ori(ins),
+            Opcode::Oris => self.oris(ins),
+            Opcode::Rlwinm => self.rlwinm(ins),
+            Opcode::Rfi => self.rfi(ins),
+            Opcode::Sth => self.sth(ins),
+            Opcode::Stw => self.stw(ins),
+            Opcode::Stwu => self.stwu(ins),
             Opcode::Illegal => {
                 return Err(EmitError::Illegal(ins));
             }

@@ -4,11 +4,11 @@ use cranelift::{codegen::ir, prelude::InstBuilder};
 use hemicore::arch::{InsExt, powerpc::Ins};
 
 impl BlockBuilder<'_> {
-    pub fn addis(&mut self, ins: Ins) {
+    pub fn addi(&mut self, ins: Ins) {
         let imm = self
             .bd
             .ins()
-            .iconst(ir::types::I32, (ins.field_simm() as i64) << 16);
+            .iconst(ir::types::I32, ins.field_simm() as i64);
 
         let value = if ins.field_ra() == 0 {
             imm
@@ -20,11 +20,11 @@ impl BlockBuilder<'_> {
         self.set(ins.gpr_d(), value);
     }
 
-    pub fn addi(&mut self, ins: Ins) {
+    pub fn addis(&mut self, ins: Ins) {
         let imm = self
             .bd
             .ins()
-            .iconst(ir::types::I32, ins.field_simm() as i64);
+            .iconst(ir::types::I32, (ins.field_simm() as i64) << 16);
 
         let value = if ins.field_ra() == 0 {
             imm
@@ -57,6 +57,17 @@ impl BlockBuilder<'_> {
             .bd
             .ins()
             .iconst(ir::types::I32, ins.field_uimm() as u64 as i64);
+        let rs = self.get(ins.gpr_s());
+
+        let value = self.bd.ins().bor(rs, imm);
+        self.set(ins.gpr_a(), value);
+    }
+
+    pub fn oris(&mut self, ins: Ins) {
+        let imm = self
+            .bd
+            .ins()
+            .iconst(ir::types::I32, (ins.field_uimm() as u64 as i64) << 16);
         let rs = self.get(ins.gpr_s());
 
         let value = self.bd.ins().bor(rs, imm);
