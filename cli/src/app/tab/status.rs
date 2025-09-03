@@ -38,7 +38,7 @@ impl StatusPane {
         ])
         .areas(inner);
 
-        let status = if ctx.control.running {
+        let status = if ctx.running {
             Text::styled("⏵ Running", Style::new().green())
         } else {
             Text::styled("⏸ Paused", Style::new().red())
@@ -54,7 +54,7 @@ impl StatusPane {
             Style::new().light_blue(),
         );
 
-        if ctx.control.running {
+        if ctx.running {
             if self.average_ips.len() >= 128 {
                 self.average_ips.pop_front();
             }

@@ -100,13 +100,10 @@ impl App {
                     self.current_tab as usize,
                 );
 
-                let mut control = tab::Control {
-                    running: self.runner.running(),
-                };
-
+                let running = self.runner.running();
                 self.runner.with_state(|state| {
                     let ctx = tab::Context {
-                        control: &mut control,
+                        running,
                         state,
                         frame,
                         area: chunks[1],
@@ -119,8 +116,6 @@ impl App {
                         Tab::Blocks => (),
                     }
                 });
-
-                self.runner.set_run(control.running);
             })?;
 
             if self.handle_events()? {

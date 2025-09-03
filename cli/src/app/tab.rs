@@ -18,12 +18,8 @@ use ratatui::{
     widgets::Block,
 };
 
-pub struct Control {
-    pub running: bool,
-}
-
 pub struct Context<'ctx, 'frame> {
-    pub control: &'ctx mut Control,
+    pub running: bool,
     pub state: &'ctx mut State,
     pub frame: &'ctx mut Frame<'frame>,
     pub area: Rect,
