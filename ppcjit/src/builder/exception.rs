@@ -5,7 +5,7 @@ use hemicore::arch::{Reg, SPR, powerpc::Ins};
 impl BlockBuilder<'_> {
     pub fn rfi(&mut self, _: Ins) {
         let msr = self.get(Reg::MSR);
-        let srr0 = self.get(SPR::SRR1);
+        let srr0 = self.get(SPR::SRR0);
         let srr1 = self.get(SPR::SRR1);
 
         let mask = 0b1000_0111_1100_0000_1111_1111_0111_0011 as u32;
@@ -19,7 +19,7 @@ impl BlockBuilder<'_> {
 
         // TODO: deal with new_msr exceptions enabled
 
-        let new_pc = self.bd.ins().ishl_imm(srr0, 2);
+        let new_pc = self.bd.ins().band_imm(srr0, !0b11);
         let new_pc = self.bd.ins().iadd_imm(new_pc, -4);
 
         self.set(Reg::PC, new_pc);

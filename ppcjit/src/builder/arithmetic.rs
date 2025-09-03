@@ -2,6 +2,7 @@ use super::BlockBuilder;
 use bitos::BitUtils;
 use cranelift::{codegen::ir, prelude::InstBuilder};
 use hemicore::arch::{InsExt, powerpc::Ins};
+use tracing::debug;
 
 impl BlockBuilder<'_> {
     pub fn addi(&mut self, ins: Ins) {
@@ -81,12 +82,19 @@ impl BlockBuilder<'_> {
 
         let start = 31 - ins.field_me();
         let end = 31 - ins.field_mb();
+        debug!(
+            "start: {start} {} end: {end} {}",
+            ins.field_mb(),
+            ins.field_me()
+        );
 
         let mask = if start > end {
             (!0).with_bits(end, start + 1, 0)
         } else {
             0.with_bits(start, end + 1, !0)
         };
+
+        debug!("mask: {mask:032b}");
 
         let masked = self.bd.ins().band_imm(rotated, mask as i64);
         self.set(ins.gpr_a(), masked);

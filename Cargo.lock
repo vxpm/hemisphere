@@ -993,6 +993,7 @@ dependencies = [
  "iced-x86",
  "memmap2",
  "rustc-hash",
+ "tracing",
  "zerocopy",
 ]
 

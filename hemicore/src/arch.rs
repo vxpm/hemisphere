@@ -8,6 +8,15 @@ use strum::{FromRepr, VariantArray};
 
 pub use powerpc;
 
+// like offset_of, except it also supports indexing arrays
+macro_rules! ext_offset_of {
+    ($t:ty, $($path:tt)+) => {{
+        let data = core::mem::MaybeUninit::<$t>::uninit();
+        let ptr = data.as_ptr();
+        unsafe { (&raw const (*ptr).$($path)+).byte_offset_from(ptr) as usize }
+    }}
+}
+
 /// Extension trait for [`Ins`](powerpc::Ins).
 pub trait InsExt {
     /// GPR indicated by field rA.
@@ -500,7 +509,7 @@ impl SPR {
             Self::LR => offset_of!(Registers, user.lr),
             Self::CTR => offset_of!(Registers, user.ctr),
             Self::SRR0 => offset_of!(Registers, supervisor.exception.srr),
-            Self::SRR1 => offset_of!(Registers, supervisor.exception.srr) + size_of::<u32>(),
+            Self::SRR1 => ext_offset_of!(Registers, supervisor.exception.srr[1]),
         }
     }
 }

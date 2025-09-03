@@ -12,4 +12,5 @@ iced-x86.workspace = true
 memmap2.workspace = true
 rustc-hash.workspace = true
 zerocopy.workspace = true
+tracing.workspace = true
 cranelift = { version = "0.122", features = ["frontend", "native"] }

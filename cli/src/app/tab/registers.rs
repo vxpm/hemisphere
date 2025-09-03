@@ -178,6 +178,8 @@ impl RegistersPane {
         reg!("CR", cpu.user.cr.clone(), render_cr, to_bits);
         reg!("XER", cpu.user.xer.clone(), render_xer, to_bits);
         reg!("CTR", cpu.user.ctr);
+        reg!("SRR0", cpu.supervisor.exception.srr[0]);
+        reg!("SRR1", cpu.supervisor.exception.srr[1]);
 
         let table = Table::new(rows, widths)
             .column_spacing(2)
