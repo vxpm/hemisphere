@@ -11,7 +11,7 @@ use cranelift::{
 };
 use easyerr::Error;
 use hemicore::arch::{
-    Reg,
+    Reg, SPR,
     powerpc::{Ins, Opcode},
 };
 use rustc_hash::FxHashMap;
@@ -130,6 +130,21 @@ impl<'ctx> BlockBuilder<'ctx> {
         };
 
         self.bd.def_var(var, value);
+    }
+
+    fn update_xer_ov(&mut self, overflowed: ir::Value) {
+        let xer = self.get(SPR::XER);
+        let overflowed = self.bd.ins().uextend(ir::types::I32, overflowed);
+
+        let ov = self.bd.ins().ishl_imm(overflowed, 30);
+        let so = self.bd.ins().ishl_imm(overflowed, 31);
+        let value = self.bd.ins().bor(ov, so);
+
+        let mask = self.bd.ins().iconst(ir::types::I32, !(0b1 << 30));
+        let masked = self.bd.ins().band(xer, mask);
+        let updated = self.bd.ins().bor(masked, value);
+
+        self.set(SPR::XER, updated);
     }
 
     fn update_cr0(&mut self, value: ir::Value, overflowed: ir::Value) {

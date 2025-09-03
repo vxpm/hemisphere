@@ -1,5 +1,5 @@
 use crate::app::{Action, border_style, tab::Context};
-use hemisphere::core::arch::{CondReg, MachineState};
+use hemisphere::core::arch::{CondReg, MachineState, XerReg};
 use ratatui::{
     Frame,
     crossterm::event::{KeyCode, KeyEvent},
@@ -120,6 +120,24 @@ impl RegistersPane {
         frame.render_widget(table, area);
     }
 
+    fn render_xer(&self, frame: &mut Frame, area: Rect, xer: XerReg) {
+        let header = Row::new(vec!["Field", "Value"]).light_magenta().not_dim();
+        let widths = [Constraint::Length(24), Constraint::Min(1)];
+        let rows = vec![
+            row!("Byte Count"; "{}", xer.byte_count().value()),
+            row!("Carry"; "{}", xer.carry()),
+            row!("Overflow"; "{}", xer.overflow()),
+            row!("Overflow Fuse"; "{}", xer.overflow_fuse()),
+        ];
+
+        let table = Table::new(rows, widths)
+            .column_spacing(2)
+            .header(header)
+            .style(Style::new().blue());
+
+        frame.render_widget(table, area);
+    }
+
     fn render_core(&mut self, ctx: &mut Context, area: Rect) {
         let [regs, formats] =
             Layout::horizontal([Constraint::Percentage(20), Constraint::Percentage(80)])
@@ -158,6 +176,7 @@ impl RegistersPane {
         let cpu = &ctx.state.hemisphere().system.cpu;
         reg!("MSR", cpu.supervisor.msr.clone(), render_msr, to_bits);
         reg!("CR", cpu.user.cr.clone(), render_cr, to_bits);
+        reg!("XER", cpu.user.xer.clone(), render_xer, to_bits);
         reg!("CTR", cpu.user.ctr);
 
         let table = Table::new(rows, widths)

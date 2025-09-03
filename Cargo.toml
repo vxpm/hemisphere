@@ -12,6 +12,12 @@ opt-level = 3
 [profile.dev.package."dolfile"]
 opt-level = 3
 
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+
 [workspace.dependencies]
 binrw = { version = "0.15", features = ["std"], default-features = false }
 bitos = { git = "https://github.com/vxpm/bitos.git", features = ["zerocopy"] }

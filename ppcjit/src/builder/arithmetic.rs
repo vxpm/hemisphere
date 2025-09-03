@@ -45,6 +45,10 @@ impl BlockBuilder<'_> {
             self.update_cr0(result, overflowed);
         }
 
+        if ins.field_oe() {
+            self.update_xer_ov(overflowed);
+        }
+
         self.set(ins.gpr_d(), result);
     }
 
