@@ -158,9 +158,9 @@ pub struct XerReg {
 
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 #[repr(transparent)]
-pub struct FloatingPair(pub [f64; 2]);
+pub struct FloatPair(pub [f64; 2]);
 
-impl std::ops::Deref for FloatingPair {
+impl std::ops::Deref for FloatPair {
     type Target = [f64; 2];
 
     fn deref(&self) -> &Self::Target {
@@ -168,7 +168,7 @@ impl std::ops::Deref for FloatingPair {
     }
 }
 
-impl std::ops::DerefMut for FloatingPair {
+impl std::ops::DerefMut for FloatPair {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
@@ -181,7 +181,7 @@ pub struct User {
     /// General Purpose Registers
     pub gpr: [u32; 32],
     /// Floating Point Registers
-    pub fpr: [FloatingPair; 32],
+    pub fpr: [FloatPair; 32],
     /// Condition Register
     pub cr: CondReg,
     /// Floating Point Status and Condition Register
@@ -559,7 +559,7 @@ impl FPR {
     /// Offset of this FPR in the [`Registers`] struct.
     #[inline(always)]
     pub fn offset(self) -> usize {
-        offset_of!(Registers, user.fpr) + size_of::<FloatingPair>() * (self as usize)
+        offset_of!(Registers, user.fpr) + size_of::<FloatPair>() * (self as usize)
     }
 }
 
