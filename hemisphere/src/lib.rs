@@ -181,18 +181,11 @@ impl Hemisphere {
 
     /// Executes a single block with a limit of instructions and returns how many instructions were
     /// executed.
-    pub fn exec_limited(&mut self, limit: u16) -> u32 {
-        let in_storage = match self.jit.blocks.get(self.system.cpu.pc) {
-            Some(block) => block,
-            None => {
-                let block = self.compile(self.system.cpu.pc, self.config.instructions_per_block);
-                self.jit.blocks.insert(self.system.cpu.pc, block);
-                self.jit.blocks.get(self.system.cpu.pc).unwrap()
-            }
-        };
-
+    pub fn exec_with_limit(&mut self, limit: u16) -> u32 {
         let compiled: ppcjit::Block;
-        let block = if in_storage.sequence().len() <= limit as usize {
+        let block = if let Some(in_storage) = self.jit.blocks.get(self.system.cpu.pc)
+            && in_storage.sequence().len() <= limit as usize
+        {
             in_storage
         } else {
             std::hint::cold_path();
@@ -208,6 +201,17 @@ impl Hemisphere {
         }
 
         executed
+    }
+
+    /// Executes a single block with a limit of instructions and returns how many instructions were
+    /// executed.
+    fn exec_with_limit_and_cached(&mut self, limit: u16) -> u32 {
+        if self.jit.blocks.get(self.system.cpu.pc).is_none() {
+            let block = self.compile(self.system.cpu.pc, self.config.instructions_per_block);
+            self.jit.blocks.insert(self.system.cpu.pc, block);
+        }
+
+        self.exec_with_limit(limit)
     }
 
     /// Executes a single block and returns how many instructions were executed.

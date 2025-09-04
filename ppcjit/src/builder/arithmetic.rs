@@ -2,7 +2,7 @@ use super::BlockBuilder;
 use bitos::BitUtils;
 use cranelift::{codegen::ir, prelude::InstBuilder};
 use hemicore::arch::{InsExt, powerpc::Ins};
-use tracing::debug;
+use tracing::{debug, debug_span};
 
 impl BlockBuilder<'_> {
     pub fn addi(&mut self, ins: Ins) {
@@ -76,25 +76,30 @@ impl BlockBuilder<'_> {
     }
 
     pub fn rlwinm(&mut self, ins: Ins) {
+        let _span = debug_span!("rlwinm").entered();
+
         let rs = self.get(ins.gpr_s());
         let shift_amount = ins.field_sh();
         let rotated = self.bd.ins().rotl_imm(rs, shift_amount as i64);
 
-        let start = 31 - ins.field_me();
-        let end = 31 - ins.field_mb();
-        debug!(
-            "start: {start} {} end: {end} {}",
-            ins.field_mb(),
-            ins.field_me()
-        );
-
-        let mask = if start > end {
-            (!0).with_bits(end, start + 1, 0)
-        } else {
+        debug!("start: {} end: {}", ins.field_mb(), ins.field_me());
+        let mask = if ins.field_mb() <= ins.field_me() {
+            debug!("case 1: mb <= me - bits between mb and me are ones, inclusive");
+            let start = 31 - ins.field_me();
+            let end = 31 - ins.field_mb();
             0.with_bits(start, end + 1, !0)
+        } else {
+            debug!("case 2: mb > me - bits between me and mb are zero, exclusive");
+            let start = 31 - ins.field_mb();
+            let end = 31 - ins.field_me();
+
+            let mask = (!0).with_bits(start, end, 0);
+
+            // make start exclusive too!
+            mask | (1 << start)
         };
 
-        debug!("mask: {mask:032b}");
+        debug!("resulting mask: {mask:032b}");
 
         let masked = self.bd.ins().band_imm(rotated, mask as i64);
         self.set(ins.gpr_a(), masked);

@@ -113,7 +113,9 @@ fn run(state: Arc<FairMutex<State>>, control: Arc<Control>) {
 
                 let target_distance = min_distance / 4;
                 if target_distance <= guard.hemisphere.config.instructions_per_block as u32 {
-                    emulated += 2 * guard.hemisphere.exec_limited(target_distance as u16);
+                    emulated += 2 * guard
+                        .hemisphere
+                        .exec_with_limit_and_cached(target_distance as u16);
                     if guard.hemisphere.system.cpu.pc == target {
                         control.should_run.store(false, Ordering::Relaxed);
                         break;

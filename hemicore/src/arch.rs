@@ -385,13 +385,11 @@ pub struct Miscellaneous {
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
-pub struct Performance {
-    /// Time Base
-    pub tbl: u64,
-    /// Decrementer
-    pub dec: u32,
-    /// L2 Control
-    pub l2cr: u32,
+pub struct PerformanceMonitor {
+    /// Performance Counter registers
+    pub counters: [u32; 4],
+    /// Monitor Control registers
+    pub control: [u32; 2],
 }
 
 /// Supervisor level registers
@@ -406,8 +404,8 @@ pub struct Supervisor {
     pub exception: ExceptionHandling,
     /// Graphics Quantization registers
     pub gq: [QuantReg; 8],
-    /// Performance registers
-    pub performance: Performance,
+    /// Performance monitor registers
+    pub performance: PerformanceMonitor,
     /// Miscellaneous registers
     pub misc: Miscellaneous,
 }
@@ -599,6 +597,12 @@ pub enum SPR {
     GQR6 = 918,
     GQR7 = 919,
     HID2 = 920,
+    MMCR0 = 952,
+    PMC1 = 953,
+    PMC2 = 954,
+    MMCR1 = 956,
+    PMC3 = 957,
+    PMC4 = 958,
     HID0 = 1008,
     HID1 = 1009,
     L2CR = 1017,
@@ -650,6 +654,12 @@ impl SPR {
             Self::GQR6 => offset_of!(Registers, supervisor.gq[6]),
             Self::GQR7 => offset_of!(Registers, supervisor.gq[7]),
             Self::HID2 => offset_of!(Registers, supervisor.config.hid[2]),
+            Self::MMCR0 => offset_of!(Registers, supervisor.performance.control[0]),
+            Self::PMC1 => offset_of!(Registers, supervisor.performance.counters[0]),
+            Self::PMC2 => offset_of!(Registers, supervisor.performance.counters[1]),
+            Self::MMCR1 => offset_of!(Registers, supervisor.performance.control[1]),
+            Self::PMC3 => offset_of!(Registers, supervisor.performance.counters[2]),
+            Self::PMC4 => offset_of!(Registers, supervisor.performance.counters[3]),
             Self::HID0 => offset_of!(Registers, supervisor.config.hid[0]),
             Self::HID1 => offset_of!(Registers, supervisor.config.hid[1]),
             Self::L2CR => offset_of!(Registers, supervisor.misc.l2cr),

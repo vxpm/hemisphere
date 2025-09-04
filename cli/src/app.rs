@@ -192,7 +192,7 @@ impl App {
                 Action::RunStep => {
                     if !self.runner.running() {
                         self.runner
-                            .with_state(|s| s.hemisphere_mut().exec_limited(1));
+                            .with_state(|s| s.hemisphere_mut().exec_with_limit(1));
                     }
                 }
                 Action::RunToggle => {
