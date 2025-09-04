@@ -208,20 +208,28 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Bc => self.branch_cond(ins),
             Opcode::Bclr => self.branch_cond_lr(ins),
             Opcode::Cmpi => self.cmpi(ins),
+            Opcode::Fmr => self.stub(ins),   // NOTE: stubbed
+            Opcode::Isync => self.stub(ins), // NOTE: stubbed
+            Opcode::Lfd => self.stub(ins),   // NOTE: stubbed
             Opcode::Lwz => self.lwz(ins),
             Opcode::Lwzu => self.lwzu(ins),
-            Opcode::Mfspr => self.mfspr(ins),
-            Opcode::Mtspr => self.mtspr(ins),
             Opcode::Mfmsr => self.mfmsr(ins),
+            Opcode::Mfspr => self.mfspr(ins),
+            Opcode::Mtfsf => self.stub(ins), // NOTE: stubbed
+            Opcode::Mtmsr => self.mtmsr(ins),
+            Opcode::Mtspr => self.mtspr(ins),
+            Opcode::Mtsr => self.mtsr(ins),
             Opcode::Ori => self.ori(ins),
             Opcode::Oris => self.oris(ins),
-            Opcode::Rlwinm => self.rlwinm(ins),
+            Opcode::PsMr => self.stub(ins), // NOTE: stubbed
+            Opcode::PsqL => self.stub(ins), // NOTE: stubbed
             Opcode::Rfi => self.rfi(ins),
+            Opcode::Rlwinm => self.rlwinm(ins),
             Opcode::Sth => self.sth(ins),
+            Opcode::Stmw => self.stmw(ins),
             Opcode::Stw => self.stw(ins),
             Opcode::Stwu => self.stwu(ins),
-            Opcode::Isync => self.isync(ins),
-            Opcode::Mtsr => self.mtsr(ins),
+            Opcode::Sync => self.stub(ins), // NOTE: stubbed
             Opcode::Illegal => {
                 return Err(EmitError::Illegal(ins));
             }

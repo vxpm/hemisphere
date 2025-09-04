@@ -197,7 +197,7 @@ impl RegistersPane {
         let cpu = &ctx.state.hemisphere().system.cpu;
         reg!(
             "MSR",
-            cpu.supervisor.msr.clone(),
+            cpu.supervisor.config.msr.clone(),
             |msr: MachineState| hex(msr.to_bits()),
             render_msr
         );
@@ -297,7 +297,7 @@ impl RegistersPane {
                 .selected()
                 .is_some_and(|selected| selected == i)
             {
-                self.render_float_formats(&mut ctx.frame, formats, cpu.user.fpr[i]);
+                self.render_float_formats(&mut ctx.frame, formats, cpu.user.fpr[i][0]);
             }
         }
 

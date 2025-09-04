@@ -1,26 +1,24 @@
 use crate::Address;
 use bitos::{
     BitUtils, bitos,
-    integer::{u2, u4, u7, u11, u15},
+    integer::{u2, u4, u6, u7, u11, u15},
 };
-use std::{fmt::Debug, mem::offset_of};
+use std::fmt::Debug;
 use strum::{FromRepr, VariantArray};
 
 pub use powerpc;
 
 // like offset_of, except it also supports indexing arrays
-// macro_rules! ext_offset_of {
-//     ($t:ty, $($path:tt)+) => {{
-//         let data = core::mem::MaybeUninit::<$t>::uninit();
-//         let ptr = data.as_ptr();
-//         unsafe { (&raw const (*ptr).$($path)+).byte_offset_from(ptr) as usize }
-//     }}
-// }
+macro_rules! offset_of {
+    ($t:ty, $($path:tt)+) => {{
+        const OFFSET: usize = {
+            let data = core::mem::MaybeUninit::<$t>::uninit();
+            let ptr = data.as_ptr();
+            unsafe { (&raw const (*ptr).$($path)+).byte_offset_from(ptr) as usize }
+        };
 
-macro_rules! offset_of_array {
-    ($type:ty, $index_ty:ty, $index:expr, $($path:tt)+) => {
-        offset_of!($type, $($path)+) + $index * size_of::<$index_ty>()
-    };
+        OFFSET
+    }}
 }
 
 /// Extension trait for [`Ins`](powerpc::Ins).
@@ -158,6 +156,24 @@ pub struct XerReg {
     pub overflow_fuse: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+#[repr(transparent)]
+pub struct FloatingPair(pub [f64; 2]);
+
+impl std::ops::Deref for FloatingPair {
+    type Target = [f64; 2];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for FloatingPair {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
 /// User level registers
 #[repr(C)]
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -165,7 +181,7 @@ pub struct User {
     /// General Purpose Registers
     pub gpr: [u32; 32],
     /// Floating Point Registers
-    pub fpr: [f64; 32],
+    pub fpr: [FloatingPair; 32],
     /// Condition Register
     pub cr: CondReg,
     /// Floating Point Status and Condition Register
@@ -310,9 +326,52 @@ pub struct ExceptionHandling {
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
-pub struct HardwareImpl {
+pub struct Configuration {
+    /// Machine State Register
+    pub msr: MachineState,
     /// Hardware Implementation Dependent registers
     pub hid: [u32; 3],
+}
+
+#[bitos(3)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum QuantizedType {
+    #[default]
+    Float,
+    Reserved0,
+    Reserved1,
+    Reserved2,
+    U8,
+    U16,
+    I8,
+    I16,
+}
+
+/// The XER register contains information about overflow and carry operations, and is also used by
+/// the load/store string indexed instructions.
+#[bitos(32)]
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct QuantReg {
+    /// Type of operand resulting from a conversion by a store instruction
+    #[bits(0..3)]
+    pub store_type: QuantizedType,
+    /// Scale used by a store instruction
+    #[bits(8..14)]
+    pub store_scale: u6,
+    /// Type of operand resulting from a conversion by a load instruction
+    #[bits(16..19)]
+    pub load_type: QuantizedType,
+    /// Scale used by a load instruction
+    #[bits(24..30)]
+    pub load_scale: u6,
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct QuantizationRegisters {
+    /// Time Base
+    pub tbl: u64,
+    /// Decrementer
+    pub dec: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -321,20 +380,34 @@ pub struct Miscellaneous {
     pub tbl: u64,
     /// Decrementer
     pub dec: u32,
+    /// L2 Control
+    pub l2cr: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Performance {
+    /// Time Base
+    pub tbl: u64,
+    /// Decrementer
+    pub dec: u32,
+    /// L2 Control
+    pub l2cr: u32,
 }
 
 /// Supervisor level registers
 #[repr(C)]
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Supervisor {
-    /// Machine State Register
-    pub msr: MachineState,
+    /// Configuration registers
+    pub config: Configuration,
     /// Memory management registers
     pub memory: MemoryManagement,
     /// Exception handling registers
     pub exception: ExceptionHandling,
-    /// Hardware implementation registers
-    pub hardware: HardwareImpl,
+    /// Graphics Quantization registers
+    pub gq: [QuantReg; 8],
+    /// Performance registers
+    pub performance: Performance,
     /// Miscellaneous registers
     pub misc: Miscellaneous,
 }
@@ -342,7 +415,7 @@ pub struct Supervisor {
 impl Supervisor {
     /// Translates an instruction effective address into a physical address.
     pub fn translate_instr_addr(&self, addr: Address) -> Address {
-        if !self.msr.instr_addr_translation() {
+        if !self.config.msr.instr_addr_translation() {
             return addr;
         }
 
@@ -357,7 +430,7 @@ impl Supervisor {
 
     /// Translates a data effective address into a physical address.
     pub fn translate_data_addr(&self, addr: Address) -> Address {
-        if !self.msr.data_addr_translation() {
+        if !self.config.msr.data_addr_translation() {
             return addr;
         }
 
@@ -488,7 +561,7 @@ impl FPR {
     /// Offset of this FPR in the [`Registers`] struct.
     #[inline(always)]
     pub fn offset(self) -> usize {
-        offset_of!(Registers, user.fpr) + size_of::<f64>() * (self as usize)
+        offset_of!(Registers, user.fpr) + size_of::<FloatingPair>() * (self as usize)
     }
 }
 
@@ -517,9 +590,18 @@ pub enum SPR {
     DBAT2L = 541,
     DBAT3U = 542,
     DBAT3L = 543,
+    GQR0 = 912,
+    GQR1 = 913,
+    GQR2 = 914,
+    GQR3 = 915,
+    GQR4 = 916,
+    GQR5 = 917,
+    GQR6 = 918,
+    GQR7 = 919,
     HID2 = 920,
     HID0 = 1008,
     HID1 = 1009,
+    L2CR = 1017,
 }
 
 impl SPR {
@@ -541,27 +623,36 @@ impl SPR {
             Self::XER => offset_of!(Registers, user.xer),
             Self::LR => offset_of!(Registers, user.lr),
             Self::CTR => offset_of!(Registers, user.ctr),
-            Self::SRR0 => offset_of_array!(Registers, u32, 0, supervisor.exception.srr),
-            Self::SRR1 => offset_of_array!(Registers, u32, 1, supervisor.exception.srr),
-            Self::IBAT0U => offset_of_array!(Registers, u64, 0, supervisor.memory.ibat) + 4,
-            Self::IBAT0L => offset_of_array!(Registers, u64, 0, supervisor.memory.ibat),
-            Self::IBAT1U => offset_of_array!(Registers, u64, 1, supervisor.memory.ibat) + 4,
-            Self::IBAT1L => offset_of_array!(Registers, u64, 1, supervisor.memory.ibat),
-            Self::IBAT2U => offset_of_array!(Registers, u64, 2, supervisor.memory.ibat) + 4,
-            Self::IBAT2L => offset_of_array!(Registers, u64, 2, supervisor.memory.ibat),
-            Self::IBAT3U => offset_of_array!(Registers, u64, 3, supervisor.memory.ibat) + 4,
-            Self::IBAT3L => offset_of_array!(Registers, u64, 3, supervisor.memory.ibat),
-            Self::DBAT0U => offset_of_array!(Registers, u64, 0, supervisor.memory.dbat) + 4,
-            Self::DBAT0L => offset_of_array!(Registers, u64, 0, supervisor.memory.dbat),
-            Self::DBAT1U => offset_of_array!(Registers, u64, 1, supervisor.memory.dbat) + 4,
-            Self::DBAT1L => offset_of_array!(Registers, u64, 1, supervisor.memory.dbat),
-            Self::DBAT2U => offset_of_array!(Registers, u64, 2, supervisor.memory.dbat) + 4,
-            Self::DBAT2L => offset_of_array!(Registers, u64, 2, supervisor.memory.dbat),
-            Self::DBAT3U => offset_of_array!(Registers, u64, 3, supervisor.memory.dbat) + 4,
-            Self::DBAT3L => offset_of_array!(Registers, u64, 3, supervisor.memory.dbat),
-            Self::HID2 => offset_of_array!(Registers, u32, 2, supervisor.hardware.hid),
-            Self::HID0 => offset_of_array!(Registers, u32, 0, supervisor.hardware.hid),
-            Self::HID1 => offset_of_array!(Registers, u32, 1, supervisor.hardware.hid),
+            Self::SRR0 => offset_of!(Registers, supervisor.exception.srr[0]),
+            Self::SRR1 => offset_of!(Registers, supervisor.exception.srr[1]),
+            Self::IBAT0U => offset_of!(Registers, supervisor.memory.ibat[0]) + 4,
+            Self::IBAT0L => offset_of!(Registers, supervisor.memory.ibat[0]),
+            Self::IBAT1U => offset_of!(Registers, supervisor.memory.ibat[1]) + 4,
+            Self::IBAT1L => offset_of!(Registers, supervisor.memory.ibat[1]),
+            Self::IBAT2U => offset_of!(Registers, supervisor.memory.ibat[2]) + 4,
+            Self::IBAT2L => offset_of!(Registers, supervisor.memory.ibat[2]),
+            Self::IBAT3U => offset_of!(Registers, supervisor.memory.ibat[3]) + 4,
+            Self::IBAT3L => offset_of!(Registers, supervisor.memory.ibat[3]),
+            Self::DBAT0U => offset_of!(Registers, supervisor.memory.dbat[0]) + 4,
+            Self::DBAT0L => offset_of!(Registers, supervisor.memory.dbat[0]),
+            Self::DBAT1U => offset_of!(Registers, supervisor.memory.dbat[1]) + 4,
+            Self::DBAT1L => offset_of!(Registers, supervisor.memory.dbat[1]),
+            Self::DBAT2U => offset_of!(Registers, supervisor.memory.dbat[2]) + 4,
+            Self::DBAT2L => offset_of!(Registers, supervisor.memory.dbat[2]),
+            Self::DBAT3U => offset_of!(Registers, supervisor.memory.dbat[3]) + 4,
+            Self::DBAT3L => offset_of!(Registers, supervisor.memory.dbat[3]),
+            Self::GQR0 => offset_of!(Registers, supervisor.gq[0]),
+            Self::GQR1 => offset_of!(Registers, supervisor.gq[1]),
+            Self::GQR2 => offset_of!(Registers, supervisor.gq[2]),
+            Self::GQR3 => offset_of!(Registers, supervisor.gq[3]),
+            Self::GQR4 => offset_of!(Registers, supervisor.gq[4]),
+            Self::GQR5 => offset_of!(Registers, supervisor.gq[5]),
+            Self::GQR6 => offset_of!(Registers, supervisor.gq[6]),
+            Self::GQR7 => offset_of!(Registers, supervisor.gq[7]),
+            Self::HID2 => offset_of!(Registers, supervisor.config.hid[2]),
+            Self::HID0 => offset_of!(Registers, supervisor.config.hid[0]),
+            Self::HID1 => offset_of!(Registers, supervisor.config.hid[1]),
+            Self::L2CR => offset_of!(Registers, supervisor.misc.l2cr),
         }
     }
 }
@@ -622,25 +713,25 @@ impl Reg {
             Self::FPR(fpr) => fpr.offset(),
             Self::SPR(spr) => spr.offset(),
             Self::PC => offset_of!(Registers, pc),
-            Self::MSR => offset_of!(Registers, supervisor.msr),
+            Self::MSR => offset_of!(Registers, supervisor.config.msr),
             Self::CR => offset_of!(Registers, user.cr),
             Self::FPSCR => offset_of!(Registers, user.fpscr),
-            Self::SR0 => offset_of_array!(Registers, u32, 0, supervisor.memory.sr),
-            Self::SR1 => offset_of_array!(Registers, u32, 1, supervisor.memory.sr),
-            Self::SR2 => offset_of_array!(Registers, u32, 2, supervisor.memory.sr),
-            Self::SR3 => offset_of_array!(Registers, u32, 3, supervisor.memory.sr),
-            Self::SR4 => offset_of_array!(Registers, u32, 4, supervisor.memory.sr),
-            Self::SR5 => offset_of_array!(Registers, u32, 5, supervisor.memory.sr),
-            Self::SR6 => offset_of_array!(Registers, u32, 6, supervisor.memory.sr),
-            Self::SR7 => offset_of_array!(Registers, u32, 7, supervisor.memory.sr),
-            Self::SR8 => offset_of_array!(Registers, u32, 8, supervisor.memory.sr),
-            Self::SR9 => offset_of_array!(Registers, u32, 9, supervisor.memory.sr),
-            Self::SR10 => offset_of_array!(Registers, u32, 10, supervisor.memory.sr),
-            Self::SR11 => offset_of_array!(Registers, u32, 11, supervisor.memory.sr),
-            Self::SR12 => offset_of_array!(Registers, u32, 12, supervisor.memory.sr),
-            Self::SR13 => offset_of_array!(Registers, u32, 13, supervisor.memory.sr),
-            Self::SR14 => offset_of_array!(Registers, u32, 14, supervisor.memory.sr),
-            Self::SR15 => offset_of_array!(Registers, u32, 15, supervisor.memory.sr),
+            Self::SR0 => offset_of!(Registers, supervisor.memory.sr[0]),
+            Self::SR1 => offset_of!(Registers, supervisor.memory.sr[1]),
+            Self::SR2 => offset_of!(Registers, supervisor.memory.sr[2]),
+            Self::SR3 => offset_of!(Registers, supervisor.memory.sr[3]),
+            Self::SR4 => offset_of!(Registers, supervisor.memory.sr[4]),
+            Self::SR5 => offset_of!(Registers, supervisor.memory.sr[5]),
+            Self::SR6 => offset_of!(Registers, supervisor.memory.sr[6]),
+            Self::SR7 => offset_of!(Registers, supervisor.memory.sr[7]),
+            Self::SR8 => offset_of!(Registers, supervisor.memory.sr[8]),
+            Self::SR9 => offset_of!(Registers, supervisor.memory.sr[9]),
+            Self::SR10 => offset_of!(Registers, supervisor.memory.sr[10]),
+            Self::SR11 => offset_of!(Registers, supervisor.memory.sr[11]),
+            Self::SR12 => offset_of!(Registers, supervisor.memory.sr[12]),
+            Self::SR13 => offset_of!(Registers, supervisor.memory.sr[13]),
+            Self::SR14 => offset_of!(Registers, supervisor.memory.sr[14]),
+            Self::SR15 => offset_of!(Registers, supervisor.memory.sr[15]),
         }
     }
 

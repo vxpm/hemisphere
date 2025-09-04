@@ -4,7 +4,7 @@ use cranelift::{
     codegen::ir,
     prelude::{InstBuilder, isa::CallConv},
 };
-use hemicore::arch::{InsExt, powerpc::Ins};
+use hemicore::arch::{GPR, InsExt, powerpc::Ins};
 use std::mem::offset_of;
 
 fn sig_read(ptr_type: ir::Type, read_type: ir::Type) -> ir::Signature {
@@ -122,6 +122,24 @@ impl BlockBuilder<'_> {
 
         let value = self.get(ins.gpr_s());
         self.write::<i32>(addr, value);
+    }
+
+    pub fn stmw(&mut self, ins: Ins) {
+        let mut addr = if ins.field_ra() == 0 {
+            self.bd
+                .ins()
+                .iconst(ir::types::I32, ins.field_offset() as i64)
+        } else {
+            let ra = self.get(ins.gpr_a());
+            self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
+        };
+
+        for i in ins.field_rs()..32 {
+            let value = self.get(GPR::new(i));
+            self.write::<i32>(addr, value);
+
+            addr = self.bd.ins().iadd_imm(addr, 4);
+        }
     }
 
     pub fn sth(&mut self, ins: Ins) {

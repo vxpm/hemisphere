@@ -2,7 +2,7 @@ use super::BlockBuilder;
 use hemicore::arch::{InsExt, Reg, powerpc::Ins};
 
 impl BlockBuilder<'_> {
-    pub fn isync(&mut self, _: Ins) {
+    pub fn stub(&mut self, _: Ins) {
         // stub
     }
 
@@ -27,5 +27,13 @@ impl BlockBuilder<'_> {
 
         let value = self.get(Reg::MSR);
         self.set(ins.gpr_d(), value);
+    }
+
+    pub fn mtmsr(&mut self, ins: Ins) {
+        // TODO: check user mode
+        // TODO: deal with exception stuff
+
+        let value = self.get(ins.gpr_s());
+        self.set(Reg::MSR, value);
     }
 }

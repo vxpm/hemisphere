@@ -65,8 +65,16 @@ impl System {
     pub fn load(&mut self, dol: &Dol) {
         self.cpu.pc = Address(dol.entrypoint());
         self.cpu.supervisor.memory.setup_default_bats();
-        self.cpu.supervisor.msr.set_instr_addr_translation(true);
-        self.cpu.supervisor.msr.set_data_addr_translation(true);
+        self.cpu
+            .supervisor
+            .config
+            .msr
+            .set_instr_addr_translation(true);
+        self.cpu
+            .supervisor
+            .config
+            .msr
+            .set_data_addr_translation(true);
 
         for section in dol.text_sections() {
             for (offset, byte) in section.content.iter().copied().enumerate() {
