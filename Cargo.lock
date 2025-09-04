@@ -266,6 +266,7 @@ name = "cli"
 version = "0.1.0"
 dependencies = [
  "binrw",
+ "bytesize",
  "clap",
  "eyre-pretty",
  "hemisphere",

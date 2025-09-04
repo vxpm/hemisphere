@@ -1,5 +1,6 @@
 use crate::app::{Action, border_style, tab::Context};
-use hemisphere::core::arch::{CondReg, MachineState, XerReg};
+use bytesize::ByteSize;
+use hemisphere::core::arch::{Bat, CondReg, MachineState, XerReg};
 use ratatui::{
     Frame,
     crossterm::event::{KeyCode, KeyEvent},
@@ -138,6 +139,27 @@ impl RegistersPane {
         frame.render_widget(table, area);
     }
 
+    fn render_bats(&self, frame: &mut Frame, area: Rect, bats: [Bat; 4]) {
+        let header = Row::new(vec!["Field", "Value"]).light_magenta().not_dim();
+        let widths = [Constraint::Length(24), Constraint::Min(1)];
+        let mut rows = Vec::new();
+
+        for (i, bat) in bats.iter().enumerate() {
+            rows.extend([
+                row!("BAT{i} Virtual Range"; "{}..={}", bat.start(), bat.end()),
+                row!("BAT{i} Physical Range"; "{}..={}", bat.physical_start(), bat.physical_end()),
+                row!("BAT{i} Length"; "{}", ByteSize(bat.block_length() as u64)),
+            ]);
+        }
+
+        let table = Table::new(rows, widths)
+            .column_spacing(2)
+            .header(header)
+            .style(Style::new().blue());
+
+        frame.render_widget(table, area);
+    }
+
     fn render_core(&mut self, ctx: &mut Context, area: Rect) {
         let [regs, formats] =
             Layout::horizontal([Constraint::Percentage(20), Constraint::Percentage(80)])
@@ -147,20 +169,18 @@ impl RegistersPane {
         let widths = [Constraint::Length(5), Constraint::Min(1)];
         let mut rows = Vec::new();
 
+        let hex = |value: u32| -> String { format!("{:08X}", value) };
         let mut current = 0;
         macro_rules! reg {
-            ($name:expr, $value:expr, $render:ident, $($conversion:ident)?) => {
-                rows.push(Row::new(vec![
-                    $name.to_string(),
-                    format!("{:08X}", $value $(.$conversion())?),
-                ]));
+            ($name:expr, $value:expr, $basic:expr, $detailed:ident) => {
+                rows.push(Row::new(vec![$name.to_string(), ($basic)($value)]));
 
                 if self
                     .table_state
                     .selected()
                     .is_some_and(|selected| selected == current)
                 {
-                    self.$render(&mut ctx.frame, formats, $value);
+                    self.$detailed(&mut ctx.frame, formats, $value);
                 }
 
                 #[allow(unused_assignments)]
@@ -168,18 +188,46 @@ impl RegistersPane {
                     current += 1;
                 }
             };
+
             ($name:expr, $value:expr) => {
-                reg!($name, $value, render_int_formats,);
+                reg!($name, $value, |value| hex(value), render_int_formats);
             };
         }
 
         let cpu = &ctx.state.hemisphere().system.cpu;
-        reg!("MSR", cpu.supervisor.msr.clone(), render_msr, to_bits);
-        reg!("CR", cpu.user.cr.clone(), render_cr, to_bits);
-        reg!("XER", cpu.user.xer.clone(), render_xer, to_bits);
+        reg!(
+            "MSR",
+            cpu.supervisor.msr.clone(),
+            |msr: MachineState| hex(msr.to_bits()),
+            render_msr
+        );
+        reg!(
+            "CR",
+            cpu.user.cr.clone(),
+            |cr: CondReg| hex(cr.to_bits()),
+            render_cr
+        );
+        reg!(
+            "XER",
+            cpu.user.xer.clone(),
+            |xer: XerReg| hex(xer.to_bits()),
+            render_xer
+        );
         reg!("CTR", cpu.user.ctr);
         reg!("SRR0", cpu.supervisor.exception.srr[0]);
         reg!("SRR1", cpu.supervisor.exception.srr[1]);
+        reg!(
+            "IBAT",
+            cpu.supervisor.memory.ibat.clone(),
+            |_| "[...]".to_owned(),
+            render_bats
+        );
+        reg!(
+            "DBAT",
+            cpu.supervisor.memory.dbat.clone(),
+            |_| "[...]".to_owned(),
+            render_bats
+        );
 
         let table = Table::new(rows, widths)
             .column_spacing(2)

@@ -134,7 +134,7 @@ impl Main {
         let [status, registers, breakpoints] = Layout::vertical([
             Constraint::Length(5),
             Constraint::Min(9),
-            Constraint::Percentage(40),
+            Constraint::Percentage(25),
         ])
         .areas(right);
 
