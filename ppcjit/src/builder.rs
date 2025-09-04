@@ -157,7 +157,7 @@ impl<'ctx> BlockBuilder<'ctx> {
         let eq = self.bd.ins().uextend(ir::types::I32, eq);
         let ov = self.bd.ins().uextend(ir::types::I32, ov);
 
-        let base = (4 * index) as u64 as i64;
+        let base = (4 * (7 - index)) as u64 as i64;
         let lt = self.bd.ins().ishl_imm(lt, base + 3);
         let gt = self.bd.ins().ishl_imm(gt, base + 2);
         let eq = self.bd.ins().ishl_imm(eq, base + 1);
@@ -239,6 +239,7 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Mtfsb1 => self.mtsfb1(ins),
             Opcode::Lmw => self.lmw(ins),
             Opcode::Cmp => self.cmp(ins),
+            Opcode::Cmpli => self.cmpli(ins),
             Opcode::Illegal => {
                 return Err(EmitError::Illegal(ins));
             }
