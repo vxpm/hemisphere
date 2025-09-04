@@ -80,6 +80,14 @@ impl BlockStorage {
             self.mapping.remove(&Address(range.start as u32));
             self.intervals.remove(&range);
         }
+
+        if self
+            .last_query
+            .as_ref()
+            .is_some_and(|(queried, _)| *queried == addr)
+        {
+            self.last_query = None;
+        }
     }
 }
 

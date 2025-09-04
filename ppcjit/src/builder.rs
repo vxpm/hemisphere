@@ -148,6 +148,18 @@ impl<'ctx> BlockBuilder<'ctx> {
         self.set(SPR::XER, updated);
     }
 
+    fn update_xer_ca(&mut self, carry: ir::Value) {
+        let xer = self.get(SPR::XER);
+        let carry = self.bd.ins().uextend(ir::types::I32, carry);
+        let value = self.bd.ins().ishl_imm(carry, 29);
+
+        let mask = self.bd.ins().iconst(ir::types::I32, !(0b1 << 29));
+        let masked = self.bd.ins().band(xer, mask);
+        let updated = self.bd.ins().bor(masked, value);
+
+        self.set(SPR::XER, updated);
+    }
+
     /// All ir values must be booleans (i.e. I8).
     fn update_cr(&mut self, index: u8, lt: ir::Value, gt: ir::Value, eq: ir::Value, ov: ir::Value) {
         let cr = self.get(Reg::CR);
@@ -240,6 +252,15 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Lmw => self.lmw(ins),
             Opcode::Cmp => self.cmp(ins),
             Opcode::Cmpli => self.cmpli(ins),
+            Opcode::Subf => self.subf(ins),
+            Opcode::Stbu => self.stbu(ins),
+            Opcode::Addic_ => self.addic_record(ins),
+            Opcode::Or => self.or(ins),
+            Opcode::Andi_ => self.andi_record(ins),
+            Opcode::Stb => self.stb(ins),
+            Opcode::Cmpl => self.cmpl(ins),
+            Opcode::Dcbf => self.stub(ins), // NOTE: stubbed
+            Opcode::Stwx => self.stwx(ins),
             Opcode::Illegal => {
                 return Err(EmitError::Illegal(ins));
             }

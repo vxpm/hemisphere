@@ -11,6 +11,7 @@ use ratatui::{
     widgets::Block,
 };
 use std::time::Duration;
+use tracing::debug;
 
 fn center(area: Rect, horizontal: Constraint, vertical: Constraint) -> Rect {
     let [area] = Layout::horizontal([horizontal])
@@ -191,8 +192,10 @@ impl App {
                 }
                 Action::RunStep => {
                     if !self.runner.running() {
-                        self.runner
-                            .with_state(|s| s.hemisphere_mut().exec_with_limit(1));
+                        self.runner.with_state(|s| {
+                            debug!("stepping at {}", s.hemisphere().system.cpu.pc);
+                            s.hemisphere_mut().exec_with_limit(1)
+                        });
                     }
                 }
                 Action::RunToggle => {

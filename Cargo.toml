@@ -3,6 +3,9 @@ resolver = "3"
 members = ["hemicore", "ppcjit", "dolfile", "dolinfo", "hemisphere", "cli"]
 default-members = ["hemicore", "ppcjit", "dolfile", "hemisphere", "cli"]
 
+[profile.dev.package."cranelift-codegen"]
+opt-level = 2
+
 [profile.dev.package."binrw"]
 opt-level = 3
 

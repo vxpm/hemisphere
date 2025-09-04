@@ -134,6 +134,7 @@ pub struct Hemisphere {
     pub system: System,
     pub jit: JIT,
     invalidated: Vec<Address>,
+    last_limited_block: Option<(Address, ppcjit::Block)>,
 }
 
 impl Hemisphere {
@@ -143,6 +144,7 @@ impl Hemisphere {
             system: System::new(),
             jit: JIT::new(),
             invalidated: Vec::new(),
+            last_limited_block: None,
         }
     }
 
@@ -179,26 +181,48 @@ impl Hemisphere {
         self.jit.compiler.compile(seq).unwrap()
     }
 
+    #[inline(always)]
+    fn invalidate(&mut self) {
+        if self.invalidated.is_empty() {
+            return;
+        }
+
+        for &invalidated in &self.invalidated {
+            self.jit.blocks.invalidate(invalidated);
+
+            if self
+                .last_limited_block
+                .as_ref()
+                .is_some_and(|(addr, _)| *addr == invalidated)
+            {
+                std::hint::cold_path();
+                self.last_limited_block = None;
+            }
+        }
+
+        self.invalidated.clear();
+    }
+
     /// Executes a single block with a limit of instructions and returns how many instructions were
     /// executed.
     pub fn exec_with_limit(&mut self, limit: u16) -> u32 {
-        let compiled: ppcjit::Block;
         let block = if let Some(in_storage) = self.jit.blocks.get(self.system.cpu.pc)
             && in_storage.sequence().len() <= limit as usize
         {
             in_storage
+        } else if let Some((addr, block)) = &self.last_limited_block
+            && *addr == self.system.cpu.pc
+        {
+            block
         } else {
             std::hint::cold_path();
-            compiled = self.compile(self.system.cpu.pc, limit);
-            &compiled
+            let compiled = self.compile(self.system.cpu.pc, limit);
+            self.last_limited_block = Some((self.system.cpu.pc, compiled));
+            self.last_limited_block.as_ref().map(|(_, b)| b).unwrap()
         };
 
         let executed = self.system.exec(&block, &mut self.invalidated);
-        if !self.invalidated.is_empty() {
-            for invalidated in self.invalidated.drain(..) {
-                self.jit.blocks.invalidate(invalidated);
-            }
-        }
+        self.invalidate();
 
         executed
     }
@@ -227,11 +251,7 @@ impl Hemisphere {
         };
 
         let executed = self.system.exec(block, &mut self.invalidated);
-        if !self.invalidated.is_empty() {
-            for invalidated in self.invalidated.drain(..) {
-                self.jit.blocks.invalidate(invalidated);
-            }
-        }
+        self.invalidate();
 
         executed
     }

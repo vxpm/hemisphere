@@ -32,26 +32,32 @@ fn sig_write(ptr_type: ir::Type, write_type: ir::Type) -> ir::Signature {
     }
 }
 
-trait IrType {
+trait IrPrimitive {
     const READ_OFFSET: i32;
     const WRITE_OFFSET: i32;
     const IR_TYPE: ir::Type;
 }
 
-impl IrType for i32 {
-    const READ_OFFSET: i32 = offset_of!(ExternalFunctions, read_i32) as i32;
-    const WRITE_OFFSET: i32 = offset_of!(ExternalFunctions, write_i32) as i32;
-    const IR_TYPE: ir::Type = ir::types::I32;
+impl IrPrimitive for i8 {
+    const READ_OFFSET: i32 = offset_of!(ExternalFunctions, read_i8) as i32;
+    const WRITE_OFFSET: i32 = offset_of!(ExternalFunctions, write_i8) as i32;
+    const IR_TYPE: ir::Type = ir::types::I8;
 }
 
-impl IrType for i16 {
+impl IrPrimitive for i16 {
     const READ_OFFSET: i32 = offset_of!(ExternalFunctions, read_i16) as i32;
     const WRITE_OFFSET: i32 = offset_of!(ExternalFunctions, write_i16) as i32;
     const IR_TYPE: ir::Type = ir::types::I16;
 }
 
+impl IrPrimitive for i32 {
+    const READ_OFFSET: i32 = offset_of!(ExternalFunctions, read_i32) as i32;
+    const WRITE_OFFSET: i32 = offset_of!(ExternalFunctions, write_i32) as i32;
+    const IR_TYPE: ir::Type = ir::types::I32;
+}
+
 impl BlockBuilder<'_> {
-    fn read<P: IrType>(&mut self, addr: ir::Value) -> ir::Value {
+    fn read<P: IrPrimitive>(&mut self, addr: ir::Value) -> ir::Value {
         let read_fn = self.bd.ins().load(
             self.ctx.ptr_type,
             ir::MemFlags::trusted(),
@@ -78,7 +84,7 @@ impl BlockBuilder<'_> {
         ret[0]
     }
 
-    fn write<P: IrType>(&mut self, addr: ir::Value, value: ir::Value) {
+    fn write<P: IrPrimitive>(&mut self, addr: ir::Value, value: ir::Value) {
         let write_fn = self.bd.ins().load(
             self.ctx.ptr_type,
             ir::MemFlags::trusted(),
@@ -142,6 +148,23 @@ impl BlockBuilder<'_> {
         }
     }
 
+    pub fn stwx(&mut self, ins: Ins) {
+        let rb = self.get(ins.gpr_b());
+        let base = if ins.field_ra() == 0 {
+            self.bd
+                .ins()
+                .iconst(ir::types::I32, ins.field_offset() as i64)
+        } else {
+            let ra = self.get(ins.gpr_a());
+            self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
+        };
+
+        let addr = self.bd.ins().iadd(rb, base);
+
+        let value = self.get(ins.gpr_s());
+        self.write::<i32>(addr, value);
+    }
+
     pub fn sth(&mut self, ins: Ins) {
         let value = self.get(ins.gpr_s());
         let value = self.bd.ins().ireduce(ir::types::I16, value);
@@ -156,6 +179,32 @@ impl BlockBuilder<'_> {
         };
 
         self.write::<i16>(addr, value);
+    }
+
+    pub fn stb(&mut self, ins: Ins) {
+        let value = self.get(ins.gpr_s());
+        let value = self.bd.ins().ireduce(ir::types::I8, value);
+
+        let addr = if ins.field_ra() == 0 {
+            self.bd
+                .ins()
+                .iconst(ir::types::I32, ins.field_offset() as i64)
+        } else {
+            let ra = self.get(ins.gpr_a());
+            self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
+        };
+
+        self.write::<i8>(addr, value);
+    }
+
+    pub fn stbu(&mut self, ins: Ins) {
+        let value = self.get(ins.gpr_s());
+        let value = self.bd.ins().ireduce(ir::types::I8, value);
+
+        let base = self.get(ins.gpr_a());
+        let addr = self.bd.ins().iadd_imm(base, ins.field_offset() as i64);
+        self.set(ins.gpr_a(), addr);
+        self.write::<i8>(addr, value);
     }
 
     pub fn lmw(&mut self, ins: Ins) {

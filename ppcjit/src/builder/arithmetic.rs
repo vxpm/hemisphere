@@ -24,6 +24,20 @@ impl BlockBuilder<'_> {
         self.set(ins.gpr_d(), value);
     }
 
+    pub fn addic_record(&mut self, ins: Ins) {
+        let ra = self.get(ins.gpr_a());
+        let imm = self
+            .bd
+            .ins()
+            .iconst(ir::types::I32, ins.field_simm() as i64);
+
+        let (value, overflowed) = self.bd.ins().sadd_overflow(ra, imm);
+        self.update_cr0_implicit(value, overflowed);
+        self.update_xer_ca(overflowed);
+
+        self.set(ins.gpr_d(), value);
+    }
+
     pub fn addis(&mut self, ins: Ins) {
         let imm = self
             .bd
@@ -44,6 +58,22 @@ impl BlockBuilder<'_> {
         let ra = self.get(ins.gpr_a());
         let rb = self.get(ins.gpr_b());
         let (result, overflowed) = self.bd.ins().sadd_overflow(ra, rb);
+
+        if ins.field_rc() {
+            self.update_cr0_implicit(result, overflowed);
+        }
+
+        if ins.field_oe() {
+            self.update_xer_ov(overflowed);
+        }
+
+        self.set(ins.gpr_d(), result);
+    }
+
+    pub fn subf(&mut self, ins: Ins) {
+        let ra = self.get(ins.gpr_a());
+        let rb = self.get(ins.gpr_b());
+        let (result, overflowed) = self.bd.ins().ssub_overflow(rb, ra);
 
         if ins.field_rc() {
             self.update_cr0_implicit(result, overflowed);
@@ -77,6 +107,35 @@ impl BlockBuilder<'_> {
         let value = self.bd.ins().bor(rs, imm);
         self.set(ins.gpr_a(), value);
     }
+
+    pub fn or(&mut self, ins: Ins) {
+        let rs = self.get(ins.gpr_s());
+        let rb = self.get(ins.gpr_b());
+        let value = self.bd.ins().bor(rs, rb);
+
+        if ins.field_rc() {
+            let _false = self.bd.ins().iconst(ir::types::I8, 0);
+            self.update_cr0_implicit(value, _false);
+        }
+
+        self.set(ins.gpr_a(), value);
+    }
+
+    pub fn andi_record(&mut self, ins: Ins) {
+        let imm = self
+            .bd
+            .ins()
+            .iconst(ir::types::I32, ins.field_uimm() as u64 as i64);
+        let rs = self.get(ins.gpr_s());
+        let value = self.bd.ins().band(rs, imm);
+
+        let _false = self.bd.ins().iconst(ir::types::I8, 0);
+        self.update_cr0_implicit(value, _false);
+
+        self.set(ins.gpr_a(), value);
+    }
+
+    pub fn divwu(&mut self, ins: Ins) {}
 
     pub fn rlwinm(&mut self, ins: Ins) {
         let _span = debug_span!("rlwinm").entered();
@@ -141,6 +200,13 @@ impl BlockBuilder<'_> {
         let rb = self.get(ins.gpr_b());
 
         self.compare_signed(ra, rb, ins.field_crfd());
+    }
+
+    pub fn cmpl(&mut self, ins: Ins) {
+        let ra = self.get(ins.gpr_a());
+        let rb = self.get(ins.gpr_b());
+
+        self.compare_unsigned(ra, rb, ins.field_crfd());
     }
 
     pub fn cmpli(&mut self, ins: Ins) {
