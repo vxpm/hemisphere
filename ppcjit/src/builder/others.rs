@@ -2,6 +2,10 @@ use super::BlockBuilder;
 use hemicore::arch::{InsExt, Reg, powerpc::Ins};
 
 impl BlockBuilder<'_> {
+    pub fn isync(&mut self, _: Ins) {
+        // stub
+    }
+
     pub fn mfspr(&mut self, ins: Ins) {
         let value = self.get(ins.spr());
         self.set(ins.gpr_d(), value);
@@ -10,6 +14,12 @@ impl BlockBuilder<'_> {
     pub fn mtspr(&mut self, ins: Ins) {
         let value = self.get(ins.gpr_s());
         self.set(ins.spr(), value);
+    }
+
+    pub fn mtsr(&mut self, ins: Ins) {
+        let value = self.get(ins.gpr_s());
+        let sr = Reg::SR[ins.field_sr() as usize];
+        self.set(sr, value);
     }
 
     pub fn mfmsr(&mut self, ins: Ins) {

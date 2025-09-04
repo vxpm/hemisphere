@@ -220,6 +220,8 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Sth => self.sth(ins),
             Opcode::Stw => self.stw(ins),
             Opcode::Stwu => self.stwu(ins),
+            Opcode::Isync => self.isync(ins),
+            Opcode::Mtsr => self.mtsr(ins),
             Opcode::Illegal => {
                 return Err(EmitError::Illegal(ins));
             }

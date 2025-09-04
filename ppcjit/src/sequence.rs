@@ -6,7 +6,7 @@ use std::ops::Deref;
 pub struct Sequence(Vec<Ins>);
 
 fn is_terminal(ins: &Ins) -> bool {
-    ins.is_unconditional_branch() || matches!(ins.op, Opcode::Rfi)
+    ins.is_unconditional_branch() || matches!(ins.op, Opcode::Rfi | Opcode::Isync)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
