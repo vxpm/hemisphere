@@ -1,4 +1,5 @@
 use super::BlockBuilder;
+use cranelift::prelude::InstBuilder;
 use hemicore::arch::{InsExt, Reg, powerpc::Ins};
 
 impl BlockBuilder<'_> {
@@ -35,5 +36,16 @@ impl BlockBuilder<'_> {
 
         let value = self.get(ins.gpr_s());
         self.set(Reg::MSR, value);
+    }
+
+    pub fn mtsfb1(&mut self, ins: Ins) {
+        let bit = ins.field_crbd();
+        let old = self.get(Reg::FPSCR);
+        let new = self.bd.ins().bor_imm(old, 1 << bit);
+        self.set(Reg::FPSCR, new);
+
+        if ins.field_rc() {
+            todo!()
+        }
     }
 }

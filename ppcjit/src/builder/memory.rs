@@ -158,6 +158,24 @@ impl BlockBuilder<'_> {
         self.write::<i16>(addr, value);
     }
 
+    pub fn lmw(&mut self, ins: Ins) {
+        let mut addr = if ins.field_ra() == 0 {
+            self.bd
+                .ins()
+                .iconst(ir::types::I32, ins.field_offset() as i64)
+        } else {
+            let ra = self.get(ins.gpr_a());
+            self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
+        };
+
+        for i in ins.field_rd()..32 {
+            let value = self.read::<i32>(addr);
+            self.set(GPR::new(i), value);
+
+            addr = self.bd.ins().iadd_imm(addr, 4);
+        }
+    }
+
     pub fn lwz(&mut self, ins: Ins) {
         let addr = if ins.field_ra() == 0 {
             self.bd

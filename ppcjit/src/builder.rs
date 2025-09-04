@@ -148,31 +148,37 @@ impl<'ctx> BlockBuilder<'ctx> {
         self.set(SPR::XER, updated);
     }
 
-    fn update_cr0(&mut self, value: ir::Value, overflowed: ir::Value) {
+    /// All ir values must be booleans (i.e. I8).
+    fn update_cr(&mut self, index: u8, lt: ir::Value, gt: ir::Value, eq: ir::Value, ov: ir::Value) {
         let cr = self.get(Reg::CR);
-
-        let lt = self.bd.ins().icmp_imm(IntCC::SignedLessThan, value, 0);
-        let gt = self.bd.ins().icmp_imm(IntCC::SignedGreaterThan, value, 0);
-        let eq = self.bd.ins().icmp_imm(IntCC::Equal, value, 0);
 
         let lt = self.bd.ins().uextend(ir::types::I32, lt);
         let gt = self.bd.ins().uextend(ir::types::I32, gt);
         let eq = self.bd.ins().uextend(ir::types::I32, eq);
-        let ov = self.bd.ins().uextend(ir::types::I32, overflowed);
+        let ov = self.bd.ins().uextend(ir::types::I32, ov);
 
-        let lt = self.bd.ins().ishl_imm(lt, 31);
-        let gt = self.bd.ins().ishl_imm(gt, 30);
-        let eq = self.bd.ins().ishl_imm(eq, 29);
-        let ov = self.bd.ins().ishl_imm(ov, 28);
+        let base = (4 * index) as u64 as i64;
+        let lt = self.bd.ins().ishl_imm(lt, base + 3);
+        let gt = self.bd.ins().ishl_imm(gt, base + 2);
+        let eq = self.bd.ins().ishl_imm(eq, base + 1);
+        let ov = self.bd.ins().ishl_imm(ov, base + 0);
 
         let value = self.bd.ins().bor(lt, gt);
         let value = self.bd.ins().bor(value, eq);
         let value = self.bd.ins().bor(value, ov);
 
-        let mask = self.bd.ins().iconst(ir::types::I32, 0b1111 << 28);
+        let mask = self.bd.ins().iconst(ir::types::I32, 0b1111 << base);
         let updated = self.bd.ins().bitselect(mask, value, cr);
 
         self.set(Reg::CR, updated);
+    }
+
+    fn update_cr0_implicit(&mut self, value: ir::Value, overflowed: ir::Value) {
+        let lt = self.bd.ins().icmp_imm(IntCC::SignedLessThan, value, 0);
+        let gt = self.bd.ins().icmp_imm(IntCC::SignedGreaterThan, value, 0);
+        let eq = self.bd.ins().icmp_imm(IntCC::Equal, value, 0);
+
+        self.update_cr(0, lt, gt, eq, overflowed);
     }
 
     fn prologue(&mut self) {
@@ -230,6 +236,9 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Stw => self.stw(ins),
             Opcode::Stwu => self.stwu(ins),
             Opcode::Sync => self.stub(ins), // NOTE: stubbed
+            Opcode::Mtfsb1 => self.mtsfb1(ins),
+            Opcode::Lmw => self.lmw(ins),
+            Opcode::Cmp => self.cmp(ins),
             Opcode::Illegal => {
                 return Err(EmitError::Illegal(ins));
             }

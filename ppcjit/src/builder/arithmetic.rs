@@ -1,7 +1,10 @@
 use super::BlockBuilder;
 use bitos::BitUtils;
-use cranelift::{codegen::ir, prelude::InstBuilder};
-use hemicore::arch::{InsExt, powerpc::Ins};
+use cranelift::{
+    codegen::ir,
+    prelude::{InstBuilder, IntCC},
+};
+use hemicore::arch::{InsExt, SPR, powerpc::Ins};
 use tracing::{debug, debug_span};
 
 impl BlockBuilder<'_> {
@@ -43,7 +46,7 @@ impl BlockBuilder<'_> {
         let (result, overflowed) = self.bd.ins().sadd_overflow(ra, rb);
 
         if ins.field_rc() {
-            self.update_cr0(result, overflowed);
+            self.update_cr0_implicit(result, overflowed);
         }
 
         if ins.field_oe() {
@@ -103,5 +106,26 @@ impl BlockBuilder<'_> {
 
         let masked = self.bd.ins().band_imm(rotated, mask as i64);
         self.set(ins.gpr_a(), masked);
+    }
+
+    fn compare(&mut self, a: ir::Value, b: ir::Value, index: u8) {
+        let xer = self.get(SPR::XER);
+
+        let lt = self.bd.ins().icmp(IntCC::SignedLessThan, a, b);
+        let gt = self.bd.ins().icmp(IntCC::SignedGreaterThan, a, b);
+        let eq = self.bd.ins().icmp(IntCC::Equal, a, b);
+        let ov = self.bd.ins().ishl_imm(xer, 31);
+
+        // reduce OV as CR will try to extend it
+        let ov = self.bd.ins().ireduce(ir::types::I8, ov);
+
+        self.update_cr(index, lt, gt, eq, ov);
+    }
+
+    pub fn cmp(&mut self, ins: Ins) {
+        let ra = self.get(ins.gpr_a());
+        let rb = self.get(ins.gpr_b());
+
+        self.compare(ra, rb, ins.field_crfd());
     }
 }
