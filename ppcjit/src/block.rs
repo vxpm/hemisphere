@@ -2,7 +2,7 @@ use crate::Sequence;
 use hemicore::{Address, arch::Registers};
 use iced_x86::Formatter;
 use memmap2::{Mmap, MmapOptions};
-use std::fmt::Display;
+use std::{fmt::Display, sync::Arc};
 
 pub type ExternalData = std::ffi::c_void;
 pub type ReadFunction<T> = fn(*mut ExternalData, *const Registers, Address) -> T;
@@ -27,12 +27,17 @@ pub struct ExternalFunctions {
 pub type BlockFn =
     extern "sysv64" fn(*mut Registers, *mut ExternalData, *const ExternalFunctions) -> u32;
 
-/// A compiled block of PowerPC instructions.
-pub struct Block {
+struct Inner {
     seq: Sequence,
     clir: String,
     code: Mmap,
 }
+
+/// A compiled block of PowerPC instructions.
+///
+/// Blocks are reference counted internally, so this is cheaply clonable.
+#[derive(Clone)]
+pub struct Block(Arc<Inner>);
 
 impl Block {
     /// # Safety
@@ -41,11 +46,11 @@ impl Block {
         let mut map = MmapOptions::new().len(code.len()).map_anon().unwrap();
         map.copy_from_slice(code);
 
-        Self {
+        Self(Arc::new(Inner {
             seq,
             clir,
             code: map.make_exec().unwrap(),
-        }
+        }))
     }
 
     /// Executes this block of instructions.
@@ -56,30 +61,30 @@ impl Block {
         external_data: *mut ExternalData,
         external_functions: &ExternalFunctions,
     ) -> u32 {
-        let func: BlockFn = unsafe { std::mem::transmute(self.code.as_ptr()) };
+        let func: BlockFn = unsafe { std::mem::transmute(self.0.code.as_ptr()) };
         func(registers, external_data, external_functions)
     }
 
     /// Returns the sequence of instructions this block represents.
     pub fn sequence(&self) -> &Sequence {
-        &self.seq
+        &self.0.seq
     }
 
     /// Returns the Cranelift IR generated for this block.
     pub fn clir(&self) -> &str {
-        &self.clir
+        &self.0.clir
     }
 
     /// Returns the length, in bytes, of this block.
     pub fn len(&self) -> usize {
-        self.code.len()
+        self.0.code.len()
     }
 }
 
 impl Display for Block {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut decoder =
-            iced_x86::Decoder::new(usize::BITS, &self.code, iced_x86::DecoderOptions::NONE);
+            iced_x86::Decoder::new(usize::BITS, &self.0.code, iced_x86::DecoderOptions::NONE);
 
         let mut formatter = iced_x86::NasmFormatter::new();
         formatter.options_mut().set_digit_separator("_");

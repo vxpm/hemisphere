@@ -14,7 +14,17 @@ impl BlockBuilder<'_> {
 
     pub fn mtspr(&mut self, ins: Ins) {
         let value = self.get(ins.gpr_s());
-        self.set(ins.spr(), value);
+        let spr = ins.spr();
+
+        if spr.is_data_bat() {
+            self.dbat_changed = true;
+        }
+
+        if spr.is_instr_bat() {
+            self.ibat_changed = true;
+        }
+
+        self.set(spr, value);
     }
 
     pub fn mtsr(&mut self, ins: Ins) {

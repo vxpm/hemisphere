@@ -106,25 +106,6 @@ impl System {
             self.bus.write(target, 0u8);
         }
     }
-
-    /// Executes the given block on this state and fills `invalidated` with addresses that have
-    /// been written to.
-    #[inline(always)]
-    fn exec(&mut self, block: &ppcjit::Block, invalidated: &mut Vec<Address>) -> u32 {
-        // SAFETY: invalidated is a Vec of (Address)es, which are simple wrappers around u32s
-        unsafe { invalidated.set_len(0) };
-
-        let mut external = ExternalData {
-            bus: &mut self.bus,
-            invalidated,
-        };
-
-        block.run(
-            &mut self.cpu,
-            &mut external as *mut _ as *mut _,
-            &EXTERNAL_FUNCTIONS,
-        )
-    }
 }
 
 /// The Hemisphere emulator.
@@ -132,8 +113,6 @@ pub struct Hemisphere {
     pub config: Config,
     pub system: System,
     pub jit: JIT,
-    invalidated: Vec<Address>,
-    last_limited_block: Option<(Address, ppcjit::Block)>,
 }
 
 impl Hemisphere {
@@ -142,11 +121,10 @@ impl Hemisphere {
             config,
             system: System::new(),
             jit: JIT::new(),
-            invalidated: Vec::new(),
-            last_limited_block: None,
         }
     }
 
+    /// Compiles a sequence of at most `limit` instructions starting at `addr` into a JIT block.
     fn compile(&mut self, addr: Address, limit: u16) -> ppcjit::Block {
         let _span = info_span!("compiling new block", addr = ?self.system.cpu.pc).entered();
 
@@ -181,53 +159,35 @@ impl Hemisphere {
     }
 
     #[inline(always)]
-    fn invalidate(&mut self) {
-        if self.invalidated.is_empty() {
-            return;
-        }
+    fn exec_block(&mut self, block: ppcjit::Block) -> u32 {
+        let mut external = ExternalData {
+            bus: &mut self.system.bus,
+            blocks: &mut self.jit.blocks,
+        };
 
-        for &invalidated in &self.invalidated {
-            self.jit.blocks.invalidate(invalidated);
+        let executed = block.run(
+            &mut self.system.cpu,
+            &mut external as *mut _ as *mut _,
+            &EXTERNAL_FUNCTIONS,
+        );
 
-            if self
-                .last_limited_block
-                .as_ref()
-                .is_some_and(|(addr, _)| *addr == invalidated)
-            {
-                std::hint::cold_path();
-                self.last_limited_block = None;
-            }
-        }
-
-        self.invalidated.clear();
+        executed
     }
 
-    /// Executes a single block with a limit of instructions and returns how many instructions were
-    /// executed.
     pub fn exec_with_limit(&mut self, limit: u16) -> u32 {
         let block = if let Some(in_storage) = self.jit.blocks.get(self.system.cpu.pc)
             && in_storage.sequence().len() <= limit as usize
         {
             in_storage
-        } else if let Some((addr, block)) = &self.last_limited_block
-            && *addr == self.system.cpu.pc
-        {
-            block
         } else {
             std::hint::cold_path();
             let compiled = self.compile(self.system.cpu.pc, limit);
-            self.last_limited_block = Some((self.system.cpu.pc, compiled));
-            self.last_limited_block.as_ref().map(|(_, b)| b).unwrap()
+            compiled
         };
 
-        let executed = self.system.exec(&block, &mut self.invalidated);
-        self.invalidate();
-
-        executed
+        self.exec_block(block)
     }
 
-    /// Executes a single block with a limit of instructions and returns how many instructions were
-    /// executed.
     fn exec_with_limit_and_cached(&mut self, limit: u16) -> u32 {
         if self.jit.blocks.get(self.system.cpu.pc).is_none() {
             let block = self.compile(self.system.cpu.pc, self.config.instructions_per_block);
@@ -245,13 +205,12 @@ impl Hemisphere {
                 std::hint::cold_path();
 
                 let block = self.compile(self.system.cpu.pc, self.config.instructions_per_block);
-                self.jit.blocks.insert(self.system.cpu.pc, block)
+                self.jit.blocks.insert(self.system.cpu.pc, block.clone());
+
+                block
             }
         };
 
-        let executed = self.system.exec(block, &mut self.invalidated);
-        self.invalidate();
-
-        executed
+        self.exec_block(block)
     }
 }

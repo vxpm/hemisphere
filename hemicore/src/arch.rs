@@ -665,6 +665,38 @@ impl SPR {
             Self::L2CR => offset_of!(Registers, supervisor.misc.l2cr),
         }
     }
+
+    pub fn is_data_bat(&self) -> bool {
+        matches!(
+            self,
+            Self::DBAT0U
+                | Self::DBAT0L
+                | Self::DBAT1U
+                | Self::DBAT1L
+                | Self::DBAT2U
+                | Self::DBAT2L
+                | Self::DBAT3U
+                | Self::DBAT3L
+        )
+    }
+
+    pub fn is_instr_bat(&self) -> bool {
+        matches!(
+            self,
+            Self::IBAT0U
+                | Self::IBAT0L
+                | Self::IBAT1U
+                | Self::IBAT1L
+                | Self::IBAT2U
+                | Self::IBAT2L
+                | Self::IBAT3U
+                | Self::IBAT3L
+        )
+    }
+
+    pub fn is_bat(&self) -> bool {
+        self.is_data_bat() || self.is_instr_bat()
+    }
 }
 
 /// A register in the Gekko CPU.

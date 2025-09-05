@@ -32,8 +32,43 @@ impl<const N: u32> ConstTrick<N> {
 }
 
 impl Bus {
+    /// Reads a primitive from the given physical address, but only if it can't possibly have a
+    /// side effect.
+    pub fn read_pure<P: Primitive>(&self, addr: Address) -> Option<P> {
+        let offset: usize;
+        macro_rules! map {
+            ($($addr:expr, $size:expr => $block:expr);* $(;)?) => {
+                match addr.value() {
+                    $(
+                        $addr..ConstTrick::<{ $addr + $size }>::OUTPUT => {
+                            #[allow(unused_assignments)]
+                            {
+                                offset = (addr.value() - $addr) as usize;
+                            }
+                            $block
+                        }
+                    )*
+                    _ => {
+                        None
+                    }
+                }
+            };
+        }
+
+        macro_rules! bb {
+            ($bytes:expr) => {
+                Some(P::read_be_bytes(&$bytes[offset..]))
+            };
+        }
+
+        map! {
+            // ADDR, SIZE => ACTION;
+            0, RAM_LEN => bb!(self.mem.ram.as_slice());
+        }
+    }
+
     /// Reads a primitive from the given physical address.
-    pub fn read<P: Primitive>(&self, addr: Address) -> P {
+    pub fn read<P: Primitive>(&mut self, addr: Address) -> P {
         let offset: usize;
         macro_rules! map {
             ($($addr:expr, $size:expr => $block:expr);* $(;)?) => {

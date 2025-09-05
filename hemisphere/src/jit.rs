@@ -3,12 +3,13 @@ use hemicore::{Address, Primitive, arch::Registers, util::boxed_array};
 use interavl::IntervalTree;
 use ppcjit::{
     Block,
-    block::{ExternalFunctions, ReadFunction, WriteFunction},
+    block::{ExternalFunctions, GenericHookFunction, ReadFunction, WriteFunction},
 };
 use slotmap::{SlotMap, new_key_type};
 use std::{collections::BTreeMap, ops::Range};
 
 const PAGE_COUNT: usize = 2usize.pow(20);
+type PageLUT = Box<[u16; PAGE_COUNT]>;
 
 new_key_type! {
     pub struct BlockId;
@@ -19,7 +20,7 @@ pub struct BlockStorage {
     blocks: SlotMap<BlockId, Block>,
     mapping: BTreeMap<Address, BlockId>,
     intervals: IntervalTree<u64, BlockId>,
-    page_lut: Box<[u16; PAGE_COUNT]>,
+    page_lut: PageLUT,
 
     // caching stuff
     buffer: Vec<(Range<u64>, BlockId)>,
@@ -42,7 +43,7 @@ impl Default for BlockStorage {
 
 impl BlockStorage {
     /// Inserts a new block in the storage.
-    pub fn insert(&mut self, addr: Address, block: Block) -> &Block {
+    pub fn insert(&mut self, addr: Address, block: Block) {
         let start = addr.value() as u64;
         let end = start + block.sequence().len() as u64 * 4;
         let range = start..end;
@@ -57,13 +58,11 @@ impl BlockStorage {
         for index in start_page..=end_page {
             self.page_lut[index as usize] += 1;
         }
-
-        self.blocks.get(id).unwrap()
     }
 
     /// Returns the block starting at `addr`.
     #[inline(always)]
-    pub fn get(&mut self, addr: Address) -> Option<&Block> {
+    pub fn get(&mut self, addr: Address) -> Option<Block> {
         let id = if let Some((last_addr, id)) = self.last_query
             && last_addr == addr
         {
@@ -76,7 +75,7 @@ impl BlockStorage {
         };
 
         // SAFETY: if the block exists in the mapping, it should exist in the blocks!
-        unsafe { Some(self.blocks.get_unchecked(id)) }
+        unsafe { Some(self.blocks.get_unchecked(id).clone()) }
     }
 
     /// Invalidates all blocks that contain `addr`.
@@ -118,12 +117,22 @@ impl BlockStorage {
             self.last_query = None;
         }
     }
+
+    pub fn clear(&mut self) {
+        self.blocks.clear();
+        self.mapping.clear();
+        self.intervals = IntervalTree::default();
+        self.page_lut.fill(0);
+
+        self.buffer.clear();
+        self.last_query = None;
+    }
 }
 
 /// External data to be passed in for execution of JIT blocks.
 pub struct ExternalData<'a> {
     pub bus: &'a mut Bus,
-    pub invalidated: &'a mut Vec<Address>,
+    pub blocks: &'a mut BlockStorage,
 }
 
 pub static EXTERNAL_FUNCTIONS: ExternalFunctions = {
@@ -142,16 +151,18 @@ pub static EXTERNAL_FUNCTIONS: ExternalFunctions = {
         addr: Address,
         value: T,
     ) {
-        external.invalidated.push(addr);
-
         let physical = registers.supervisor.translate_data_addr(addr);
         external.bus.write(physical, value);
+        external.blocks.invalidate(addr);
     }
 
-    extern "sysv64" fn bat_changed(external: &mut ExternalData) {
+    extern "sysv64" fn ibat_changed(external: &mut ExternalData) {
+        external.blocks.clear();
         // rebuild bat LUT
+    }
 
-        // rebuild block page LUT
+    extern "sysv64" fn dbat_changed(external: &mut ExternalData) {
+        // rebuild bat LUT
     }
 
     #[expect(
@@ -160,6 +171,7 @@ pub static EXTERNAL_FUNCTIONS: ExternalFunctions = {
     )]
     unsafe {
         use std::mem::transmute;
+
         let read_i8 =
             transmute::<_, ReadFunction<i8>>(read::<i8> as extern "sysv64" fn(_, _, _) -> _);
         let write_i8 =
@@ -173,6 +185,11 @@ pub static EXTERNAL_FUNCTIONS: ExternalFunctions = {
         let write_i32 =
             transmute::<_, WriteFunction<i32>>(write::<i32> as extern "sysv64" fn(_, _, _, _));
 
+        let ibat_changed =
+            transmute::<_, GenericHookFunction>(ibat_changed as extern "sysv64" fn(_));
+        let dbat_changed =
+            transmute::<_, GenericHookFunction>(dbat_changed as extern "sysv64" fn(_));
+
         ExternalFunctions {
             read_i8,
             write_i8,
@@ -180,6 +197,9 @@ pub static EXTERNAL_FUNCTIONS: ExternalFunctions = {
             write_i16,
             read_i32,
             write_i32,
+
+            ibat_changed,
+            dbat_changed,
         }
     }
 };

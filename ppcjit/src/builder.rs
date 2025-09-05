@@ -5,10 +5,14 @@ mod exception;
 mod memory;
 mod others;
 
+use crate::block::ExternalFunctions;
 use cranelift::{
     codegen::ir::{self, SigRef, condcodes::IntCC},
     frontend,
-    prelude::{InstBuilder, isa::TargetIsa},
+    prelude::{
+        InstBuilder,
+        isa::{CallConv, TargetIsa},
+    },
 };
 use easyerr::Error;
 use hemicore::arch::{
@@ -16,7 +20,17 @@ use hemicore::arch::{
     powerpc::{Ins, Opcode},
 };
 use rustc_hash::FxHashMap;
-use std::collections::hash_map::Entry;
+use std::{collections::hash_map::Entry, mem::offset_of};
+
+fn sig_generic_hook(ptr_type: ir::Type) -> ir::Signature {
+    ir::Signature {
+        params: vec![
+            ir::AbiParam::new(ptr_type), // external
+        ],
+        returns: vec![],
+        call_conv: CallConv::SystemV,
+    }
+}
 
 fn reg_ty(reg: Reg) -> ir::Type {
     match reg {
@@ -51,7 +65,10 @@ pub struct BlockBuilder<'ctx> {
     ctx: Context,
     regs: FxHashMap<Reg, RegState>,
     current_bb: ir::Block,
+
     executed: u32,
+    ibat_changed: bool,
+    dbat_changed: bool,
 }
 
 impl<'ctx> BlockBuilder<'ctx> {
@@ -81,6 +98,9 @@ impl<'ctx> BlockBuilder<'ctx> {
             regs: FxHashMap::default(),
             current_bb: entry_bb,
             executed: 0,
+
+            ibat_changed: false,
+            dbat_changed: false,
         }
     }
 
@@ -193,6 +213,28 @@ impl<'ctx> BlockBuilder<'ctx> {
         self.update_cr(0, lt, gt, eq, overflowed);
     }
 
+    fn call_hook(&mut self, offset: i32) {
+        let hook = self.bd.ins().load(
+            self.ctx.ptr_type,
+            ir::MemFlags::trusted(),
+            self.ctx.external_functions_ptr,
+            offset,
+        );
+
+        let sig = *self
+            .ctx
+            .external_functions_sigs
+            .entry(offset)
+            .or_insert_with(|| {
+                self.bd
+                    .import_signature(sig_generic_hook(self.ctx.ptr_type))
+            });
+
+        self.bd
+            .ins()
+            .call_indirect(sig, hook, &[self.ctx.external_data_ptr]);
+    }
+
     fn prologue(&mut self) {
         let executed = self
             .bd
@@ -211,6 +253,14 @@ impl<'ctx> BlockBuilder<'ctx> {
                 self.ctx.regs_ptr,
                 reg.offset() as i32,
             );
+        }
+
+        if self.dbat_changed {
+            self.call_hook(offset_of!(ExternalFunctions, dbat_changed) as i32);
+        }
+
+        if self.ibat_changed {
+            self.call_hook(offset_of!(ExternalFunctions, ibat_changed) as i32);
         }
 
         self.bd.ins().return_(&[executed]);
