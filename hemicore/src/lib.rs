@@ -1,6 +1,9 @@
+#![feature(cold_path)]
+
 mod primitive;
 
 pub mod arch;
+pub mod util;
 
 pub use primitive::Primitive;
 

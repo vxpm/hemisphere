@@ -1,5 +1,5 @@
 use crate::bus::Bus;
-use hemicore::{Address, Primitive, arch::Registers};
+use hemicore::{Address, Primitive, arch::Registers, util::boxed_array};
 use interavl::IntervalTree;
 use ppcjit::{
     Block,
@@ -7,6 +7,8 @@ use ppcjit::{
 };
 use slotmap::{SlotMap, new_key_type};
 use std::{collections::BTreeMap, ops::Range};
+
+const PAGE_COUNT: usize = 2usize.pow(20);
 
 new_key_type! {
     pub struct BlockId;
@@ -17,6 +19,9 @@ pub struct BlockStorage {
     blocks: SlotMap<BlockId, Block>,
     mapping: BTreeMap<Address, BlockId>,
     intervals: IntervalTree<u64, BlockId>,
+    page_lut: Box<[u16; PAGE_COUNT]>,
+
+    // caching stuff
     buffer: Vec<(Range<u64>, BlockId)>,
     last_query: Option<(Address, BlockId)>,
 }
@@ -27,6 +32,8 @@ impl Default for BlockStorage {
             blocks: SlotMap::with_key(),
             mapping: BTreeMap::default(),
             intervals: IntervalTree::default(),
+            page_lut: boxed_array(0),
+
             buffer: Vec::with_capacity(64),
             last_query: None,
         }
@@ -43,6 +50,13 @@ impl BlockStorage {
         let id = self.blocks.insert(block);
         self.mapping.insert(addr, id);
         self.intervals.insert(range, id);
+
+        // update LUT
+        let start_page = start >> 12;
+        let end_page = end >> 12;
+        for index in start_page..=end_page {
+            self.page_lut[index as usize] += 1;
+        }
 
         self.blocks.get(id).unwrap()
     }
@@ -68,6 +82,14 @@ impl BlockStorage {
     /// Invalidates all blocks that contain `addr`.
     #[inline(always)]
     pub fn invalidate(&mut self, addr: Address) {
+        // check LUT first
+        let page = addr.value() >> 12;
+        if self.page_lut[page as usize] == 0 {
+            return;
+        } else {
+            std::hint::cold_path();
+        }
+
         let start = addr.value() as u64;
         let range = start..start + 1;
 
@@ -79,6 +101,13 @@ impl BlockStorage {
             self.blocks.remove(id);
             self.mapping.remove(&Address(range.start as u32));
             self.intervals.remove(&range);
+
+            // update LUT
+            let start_page = range.start >> 12;
+            let end_page = range.end >> 12;
+            for index in start_page..=end_page {
+                self.page_lut[index as usize] -= 1;
+            }
         }
 
         if self

@@ -81,6 +81,7 @@ fn run(state: Arc<FairMutex<State>>, control: Arc<Control>) {
                 continue 'outer;
             }
 
+            std::hint::spin_loop();
             std::thread::yield_now();
         }
 
@@ -131,10 +132,8 @@ fn run(state: Arc<FairMutex<State>>, control: Arc<Control>) {
             guard.stats.ips.pop_back();
         }
 
-        guard
-            .stats
-            .ips
-            .push_front(emulated as f32 / next.elapsed().as_secs_f32());
+        let ips = emulated as f32 / next.elapsed().as_secs_f32();
+        guard.stats.ips.push_front(ips);
 
         // calculate when the next slice should run
         next += to_duration(emulated);

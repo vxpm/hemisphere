@@ -2,10 +2,9 @@
 
 pub mod bus;
 pub mod jit;
-pub mod mmu;
-pub mod video;
-
+pub mod mem;
 pub mod runner;
+pub mod video;
 
 use crate::{
     bus::Bus,

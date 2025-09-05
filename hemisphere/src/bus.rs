@@ -1,5 +1,5 @@
 use crate::{
-    mmu::{Memory, RAM_LEN},
+    mem::{Memory, RAM_LEN},
     video::VideoInterface,
 };
 use hemicore::{Address, Primitive};

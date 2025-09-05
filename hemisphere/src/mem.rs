@@ -1,12 +1,9 @@
+use hemicore::util::boxed_array;
+
 pub const RAM_LEN: u32 = 24 * bytesize::MIB as u32;
 pub const EFB_LEN: u32 = 2 * bytesize::MIB as u32;
 pub const L2C_LEN: u32 = 16 * bytesize::KIB as u32;
 pub const IPL_LEN: u32 = bytesize::MIB as u32;
-
-#[inline]
-fn boxed_array<T: Clone, const LEN: usize>(elem: T) -> Box<[T; LEN]> {
-    vec![elem; LEN].into_boxed_slice().try_into().ok().unwrap()
-}
 
 pub struct Memory {
     pub ram: Box<[u8; RAM_LEN as usize]>,
