@@ -148,6 +148,12 @@ pub static EXTERNAL_FUNCTIONS: ExternalFunctions = {
         external.bus.write(physical, value);
     }
 
+    extern "sysv64" fn bat_changed(external: &mut ExternalData) {
+        // rebuild bat LUT
+
+        // rebuild block page LUT
+    }
+
     #[expect(
         clippy::missing_transmute_annotations,
         reason = "unnecessary - the definitions are above"

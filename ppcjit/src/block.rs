@@ -7,15 +7,21 @@ use std::fmt::Display;
 pub type ExternalData = std::ffi::c_void;
 pub type ReadFunction<T> = fn(*mut ExternalData, *const Registers, Address) -> T;
 pub type WriteFunction<T> = fn(*mut ExternalData, *const Registers, Address, T);
+pub type GenericHookFunction = fn(*mut ExternalData);
 
 /// External functions that JITed code calls.
 pub struct ExternalFunctions {
+    // memory
     pub read_i8: ReadFunction<i8>,
     pub write_i8: WriteFunction<i8>,
     pub read_i16: ReadFunction<i16>,
     pub write_i16: WriteFunction<i16>,
     pub read_i32: ReadFunction<i32>,
     pub write_i32: WriteFunction<i32>,
+
+    // hooks
+    pub ibat_changed: GenericHookFunction,
+    pub dbat_changed: GenericHookFunction,
 }
 
 pub type BlockFn =
