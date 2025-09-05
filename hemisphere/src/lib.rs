@@ -3,12 +3,14 @@
 pub mod bus;
 pub mod jit;
 pub mod mem;
+pub mod mmu;
 pub mod runner;
 pub mod video;
 
 use crate::{
     bus::Bus,
     jit::{EXTERNAL_FUNCTIONS, ExternalData, JIT},
+    mmu::Mmu,
 };
 use dolfile::Dol;
 use hemicore::{
@@ -45,6 +47,7 @@ impl Default for Config {
 pub struct System {
     pub cpu: Registers,
     pub bus: Bus,
+    pub mmu: Mmu,
 }
 
 impl Default for System {
@@ -58,12 +61,42 @@ impl System {
         System {
             cpu: Registers::default(),
             bus: Bus::new(),
+            mmu: Mmu::new(),
         }
+    }
+
+    /// Translates a data logical address into a physical address.
+    pub fn translate_data_addr(&self, addr: Address) -> Address {
+        if !self.cpu.supervisor.config.msr.data_addr_translation() {
+            return addr;
+        }
+
+        if let Some(addr) = self.mmu.translate_data_addr(addr) {
+            return addr;
+        }
+
+        panic!("couldn't translate data addr {addr} with bats!")
+    }
+
+    /// Translates an instruction logical address into a physical address.
+    pub fn translate_instr_addr(&self, addr: Address) -> Address {
+        if !self.cpu.supervisor.config.msr.instr_addr_translation() {
+            return addr;
+        }
+
+        if let Some(addr) = self.mmu.translate_instr_addr(addr) {
+            return addr;
+        }
+
+        panic!("couldn't translate instruction addr {addr} with bats!")
     }
 
     pub fn load(&mut self, dol: &Dol) {
         self.cpu.pc = Address(dol.entrypoint());
+
         self.cpu.supervisor.memory.setup_default_bats();
+        self.mmu.build_bat_lut(&self.cpu.supervisor.memory);
+
         self.cpu
             .supervisor
             .config
@@ -77,32 +110,20 @@ impl System {
 
         for section in dol.text_sections() {
             for (offset, byte) in section.content.iter().copied().enumerate() {
-                let target = self
-                    .cpu
-                    .supervisor
-                    .translate_instr_addr(Address(section.target) + offset as u32);
-
+                let target = self.translate_instr_addr(Address(section.target) + offset as u32);
                 self.bus.write(target, byte);
             }
         }
 
         for section in dol.data_sections() {
             for (offset, byte) in section.content.iter().copied().enumerate() {
-                let target = self
-                    .cpu
-                    .supervisor
-                    .translate_data_addr(Address(section.target) + offset as u32);
-
+                let target = self.translate_data_addr(Address(section.target) + offset as u32);
                 self.bus.write(target, byte);
             }
         }
 
         for offset in 0..dol.header.bss_size {
-            let target = self
-                .cpu
-                .supervisor
-                .translate_data_addr(Address(dol.header.bss_target + offset));
-
+            let target = self.translate_data_addr(Address(dol.header.bss_target + offset));
             self.bus.write(target, 0u8);
         }
     }
@@ -136,7 +157,7 @@ impl Hemisphere {
                 break;
             }
 
-            let physical = self.system.cpu.supervisor.translate_instr_addr(current);
+            let physical = self.system.translate_instr_addr(current);
             let ins = Ins::new(self.system.bus.read(physical), Extensions::gekko_broadway());
 
             let mut parsed = ParsedIns::new();
@@ -161,15 +182,11 @@ impl Hemisphere {
     #[inline(always)]
     fn exec_block(&mut self, block: ppcjit::Block) -> u32 {
         let mut external = ExternalData {
-            bus: &mut self.system.bus,
+            system: &mut self.system,
             blocks: &mut self.jit.blocks,
         };
 
-        let executed = block.run(
-            &mut self.system.cpu,
-            &mut external as *mut _ as *mut _,
-            &EXTERNAL_FUNCTIONS,
-        );
+        let executed = block.run(&mut external as *mut _ as *mut _, &EXTERNAL_FUNCTIONS);
 
         executed
     }

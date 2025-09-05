@@ -5,27 +5,30 @@ use memmap2::{Mmap, MmapOptions};
 use std::{fmt::Display, sync::Arc};
 
 pub type ExternalData = std::ffi::c_void;
-pub type ReadFunction<T> = fn(*mut ExternalData, *const Registers, Address) -> T;
-pub type WriteFunction<T> = fn(*mut ExternalData, *const Registers, Address, T);
-pub type GenericHookFunction = fn(*mut ExternalData);
+pub type GetRegistersFn = fn(*mut ExternalData) -> *mut Registers;
+pub type ReadFn<T> = fn(*mut ExternalData, Address) -> T;
+pub type WriteFn<T> = fn(*mut ExternalData, Address, T);
+pub type GenericHookFn = fn(*mut ExternalData);
 
 /// External functions that JITed code calls.
 pub struct ExternalFunctions {
+    // registers
+    pub get_registers: GetRegistersFn,
+
     // memory
-    pub read_i8: ReadFunction<i8>,
-    pub write_i8: WriteFunction<i8>,
-    pub read_i16: ReadFunction<i16>,
-    pub write_i16: WriteFunction<i16>,
-    pub read_i32: ReadFunction<i32>,
-    pub write_i32: WriteFunction<i32>,
+    pub read_i8: ReadFn<i8>,
+    pub write_i8: WriteFn<i8>,
+    pub read_i16: ReadFn<i16>,
+    pub write_i16: WriteFn<i16>,
+    pub read_i32: ReadFn<i32>,
+    pub write_i32: WriteFn<i32>,
 
     // hooks
-    pub ibat_changed: GenericHookFunction,
-    pub dbat_changed: GenericHookFunction,
+    pub ibat_changed: GenericHookFn,
+    pub dbat_changed: GenericHookFn,
 }
 
-pub type BlockFn =
-    extern "sysv64" fn(*mut Registers, *mut ExternalData, *const ExternalFunctions) -> u32;
+pub type BlockFn = extern "sysv64" fn(*mut ExternalData, *const ExternalFunctions) -> u32;
 
 struct Inner {
     seq: Sequence,
@@ -57,12 +60,11 @@ impl Block {
     #[inline(always)]
     pub fn run(
         &self,
-        registers: &mut Registers,
         external_data: *mut ExternalData,
         external_functions: &ExternalFunctions,
     ) -> u32 {
         let func: BlockFn = unsafe { std::mem::transmute(self.0.code.as_ptr()) };
-        func(registers, external_data, external_functions)
+        func(external_data, external_functions)
     }
 
     /// Returns the sequence of instructions this block represents.

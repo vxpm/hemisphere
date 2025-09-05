@@ -410,38 +410,6 @@ pub struct Supervisor {
     pub misc: Miscellaneous,
 }
 
-impl Supervisor {
-    /// Translates an instruction effective address into a physical address.
-    pub fn translate_instr_addr(&self, addr: Address) -> Address {
-        if !self.config.msr.instr_addr_translation() {
-            return addr;
-        }
-
-        for bat in &self.memory.ibat {
-            if bat.contains(addr) {
-                return bat.translate(addr);
-            }
-        }
-
-        panic!("couldn't translate instr addr {addr} with bats!")
-    }
-
-    /// Translates a data effective address into a physical address.
-    pub fn translate_data_addr(&self, addr: Address) -> Address {
-        if !self.config.msr.data_addr_translation() {
-            return addr;
-        }
-
-        for bat in &self.memory.dbat {
-            if bat.contains(addr) {
-                return bat.translate(addr);
-            }
-        }
-
-        panic!("couldn't translate data addr {addr} with bats!")
-    }
-}
-
 #[repr(C)]
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Registers {

@@ -1,14 +1,14 @@
-use crate::bus::Bus;
+use crate::System;
 use hemicore::{Address, Primitive, arch::Registers, util::boxed_array};
 use interavl::IntervalTree;
 use ppcjit::{
     Block,
-    block::{ExternalFunctions, GenericHookFunction, ReadFunction, WriteFunction},
+    block::{ExternalFunctions, GenericHookFn, GetRegistersFn, ReadFn, WriteFn},
 };
 use slotmap::{SlotMap, new_key_type};
 use std::{collections::BTreeMap, ops::Range};
 
-const PAGE_COUNT: usize = 2usize.pow(20);
+const PAGE_COUNT: usize = 1 << 20;
 type PageLUT = Box<[u16; PAGE_COUNT]>;
 
 new_key_type! {
@@ -131,38 +131,39 @@ impl BlockStorage {
 
 /// External data to be passed in for execution of JIT blocks.
 pub struct ExternalData<'a> {
-    pub bus: &'a mut Bus,
+    pub system: &'a mut System,
     pub blocks: &'a mut BlockStorage,
 }
 
 pub static EXTERNAL_FUNCTIONS: ExternalFunctions = {
-    extern "sysv64" fn read<T: Primitive>(
-        external: &mut ExternalData,
-        registers: &Registers,
-        addr: Address,
-    ) -> T {
-        let physical = registers.supervisor.translate_data_addr(addr);
-        external.bus.read(physical)
+    extern "sysv64" fn get_registers<'a>(external: &'a mut ExternalData) -> &'a mut Registers {
+        &mut external.system.cpu
     }
 
-    extern "sysv64" fn write<T: Primitive>(
-        external: &mut ExternalData,
-        registers: &Registers,
-        addr: Address,
-        value: T,
-    ) {
-        let physical = registers.supervisor.translate_data_addr(addr);
-        external.bus.write(physical, value);
+    extern "sysv64" fn read<T: Primitive>(external: &mut ExternalData, addr: Address) -> T {
+        let physical = external.system.translate_data_addr(addr);
+        external.system.bus.read(physical)
+    }
+
+    extern "sysv64" fn write<T: Primitive>(external: &mut ExternalData, addr: Address, value: T) {
+        let physical = external.system.translate_data_addr(addr);
+        external.system.bus.write(physical, value);
         external.blocks.invalidate(addr);
     }
 
     extern "sysv64" fn ibat_changed(external: &mut ExternalData) {
         external.blocks.clear();
-        // rebuild bat LUT
+        external
+            .system
+            .mmu
+            .build_bat_lut(&external.system.cpu.supervisor.memory);
     }
 
     extern "sysv64" fn dbat_changed(external: &mut ExternalData) {
-        // rebuild bat LUT
+        external
+            .system
+            .mmu
+            .build_bat_lut(&external.system.cpu.supervisor.memory);
     }
 
     #[expect(
@@ -172,25 +173,22 @@ pub static EXTERNAL_FUNCTIONS: ExternalFunctions = {
     unsafe {
         use std::mem::transmute;
 
-        let read_i8 =
-            transmute::<_, ReadFunction<i8>>(read::<i8> as extern "sysv64" fn(_, _, _) -> _);
-        let write_i8 =
-            transmute::<_, WriteFunction<i8>>(write::<i8> as extern "sysv64" fn(_, _, _, _));
-        let read_i16 =
-            transmute::<_, ReadFunction<i16>>(read::<i16> as extern "sysv64" fn(_, _, _) -> _);
-        let write_i16 =
-            transmute::<_, WriteFunction<i16>>(write::<i16> as extern "sysv64" fn(_, _, _, _));
-        let read_i32 =
-            transmute::<_, ReadFunction<i32>>(read::<i32> as extern "sysv64" fn(_, _, _) -> _);
-        let write_i32 =
-            transmute::<_, WriteFunction<i32>>(write::<i32> as extern "sysv64" fn(_, _, _, _));
+        let get_registers =
+            transmute::<_, GetRegistersFn>(get_registers as extern "sysv64" fn(_) -> _);
 
-        let ibat_changed =
-            transmute::<_, GenericHookFunction>(ibat_changed as extern "sysv64" fn(_));
-        let dbat_changed =
-            transmute::<_, GenericHookFunction>(dbat_changed as extern "sysv64" fn(_));
+        let read_i8 = transmute::<_, ReadFn<i8>>(read::<i8> as extern "sysv64" fn(_, _) -> _);
+        let write_i8 = transmute::<_, WriteFn<i8>>(write::<i8> as extern "sysv64" fn(_, _, _));
+        let read_i16 = transmute::<_, ReadFn<i16>>(read::<i16> as extern "sysv64" fn(_, _) -> _);
+        let write_i16 = transmute::<_, WriteFn<i16>>(write::<i16> as extern "sysv64" fn(_, _, _));
+        let read_i32 = transmute::<_, ReadFn<i32>>(read::<i32> as extern "sysv64" fn(_, _) -> _);
+        let write_i32 = transmute::<_, WriteFn<i32>>(write::<i32> as extern "sysv64" fn(_, _, _));
+
+        let ibat_changed = transmute::<_, GenericHookFn>(ibat_changed as extern "sysv64" fn(_));
+        let dbat_changed = transmute::<_, GenericHookFn>(dbat_changed as extern "sysv64" fn(_));
 
         ExternalFunctions {
+            get_registers,
+
             read_i8,
             write_i8,
             read_i16,

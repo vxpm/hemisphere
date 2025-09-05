@@ -22,6 +22,16 @@ use hemicore::arch::{
 use rustc_hash::FxHashMap;
 use std::{collections::hash_map::Entry, mem::offset_of};
 
+fn sig_get_registers(ptr_type: ir::Type) -> ir::Signature {
+    ir::Signature {
+        params: vec![
+            ir::AbiParam::new(ptr_type), // external
+        ],
+        returns: vec![ir::AbiParam::new(ptr_type)],
+        call_conv: CallConv::SystemV,
+    }
+}
+
 fn sig_generic_hook(ptr_type: ir::Type) -> ir::Signature {
     ir::Signature {
         params: vec![
@@ -83,12 +93,31 @@ impl<'ctx> BlockBuilder<'ctx> {
         builder.switch_to_block(entry_bb);
         builder.seal_block(entry_bb);
 
+        let ptr_type = isa.pointer_type();
         let params = builder.block_params(entry_bb);
+        let external_data_ptr = params[0];
+        let external_functions_ptr = params[1];
+
+        // extract regs ptr
+        let signature = builder.import_signature(sig_get_registers(ptr_type));
+        let get_registers = builder.ins().load(
+            ptr_type,
+            ir::MemFlags::trusted(),
+            external_functions_ptr,
+            offset_of!(ExternalFunctions, get_registers) as i32,
+        );
+
+        let inst = builder
+            .ins()
+            .call_indirect(signature, get_registers, &[external_data_ptr]);
+
+        let regs_ptr = builder.inst_results(inst)[0];
+
         let ctx = Context {
-            ptr_type: isa.pointer_type(),
-            regs_ptr: params[0],
-            external_data_ptr: params[1],
-            external_functions_ptr: params[2],
+            ptr_type,
+            regs_ptr,
+            external_data_ptr,
+            external_functions_ptr,
             external_functions_sigs: FxHashMap::default(),
         };
 

@@ -64,7 +64,7 @@ impl DisasmPane {
         for i in 0..area.height {
             let offset = i as i32 - area.height as i32 / 2;
             let current = Address(self.target.value().wrapping_add_signed(offset * 4));
-            let translated = system.cpu.supervisor.translate_instr_addr(current);
+            let translated = system.translate_instr_addr(current);
             let instruction = Ins::new(
                 system.bus.read_pure(translated).unwrap_or(0),
                 Extensions::gekko_broadway(),

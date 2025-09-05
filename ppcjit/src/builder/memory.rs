@@ -10,8 +10,7 @@ use std::mem::offset_of;
 fn sig_read(ptr_type: ir::Type, read_type: ir::Type) -> ir::Signature {
     ir::Signature {
         params: vec![
-            ir::AbiParam::new(ptr_type),       // bus
-            ir::AbiParam::new(ptr_type),       // regs
+            ir::AbiParam::new(ptr_type),       // external
             ir::AbiParam::new(ir::types::I32), // address
         ],
         returns: vec![ir::AbiParam::new(read_type)], // value
@@ -22,8 +21,7 @@ fn sig_read(ptr_type: ir::Type, read_type: ir::Type) -> ir::Signature {
 fn sig_write(ptr_type: ir::Type, write_type: ir::Type) -> ir::Signature {
     ir::Signature {
         params: vec![
-            ir::AbiParam::new(ptr_type),       // bus
-            ir::AbiParam::new(ptr_type),       // regs
+            ir::AbiParam::new(ptr_type),       // external
             ir::AbiParam::new(ir::types::I32), // address
             ir::AbiParam::new(write_type),     // value
         ],
@@ -74,11 +72,10 @@ impl BlockBuilder<'_> {
                     .import_signature(sig_read(self.ctx.ptr_type, P::IR_TYPE))
             });
 
-        let inst = self.bd.ins().call_indirect(
-            sig,
-            read_fn,
-            &[self.ctx.external_data_ptr, self.ctx.regs_ptr, addr],
-        );
+        let inst = self
+            .bd
+            .ins()
+            .call_indirect(sig, read_fn, &[self.ctx.external_data_ptr, addr]);
 
         let ret = self.bd.inst_results(inst);
         ret[0]
@@ -101,11 +98,9 @@ impl BlockBuilder<'_> {
                     .import_signature(sig_write(self.ctx.ptr_type, P::IR_TYPE))
             });
 
-        self.bd.ins().call_indirect(
-            sig,
-            write_fn,
-            &[self.ctx.external_data_ptr, self.ctx.regs_ptr, addr, value],
-        );
+        self.bd
+            .ins()
+            .call_indirect(sig, write_fn, &[self.ctx.external_data_ptr, addr, value]);
     }
 
     pub fn stwu(&mut self, ins: Ins) {
