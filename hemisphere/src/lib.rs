@@ -179,34 +179,49 @@ impl Hemisphere {
         self.jit.compiler.compile(seq).unwrap()
     }
 
-    #[inline(always)]
-    fn exec_block(&mut self, block: ppcjit::Block) -> u32 {
-        let mut external = ExternalData {
-            system: &mut self.system,
-            blocks: &mut self.jit.blocks,
-        };
-
-        let executed = block.run(&mut external as *mut _ as *mut _, &EXTERNAL_FUNCTIONS);
-
-        executed
-    }
+    // #[inline(always)]
+    // fn exec_block(mut external: ExternalData, block: &ppcjit::Block) -> u32 {
+    //     let executed = block.run(&mut external as *mut _ as *mut _, &EXTERNAL_FUNCTIONS);
+    //     executed
+    // }
 
     pub fn exec_with_limit(&mut self, limit: u16) -> u32 {
-        let block = if let Some(in_storage) = self.jit.blocks.get(self.system.cpu.pc)
-            && in_storage.sequence().len() <= limit as usize
-        {
-            in_storage
-        } else {
-            std::hint::cold_path();
-            let compiled = self.compile(self.system.cpu.pc, limit);
-            compiled
+        let block = self
+            .jit
+            .blocks
+            .mapping
+            .get(self.system.cpu.pc)
+            .and_then(|id| self.jit.blocks.storage.get(id))
+            .filter(|b| b.sequence().len() <= limit as usize);
+
+        let compiled: ppcjit::Block;
+        let block = match block {
+            Some(block) => block,
+            None => {
+                std::hint::cold_path();
+
+                compiled = self.compile(self.system.cpu.pc, limit);
+                &compiled
+            }
         };
 
-        self.exec_block(block)
+        let mut external = ExternalData {
+            system: &mut self.system,
+            mapping: &mut self.jit.blocks.mapping,
+        };
+
+        block.run(&mut external as *mut _ as *mut _, &EXTERNAL_FUNCTIONS)
     }
 
     fn exec_with_limit_and_cached(&mut self, limit: u16) -> u32 {
-        if self.jit.blocks.get(self.system.cpu.pc).is_none() {
+        let block = self
+            .jit
+            .blocks
+            .mapping
+            .get(self.system.cpu.pc)
+            .and_then(|id| self.jit.blocks.storage.get(id));
+
+        if block.is_none() {
             let block = self.compile(self.system.cpu.pc, self.config.instructions_per_block);
             self.jit.blocks.insert(self.system.cpu.pc, block);
         }
@@ -216,18 +231,30 @@ impl Hemisphere {
 
     /// Executes a single block and returns how many instructions were executed.
     pub fn exec(&mut self) -> u32 {
-        let block = match self.jit.blocks.get(self.system.cpu.pc) {
+        let block = self
+            .jit
+            .blocks
+            .mapping
+            .get(self.system.cpu.pc)
+            .and_then(|id| self.jit.blocks.storage.get(id));
+
+        let block = match block {
             Some(block) => block,
             None => {
                 std::hint::cold_path();
 
                 let block = self.compile(self.system.cpu.pc, self.config.instructions_per_block);
-                self.jit.blocks.insert(self.system.cpu.pc, block.clone());
+                let id = self.jit.blocks.insert(self.system.cpu.pc, block);
 
-                block
+                self.jit.blocks.storage.get(id).unwrap()
             }
         };
 
-        self.exec_block(block)
+        let mut external = ExternalData {
+            system: &mut self.system,
+            mapping: &mut self.jit.blocks.mapping,
+        };
+
+        block.run(&mut external as *mut _ as *mut _, &EXTERNAL_FUNCTIONS)
     }
 }

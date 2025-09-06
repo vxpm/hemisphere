@@ -15,46 +15,24 @@ new_key_type! {
     pub struct BlockId;
 }
 
-/// A structure which keeps tracks of compiled [`Block`]s.
-pub struct BlockStorage {
-    blocks: SlotMap<BlockId, Block>,
-    mapping: BTreeMap<Address, BlockId>,
-    intervals: IntervalTree<u64, BlockId>,
+pub struct BlockMapping {
+    address: BTreeMap<Address, BlockId>,
+    intervals: IntervalTree<Address, BlockId>,
     page_lut: PageLUT,
 
     // caching stuff
-    buffer: Vec<(Range<u64>, BlockId)>,
+    buffer: Vec<Range<Address>>,
     last_query: Option<(Address, BlockId)>,
 }
 
-impl Default for BlockStorage {
-    fn default() -> Self {
-        Self {
-            blocks: SlotMap::with_key(),
-            mapping: BTreeMap::default(),
-            intervals: IntervalTree::default(),
-            page_lut: boxed_array(0),
-
-            buffer: Vec::with_capacity(64),
-            last_query: None,
-        }
-    }
-}
-
-impl BlockStorage {
-    /// Inserts a new block in the storage.
-    pub fn insert(&mut self, addr: Address, block: Block) {
-        let start = addr.value() as u64;
-        let end = start + block.sequence().len() as u64 * 4;
-        let range = start..end;
-
-        let id = self.blocks.insert(block);
-        self.mapping.insert(addr, id);
-        self.intervals.insert(range, id);
+impl BlockMapping {
+    fn insert(&mut self, range: Range<Address>, id: BlockId) {
+        self.address.insert(range.start, id);
+        self.intervals.insert(range.clone(), id);
 
         // update LUT
-        let start_page = start >> 12;
-        let end_page = end >> 12;
+        let start_page = range.start.value() >> 12;
+        let end_page = range.end.value() >> 12;
         for index in start_page..=end_page {
             self.page_lut[index as usize] += 1;
         }
@@ -62,20 +40,17 @@ impl BlockStorage {
 
     /// Returns the block starting at `addr`.
     #[inline(always)]
-    pub fn get(&mut self, addr: Address) -> Option<Block> {
-        let id = if let Some((last_addr, id)) = self.last_query
+    pub fn get(&mut self, addr: Address) -> Option<BlockId> {
+        if let Some((last_addr, id)) = self.last_query
             && last_addr == addr
         {
             std::hint::cold_path();
-            id
+            Some(id)
         } else {
-            let id = *self.mapping.get(&addr)?;
+            let id = *self.address.get(&addr)?;
             self.last_query = Some((addr, id));
-            id
-        };
-
-        // SAFETY: if the block exists in the mapping, it should exist in the blocks!
-        unsafe { Some(self.blocks.get_unchecked(id).clone()) }
+            Some(id)
+        }
     }
 
     /// Invalidates all blocks that contain `addr`.
@@ -89,21 +64,18 @@ impl BlockStorage {
             std::hint::cold_path();
         }
 
-        let start = addr.value() as u64;
-        let range = start..start + 1;
-
-        for (range, id) in self.intervals.iter_overlaps(&range) {
-            self.buffer.push((range.clone(), *id));
+        let range = addr..addr + 1;
+        for (range, _) in self.intervals.iter_overlaps(&range) {
+            self.buffer.push(range.clone());
         }
 
-        for (range, id) in self.buffer.drain(..) {
-            self.blocks.remove(id);
-            self.mapping.remove(&Address(range.start as u32));
+        for range in self.buffer.drain(..) {
+            self.address.remove(&range.start);
             self.intervals.remove(&range);
 
             // update LUT
-            let start_page = range.start >> 12;
-            let end_page = range.end >> 12;
+            let start_page = range.start.value() >> 12;
+            let end_page = range.end.value() >> 12;
             for index in start_page..=end_page {
                 self.page_lut[index as usize] -= 1;
             }
@@ -119,8 +91,7 @@ impl BlockStorage {
     }
 
     pub fn clear(&mut self) {
-        self.blocks.clear();
-        self.mapping.clear();
+        self.address.clear();
         self.intervals = IntervalTree::default();
         self.page_lut.fill(0);
 
@@ -129,10 +100,57 @@ impl BlockStorage {
     }
 }
 
+impl Default for BlockMapping {
+    fn default() -> Self {
+        Self {
+            address: BTreeMap::default(),
+            intervals: IntervalTree::default(),
+            page_lut: boxed_array(0),
+
+            buffer: Vec::with_capacity(64),
+            last_query: None,
+        }
+    }
+}
+
+/// A structure which keeps tracks of compiled [`Block`]s.
+pub struct Blocks {
+    pub storage: SlotMap<BlockId, Block>,
+    pub mapping: BlockMapping,
+}
+
+impl Default for Blocks {
+    fn default() -> Self {
+        Self {
+            storage: SlotMap::with_key(),
+            mapping: BlockMapping::default(),
+        }
+    }
+}
+
+impl Blocks {
+    #[inline(always)]
+    pub fn insert(&mut self, addr: Address, block: Block) -> BlockId {
+        let end = addr + block.sequence().len() as u32 * 4;
+        let range = addr..end;
+
+        let id = self.storage.insert(block);
+        self.mapping.insert(range, id);
+
+        id
+    }
+
+    #[inline(always)]
+    pub fn clear(&mut self) {
+        self.storage.clear();
+        self.mapping.clear();
+    }
+}
+
 /// External data to be passed in for execution of JIT blocks.
 pub struct ExternalData<'a> {
     pub system: &'a mut System,
-    pub blocks: &'a mut BlockStorage,
+    pub mapping: &'a mut BlockMapping,
 }
 
 pub static EXTERNAL_FUNCTIONS: ExternalFunctions = {
@@ -148,11 +166,11 @@ pub static EXTERNAL_FUNCTIONS: ExternalFunctions = {
     extern "sysv64" fn write<T: Primitive>(external: &mut ExternalData, addr: Address, value: T) {
         let physical = external.system.translate_data_addr(addr);
         external.system.bus.write(physical, value);
-        external.blocks.invalidate(addr);
+        external.mapping.invalidate(addr);
     }
 
     extern "sysv64" fn ibat_changed(external: &mut ExternalData) {
-        external.blocks.clear();
+        external.mapping.clear();
         external
             .system
             .mmu
@@ -205,7 +223,7 @@ pub static EXTERNAL_FUNCTIONS: ExternalFunctions = {
 /// The JIT context.
 pub struct JIT {
     pub compiler: ppcjit::Compiler,
-    pub blocks: BlockStorage,
+    pub blocks: Blocks,
 }
 
 impl Default for JIT {
@@ -218,7 +236,7 @@ impl JIT {
     pub fn new() -> Self {
         Self {
             compiler: ppcjit::Compiler::default(),
-            blocks: BlockStorage::default(),
+            blocks: Blocks::default(),
         }
     }
 }

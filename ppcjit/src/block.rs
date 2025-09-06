@@ -2,7 +2,7 @@ use crate::Sequence;
 use hemicore::{Address, arch::Registers};
 use iced_x86::Formatter;
 use memmap2::{Mmap, MmapOptions};
-use std::{fmt::Display, sync::Arc};
+use std::fmt::Display;
 
 pub type ExternalData = std::ffi::c_void;
 pub type GetRegistersFn = fn(*mut ExternalData) -> *mut Registers;
@@ -30,17 +30,12 @@ pub struct ExternalFunctions {
 
 pub type BlockFn = extern "sysv64" fn(*mut ExternalData, *const ExternalFunctions) -> u32;
 
-struct Inner {
+/// A compiled block of PowerPC instructions.
+pub struct Block {
     seq: Sequence,
     clir: String,
     code: Mmap,
 }
-
-/// A compiled block of PowerPC instructions.
-///
-/// Blocks are reference counted internally, so this is cheaply clonable.
-#[derive(Clone)]
-pub struct Block(Arc<Inner>);
 
 impl Block {
     /// # Safety
@@ -49,11 +44,11 @@ impl Block {
         let mut map = MmapOptions::new().len(code.len()).map_anon().unwrap();
         map.copy_from_slice(code);
 
-        Self(Arc::new(Inner {
+        Self {
             seq,
             clir,
             code: map.make_exec().unwrap(),
-        }))
+        }
     }
 
     /// Executes this block of instructions.
@@ -63,30 +58,30 @@ impl Block {
         external_data: *mut ExternalData,
         external_functions: &ExternalFunctions,
     ) -> u32 {
-        let func: BlockFn = unsafe { std::mem::transmute(self.0.code.as_ptr()) };
+        let func: BlockFn = unsafe { std::mem::transmute(self.code.as_ptr()) };
         func(external_data, external_functions)
     }
 
     /// Returns the sequence of instructions this block represents.
     pub fn sequence(&self) -> &Sequence {
-        &self.0.seq
+        &self.seq
     }
 
     /// Returns the Cranelift IR generated for this block.
     pub fn clir(&self) -> &str {
-        &self.0.clir
+        &self.clir
     }
 
     /// Returns the length, in bytes, of this block.
     pub fn len(&self) -> usize {
-        self.0.code.len()
+        self.code.len()
     }
 }
 
 impl Display for Block {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut decoder =
-            iced_x86::Decoder::new(usize::BITS, &self.0.code, iced_x86::DecoderOptions::NONE);
+            iced_x86::Decoder::new(usize::BITS, &self.code, iced_x86::DecoderOptions::NONE);
 
         let mut formatter = iced_x86::NasmFormatter::new();
         formatter.options_mut().set_digit_separator("_");
