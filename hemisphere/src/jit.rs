@@ -167,7 +167,9 @@ pub static CTX_HOOKS: ContextHooks = {
     extern "sysv64" fn write<T: Primitive>(ctx: &mut Context, addr: Address, value: T) {
         let physical = ctx.system.translate_data_addr(addr);
         ctx.system.bus.write(physical, value);
-        ctx.mapping.invalidate(addr);
+        for i in 0..size_of::<T>() {
+            ctx.mapping.invalidate(addr + i as u32);
+        }
     }
 
     extern "sysv64" fn ibat_changed(ctx: &mut Context) {
