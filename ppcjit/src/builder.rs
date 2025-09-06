@@ -342,6 +342,7 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Stwx => self.stwx(ins),
             Opcode::Subf => self.subf(ins),
             Opcode::Sync => self.stub(ins), // NOTE: stubbed
+            Opcode::Icbi => self.stub(ins), // NOTE: stubbed
             Opcode::Illegal => {
                 return Err(EmitError::Illegal(ins));
             }

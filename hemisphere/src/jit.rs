@@ -173,18 +173,18 @@ pub static CTX_HOOKS: ContextHooks = {
     }
 
     extern "sysv64" fn ibat_changed(ctx: &mut Context) {
-        info!("ibats changed - clearing blocks mapping and rebuilding bat lut");
+        info!("ibats changed - clearing blocks mapping and rebuilding ibat lut");
         ctx.mapping.clear();
         ctx.system
             .mmu
-            .build_bat_lut(&ctx.system.cpu.supervisor.memory);
+            .build_instr_bat_lut(&ctx.system.cpu.supervisor.memory.ibat);
     }
 
     extern "sysv64" fn dbat_changed(ctx: &mut Context) {
-        info!("dbats changed - rebuilding bat lut");
+        info!("dbats changed - rebuilding dbat lut");
         ctx.system
             .mmu
-            .build_bat_lut(&ctx.system.cpu.supervisor.memory);
+            .build_data_bat_lut(&ctx.system.cpu.supervisor.memory.dbat);
     }
 
     #[expect(

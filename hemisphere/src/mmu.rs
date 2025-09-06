@@ -24,42 +24,52 @@ impl Mmu {
         }
     }
 
-    pub fn build_bat_lut(&mut self, mem: &MemoryManagement) {
-        let _span = trace_span!("building bat lut");
+    fn update_lut_with(lut: &mut BATLUT, bat: &Bat) {
+        let physical_start_base = (bat.physical_start().value() >> 17) as u16;
+        let physical_end_base = (bat.physical_end().value() >> 17) as u16;
+        let logical_start_base = bat.start().value() >> 17;
+        let logical_end_base = bat.end().value() >> 17;
+
+        trace!(
+            "start = {}, end = {}, physical start = {}, physical end = {}",
+            bat.start(),
+            bat.end(),
+            bat.physical_start(),
+            bat.physical_end()
+        );
+        trace!(
+            "start base = {:04X}, end base = {:04X}, physical start base = {:04X}, physical end base = {:04X}",
+            logical_start_base, logical_end_base, physical_start_base, physical_end_base
+        );
+
+        for (i, base) in (logical_start_base..=logical_end_base).enumerate() {
+            lut[base as usize] = (physical_start_base + i as u16) << 1;
+        }
+    }
+
+    pub fn build_data_bat_lut(&mut self, dbats: &[Bat; 4]) {
+        let _span = trace_span!("building dbat lut");
 
         self.data_bat_lut.fill(NO_BAT);
+        for bat in dbats {
+            Self::update_lut_with(&mut self.data_bat_lut, bat);
+        }
+    }
+
+    pub fn build_instr_bat_lut(&mut self, ibats: &[Bat; 4]) {
+        let _span = trace_span!("building ibat lut");
+
         self.instr_bat_lut.fill(NO_BAT);
-
-        fn inner(lut: &mut BATLUT, bat: &Bat) {
-            let physical_start_base = (bat.physical_start().value() >> 17) as u16;
-            let physical_end_base = (bat.physical_end().value() >> 17) as u16;
-            let logical_start_base = bat.start().value() >> 17;
-            let logical_end_base = bat.end().value() >> 17;
-
-            trace!(
-                "start = {}, end = {}, physical start = {}, physical end = {}",
-                bat.start(),
-                bat.end(),
-                bat.physical_start(),
-                bat.physical_end()
-            );
-            trace!(
-                "start base = {:04X}, end base = {:04X}, physical start base = {:04X}, physical end base = {:04X}",
-                logical_start_base, logical_end_base, physical_start_base, physical_end_base
-            );
-
-            for (i, base) in (logical_start_base..=logical_end_base).enumerate() {
-                lut[base as usize] = (physical_start_base + i as u16) << 1;
-            }
+        for bat in ibats {
+            Self::update_lut_with(&mut self.instr_bat_lut, bat);
         }
+    }
 
-        for bat in &mem.dbat {
-            inner(&mut self.data_bat_lut, bat);
-        }
+    pub fn build_bat_lut(&mut self, memory: &MemoryManagement) {
+        let _span = trace_span!("building bat luts");
 
-        for bat in &mem.ibat {
-            inner(&mut self.instr_bat_lut, bat);
-        }
+        self.build_data_bat_lut(&memory.dbat);
+        self.build_instr_bat_lut(&memory.ibat);
     }
 
     pub fn translate_data_addr(&self, addr: Address) -> Option<Address> {

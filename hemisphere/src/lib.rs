@@ -21,7 +21,7 @@ use hemicore::{
     },
 };
 use ppcjit::{Sequence, SequenceStatus};
-use tracing::{debug, trace, trace_span};
+use tracing::{trace, trace_span};
 
 pub use dolfile;
 pub use hemicore as core;
