@@ -1,5 +1,5 @@
 use super::BlockBuilder;
-use crate::block::ExternalFunctions;
+use crate::block::ContextHooks;
 use cranelift::{
     codegen::ir,
     prelude::{InstBuilder, isa::CallConv},
@@ -10,7 +10,7 @@ use std::mem::offset_of;
 fn sig_read(ptr_type: ir::Type, read_type: ir::Type) -> ir::Signature {
     ir::Signature {
         params: vec![
-            ir::AbiParam::new(ptr_type),       // external
+            ir::AbiParam::new(ptr_type),       // ctx
             ir::AbiParam::new(ir::types::I32), // address
         ],
         returns: vec![ir::AbiParam::new(read_type)], // value
@@ -21,7 +21,7 @@ fn sig_read(ptr_type: ir::Type, read_type: ir::Type) -> ir::Signature {
 fn sig_write(ptr_type: ir::Type, write_type: ir::Type) -> ir::Signature {
     ir::Signature {
         params: vec![
-            ir::AbiParam::new(ptr_type),       // external
+            ir::AbiParam::new(ptr_type),       // ctx
             ir::AbiParam::new(ir::types::I32), // address
             ir::AbiParam::new(write_type),     // value
         ],
@@ -37,45 +37,45 @@ trait IrPrimitive {
 }
 
 impl IrPrimitive for i8 {
-    const READ_OFFSET: i32 = offset_of!(ExternalFunctions, read_i8) as i32;
-    const WRITE_OFFSET: i32 = offset_of!(ExternalFunctions, write_i8) as i32;
+    const READ_OFFSET: i32 = offset_of!(ContextHooks, read_i8) as i32;
+    const WRITE_OFFSET: i32 = offset_of!(ContextHooks, write_i8) as i32;
     const IR_TYPE: ir::Type = ir::types::I8;
 }
 
 impl IrPrimitive for i16 {
-    const READ_OFFSET: i32 = offset_of!(ExternalFunctions, read_i16) as i32;
-    const WRITE_OFFSET: i32 = offset_of!(ExternalFunctions, write_i16) as i32;
+    const READ_OFFSET: i32 = offset_of!(ContextHooks, read_i16) as i32;
+    const WRITE_OFFSET: i32 = offset_of!(ContextHooks, write_i16) as i32;
     const IR_TYPE: ir::Type = ir::types::I16;
 }
 
 impl IrPrimitive for i32 {
-    const READ_OFFSET: i32 = offset_of!(ExternalFunctions, read_i32) as i32;
-    const WRITE_OFFSET: i32 = offset_of!(ExternalFunctions, write_i32) as i32;
+    const READ_OFFSET: i32 = offset_of!(ContextHooks, read_i32) as i32;
+    const WRITE_OFFSET: i32 = offset_of!(ContextHooks, write_i32) as i32;
     const IR_TYPE: ir::Type = ir::types::I32;
 }
 
 impl BlockBuilder<'_> {
     fn read<P: IrPrimitive>(&mut self, addr: ir::Value) -> ir::Value {
         let read_fn = self.bd.ins().load(
-            self.ctx.ptr_type,
+            self.consts.ptr_type,
             ir::MemFlags::trusted(),
-            self.ctx.external_functions_ptr,
+            self.consts.ctx_hooks_ptr,
             P::READ_OFFSET,
         );
 
         let sig = *self
-            .ctx
-            .external_functions_sigs
+            .consts
+            .ctx_hooks_sig
             .entry(P::READ_OFFSET)
             .or_insert_with(|| {
                 self.bd
-                    .import_signature(sig_read(self.ctx.ptr_type, P::IR_TYPE))
+                    .import_signature(sig_read(self.consts.ptr_type, P::IR_TYPE))
             });
 
         let inst = self
             .bd
             .ins()
-            .call_indirect(sig, read_fn, &[self.ctx.external_data_ptr, addr]);
+            .call_indirect(sig, read_fn, &[self.consts.ctx_ptr, addr]);
 
         let ret = self.bd.inst_results(inst);
         ret[0]
@@ -83,24 +83,24 @@ impl BlockBuilder<'_> {
 
     fn write<P: IrPrimitive>(&mut self, addr: ir::Value, value: ir::Value) {
         let write_fn = self.bd.ins().load(
-            self.ctx.ptr_type,
+            self.consts.ptr_type,
             ir::MemFlags::trusted(),
-            self.ctx.external_functions_ptr,
+            self.consts.ctx_hooks_ptr,
             P::WRITE_OFFSET,
         );
 
         let sig = *self
-            .ctx
-            .external_functions_sigs
+            .consts
+            .ctx_hooks_sig
             .entry(P::WRITE_OFFSET)
             .or_insert_with(|| {
                 self.bd
-                    .import_signature(sig_write(self.ctx.ptr_type, P::IR_TYPE))
+                    .import_signature(sig_write(self.consts.ptr_type, P::IR_TYPE))
             });
 
         self.bd
             .ins()
-            .call_indirect(sig, write_fn, &[self.ctx.external_data_ptr, addr, value]);
+            .call_indirect(sig, write_fn, &[self.consts.ctx_ptr, addr, value]);
     }
 
     pub fn stwu(&mut self, ins: Ins) {

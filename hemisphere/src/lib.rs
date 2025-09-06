@@ -9,7 +9,7 @@ pub mod video;
 
 use crate::{
     bus::Bus,
-    jit::{EXTERNAL_FUNCTIONS, ExternalData, JIT},
+    jit::{CTX_HOOKS, Context, JIT},
     mmu::Mmu,
 };
 use dolfile::Dol;
@@ -179,12 +179,6 @@ impl Hemisphere {
         self.jit.compiler.compile(seq).unwrap()
     }
 
-    // #[inline(always)]
-    // fn exec_block(mut external: ExternalData, block: &ppcjit::Block) -> u32 {
-    //     let executed = block.run(&mut external as *mut _ as *mut _, &EXTERNAL_FUNCTIONS);
-    //     executed
-    // }
-
     pub fn exec_with_limit(&mut self, limit: u16) -> u32 {
         let block = self
             .jit
@@ -205,12 +199,12 @@ impl Hemisphere {
             }
         };
 
-        let mut external = ExternalData {
+        let mut ctx = Context {
             system: &mut self.system,
             mapping: &mut self.jit.blocks.mapping,
         };
 
-        block.run(&mut external as *mut _ as *mut _, &EXTERNAL_FUNCTIONS)
+        block.run(&mut ctx as *mut _ as *mut _, &CTX_HOOKS)
     }
 
     fn exec_with_limit_and_cached(&mut self, limit: u16) -> u32 {
@@ -250,11 +244,11 @@ impl Hemisphere {
             }
         };
 
-        let mut external = ExternalData {
+        let mut ctx = Context {
             system: &mut self.system,
             mapping: &mut self.jit.blocks.mapping,
         };
 
-        block.run(&mut external as *mut _ as *mut _, &EXTERNAL_FUNCTIONS)
+        block.run(&mut ctx as *mut _ as *mut _, &CTX_HOOKS)
     }
 }

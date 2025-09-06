@@ -5,7 +5,7 @@ mod exception;
 mod memory;
 mod others;
 
-use crate::block::ExternalFunctions;
+use crate::block::ContextHooks;
 use cranelift::{
     codegen::ir::{self, SigRef, condcodes::IntCC},
     frontend,
@@ -25,7 +25,7 @@ use std::{collections::hash_map::Entry, mem::offset_of};
 fn sig_get_registers(ptr_type: ir::Type) -> ir::Signature {
     ir::Signature {
         params: vec![
-            ir::AbiParam::new(ptr_type), // external
+            ir::AbiParam::new(ptr_type), // ctx
         ],
         returns: vec![ir::AbiParam::new(ptr_type)],
         call_conv: CallConv::SystemV,
@@ -35,7 +35,7 @@ fn sig_get_registers(ptr_type: ir::Type) -> ir::Signature {
 fn sig_generic_hook(ptr_type: ir::Type) -> ir::Signature {
     ir::Signature {
         params: vec![
-            ir::AbiParam::new(ptr_type), // external
+            ir::AbiParam::new(ptr_type), // ctx
         ],
         returns: vec![],
         call_conv: CallConv::SystemV,
@@ -57,12 +57,12 @@ pub enum EmitError {
     Unimplemented(Ins),
 }
 
-struct Context {
+struct Consts {
     ptr_type: ir::Type,
     regs_ptr: ir::Value,
-    external_data_ptr: ir::Value,
-    external_functions_ptr: ir::Value,
-    external_functions_sigs: FxHashMap<i32, SigRef>,
+    ctx_ptr: ir::Value,
+    ctx_hooks_ptr: ir::Value,
+    ctx_hooks_sig: FxHashMap<i32, SigRef>,
 }
 
 struct RegState {
@@ -72,7 +72,7 @@ struct RegState {
 
 pub struct BlockBuilder<'ctx> {
     bd: frontend::FunctionBuilder<'ctx>,
-    ctx: Context,
+    consts: Consts,
     regs: FxHashMap<Reg, RegState>,
     current_bb: ir::Block,
 
@@ -95,35 +95,35 @@ impl<'ctx> BlockBuilder<'ctx> {
 
         let ptr_type = isa.pointer_type();
         let params = builder.block_params(entry_bb);
-        let external_data_ptr = params[0];
-        let external_functions_ptr = params[1];
+        let ctx_ptr = params[0];
+        let ctx_hooks_ptr = params[1];
 
         // extract regs ptr
         let signature = builder.import_signature(sig_get_registers(ptr_type));
         let get_registers = builder.ins().load(
             ptr_type,
             ir::MemFlags::trusted(),
-            external_functions_ptr,
-            offset_of!(ExternalFunctions, get_registers) as i32,
+            ctx_hooks_ptr,
+            offset_of!(ContextHooks, get_registers) as i32,
         );
 
         let inst = builder
             .ins()
-            .call_indirect(signature, get_registers, &[external_data_ptr]);
+            .call_indirect(signature, get_registers, &[ctx_ptr]);
 
         let regs_ptr = builder.inst_results(inst)[0];
 
-        let ctx = Context {
+        let ctx = Consts {
             ptr_type,
             regs_ptr,
-            external_data_ptr,
-            external_functions_ptr,
-            external_functions_sigs: FxHashMap::default(),
+            ctx_ptr,
+            ctx_hooks_ptr,
+            ctx_hooks_sig: FxHashMap::default(),
         };
 
         Self {
             bd: builder,
-            ctx,
+            consts: ctx,
             regs: FxHashMap::default(),
             current_bb: entry_bb,
             executed: 0,
@@ -142,7 +142,7 @@ impl<'ctx> BlockBuilder<'ctx> {
                 let dumped = self.bd.ins().load(
                     reg_ty,
                     ir::MemFlags::trusted(),
-                    self.ctx.regs_ptr,
+                    self.consts.regs_ptr,
                     reg.offset() as i32,
                 );
 
@@ -244,24 +244,20 @@ impl<'ctx> BlockBuilder<'ctx> {
 
     fn call_hook(&mut self, offset: i32) {
         let hook = self.bd.ins().load(
-            self.ctx.ptr_type,
+            self.consts.ptr_type,
             ir::MemFlags::trusted(),
-            self.ctx.external_functions_ptr,
+            self.consts.ctx_hooks_ptr,
             offset,
         );
 
-        let sig = *self
-            .ctx
-            .external_functions_sigs
-            .entry(offset)
-            .or_insert_with(|| {
-                self.bd
-                    .import_signature(sig_generic_hook(self.ctx.ptr_type))
-            });
+        let sig = *self.consts.ctx_hooks_sig.entry(offset).or_insert_with(|| {
+            self.bd
+                .import_signature(sig_generic_hook(self.consts.ptr_type))
+        });
 
         self.bd
             .ins()
-            .call_indirect(sig, hook, &[self.ctx.external_data_ptr]);
+            .call_indirect(sig, hook, &[self.consts.ctx_ptr]);
     }
 
     fn prologue(&mut self) {
@@ -279,17 +275,17 @@ impl<'ctx> BlockBuilder<'ctx> {
             self.bd.ins().store(
                 ir::MemFlags::trusted(),
                 value,
-                self.ctx.regs_ptr,
+                self.consts.regs_ptr,
                 reg.offset() as i32,
             );
         }
 
         if self.dbat_changed {
-            self.call_hook(offset_of!(ExternalFunctions, dbat_changed) as i32);
+            self.call_hook(offset_of!(ContextHooks, dbat_changed) as i32);
         }
 
         if self.ibat_changed {
-            self.call_hook(offset_of!(ExternalFunctions, ibat_changed) as i32);
+            self.call_hook(offset_of!(ContextHooks, ibat_changed) as i32);
         }
 
         self.bd.ins().return_(&[executed]);

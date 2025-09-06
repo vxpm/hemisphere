@@ -4,14 +4,14 @@ use iced_x86::Formatter;
 use memmap2::{Mmap, MmapOptions};
 use std::fmt::Display;
 
-pub type ExternalData = std::ffi::c_void;
-pub type GetRegistersFn = fn(*mut ExternalData) -> *mut Registers;
-pub type ReadFn<T> = fn(*mut ExternalData, Address) -> T;
-pub type WriteFn<T> = fn(*mut ExternalData, Address, T);
-pub type GenericHookFn = fn(*mut ExternalData);
+pub type Context = std::ffi::c_void;
+pub type GetRegistersFn = fn(*mut Context) -> *mut Registers;
+pub type ReadFn<T> = fn(*mut Context, Address) -> T;
+pub type WriteFn<T> = fn(*mut Context, Address, T);
+pub type GenericHookFn = fn(*mut Context);
 
 /// External functions that JITed code calls.
-pub struct ExternalFunctions {
+pub struct ContextHooks {
     // registers
     pub get_registers: GetRegistersFn,
 
@@ -28,7 +28,7 @@ pub struct ExternalFunctions {
     pub dbat_changed: GenericHookFn,
 }
 
-pub type BlockFn = extern "sysv64" fn(*mut ExternalData, *const ExternalFunctions) -> u32;
+pub type BlockFn = extern "sysv64" fn(*mut Context, *const ContextHooks) -> u32;
 
 /// A compiled block of PowerPC instructions.
 pub struct Block {
@@ -53,13 +53,9 @@ impl Block {
 
     /// Executes this block of instructions.
     #[inline(always)]
-    pub fn run(
-        &self,
-        external_data: *mut ExternalData,
-        external_functions: &ExternalFunctions,
-    ) -> u32 {
+    pub fn run(&self, ctx: *mut Context, hooks: &ContextHooks) -> u32 {
         let func: BlockFn = unsafe { std::mem::transmute(self.code.as_ptr()) };
-        func(external_data, external_functions)
+        func(ctx, hooks)
     }
 
     /// Returns the sequence of instructions this block represents.

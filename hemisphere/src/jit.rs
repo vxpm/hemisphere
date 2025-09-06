@@ -3,7 +3,7 @@ use hemicore::{Address, Primitive, arch::Registers, util::boxed_array};
 use interavl::IntervalTree;
 use ppcjit::{
     Block,
-    block::{ExternalFunctions, GenericHookFn, GetRegistersFn, ReadFn, WriteFn},
+    block::{ContextHooks, GenericHookFn, GetRegistersFn, ReadFn, WriteFn},
 };
 use slotmap::{SlotMap, new_key_type};
 use std::{collections::BTreeMap, ops::Range};
@@ -147,41 +147,39 @@ impl Blocks {
     }
 }
 
-/// External data to be passed in for execution of JIT blocks.
-pub struct ExternalData<'a> {
+/// Context to be passed in for execution of JIT blocks.
+pub struct Context<'a> {
     pub system: &'a mut System,
     pub mapping: &'a mut BlockMapping,
 }
 
-pub static EXTERNAL_FUNCTIONS: ExternalFunctions = {
-    extern "sysv64" fn get_registers<'a>(external: &'a mut ExternalData) -> &'a mut Registers {
-        &mut external.system.cpu
+pub static CTX_HOOKS: ContextHooks = {
+    extern "sysv64" fn get_registers<'a>(ctx: &'a mut Context) -> &'a mut Registers {
+        &mut ctx.system.cpu
     }
 
-    extern "sysv64" fn read<T: Primitive>(external: &mut ExternalData, addr: Address) -> T {
-        let physical = external.system.translate_data_addr(addr);
-        external.system.bus.read(physical)
+    extern "sysv64" fn read<T: Primitive>(ctx: &mut Context, addr: Address) -> T {
+        let physical = ctx.system.translate_data_addr(addr);
+        ctx.system.bus.read(physical)
     }
 
-    extern "sysv64" fn write<T: Primitive>(external: &mut ExternalData, addr: Address, value: T) {
-        let physical = external.system.translate_data_addr(addr);
-        external.system.bus.write(physical, value);
-        external.mapping.invalidate(addr);
+    extern "sysv64" fn write<T: Primitive>(ctx: &mut Context, addr: Address, value: T) {
+        let physical = ctx.system.translate_data_addr(addr);
+        ctx.system.bus.write(physical, value);
+        ctx.mapping.invalidate(addr);
     }
 
-    extern "sysv64" fn ibat_changed(external: &mut ExternalData) {
-        external.mapping.clear();
-        external
-            .system
+    extern "sysv64" fn ibat_changed(ctx: &mut Context) {
+        ctx.mapping.clear();
+        ctx.system
             .mmu
-            .build_bat_lut(&external.system.cpu.supervisor.memory);
+            .build_bat_lut(&ctx.system.cpu.supervisor.memory);
     }
 
-    extern "sysv64" fn dbat_changed(external: &mut ExternalData) {
-        external
-            .system
+    extern "sysv64" fn dbat_changed(ctx: &mut Context) {
+        ctx.system
             .mmu
-            .build_bat_lut(&external.system.cpu.supervisor.memory);
+            .build_bat_lut(&ctx.system.cpu.supervisor.memory);
     }
 
     #[expect(
@@ -204,7 +202,7 @@ pub static EXTERNAL_FUNCTIONS: ExternalFunctions = {
         let ibat_changed = transmute::<_, GenericHookFn>(ibat_changed as extern "sysv64" fn(_));
         let dbat_changed = transmute::<_, GenericHookFn>(dbat_changed as extern "sysv64" fn(_));
 
-        ExternalFunctions {
+        ContextHooks {
             get_registers,
 
             read_i8,
