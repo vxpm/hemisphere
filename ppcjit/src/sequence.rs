@@ -9,7 +9,7 @@ fn is_terminal(ins: &Ins) -> bool {
     ins.is_unconditional_branch()
         || matches!(
             ins.op,
-            Opcode::Rfi | Opcode::Isync | Opcode::Sync | Opcode::Tlbsync
+            Opcode::Illegal | Opcode::Rfi | Opcode::Isync | Opcode::Sync | Opcode::Tlbsync
         )
 }
 

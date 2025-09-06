@@ -145,16 +145,12 @@ impl BlockBuilder<'_> {
 
     pub fn stwx(&mut self, ins: Ins) {
         let rb = self.get(ins.gpr_b());
-        let base = if ins.field_ra() == 0 {
-            self.bd
-                .ins()
-                .iconst(ir::types::I32, ins.field_offset() as i64)
+        let addr = if ins.field_ra() == 0 {
+            rb
         } else {
             let ra = self.get(ins.gpr_a());
-            self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
+            self.bd.ins().iadd(ra, rb)
         };
-
-        let addr = self.bd.ins().iadd(rb, base);
 
         let value = self.get(ins.gpr_s());
         self.write::<i32>(addr, value);
@@ -236,16 +232,12 @@ impl BlockBuilder<'_> {
 
     pub fn lwzx(&mut self, ins: Ins) {
         let rb = self.get(ins.gpr_b());
-        let base = if ins.field_ra() == 0 {
-            self.bd
-                .ins()
-                .iconst(ir::types::I32, ins.field_offset() as i64)
+        let addr = if ins.field_ra() == 0 {
+            rb
         } else {
             let ra = self.get(ins.gpr_a());
-            self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
+            self.bd.ins().iadd(ra, rb)
         };
-
-        let addr = self.bd.ins().iadd(rb, base);
 
         let value = self.read::<i32>(addr);
         self.set(ins.gpr_d(), value);
@@ -277,16 +269,12 @@ impl BlockBuilder<'_> {
 
     pub fn lbzx(&mut self, ins: Ins) {
         let rb = self.get(ins.gpr_b());
-        let base = if ins.field_ra() == 0 {
-            self.bd
-                .ins()
-                .iconst(ir::types::I32, ins.field_offset() as i64)
+        let addr = if ins.field_ra() == 0 {
+            rb
         } else {
             let ra = self.get(ins.gpr_a());
-            self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
+            self.bd.ins().iadd(ra, rb)
         };
-
-        let addr = self.bd.ins().iadd(rb, base);
 
         let value = self.read::<i8>(addr);
         let extended = self.bd.ins().uextend(ir::types::I32, value);

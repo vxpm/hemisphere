@@ -21,7 +21,7 @@ use hemicore::{
     },
 };
 use ppcjit::{Sequence, SequenceStatus};
-use tracing::{info, info_span};
+use tracing::{debug, trace, trace_span};
 
 pub use dolfile;
 pub use hemicore as core;
@@ -147,7 +147,7 @@ impl Hemisphere {
 
     /// Compiles a sequence of at most `limit` instructions starting at `addr` into a JIT block.
     fn compile(&mut self, addr: Address, limit: u16) -> ppcjit::Block {
-        let _span = info_span!("compiling new block", addr = ?self.system.cpu.pc).entered();
+        let _span = trace_span!("compiling new block", addr = ?self.system.cpu.pc).entered();
 
         let mut seq = Sequence::new();
         let mut current = addr;
@@ -175,7 +175,7 @@ impl Hemisphere {
             }
         }
 
-        info!(instructions = seq.len(), "block sequence built");
+        trace!(instructions = seq.len(), "block sequence built");
         self.jit.compiler.compile(seq).unwrap()
     }
 
