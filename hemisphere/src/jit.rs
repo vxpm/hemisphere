@@ -7,6 +7,7 @@ use ppcjit::{
 };
 use slotmap::{SlotMap, new_key_type};
 use std::{collections::BTreeMap, ops::Range};
+use tracing::info;
 
 const PAGE_COUNT: usize = 1 << 20;
 type PageLUT = Box<[u16; PAGE_COUNT]>;
@@ -170,6 +171,7 @@ pub static CTX_HOOKS: ContextHooks = {
     }
 
     extern "sysv64" fn ibat_changed(ctx: &mut Context) {
+        info!("ibats changed - clearing blocks mapping and rebuilding bat lut");
         ctx.mapping.clear();
         ctx.system
             .mmu
@@ -177,6 +179,7 @@ pub static CTX_HOOKS: ContextHooks = {
     }
 
     extern "sysv64" fn dbat_changed(ctx: &mut Context) {
+        info!("dbats changed - rebuilding bat lut");
         ctx.system
             .mmu
             .build_bat_lut(&ctx.system.cpu.supervisor.memory);

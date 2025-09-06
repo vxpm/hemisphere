@@ -37,7 +37,7 @@ fn setup_tracing() -> tracing_appender::non_blocking::WorkerGuard {
     let (file, _guard_file) = tracing_appender::non_blocking(file);
     let file_layer = fmt::layer().with_writer(file).with_ansi(false);
     let env_filter = EnvFilter::try_from_default_env().unwrap_or(EnvFilter::new(
-        "cli=trace,hemisphere=trace,hemicore=trace,ppcjit=trace",
+        "cli=debug,hemisphere=debug,hemicore=deubg,ppcjit=debug",
     ));
 
     let subscriber = tracing_subscriber::registry()

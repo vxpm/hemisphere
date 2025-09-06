@@ -138,20 +138,15 @@ impl BlockBuilder<'_> {
     pub fn divwu(&mut self, ins: Ins) {}
 
     pub fn rlwinm(&mut self, ins: Ins) {
-        let _span = debug_span!("rlwinm").entered();
-
         let rs = self.get(ins.gpr_s());
         let shift_amount = ins.field_sh();
         let rotated = self.bd.ins().rotl_imm(rs, shift_amount as i64);
 
-        debug!("start: {} end: {}", ins.field_mb(), ins.field_me());
         let mask = if ins.field_mb() <= ins.field_me() {
-            debug!("case 1: mb <= me - bits between mb and me are ones, inclusive");
             let start = 31 - ins.field_me();
             let end = 31 - ins.field_mb();
             0.with_bits(start, end + 1, !0)
         } else {
-            debug!("case 2: mb > me - bits between me and mb are zero, exclusive");
             let start = 31 - ins.field_mb();
             let end = 31 - ins.field_me();
 
@@ -160,8 +155,6 @@ impl BlockBuilder<'_> {
             // make start exclusive too!
             mask | (1 << start)
         };
-
-        debug!("resulting mask: {mask:032b}");
 
         let masked = self.bd.ins().band_imm(rotated, mask as i64);
         self.set(ins.gpr_a(), masked);

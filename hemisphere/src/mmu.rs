@@ -4,7 +4,7 @@ use hemicore::{
     arch::{Bat, MemoryManagement},
     util::boxed_array,
 };
-use tracing::{debug, debug_span};
+use tracing::{trace, trace_span};
 
 const BASES_COUNT: usize = 1 << 15;
 type BATLUT = Box<[u16; BASES_COUNT]>;
@@ -25,7 +25,7 @@ impl Mmu {
     }
 
     pub fn build_bat_lut(&mut self, mem: &MemoryManagement) {
-        let _span = debug_span!("building bat lut");
+        let _span = trace_span!("building bat lut");
 
         self.data_bat_lut.fill(NO_BAT);
         self.instr_bat_lut.fill(NO_BAT);
@@ -36,14 +36,14 @@ impl Mmu {
             let logical_start_base = bat.start().value() >> 17;
             let logical_end_base = bat.end().value() >> 17;
 
-            debug!(
+            trace!(
                 "start = {}, end = {}, physical start = {}, physical end = {}",
                 bat.start(),
                 bat.end(),
                 bat.physical_start(),
                 bat.physical_end()
             );
-            debug!(
+            trace!(
                 "start base = {:04X}, end base = {:04X}, physical start base = {:04X}, physical end base = {:04X}",
                 logical_start_base, logical_end_base, physical_start_base, physical_end_base
             );
