@@ -5,7 +5,6 @@ use cranelift::{
     prelude::{InstBuilder, IntCC},
 };
 use hemicore::arch::{InsExt, SPR, powerpc::Ins};
-use tracing::{debug, debug_span};
 
 impl BlockBuilder<'_> {
     pub fn addi(&mut self, ins: Ins) {
@@ -135,7 +134,56 @@ impl BlockBuilder<'_> {
         self.set(ins.gpr_a(), value);
     }
 
-    pub fn divwu(&mut self, ins: Ins) {}
+    pub fn and(&mut self, ins: Ins) {
+        let rs = self.get(ins.gpr_s());
+        let rb = self.get(ins.gpr_b());
+        let value = self.bd.ins().band(rs, rb);
+
+        if ins.field_rc() {
+            let _false = self.bd.ins().iconst(ir::types::I8, 0);
+            self.update_cr0_implicit(value, _false);
+        }
+
+        self.set(ins.gpr_a(), value);
+    }
+
+    pub fn divwu(&mut self, ins: Ins) {
+        let ra = self.get(ins.gpr_a());
+        let rb = self.get(ins.gpr_b());
+
+        let one = self.bd.ins().iconst(ir::types::I32, 1);
+        let div_by_zero = self.bd.ins().icmp_imm(IntCC::Equal, rb, 0);
+        let denom = self.bd.ins().select(div_by_zero, one, rb);
+
+        let result = self.bd.ins().udiv(ra, denom);
+
+        if ins.field_rc() {
+            self.update_cr0_implicit(result, div_by_zero);
+        }
+
+        if ins.field_oe() {
+            self.update_xer_ov(div_by_zero);
+        }
+
+        self.set(ins.gpr_d(), result);
+    }
+
+    pub fn mullw(&mut self, ins: Ins) {
+        let ra = self.get(ins.gpr_a());
+        let rb = self.get(ins.gpr_b());
+
+        let (result, overflowed) = self.bd.ins().smul_overflow(ra, rb);
+
+        if ins.field_rc() {
+            self.update_cr0_implicit(result, overflowed);
+        }
+
+        if ins.field_oe() {
+            self.update_xer_ov(overflowed);
+        }
+
+        self.set(ins.gpr_d(), result);
+    }
 
     pub fn rlwinm(&mut self, ins: Ins) {
         let rs = self.get(ins.gpr_s());

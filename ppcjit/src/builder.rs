@@ -336,6 +336,12 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Cmpl => self.cmpl(ins),
             Opcode::Dcbf => self.stub(ins), // NOTE: stubbed
             Opcode::Stwx => self.stwx(ins),
+            Opcode::Divwu => self.divwu(ins),
+            Opcode::Mullw => self.mullw(ins),
+            Opcode::And => self.and(ins),
+            Opcode::Lbz => self.lbz(ins),
+            Opcode::Lbzx => self.lbzx(ins),
+            Opcode::Lwzx => self.lwzx(ins),
             Opcode::Illegal => {
                 return Err(EmitError::Illegal(ins));
             }

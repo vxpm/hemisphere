@@ -234,11 +234,63 @@ impl BlockBuilder<'_> {
         self.set(ins.gpr_d(), value);
     }
 
+    pub fn lwzx(&mut self, ins: Ins) {
+        let rb = self.get(ins.gpr_b());
+        let base = if ins.field_ra() == 0 {
+            self.bd
+                .ins()
+                .iconst(ir::types::I32, ins.field_offset() as i64)
+        } else {
+            let ra = self.get(ins.gpr_a());
+            self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
+        };
+
+        let addr = self.bd.ins().iadd(rb, base);
+
+        let value = self.read::<i32>(addr);
+        self.set(ins.gpr_d(), value);
+    }
+
     pub fn lwzu(&mut self, ins: Ins) {
         let base = self.get(ins.gpr_a());
         let addr = self.bd.ins().iadd_imm(base, ins.field_offset() as i64);
         let value = self.read::<i32>(addr);
         self.set(ins.gpr_d(), value);
         self.set(ins.gpr_a(), addr);
+    }
+
+    pub fn lbz(&mut self, ins: Ins) {
+        let addr = if ins.field_ra() == 0 {
+            self.bd
+                .ins()
+                .iconst(ir::types::I32, ins.field_offset() as i64)
+        } else {
+            let ra = self.get(ins.gpr_a());
+            self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
+        };
+
+        let value = self.read::<i8>(addr);
+        let extended = self.bd.ins().uextend(ir::types::I32, value);
+
+        self.set(ins.gpr_d(), extended);
+    }
+
+    pub fn lbzx(&mut self, ins: Ins) {
+        let rb = self.get(ins.gpr_b());
+        let base = if ins.field_ra() == 0 {
+            self.bd
+                .ins()
+                .iconst(ir::types::I32, ins.field_offset() as i64)
+        } else {
+            let ra = self.get(ins.gpr_a());
+            self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
+        };
+
+        let addr = self.bd.ins().iadd(rb, base);
+
+        let value = self.read::<i8>(addr);
+        let extended = self.bd.ins().uextend(ir::types::I32, value);
+
+        self.set(ins.gpr_d(), extended);
     }
 }
