@@ -5,10 +5,6 @@ use hemicore::arch::{InsExt, Reg, SPR, powerpc::Ins};
 use tracing::debug;
 
 impl BlockBuilder<'_> {
-    pub fn stub(&mut self, _: Ins) {
-        // stub
-    }
-
     pub fn mfspr(&mut self, ins: Ins) {
         let value = self.get(ins.spr());
         self.set(ins.gpr_d(), value);
