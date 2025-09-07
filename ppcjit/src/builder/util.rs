@@ -1,25 +1,79 @@
 use super::BlockBuilder;
 use cranelift::{
     codegen::ir,
-    prelude::{InstBuilder, IntCC},
+    prelude::{FunctionBuilder, InstBuilder, IntCC},
 };
 use hemicore::arch::{Reg, SPR, powerpc::Ins};
+
+pub trait IntoIrValue {
+    fn into_value(self, bd: &mut FunctionBuilder<'_>) -> ir::Value;
+}
+
+impl IntoIrValue for ir::Value {
+    fn into_value(self, _: &mut FunctionBuilder<'_>) -> ir::Value {
+        self
+    }
+}
+
+impl IntoIrValue for bool {
+    fn into_value(self, bd: &mut FunctionBuilder<'_>) -> ir::Value {
+        bd.ins().iconst(ir::types::I8, self as i64)
+    }
+}
+
+impl IntoIrValue for i8 {
+    fn into_value(self, bd: &mut FunctionBuilder<'_>) -> ir::Value {
+        bd.ins().iconst(ir::types::I8, self as i64)
+    }
+}
+
+impl IntoIrValue for i16 {
+    fn into_value(self, bd: &mut FunctionBuilder<'_>) -> ir::Value {
+        bd.ins().iconst(ir::types::I16, self as i64)
+    }
+}
+
+impl IntoIrValue for i32 {
+    fn into_value(self, bd: &mut FunctionBuilder<'_>) -> ir::Value {
+        bd.ins().iconst(ir::types::I32, self as i64)
+    }
+}
 
 impl BlockBuilder<'_> {
     pub fn stub(&mut self, _: Ins) {
         // stub
     }
 
-    pub fn true_const(&mut self) -> ir::Value {
-        self.bd.ins().iconst(ir::types::I8, 1)
+    /// Sets bit `index` to `set` in the `value` (must be an I32).
+    pub fn set_bit(
+        &mut self,
+        value: ir::Value,
+        index: impl IntoIrValue,
+        set: impl IntoIrValue,
+    ) -> ir::Value {
+        let zero = 0.into_value(&mut self.bd);
+        let one = 1.into_value(&mut self.bd);
+        let index = index.into_value(&mut self.bd);
+        let set = set.into_value(&mut self.bd);
+
+        // create mask for the bit
+        let shifted = self.bd.ins().ishl(one, index);
+        let mask = self.bd.ins().bnot(shifted);
+
+        // unset bit
+        let value = self.bd.ins().band(value, mask);
+
+        // set bit if `set` is true
+        let rhs = self.bd.ins().select(set, shifted, zero);
+        let value = self.bd.ins().bor(value, rhs);
+
+        value
     }
 
-    pub fn false_const(&mut self) -> ir::Value {
-        self.bd.ins().iconst(ir::types::I8, 0)
-    }
-
-    pub fn update_xer_ov(&mut self, overflowed: ir::Value) {
+    /// Updates OV and SO in XER.
+    pub fn update_xer_ov(&mut self, overflowed: impl IntoIrValue) {
         let xer = self.get(SPR::XER);
+        let overflowed = overflowed.into_value(&mut self.bd);
         let overflowed = self.bd.ins().uextend(ir::types::I32, overflowed);
 
         let ov = self.bd.ins().ishl_imm(overflowed, 30);
@@ -33,14 +87,10 @@ impl BlockBuilder<'_> {
         self.set(SPR::XER, updated);
     }
 
-    pub fn update_xer_ca(&mut self, carry: ir::Value) {
+    /// Updates CA in XER.
+    pub fn update_xer_ca(&mut self, carry: impl IntoIrValue) {
         let xer = self.get(SPR::XER);
-        let carry = self.bd.ins().uextend(ir::types::I32, carry);
-        let value = self.bd.ins().ishl_imm(carry, 29);
-
-        let mask = self.bd.ins().iconst(ir::types::I32, !(0b1 << 29));
-        let masked = self.bd.ins().band(xer, mask);
-        let updated = self.bd.ins().bor(masked, value);
+        let updated = self.set_bit(xer, 29, carry);
 
         self.set(SPR::XER, updated);
     }
@@ -77,7 +127,9 @@ impl BlockBuilder<'_> {
         self.set(Reg::CR, updated);
     }
 
-    pub fn update_cr0_cmpz(&mut self, value: ir::Value, overflowed: ir::Value) {
+    pub fn update_cr0_cmpz(&mut self, value: ir::Value, overflowed: impl IntoIrValue) {
+        let overflowed = overflowed.into_value(&mut self.bd);
+
         let lt = self.bd.ins().icmp_imm(IntCC::SignedLessThan, value, 0);
         let gt = self.bd.ins().icmp_imm(IntCC::SignedGreaterThan, value, 0);
         let eq = self.bd.ins().icmp_imm(IntCC::Equal, value, 0);

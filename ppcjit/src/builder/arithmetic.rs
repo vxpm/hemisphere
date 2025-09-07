@@ -286,8 +286,7 @@ impl BlockBuilder<'_> {
         let result = self.bd.ins().smulhi(ra, rb);
 
         if ins.field_rc() {
-            let false_ = self.false_const();
-            self.update_cr0_cmpz(result, false_);
+            self.update_cr0_cmpz(result, false);
         }
 
         self.set(ins.gpr_d(), result);

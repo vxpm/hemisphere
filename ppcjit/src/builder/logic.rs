@@ -6,7 +6,7 @@ use cranelift::{
 };
 use hemicore::arch::{InsExt, powerpc::Ins};
 
-pub enum BasicBitOpKind {
+enum BasicBitOpKind {
     Or,
     Nor,
     Xor,
@@ -15,14 +15,14 @@ pub enum BasicBitOpKind {
     Eqv,
 }
 
-pub enum BasicBitOpRhs {
+enum BasicBitOpRhs {
     GPRB,
     ComplementGPRB,
     Imm,
     ShiftedImm,
 }
 
-pub struct BasicBitOp {
+struct BasicBitOp {
     /// Operation to perform
     kind: BasicBitOpKind,
     /// What value to use as the second operand
@@ -76,14 +76,13 @@ impl BlockBuilder<'_> {
         }
     }
 
-    pub fn basic_bitop(&mut self, ins: Ins, op: BasicBitOp) {
+    fn basic_bitop(&mut self, ins: Ins, op: BasicBitOp) {
         let lhs = self.get(ins.gpr_s());
         let rhs = self.basic_bitop_get_rhs(ins, op.rhs);
         let value = self.basic_bitop_compute(op.kind, lhs, rhs);
 
         if op.record {
-            let false_ = self.false_const();
-            self.update_cr0_cmpz(value, false_);
+            self.update_cr0_cmpz(value, false);
         }
 
         self.set(ins.gpr_a(), value);
@@ -242,8 +241,7 @@ impl BlockBuilder<'_> {
         let value = self.bd.ins().sextend(ir::types::I32, byte);
 
         if ins.field_rc() {
-            let false_ = self.false_const();
-            self.update_cr0_cmpz(value, false_);
+            self.update_cr0_cmpz(value, false);
         }
 
         self.set(ins.gpr_a(), value);
@@ -258,9 +256,25 @@ impl BlockBuilder<'_> {
     }
 }
 
+enum ShiftKind {
+    Left,
+    RightLogic,
+    RightArithmetic,
+}
+
+enum ShiftRhs {
+    GPRB,
+    Imm,
+}
+
+struct ShiftOp {
+    kind: ShiftKind,
+    rhs: ShiftRhs,
+}
+
 /// Rotate and Shift operations
 impl BlockBuilder<'_> {
-    pub fn rotate_left_and_mask(&mut self, ins: Ins, shift_amount: ir::Value) {
+    fn rotate_left_and_mask(&mut self, ins: Ins, shift_amount: ir::Value) {
         let rs = self.get(ins.gpr_s());
         let rotated = self.bd.ins().rotl(rs, shift_amount);
 
@@ -298,103 +312,95 @@ impl BlockBuilder<'_> {
         self.rotate_left_and_mask(ins, shift_amount);
     }
 
-    pub fn slw(&mut self, ins: Ins) {
-        let rs = self.get(ins.gpr_s());
-        let rb = self.get(ins.gpr_b());
+    fn shift_compute(&mut self, op: ShiftKind, lhs: ir::Value, rhs: ir::Value) -> ir::Value {
+        match op {
+            ShiftKind::Left => self.bd.ins().ishl(lhs, rhs),
+            ShiftKind::RightLogic => self.bd.ins().ushr(lhs, rhs),
+            ShiftKind::RightArithmetic => {
+                // xer ca is set if:
+                // - rs is negative, and
+                // - shift_by >= trailing zeros of rs
+                let trailing_zeros = self.bd.ins().ctz(lhs);
+                let trailing_zeros = self.bd.ins().ireduce(ir::types::I32, trailing_zeros);
 
-        let shift_by = self.bd.ins().band_imm(rb, 0x3F);
+                let is_rs_neg = self.bd.ins().icmp_imm(IntCC::SignedLessThan, lhs, 0);
+                let is_shift_by_gt_tz =
+                    self.bd
+                        .ins()
+                        .icmp(IntCC::UnsignedGreaterThanOrEqual, rhs, trailing_zeros);
 
-        let extended = self.bd.ins().uextend(ir::types::I64, rs);
-        let shifted = self.bd.ins().ishl(extended, shift_by);
+                let carry = self.bd.ins().bor(is_rs_neg, is_shift_by_gt_tz);
+                self.update_xer_ca(carry);
+
+                self.bd.ins().sshr(lhs, rhs)
+            }
+        }
+    }
+
+    fn shift_get_rhs(&mut self, ins: Ins, rhs: ShiftRhs) -> ir::Value {
+        match rhs {
+            ShiftRhs::GPRB => self.get(ins.gpr_b()),
+            ShiftRhs::Imm => self
+                .bd
+                .ins()
+                .iconst(ir::types::I32, ins.field_sh() as u64 as i64),
+        }
+    }
+
+    fn shift(&mut self, ins: Ins, op: ShiftOp) {
+        let lhs = self.get(ins.gpr_s());
+        let rhs = self.shift_get_rhs(ins, op.rhs);
+
+        let shift_by = self.bd.ins().band_imm(rhs, 0x3F);
+        let extended = self.bd.ins().uextend(ir::types::I64, lhs);
+        let shifted = self.shift_compute(op.kind, extended, shift_by);
         let value = self.bd.ins().ireduce(ir::types::I32, shifted);
 
         if ins.field_rc() {
-            let false_ = self.false_const();
-            self.update_cr0_cmpz(value, false_);
+            self.update_cr0_cmpz(value, false);
         }
 
         self.set(ins.gpr_a(), value);
+    }
+
+    pub fn slw(&mut self, ins: Ins) {
+        self.shift(
+            ins,
+            ShiftOp {
+                kind: ShiftKind::Left,
+                rhs: ShiftRhs::GPRB,
+            },
+        );
     }
 
     pub fn srw(&mut self, ins: Ins) {
-        let rs = self.get(ins.gpr_s());
-        let rb = self.get(ins.gpr_b());
-
-        let shift_by = self.bd.ins().band_imm(rb, 0x3F);
-
-        let extended = self.bd.ins().uextend(ir::types::I64, rs);
-        let shifted = self.bd.ins().ushr(extended, shift_by);
-        let value = self.bd.ins().ireduce(ir::types::I32, shifted);
-
-        if ins.field_rc() {
-            let false_ = self.false_const();
-            self.update_cr0_cmpz(value, false_);
-        }
-
-        self.set(ins.gpr_a(), value);
+        self.shift(
+            ins,
+            ShiftOp {
+                kind: ShiftKind::RightLogic,
+                rhs: ShiftRhs::GPRB,
+            },
+        );
     }
 
     pub fn sraw(&mut self, ins: Ins) {
-        let rs = self.get(ins.gpr_s());
-        let rb = self.get(ins.gpr_b());
-
-        let shift_by = self.bd.ins().band_imm(rb, 0x3F);
-
-        let extended = self.bd.ins().uextend(ir::types::I64, rs);
-        let shifted = self.bd.ins().sshr(extended, shift_by);
-        let value = self.bd.ins().ireduce(ir::types::I32, shifted);
-
-        if ins.field_rc() {
-            let false_ = self.false_const();
-            self.update_cr0_cmpz(value, false_);
-        }
-
-        // xer ca is set if:
-        // - rs is negative, and
-        // - shift_by >= trailing zeros of rs
-        let trailing_zeros = self.bd.ins().ctz(rs);
-        let is_rs_neg = self.bd.ins().icmp_imm(IntCC::SignedLessThan, rs, 0);
-        let is_shift_by_gt_tz =
-            self.bd
-                .ins()
-                .icmp(IntCC::UnsignedGreaterThanOrEqual, shift_by, trailing_zeros);
-
-        let carry = self.bd.ins().bor(is_rs_neg, is_shift_by_gt_tz);
-        self.update_xer_ca(carry);
-
-        self.set(ins.gpr_a(), value);
+        self.shift(
+            ins,
+            ShiftOp {
+                kind: ShiftKind::RightArithmetic,
+                rhs: ShiftRhs::GPRB,
+            },
+        );
     }
 
     pub fn srawi(&mut self, ins: Ins) {
-        let rs = self.get(ins.gpr_s());
-
-        let extended = self.bd.ins().uextend(ir::types::I64, rs);
-        let shifted = self
-            .bd
-            .ins()
-            .sshr_imm(extended, ins.field_sh() as u64 as i64);
-        let value = self.bd.ins().ireduce(ir::types::I32, shifted);
-
-        if ins.field_rc() {
-            let false_ = self.false_const();
-            self.update_cr0_cmpz(value, false_);
-        }
-
-        // xer ca is set if:
-        // - rs is negative, and
-        // - shift_by >= trailing zeros of rs
-        let trailing_zeros = self.bd.ins().ctz(rs);
-        let is_rs_neg = self.bd.ins().icmp_imm(IntCC::SignedLessThan, rs, 0);
-        let is_shift_by_gt_tz = self.bd.ins().icmp_imm(
-            IntCC::UnsignedLessThan,
-            trailing_zeros,
-            ins.field_sh() as u64 as i64,
+        self.shift(
+            ins,
+            ShiftOp {
+                kind: ShiftKind::RightArithmetic,
+                rhs: ShiftRhs::Imm,
+            },
         );
-
-        let carry = self.bd.ins().bor(is_rs_neg, is_shift_by_gt_tz);
-        self.update_xer_ca(carry);
-
-        self.set(ins.gpr_a(), value);
     }
 }
 
@@ -405,8 +411,7 @@ impl BlockBuilder<'_> {
         let value = self.bd.ins().clz(rs);
 
         if ins.field_rc() {
-            let false_ = self.false_const();
-            self.update_cr0_cmpz(value, false_);
+            self.update_cr0_cmpz(value, false);
         }
 
         self.set(ins.gpr_a(), value);
