@@ -10,6 +10,14 @@ impl BlockBuilder<'_> {
         // stub
     }
 
+    pub fn true_const(&mut self) -> ir::Value {
+        self.bd.ins().iconst(ir::types::I8, 1)
+    }
+
+    pub fn false_const(&mut self) -> ir::Value {
+        self.bd.ins().iconst(ir::types::I8, 0)
+    }
+
     pub fn update_xer_ov(&mut self, overflowed: ir::Value) {
         let xer = self.get(SPR::XER);
         let overflowed = self.bd.ins().uextend(ir::types::I32, overflowed);
@@ -69,7 +77,7 @@ impl BlockBuilder<'_> {
         self.set(Reg::CR, updated);
     }
 
-    pub fn update_cr0_implicit(&mut self, value: ir::Value, overflowed: ir::Value) {
+    pub fn update_cr0_cmpz(&mut self, value: ir::Value, overflowed: ir::Value) {
         let lt = self.bd.ins().icmp_imm(IntCC::SignedLessThan, value, 0);
         let gt = self.bd.ins().icmp_imm(IntCC::SignedGreaterThan, value, 0);
         let eq = self.bd.ins().icmp_imm(IntCC::Equal, value, 0);

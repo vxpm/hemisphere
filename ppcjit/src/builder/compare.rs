@@ -1,5 +1,4 @@
 use super::BlockBuilder;
-use crate::builder::Reg;
 use cranelift::{
     codegen::ir,
     prelude::{InstBuilder, IntCC},
@@ -7,37 +6,65 @@ use cranelift::{
 use hemicore::arch::{InsExt, SPR, powerpc::Ins};
 
 impl BlockBuilder<'_> {
+    fn compare_signed(&mut self, a: ir::Value, b: ir::Value, index: u8) {
+        let xer = self.get(SPR::XER);
+
+        let lt = self.bd.ins().icmp(IntCC::SignedLessThan, a, b);
+        let gt = self.bd.ins().icmp(IntCC::SignedGreaterThan, a, b);
+        let eq = self.bd.ins().icmp(IntCC::Equal, a, b);
+        let ov = self.bd.ins().ishl_imm(xer, 31);
+
+        // reduce OV as update_cr expects a bool
+        let ov = self.bd.ins().ireduce(ir::types::I8, ov);
+
+        self.update_cr(index, lt, gt, eq, ov);
+    }
+
+    fn compare_unsigned(&mut self, a: ir::Value, b: ir::Value, index: u8) {
+        let xer = self.get(SPR::XER);
+
+        let lt = self.bd.ins().icmp(IntCC::UnsignedLessThan, a, b);
+        let gt = self.bd.ins().icmp(IntCC::UnsignedGreaterThan, a, b);
+        let eq = self.bd.ins().icmp(IntCC::Equal, a, b);
+        let ov = self.bd.ins().ishl_imm(xer, 31);
+
+        // reduce OV as update_cr expects a bool
+        let ov = self.bd.ins().ireduce(ir::types::I8, ov);
+
+        self.update_cr(index, lt, gt, eq, ov);
+    }
+
+    pub fn cmp(&mut self, ins: Ins) {
+        let ra = self.get(ins.gpr_a());
+        let rb = self.get(ins.gpr_b());
+
+        self.compare_signed(ra, rb, ins.field_crfd());
+    }
+
     pub fn cmpi(&mut self, ins: Ins) {
         let ra = self.get(ins.gpr_a());
-        let imm = ins.field_simm() as i64;
-        let shift_factor = (4 * (7 - ins.field_crfd())) as i64;
+        let imm = self
+            .bd
+            .ins()
+            .iconst(ir::types::I32, ins.field_simm() as u64 as i64);
 
-        let xer = self.get(SPR::XER);
-        let ov = self.bd.ins().ushr_imm(xer, 31);
+        self.compare_signed(ra, imm, ins.field_crfd());
+    }
 
-        let lt = self.bd.ins().icmp_imm(IntCC::SignedLessThan, ra, imm);
-        let gt = self.bd.ins().icmp_imm(IntCC::SignedGreaterThan, ra, imm);
-        let eq = self.bd.ins().icmp_imm(IntCC::Equal, ra, imm);
+    pub fn cmpl(&mut self, ins: Ins) {
+        let ra = self.get(ins.gpr_a());
+        let rb = self.get(ins.gpr_b());
 
-        let lt = self.bd.ins().uextend(ir::types::I32, lt);
-        let gt = self.bd.ins().uextend(ir::types::I32, gt);
-        let eq = self.bd.ins().uextend(ir::types::I32, eq);
+        self.compare_unsigned(ra, rb, ins.field_crfd());
+    }
 
-        let lt = self.bd.ins().ishl_imm(lt, 3);
-        let gt = self.bd.ins().ishl_imm(gt, 2);
-        let eq = self.bd.ins().ishl_imm(eq, 1);
-        let ov = self.bd.ins().ishl_imm(ov, 0);
+    pub fn cmpli(&mut self, ins: Ins) {
+        let ra = self.get(ins.gpr_a());
+        let imm = self
+            .bd
+            .ins()
+            .iconst(ir::types::I32, ins.field_uimm() as u64 as i64);
 
-        let value = self.bd.ins().bor(lt, gt);
-        let value = self.bd.ins().bor(value, eq);
-        let value = self.bd.ins().bor(value, ov);
-        let value = self.bd.ins().ishl_imm(value, shift_factor);
-
-        let mask = self.bd.ins().iconst(ir::types::I32, 0b1111);
-        let mask = self.bd.ins().ishl_imm(mask, shift_factor);
-
-        let cr = self.get(Reg::CR);
-        let updated = self.bd.ins().bitselect(mask, value, cr);
-        self.set(Reg::CR, updated);
+        self.compare_unsigned(ra, imm, ins.field_crfd());
     }
 }

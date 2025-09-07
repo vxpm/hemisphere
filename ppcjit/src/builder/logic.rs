@@ -4,127 +4,236 @@ use cranelift::{
     codegen::ir,
     prelude::{InstBuilder, IntCC},
 };
-use hemicore::arch::{InsExt, SPR, powerpc::Ins};
+use hemicore::arch::{InsExt, powerpc::Ins};
 
+pub enum BasicBitOpKind {
+    Or,
+    Nor,
+    Xor,
+    And,
+    Nand,
+    Eqv,
+}
+
+pub enum BasicBitOpRhs {
+    GPRB,
+    ComplementGPRB,
+    Imm,
+    ShiftedImm,
+}
+
+pub struct BasicBitOp {
+    /// Operation to perform
+    kind: BasicBitOpKind,
+    /// What value to use as the second operand
+    rhs: BasicBitOpRhs,
+    /// Whether to update CR0
+    record: bool,
+}
+
+/// Basic Bit Ops
 impl BlockBuilder<'_> {
-    pub fn ori(&mut self, ins: Ins) {
-        let rs = self.get(ins.gpr_s());
-        let value = self.bd.ins().bor_imm(rs, ins.field_uimm() as u64 as i64);
-
-        self.set(ins.gpr_a(), value);
+    fn basic_bitop_compute(
+        &mut self,
+        op: BasicBitOpKind,
+        lhs: ir::Value,
+        rhs: ir::Value,
+    ) -> ir::Value {
+        match op {
+            BasicBitOpKind::Or => self.bd.ins().bor(lhs, rhs),
+            BasicBitOpKind::Nor => {
+                let or = self.bd.ins().bor(lhs, rhs);
+                self.bd.ins().bnot(or)
+            }
+            BasicBitOpKind::Xor => self.bd.ins().bxor(lhs, rhs),
+            BasicBitOpKind::And => self.bd.ins().band(lhs, rhs),
+            BasicBitOpKind::Nand => {
+                let and = self.bd.ins().band(lhs, rhs);
+                self.bd.ins().bnot(and)
+            }
+            BasicBitOpKind::Eqv => {
+                let xor = self.bd.ins().bxor(lhs, rhs);
+                self.bd.ins().bnot(xor)
+            }
+        }
     }
 
-    pub fn oris(&mut self, ins: Ins) {
-        let rs = self.get(ins.gpr_s());
-        let value = self
-            .bd
-            .ins()
-            .bor_imm(rs, ((ins.field_uimm() as u64) << 16) as i64);
+    fn basic_bitop_get_rhs(&mut self, ins: Ins, rhs: BasicBitOpRhs) -> ir::Value {
+        match rhs {
+            BasicBitOpRhs::GPRB => self.get(ins.gpr_b()),
+            BasicBitOpRhs::ComplementGPRB => {
+                let rb = self.get(ins.gpr_b());
+                self.bd.ins().bnot(rb)
+            }
+            BasicBitOpRhs::Imm => self
+                .bd
+                .ins()
+                .iconst(ir::types::I32, ins.field_uimm() as u64 as i64),
+            BasicBitOpRhs::ShiftedImm => self
+                .bd
+                .ins()
+                .iconst(ir::types::I32, ((ins.field_uimm() as u64) << 16) as i64),
+        }
+    }
+
+    pub fn basic_bitop(&mut self, ins: Ins, op: BasicBitOp) {
+        let lhs = self.get(ins.gpr_s());
+        let rhs = self.basic_bitop_get_rhs(ins, op.rhs);
+        let value = self.basic_bitop_compute(op.kind, lhs, rhs);
+
+        if op.record {
+            let false_ = self.false_const();
+            self.update_cr0_cmpz(value, false_);
+        }
 
         self.set(ins.gpr_a(), value);
     }
 
     pub fn or(&mut self, ins: Ins) {
-        let rs = self.get(ins.gpr_s());
-        let rb = self.get(ins.gpr_b());
-        let value = self.bd.ins().bor(rs, rb);
+        self.basic_bitop(
+            ins,
+            BasicBitOp {
+                kind: BasicBitOpKind::Or,
+                rhs: BasicBitOpRhs::GPRB,
+                record: ins.field_rc(),
+            },
+        );
+    }
 
-        if ins.field_rc() {
-            let false_ = self.bd.ins().iconst(ir::types::I8, 0);
-            self.update_cr0_implicit(value, false_);
-        }
+    pub fn orc(&mut self, ins: Ins) {
+        self.basic_bitop(
+            ins,
+            BasicBitOp {
+                kind: BasicBitOpKind::Or,
+                rhs: BasicBitOpRhs::ComplementGPRB,
+                record: ins.field_rc(),
+            },
+        );
+    }
 
-        self.set(ins.gpr_a(), value);
+    pub fn ori(&mut self, ins: Ins) {
+        self.basic_bitop(
+            ins,
+            BasicBitOp {
+                kind: BasicBitOpKind::Or,
+                rhs: BasicBitOpRhs::Imm,
+                record: false,
+            },
+        );
+    }
+
+    pub fn oris(&mut self, ins: Ins) {
+        self.basic_bitop(
+            ins,
+            BasicBitOp {
+                kind: BasicBitOpKind::Or,
+                rhs: BasicBitOpRhs::ShiftedImm,
+                record: false,
+            },
+        );
     }
 
     pub fn nor(&mut self, ins: Ins) {
-        let rs = self.get(ins.gpr_s());
-        let rb = self.get(ins.gpr_b());
+        self.basic_bitop(
+            ins,
+            BasicBitOp {
+                kind: BasicBitOpKind::Nor,
+                rhs: BasicBitOpRhs::GPRB,
+                record: ins.field_rc(),
+            },
+        );
+    }
 
-        let or = self.bd.ins().bor(rs, rb);
-        let nor = self.bd.ins().bnot(or);
-
-        if ins.field_rc() {
-            let false_ = self.bd.ins().iconst(ir::types::I8, 0);
-            self.update_cr0_implicit(nor, false_);
-        }
-
-        self.set(ins.gpr_a(), nor);
+    pub fn xor(&mut self, ins: Ins) {
+        self.basic_bitop(
+            ins,
+            BasicBitOp {
+                kind: BasicBitOpKind::Xor,
+                rhs: BasicBitOpRhs::GPRB,
+                record: ins.field_rc(),
+            },
+        );
     }
 
     pub fn xori(&mut self, ins: Ins) {
-        let rs = self.get(ins.gpr_s());
-        let value = self.bd.ins().bxor_imm(rs, ins.field_uimm() as u64 as i64);
-
-        self.set(ins.gpr_a(), value);
-    }
-
-    pub fn andi_record(&mut self, ins: Ins) {
-        let rs = self.get(ins.gpr_s());
-        let value = self.bd.ins().band_imm(rs, ins.field_uimm() as u64 as i64);
-
-        let false_ = self.bd.ins().iconst(ir::types::I8, 0);
-        self.update_cr0_implicit(value, false_);
-
-        self.set(ins.gpr_a(), value);
-    }
-
-    pub fn andis_record(&mut self, ins: Ins) {
-        let rs = self.get(ins.gpr_s());
-        let value = self
-            .bd
-            .ins()
-            .band_imm(rs, ((ins.field_uimm() as u64) << 16) as i64);
-
-        let false_ = self.bd.ins().iconst(ir::types::I8, 0);
-        self.update_cr0_implicit(value, false_);
-
-        self.set(ins.gpr_a(), value);
+        self.basic_bitop(
+            ins,
+            BasicBitOp {
+                kind: BasicBitOpKind::Xor,
+                rhs: BasicBitOpRhs::Imm,
+                record: false,
+            },
+        );
     }
 
     pub fn and(&mut self, ins: Ins) {
-        let rs = self.get(ins.gpr_s());
-        let rb = self.get(ins.gpr_b());
-        let value = self.bd.ins().band(rs, rb);
-
-        if ins.field_rc() {
-            let false_ = self.bd.ins().iconst(ir::types::I8, 0);
-            self.update_cr0_implicit(value, false_);
-        }
-
-        self.set(ins.gpr_a(), value);
+        self.basic_bitop(
+            ins,
+            BasicBitOp {
+                kind: BasicBitOpKind::And,
+                rhs: BasicBitOpRhs::GPRB,
+                record: ins.field_rc(),
+            },
+        );
     }
 
     pub fn andc(&mut self, ins: Ins) {
-        let rs = self.get(ins.gpr_s());
-        let rb = self.get(ins.gpr_b());
-        let not_rb = self.bd.ins().bnot(rb);
-        let value = self.bd.ins().band(rs, not_rb);
-
-        if ins.field_rc() {
-            let false_ = self.bd.ins().iconst(ir::types::I8, 0);
-            self.update_cr0_implicit(value, false_);
-        }
-
-        self.set(ins.gpr_a(), value);
+        self.basic_bitop(
+            ins,
+            BasicBitOp {
+                kind: BasicBitOpKind::And,
+                rhs: BasicBitOpRhs::ComplementGPRB,
+                record: ins.field_rc(),
+            },
+        );
     }
 
-    pub fn neg(&mut self, ins: Ins) {
-        let ra = self.get(ins.gpr_a());
-        let value = self.bd.ins().ineg(ra);
-        let overflowed = self.bd.ins().icmp_imm(IntCC::Equal, ra, i32::MIN as i64);
-
-        if ins.field_rc() {
-            self.update_cr0_implicit(value, overflowed);
-        }
-
-        if ins.field_oe() {
-            self.update_xer_ov(overflowed);
-        }
-
-        self.set(ins.gpr_d(), value);
+    pub fn andi_record(&mut self, ins: Ins) {
+        self.basic_bitop(
+            ins,
+            BasicBitOp {
+                kind: BasicBitOpKind::And,
+                rhs: BasicBitOpRhs::Imm,
+                record: true,
+            },
+        );
     }
 
+    pub fn andis_record(&mut self, ins: Ins) {
+        self.basic_bitop(
+            ins,
+            BasicBitOp {
+                kind: BasicBitOpKind::And,
+                rhs: BasicBitOpRhs::ShiftedImm,
+                record: true,
+            },
+        );
+    }
+
+    pub fn nand(&mut self, ins: Ins) {
+        self.basic_bitop(
+            ins,
+            BasicBitOp {
+                kind: BasicBitOpKind::Nand,
+                rhs: BasicBitOpRhs::GPRB,
+                record: ins.field_rc(),
+            },
+        );
+    }
+
+    pub fn eqv(&mut self, ins: Ins) {
+        self.basic_bitop(
+            ins,
+            BasicBitOp {
+                kind: BasicBitOpKind::Eqv,
+                rhs: BasicBitOpRhs::GPRB,
+                record: ins.field_rc(),
+            },
+        );
+    }
+}
+
+impl BlockBuilder<'_> {
     pub fn rotate_left_and_mask(&mut self, ins: Ins, shift_amount: ir::Value) {
         let rs = self.get(ins.gpr_s());
         let rotated = self.bd.ins().rotl(rs, shift_amount);
@@ -175,7 +284,7 @@ impl BlockBuilder<'_> {
 
         if ins.field_rc() {
             let false_ = self.bd.ins().iconst(ir::types::I8, 0);
-            self.update_cr0_implicit(value, false_);
+            self.update_cr0_cmpz(value, false_);
         }
 
         self.set(ins.gpr_a(), value);
@@ -193,7 +302,7 @@ impl BlockBuilder<'_> {
 
         if ins.field_rc() {
             let false_ = self.bd.ins().iconst(ir::types::I8, 0);
-            self.update_cr0_implicit(value, false_);
+            self.update_cr0_cmpz(value, false_);
         }
 
         self.set(ins.gpr_a(), value);
@@ -211,7 +320,7 @@ impl BlockBuilder<'_> {
 
         if ins.field_rc() {
             let false_ = self.bd.ins().iconst(ir::types::I8, 0);
-            self.update_cr0_implicit(value, false_);
+            self.update_cr0_cmpz(value, false_);
         }
 
         // xer ca is set if:
@@ -242,7 +351,7 @@ impl BlockBuilder<'_> {
 
         if ins.field_rc() {
             let false_ = self.bd.ins().iconst(ir::types::I8, 0);
-            self.update_cr0_implicit(value, false_);
+            self.update_cr0_cmpz(value, false_);
         }
 
         // xer ca is set if:
@@ -262,65 +371,13 @@ impl BlockBuilder<'_> {
         self.set(ins.gpr_a(), value);
     }
 
-    fn compare_signed(&mut self, a: ir::Value, b: ir::Value, index: u8) {
-        let xer = self.get(SPR::XER);
-
-        let lt = self.bd.ins().icmp(IntCC::SignedLessThan, a, b);
-        let gt = self.bd.ins().icmp(IntCC::SignedGreaterThan, a, b);
-        let eq = self.bd.ins().icmp(IntCC::Equal, a, b);
-        let ov = self.bd.ins().ishl_imm(xer, 31);
-
-        // reduce OV as update_cr expects a bool
-        let ov = self.bd.ins().ireduce(ir::types::I8, ov);
-
-        self.update_cr(index, lt, gt, eq, ov);
-    }
-
-    fn compare_unsigned(&mut self, a: ir::Value, b: ir::Value, index: u8) {
-        let xer = self.get(SPR::XER);
-
-        let lt = self.bd.ins().icmp(IntCC::UnsignedLessThan, a, b);
-        let gt = self.bd.ins().icmp(IntCC::UnsignedGreaterThan, a, b);
-        let eq = self.bd.ins().icmp(IntCC::Equal, a, b);
-        let ov = self.bd.ins().ishl_imm(xer, 31);
-
-        // reduce OV as update_cr expects a bool
-        let ov = self.bd.ins().ireduce(ir::types::I8, ov);
-
-        self.update_cr(index, lt, gt, eq, ov);
-    }
-
-    pub fn cmp(&mut self, ins: Ins) {
-        let ra = self.get(ins.gpr_a());
-        let rb = self.get(ins.gpr_b());
-
-        self.compare_signed(ra, rb, ins.field_crfd());
-    }
-
-    pub fn cmpl(&mut self, ins: Ins) {
-        let ra = self.get(ins.gpr_a());
-        let rb = self.get(ins.gpr_b());
-
-        self.compare_unsigned(ra, rb, ins.field_crfd());
-    }
-
-    pub fn cmpli(&mut self, ins: Ins) {
-        let ra = self.get(ins.gpr_a());
-        let imm = self
-            .bd
-            .ins()
-            .iconst(ir::types::I32, ins.field_uimm() as u64 as i64);
-
-        self.compare_unsigned(ra, imm, ins.field_crfd());
-    }
-
     pub fn cntlzw(&mut self, ins: Ins) {
         let rs = self.get(ins.gpr_s());
         let value = self.bd.ins().clz(rs);
 
         if ins.field_rc() {
             let false_ = self.bd.ins().iconst(ir::types::I8, 0);
-            self.update_cr0_implicit(value, false_);
+            self.update_cr0_cmpz(value, false_);
         }
 
         self.set(ins.gpr_a(), value);

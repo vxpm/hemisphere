@@ -43,7 +43,7 @@ impl BlockBuilder<'_> {
             .iconst(ir::types::I32, ins.field_simm() as i64);
 
         let (value, overflowed) = self.bd.ins().sadd_overflow(ra, imm);
-        self.update_cr0_implicit(value, overflowed);
+        self.update_cr0_cmpz(value, overflowed);
         self.update_xer_ca(overflowed);
 
         self.set(ins.gpr_d(), value);
@@ -71,7 +71,7 @@ impl BlockBuilder<'_> {
         let (result, overflowed) = self.bd.ins().sadd_overflow(ra, rb);
 
         if ins.field_rc() {
-            self.update_cr0_implicit(result, overflowed);
+            self.update_cr0_cmpz(result, overflowed);
         }
 
         if ins.field_oe() {
@@ -91,7 +91,7 @@ impl BlockBuilder<'_> {
         let (result, overflowed) = self.bd.ins().sadd_overflow(ra, ca);
 
         if ins.field_rc() {
-            self.update_cr0_implicit(result, overflowed);
+            self.update_cr0_cmpz(result, overflowed);
         }
 
         if ins.field_oe() {
@@ -108,7 +108,7 @@ impl BlockBuilder<'_> {
         let (result, overflowed) = self.bd.ins().sadd_overflow(ra, rb);
 
         if ins.field_rc() {
-            self.update_cr0_implicit(result, overflowed);
+            self.update_cr0_cmpz(result, overflowed);
         }
 
         if ins.field_oe() {
@@ -132,7 +132,7 @@ impl BlockBuilder<'_> {
         let overflowed = self.bd.ins().bor(overflowed_a, overflowed_b);
 
         if ins.field_rc() {
-            self.update_cr0_implicit(result, overflowed);
+            self.update_cr0_cmpz(result, overflowed);
         }
 
         if ins.field_oe() {
@@ -149,7 +149,7 @@ impl BlockBuilder<'_> {
         let (result, overflowed) = self.bd.ins().ssub_overflow(rb, ra);
 
         if ins.field_rc() {
-            self.update_cr0_implicit(result, overflowed);
+            self.update_cr0_cmpz(result, overflowed);
         }
 
         if ins.field_oe() {
@@ -173,7 +173,7 @@ impl BlockBuilder<'_> {
         let (result, overflowed) = self.bd.ins().ssub_overflow(rb, sub_val);
 
         if ins.field_rc() {
-            self.update_cr0_implicit(result, overflowed);
+            self.update_cr0_cmpz(result, overflowed);
         }
 
         if ins.field_oe() {
@@ -190,7 +190,7 @@ impl BlockBuilder<'_> {
         let (result, overflowed) = self.bd.ins().ssub_overflow(rb, ra);
 
         if ins.field_rc() {
-            self.update_cr0_implicit(result, overflowed);
+            self.update_cr0_cmpz(result, overflowed);
         }
 
         if ins.field_oe() {
@@ -214,6 +214,22 @@ impl BlockBuilder<'_> {
         self.set(ins.gpr_d(), result);
     }
 
+    pub fn neg(&mut self, ins: Ins) {
+        let ra = self.get(ins.gpr_a());
+        let value = self.bd.ins().ineg(ra);
+        let overflowed = self.bd.ins().icmp_imm(IntCC::Equal, ra, i32::MIN as i64);
+
+        if ins.field_rc() {
+            self.update_cr0_cmpz(value, overflowed);
+        }
+
+        if ins.field_oe() {
+            self.update_xer_ov(overflowed);
+        }
+
+        self.set(ins.gpr_d(), value);
+    }
+
     pub fn divwu(&mut self, ins: Ins) {
         let ra = self.get(ins.gpr_a());
         let rb = self.get(ins.gpr_b());
@@ -225,7 +241,7 @@ impl BlockBuilder<'_> {
         let result = self.bd.ins().udiv(ra, denom);
 
         if ins.field_rc() {
-            self.update_cr0_implicit(result, div_by_zero);
+            self.update_cr0_cmpz(result, div_by_zero);
         }
 
         if ins.field_oe() {
@@ -242,7 +258,7 @@ impl BlockBuilder<'_> {
         let (result, overflowed) = self.bd.ins().smul_overflow(ra, rb);
 
         if ins.field_rc() {
-            self.update_cr0_implicit(result, overflowed);
+            self.update_cr0_cmpz(result, overflowed);
         }
 
         if ins.field_oe() {
@@ -271,7 +287,7 @@ impl BlockBuilder<'_> {
 
         if ins.field_rc() {
             let false_ = self.bd.ins().iconst(ir::types::I8, 0);
-            self.update_cr0_implicit(result, false_);
+            self.update_cr0_cmpz(result, false_);
         }
 
         self.set(ins.gpr_d(), result);
