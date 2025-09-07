@@ -57,7 +57,7 @@ impl BlockBuilder<'_> {
         let cond_bit = 31 - ins.field_bi();
         let current_pc = self.get(Reg::PC);
 
-        let mut branch = self.bd.ins().iconst(ir::types::I8, 1);
+        let mut branch = self.true_const();
         if !options.ignore_cr() {
             let cr = self.get(Reg::CR);
             let cond = self.bd.ins().band_imm(cr, 1 << cond_bit);
@@ -123,7 +123,7 @@ impl BlockBuilder<'_> {
         let addr = self.get(SPR::LR);
         let current_pc = self.get(Reg::PC);
 
-        let mut branch = self.bd.ins().iconst(ir::types::I8, 1);
+        let mut branch = self.true_const();
         if !options.ignore_cr() {
             let cr = self.get(Reg::CR);
             let cond = self.bd.ins().band_imm(cr, 1 << cond_bit);
@@ -190,7 +190,7 @@ impl BlockBuilder<'_> {
 
         debug!("bcctr: {options:?}");
 
-        let mut branch = self.bd.ins().iconst(ir::types::I8, 1);
+        let mut branch = self.true_const();
         if !options.ignore_cr() {
             let cr = self.get(Reg::CR);
             let cond = self.bd.ins().band_imm(cr, 1 << cond_bit);

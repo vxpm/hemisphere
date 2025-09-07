@@ -286,7 +286,7 @@ impl BlockBuilder<'_> {
         let result = self.bd.ins().smulhi(ra, rb);
 
         if ins.field_rc() {
-            let false_ = self.bd.ins().iconst(ir::types::I8, 0);
+            let false_ = self.false_const();
             self.update_cr0_cmpz(result, false_);
         }
 

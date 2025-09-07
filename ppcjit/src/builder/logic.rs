@@ -31,7 +31,7 @@ pub struct BasicBitOp {
     record: bool,
 }
 
-/// Basic Bit Ops
+/// Basic bit operations
 impl BlockBuilder<'_> {
     fn basic_bitop_compute(
         &mut self,
@@ -233,6 +233,32 @@ impl BlockBuilder<'_> {
     }
 }
 
+/// Signed extension operations
+impl BlockBuilder<'_> {
+    fn signext(&mut self, ins: Ins, ty: ir::Type) {
+        let rs = self.get(ins.gpr_s());
+
+        let byte = self.bd.ins().ireduce(ty, rs);
+        let value = self.bd.ins().sextend(ir::types::I32, byte);
+
+        if ins.field_rc() {
+            let false_ = self.false_const();
+            self.update_cr0_cmpz(value, false_);
+        }
+
+        self.set(ins.gpr_a(), value);
+    }
+
+    pub fn extsb(&mut self, ins: Ins) {
+        self.signext(ins, ir::types::I8);
+    }
+
+    pub fn extsh(&mut self, ins: Ins) {
+        self.signext(ins, ir::types::I16);
+    }
+}
+
+/// Rotate and Shift operations
 impl BlockBuilder<'_> {
     pub fn rotate_left_and_mask(&mut self, ins: Ins, shift_amount: ir::Value) {
         let rs = self.get(ins.gpr_s());
@@ -283,7 +309,7 @@ impl BlockBuilder<'_> {
         let value = self.bd.ins().ireduce(ir::types::I32, shifted);
 
         if ins.field_rc() {
-            let false_ = self.bd.ins().iconst(ir::types::I8, 0);
+            let false_ = self.false_const();
             self.update_cr0_cmpz(value, false_);
         }
 
@@ -301,7 +327,7 @@ impl BlockBuilder<'_> {
         let value = self.bd.ins().ireduce(ir::types::I32, shifted);
 
         if ins.field_rc() {
-            let false_ = self.bd.ins().iconst(ir::types::I8, 0);
+            let false_ = self.false_const();
             self.update_cr0_cmpz(value, false_);
         }
 
@@ -319,7 +345,7 @@ impl BlockBuilder<'_> {
         let value = self.bd.ins().ireduce(ir::types::I32, shifted);
 
         if ins.field_rc() {
-            let false_ = self.bd.ins().iconst(ir::types::I8, 0);
+            let false_ = self.false_const();
             self.update_cr0_cmpz(value, false_);
         }
 
@@ -350,7 +376,7 @@ impl BlockBuilder<'_> {
         let value = self.bd.ins().ireduce(ir::types::I32, shifted);
 
         if ins.field_rc() {
-            let false_ = self.bd.ins().iconst(ir::types::I8, 0);
+            let false_ = self.false_const();
             self.update_cr0_cmpz(value, false_);
         }
 
@@ -370,13 +396,16 @@ impl BlockBuilder<'_> {
 
         self.set(ins.gpr_a(), value);
     }
+}
 
+/// Misc operations
+impl BlockBuilder<'_> {
     pub fn cntlzw(&mut self, ins: Ins) {
         let rs = self.get(ins.gpr_s());
         let value = self.bd.ins().clz(rs);
 
         if ins.field_rc() {
-            let false_ = self.bd.ins().iconst(ir::types::I8, 0);
+            let false_ = self.false_const();
             self.update_cr0_cmpz(value, false_);
         }
 
