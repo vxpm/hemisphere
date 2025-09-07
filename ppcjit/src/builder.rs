@@ -364,6 +364,12 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Adde => self.adde(ins),
             Opcode::Sraw => self.sraw(ins),
             Opcode::Subfc => self.subfc(ins),
+            Opcode::Addze => self.addze(ins),
+            Opcode::Mulhwu => self.mulhwu(ins),
+            Opcode::Xori => self.xori(ins),
+            Opcode::Subfic => self.subfic(ins),
+            Opcode::Neg => self.neg(ins),
+            Opcode::Srawi => self.srawi(ins),
             Opcode::Illegal => {
                 return Err(EmitError::Illegal(ins));
             }

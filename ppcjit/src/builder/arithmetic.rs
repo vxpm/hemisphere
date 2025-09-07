@@ -82,6 +82,27 @@ impl BlockBuilder<'_> {
         self.set(ins.gpr_d(), result);
     }
 
+    pub fn addze(&mut self, ins: Ins) {
+        let ra = self.get(ins.gpr_a());
+
+        let xer = self.get(SPR::XER);
+        let shifted = self.bd.ins().ushr_imm(xer, 29);
+        let ca = self.bd.ins().band_imm(shifted, 1);
+
+        let (result, overflowed) = self.bd.ins().sadd_overflow(ra, ca);
+
+        if ins.field_rc() {
+            self.update_cr0_implicit(result, overflowed);
+        }
+
+        if ins.field_oe() {
+            self.update_xer_ov(overflowed);
+        }
+
+        self.update_xer_ca(overflowed);
+        self.set(ins.gpr_d(), result);
+    }
+
     pub fn addc(&mut self, ins: Ins) {
         let ra = self.get(ins.gpr_a());
         let rb = self.get(ins.gpr_b());
@@ -181,6 +202,19 @@ impl BlockBuilder<'_> {
         self.set(ins.gpr_d(), result);
     }
 
+    pub fn subfic(&mut self, ins: Ins) {
+        let ra = self.get(ins.gpr_a());
+        let imm = self
+            .bd
+            .ins()
+            .iconst(ir::types::I32, ins.field_simm() as i64);
+
+        let (result, overflowed) = self.bd.ins().ssub_overflow(imm, ra);
+
+        self.update_xer_ca(overflowed);
+        self.set(ins.gpr_d(), result);
+    }
+
     pub fn ori(&mut self, ins: Ins) {
         let rs = self.get(ins.gpr_s());
         let value = self.bd.ins().bor_imm(rs, ins.field_uimm() as u64 as i64);
@@ -224,6 +258,13 @@ impl BlockBuilder<'_> {
         }
 
         self.set(ins.gpr_a(), nor);
+    }
+
+    pub fn xori(&mut self, ins: Ins) {
+        let rs = self.get(ins.gpr_s());
+        let value = self.bd.ins().bxor_imm(rs, ins.field_uimm() as u64 as i64);
+
+        self.set(ins.gpr_a(), value);
     }
 
     pub fn andi_record(&mut self, ins: Ins) {
@@ -276,6 +317,22 @@ impl BlockBuilder<'_> {
         self.set(ins.gpr_a(), value);
     }
 
+    pub fn neg(&mut self, ins: Ins) {
+        let ra = self.get(ins.gpr_a());
+        let value = self.bd.ins().ineg(ra);
+        let overflowed = self.bd.ins().icmp_imm(IntCC::Equal, ra, i32::MIN as i64);
+
+        if ins.field_rc() {
+            self.update_cr0_implicit(value, overflowed);
+        }
+
+        if ins.field_oe() {
+            self.update_xer_ov(overflowed);
+        }
+
+        self.set(ins.gpr_d(), value);
+    }
+
     pub fn divwu(&mut self, ins: Ins) {
         let ra = self.get(ins.gpr_a());
         let rb = self.get(ins.gpr_b());
@@ -322,6 +379,20 @@ impl BlockBuilder<'_> {
             .iconst(ir::types::I32, ins.field_simm() as i64);
 
         let result = self.bd.ins().imul(ra, imm);
+        self.set(ins.gpr_d(), result);
+    }
+
+    pub fn mulhwu(&mut self, ins: Ins) {
+        let ra = self.get(ins.gpr_a());
+        let rb = self.get(ins.gpr_b());
+
+        let result = self.bd.ins().smulhi(ra, rb);
+
+        if ins.field_rc() {
+            let false_ = self.bd.ins().iconst(ir::types::I8, 0);
+            self.update_cr0_implicit(result, false_);
+        }
+
         self.set(ins.gpr_d(), result);
     }
 
@@ -423,6 +494,38 @@ impl BlockBuilder<'_> {
             self.bd
                 .ins()
                 .icmp(IntCC::UnsignedGreaterThanOrEqual, shift_by, trailing_zeros);
+
+        let carry = self.bd.ins().bor(is_rs_neg, is_shift_by_gt_tz);
+        self.update_xer_ca(carry);
+
+        self.set(ins.gpr_a(), value);
+    }
+
+    pub fn srawi(&mut self, ins: Ins) {
+        let rs = self.get(ins.gpr_s());
+
+        let extended = self.bd.ins().uextend(ir::types::I64, rs);
+        let shifted = self
+            .bd
+            .ins()
+            .sshr_imm(extended, ins.field_sh() as u64 as i64);
+        let value = self.bd.ins().ireduce(ir::types::I32, shifted);
+
+        if ins.field_rc() {
+            let false_ = self.bd.ins().iconst(ir::types::I8, 0);
+            self.update_cr0_implicit(value, false_);
+        }
+
+        // xer ca is set if:
+        // - rs is negative, and
+        // - shift_by >= trailing zeros of rs
+        let trailing_zeros = self.bd.ins().ctz(rs);
+        let is_rs_neg = self.bd.ins().icmp_imm(IntCC::SignedLessThan, rs, 0);
+        let is_shift_by_gt_tz = self.bd.ins().icmp_imm(
+            IntCC::UnsignedLessThan,
+            trailing_zeros,
+            ins.field_sh() as u64 as i64,
+        );
 
         let carry = self.bd.ins().bor(is_rs_neg, is_shift_by_gt_tz);
         self.update_xer_ca(carry);
