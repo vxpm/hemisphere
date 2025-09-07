@@ -1,6 +1,8 @@
 use super::BlockBuilder;
-use cranelift::prelude::InstBuilder;
+use bitos::BitUtils;
+use cranelift::{codegen::ir, prelude::InstBuilder};
 use hemicore::arch::{InsExt, Reg, powerpc::Ins};
+use tracing::debug;
 
 impl BlockBuilder<'_> {
     pub fn stub(&mut self, _: Ins) {
@@ -48,6 +50,32 @@ impl BlockBuilder<'_> {
         self.set(Reg::MSR, value);
     }
 
+    pub fn mfcr(&mut self, ins: Ins) {
+        let value = self.get(Reg::CR);
+        self.set(ins.gpr_d(), value);
+    }
+
+    pub fn mtcrf(&mut self, ins: Ins) {
+        let rs = self.get(ins.gpr_s());
+        let mask_control = ins.field_crm();
+
+        let mut mask = 0;
+        for i in 0..8 {
+            // CR0 is the higher one
+            if mask_control.bit(7 - i) {
+                mask |= (0xF) << (4 * i);
+            }
+        }
+
+        debug!("mask control: {:08b} mask: {:032b}", mask_control, mask);
+
+        let cr = self.get(Reg::CR);
+        let mask = self.bd.ins().iconst(ir::types::I32, mask);
+        let value = self.bd.ins().bitselect(mask, rs, cr);
+
+        self.set(Reg::CR, value);
+    }
+
     pub fn mtsfb1(&mut self, ins: Ins) {
         let bit = ins.field_crbd();
         let old = self.get(Reg::FPSCR);
@@ -57,5 +85,10 @@ impl BlockBuilder<'_> {
         if ins.field_rc() {
             todo!()
         }
+    }
+
+    pub fn mftb(&mut self, ins: Ins) {
+        let imm = self.bd.ins().iconst(ir::types::I32, 0);
+        self.set(ins.gpr_d(), imm);
     }
 }

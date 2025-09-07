@@ -267,6 +267,21 @@ impl BlockBuilder<'_> {
         self.set(ins.gpr_d(), extended);
     }
 
+    pub fn lhzx(&mut self, ins: Ins) {
+        let rb = self.get(ins.gpr_b());
+        let addr = if ins.field_ra() == 0 {
+            rb
+        } else {
+            let ra = self.get(ins.gpr_a());
+            self.bd.ins().iadd(ra, rb)
+        };
+
+        let value = self.read::<i16>(addr);
+        let extended = self.bd.ins().uextend(ir::types::I32, value);
+
+        self.set(ins.gpr_d(), extended);
+    }
+
     pub fn lbz(&mut self, ins: Ins) {
         let addr = if ins.field_ra() == 0 {
             self.bd

@@ -22,6 +22,9 @@ struct CliArgs {
     /// Whether to start running right away
     #[arg(short, long, default_value_t = false)]
     run: bool,
+    /// Maximum number of instructions per block
+    #[arg(visible_alias("ipb"), long, default_value_t = 128)]
+    instr_per_block: u16,
 }
 
 fn setup_tracing() -> tracing_appender::non_blocking::WorkerGuard {
@@ -58,7 +61,9 @@ fn main() -> Result<()> {
     let file = std::fs::File::open(args.input).unwrap();
     let dol = Dol::read(&mut BufReader::new(file)).unwrap();
 
-    let mut runner = Runner::new(Hemisphere::new(Config::default()));
+    let mut runner = Runner::new(Hemisphere::new(Config {
+        instr_per_block: args.instr_per_block,
+    }));
     runner.with_state(|state| state.hemisphere_mut().system.load(&dol));
     runner.set_run(args.run);
 

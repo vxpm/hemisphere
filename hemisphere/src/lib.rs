@@ -32,13 +32,13 @@ pub const FREQUENCY: u32 = 486_000_000;
 /// Emulator configuration.
 pub struct Config {
     /// Maximum number of instructions per JIT block.
-    pub instructions_per_block: u16,
+    pub instr_per_block: u16,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
-            instructions_per_block: 128,
+            instr_per_block: 128,
         }
     }
 }
@@ -216,7 +216,7 @@ impl Hemisphere {
             .and_then(|id| self.jit.blocks.storage.get(id));
 
         if block.is_none() {
-            let block = self.compile(self.system.cpu.pc, self.config.instructions_per_block);
+            let block = self.compile(self.system.cpu.pc, self.config.instr_per_block);
             self.jit.blocks.insert(self.system.cpu.pc, block);
         }
 
@@ -225,11 +225,7 @@ impl Hemisphere {
 
     /// Executes a single block and returns how many instructions were executed.
     pub fn exec(&mut self) -> u32 {
-        debug!(
-            "exec at {}, ctr is {}",
-            self.system.cpu.pc,
-            Address(self.system.cpu.user.ctr)
-        );
+        debug!("exec at {}", self.system.cpu.pc,);
 
         let block = self
             .jit
@@ -243,7 +239,7 @@ impl Hemisphere {
             None => {
                 std::hint::cold_path();
 
-                let block = self.compile(self.system.cpu.pc, self.config.instructions_per_block);
+                let block = self.compile(self.system.cpu.pc, self.config.instr_per_block);
                 let id = self.jit.blocks.insert(self.system.cpu.pc, block);
 
                 self.jit.blocks.storage.get(id).unwrap()

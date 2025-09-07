@@ -348,6 +348,22 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Bcctr => self.branch_cond_ctr(ins),
             Opcode::Andis_ => self.andis_record(ins),
             Opcode::Lhz => self.lhz(ins),
+            Opcode::Mulli => self.mulli(ins),
+            Opcode::Mfcr => self.mfcr(ins),
+            Opcode::Mtcrf => self.mtcrf(ins),
+            Opcode::Slw => self.slw(ins),
+            Opcode::Srw => self.srw(ins),
+            Opcode::Rlwnm => self.rlwnm(ins),
+            Opcode::Dcbi => self.stub(ins), // NOTE: stubbed
+            Opcode::Addic => self.addic(ins),
+            Opcode::Subfe => self.subfe(ins),
+            Opcode::Lhzx => self.lhzx(ins),
+            Opcode::Andc => self.andc(ins),
+            Opcode::Mftb => self.mftb(ins),
+            Opcode::Addc => self.addc(ins),
+            Opcode::Adde => self.adde(ins),
+            Opcode::Sraw => self.sraw(ins),
+            Opcode::Subfc => self.subfc(ins),
             Opcode::Illegal => {
                 return Err(EmitError::Illegal(ins));
             }
