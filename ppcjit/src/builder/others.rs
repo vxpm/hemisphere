@@ -1,7 +1,7 @@
 use super::BlockBuilder;
 use bitos::BitUtils;
 use cranelift::{codegen::ir, prelude::InstBuilder};
-use hemicore::arch::{InsExt, Reg, powerpc::Ins};
+use hemicore::arch::{InsExt, Reg, SPR, powerpc::Ins};
 use tracing::debug;
 
 impl BlockBuilder<'_> {
@@ -90,5 +90,16 @@ impl BlockBuilder<'_> {
     pub fn mftb(&mut self, ins: Ins) {
         let imm = self.bd.ins().iconst(ir::types::I32, 0);
         self.set(ins.gpr_d(), imm);
+    }
+
+    pub fn sc(&mut self, ins: Ins) {
+        let current_pc = self.get(Reg::PC);
+        let target = self.bd.ins().iadd_imm(current_pc, 4);
+        self.set(SPR::SRR0, target);
+
+        let msr = self.get(Reg::MSR);
+        self.set(SPR::SRR1, msr);
+
+        todo!("syscall exception")
     }
 }
