@@ -2,6 +2,7 @@ use super::BlockBuilder;
 use bitos::{bitos, integer::u5};
 use cranelift::{codegen::ir, prelude::InstBuilder};
 use hemicore::arch::{Reg, SPR, powerpc::Ins};
+use tracing::debug;
 
 #[bitos(1)]
 #[derive(Debug, Clone, Copy)]
@@ -175,6 +176,75 @@ impl BlockBuilder<'_> {
 
         self.bd.switch_to_block(exit_block);
         self.setup_jump(false, ins.field_lk(), addr);
+        self.prologue();
+
+        self.bd.switch_to_block(continue_block);
+        self.current_bb = continue_block;
+        self.set(Reg::PC, current_pc);
+    }
+
+    pub fn branch_cond_ctr(&mut self, ins: Ins) {
+        let options = BranchOptions::from_bits(u5::new(ins.field_bo()));
+        let cond_bit = 31 - ins.field_bi();
+        let current_pc = self.get(Reg::PC);
+
+        debug!("bcctr: {options:?}");
+
+        let mut branch = self.bd.ins().iconst(ir::types::I8, 1);
+        if !options.ignore_cr() {
+            let cr = self.get(Reg::CR);
+            let cond = self.bd.ins().band_imm(cr, 1 << cond_bit);
+
+            let cond_ok = match options.desired_cr() {
+                true => self
+                    .bd
+                    .ins()
+                    .icmp_imm(ir::condcodes::IntCC::UnsignedGreaterThan, cond, 0),
+                false => self.bd.ins().icmp_imm(ir::condcodes::IntCC::Equal, cond, 0),
+            };
+
+            branch = self.bd.ins().band(branch, cond_ok);
+        }
+
+        if !options.ignore_ctr() {
+            let ctr = self.get(SPR::CTR);
+            let ctr = self.bd.ins().iadd_imm(ctr, -1);
+            self.set(SPR::CTR, ctr);
+
+            let ctr_ok = match options.ctr_cond() {
+                CtrCond::NotEqZero => {
+                    self.bd
+                        .ins()
+                        .icmp_imm(ir::condcodes::IntCC::UnsignedGreaterThan, ctr, 0)
+                }
+                CtrCond::EqZero => self.bd.ins().icmp_imm(ir::condcodes::IntCC::Equal, ctr, 0),
+            };
+
+            branch = self.bd.ins().band(branch, ctr_ok);
+        }
+
+        let exit_block = self.bd.create_block();
+        let continue_block = self.bd.create_block();
+
+        if !(options.ignore_ctr() && options.ignore_cr()) {
+            self.bd.set_cold_block(if options.likely() {
+                continue_block
+            } else {
+                exit_block
+            });
+        }
+
+        self.bd
+            .ins()
+            .brif(branch, exit_block, &[], continue_block, &[]);
+
+        self.bd.seal_block(exit_block);
+        self.bd.seal_block(continue_block);
+
+        self.bd.switch_to_block(exit_block);
+        let ctr = self.get(SPR::CTR);
+        let target = self.bd.ins().band_imm(ctr, !0b11);
+        self.setup_jump(false, ins.field_lk(), target);
         self.prologue();
 
         self.bd.switch_to_block(continue_block);

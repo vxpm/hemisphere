@@ -320,7 +320,7 @@ pub struct ExceptionHandling {
     /// Data Storage Interrupt Status Register
     pub dsisr: u32,
     /// Registers provided for the use of the operating system
-    pub sprgs: [u32; 4],
+    pub sprg: [u32; 4],
     /// Save and Restore Registers
     pub srr: [u32; 2],
 }
@@ -540,6 +540,10 @@ pub enum SPR {
     CTR = 9,
     SRR0 = 26,
     SRR1 = 27,
+    SPRG0 = 272,
+    SPRG1 = 273,
+    SPRG2 = 274,
+    SPRG3 = 275,
     IBAT0U = 528,
     IBAT0L = 529,
     IBAT1U = 530,
@@ -597,6 +601,10 @@ impl SPR {
             Self::CTR => offset_of!(Registers, user.ctr),
             Self::SRR0 => offset_of!(Registers, supervisor.exception.srr[0]),
             Self::SRR1 => offset_of!(Registers, supervisor.exception.srr[1]),
+            Self::SPRG0 => offset_of!(Registers, supervisor.exception.sprg[0]),
+            Self::SPRG1 => offset_of!(Registers, supervisor.exception.sprg[1]),
+            Self::SPRG2 => offset_of!(Registers, supervisor.exception.sprg[2]),
+            Self::SPRG3 => offset_of!(Registers, supervisor.exception.sprg[3]),
             Self::IBAT0U => offset_of!(Registers, supervisor.memory.ibat[0]) + 4,
             Self::IBAT0L => offset_of!(Registers, supervisor.memory.ibat[0]),
             Self::IBAT1U => offset_of!(Registers, supervisor.memory.ibat[1]) + 4,

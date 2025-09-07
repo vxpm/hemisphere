@@ -21,7 +21,7 @@ use hemicore::{
     },
 };
 use ppcjit::{Sequence, SequenceStatus};
-use tracing::{trace, trace_span};
+use tracing::{debug, trace, trace_span};
 
 pub use dolfile;
 pub use hemicore as core;
@@ -225,6 +225,12 @@ impl Hemisphere {
 
     /// Executes a single block and returns how many instructions were executed.
     pub fn exec(&mut self) -> u32 {
+        debug!(
+            "exec at {}, ctr is {}",
+            self.system.cpu.pc,
+            Address(self.system.cpu.user.ctr)
+        );
+
         let block = self
             .jit
             .blocks

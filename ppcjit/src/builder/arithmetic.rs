@@ -86,24 +86,19 @@ impl BlockBuilder<'_> {
     }
 
     pub fn ori(&mut self, ins: Ins) {
-        let imm = self
-            .bd
-            .ins()
-            .iconst(ir::types::I32, ins.field_uimm() as u64 as i64);
         let rs = self.get(ins.gpr_s());
+        let value = self.bd.ins().bor_imm(rs, ins.field_uimm() as u64 as i64);
 
-        let value = self.bd.ins().bor(rs, imm);
         self.set(ins.gpr_a(), value);
     }
 
     pub fn oris(&mut self, ins: Ins) {
-        let imm = self
+        let rs = self.get(ins.gpr_s());
+        let value = self
             .bd
             .ins()
-            .iconst(ir::types::I32, (ins.field_uimm() as u64 as i64) << 16);
-        let rs = self.get(ins.gpr_s());
+            .bor_imm(rs, ((ins.field_uimm() as u64) << 16) as i64);
 
-        let value = self.bd.ins().bor(rs, imm);
         self.set(ins.gpr_a(), value);
     }
 
@@ -120,13 +115,37 @@ impl BlockBuilder<'_> {
         self.set(ins.gpr_a(), value);
     }
 
+    pub fn nor(&mut self, ins: Ins) {
+        let rs = self.get(ins.gpr_s());
+        let rb = self.get(ins.gpr_b());
+
+        let or = self.bd.ins().bor(rs, rb);
+        let nor = self.bd.ins().bnot(or);
+
+        if ins.field_rc() {
+            let _false = self.bd.ins().iconst(ir::types::I8, 0);
+            self.update_cr0_implicit(nor, _false);
+        }
+
+        self.set(ins.gpr_a(), nor);
+    }
+
     pub fn andi_record(&mut self, ins: Ins) {
-        let imm = self
+        let rs = self.get(ins.gpr_s());
+        let value = self.bd.ins().band_imm(rs, ins.field_uimm() as u64 as i64);
+
+        let _false = self.bd.ins().iconst(ir::types::I8, 0);
+        self.update_cr0_implicit(value, _false);
+
+        self.set(ins.gpr_a(), value);
+    }
+
+    pub fn andis_record(&mut self, ins: Ins) {
+        let rs = self.get(ins.gpr_s());
+        let value = self
             .bd
             .ins()
-            .iconst(ir::types::I32, ins.field_uimm() as u64 as i64);
-        let rs = self.get(ins.gpr_s());
-        let value = self.bd.ins().band(rs, imm);
+            .band_imm(rs, ((ins.field_uimm() as u64) << 16) as i64);
 
         let _false = self.bd.ins().iconst(ir::types::I8, 0);
         self.update_cr0_implicit(value, _false);
@@ -258,5 +277,17 @@ impl BlockBuilder<'_> {
             .iconst(ir::types::I32, ins.field_uimm() as u64 as i64);
 
         self.compare_unsigned(ra, imm, ins.field_crfd());
+    }
+
+    pub fn cntlzw(&mut self, ins: Ins) {
+        let rs = self.get(ins.gpr_s());
+        let value = self.bd.ins().clz(rs);
+
+        if ins.field_rc() {
+            let _false = self.bd.ins().iconst(ir::types::I8, 0);
+            self.update_cr0_implicit(value, _false);
+        }
+
+        self.set(ins.gpr_a(), value);
     }
 }

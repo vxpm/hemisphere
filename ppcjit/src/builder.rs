@@ -343,6 +343,11 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Subf => self.subf(ins),
             Opcode::Sync => self.stub(ins), // NOTE: stubbed
             Opcode::Icbi => self.stub(ins), // NOTE: stubbed
+            Opcode::Nor => self.nor(ins),
+            Opcode::Cntlzw => self.cntlzw(ins),
+            Opcode::Bcctr => self.branch_cond_ctr(ins),
+            Opcode::Andis_ => self.andis_record(ins),
+            Opcode::Lhz => self.lhz(ins),
             Opcode::Illegal => {
                 return Err(EmitError::Illegal(ins));
             }
