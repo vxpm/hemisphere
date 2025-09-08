@@ -225,8 +225,6 @@ impl Hemisphere {
 
     /// Executes a single block and returns how many instructions were executed.
     pub fn exec(&mut self) -> u32 {
-        tracing::debug!("exec at {}", self.system.cpu.pc,);
-
         let block = self
             .jit
             .blocks
@@ -245,6 +243,14 @@ impl Hemisphere {
                 self.jit.blocks.storage.get(id).unwrap()
             }
         };
+
+        tracing::debug!(
+            "exec at {}\n====> block seq:\n{}\n====> block clir:\n{}\n====> block asm:\n{}",
+            self.system.cpu.pc,
+            block.sequence(),
+            block.clir(),
+            block
+        );
 
         let mut ctx = Context {
             system: &mut self.system,

@@ -203,6 +203,7 @@ impl<'ctx> BlockBuilder<'ctx> {
     }
 
     fn prologue(&mut self) {
+        self.bd.set_srcloc(ir::SourceLoc::new(u32::MAX));
         let executed = self
             .bd
             .ins()

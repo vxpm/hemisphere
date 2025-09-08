@@ -92,18 +92,17 @@ impl BlockBuilder<'_> {
         let (value, cout_a) = self.bd.ins().uadd_overflow(lhs, rhs);
         let (value, cout_b) = self.bd.ins().uadd_overflow(value, cin);
 
-        let carry = self.bd.ins().bor(cout_a, cout_b);
-        let overflowed = self.addition_overflow(lhs, rhs, value);
-
         if op.record {
             self.update_cr0_cmpz(value);
         }
 
         if op.carry {
+            let carry = self.bd.ins().bor(cout_a, cout_b);
             self.update_xer_ca(carry);
         }
 
         if op.overflow {
+            let overflowed = self.addition_overflow(lhs, rhs, value);
             self.update_xer_ov(overflowed);
         }
 
@@ -284,18 +283,17 @@ impl BlockBuilder<'_> {
         let (value, cout_a) = self.bd.ins().uadd_overflow(lhs, not_rhs);
         let (value, cout_b) = self.bd.ins().uadd_overflow(value, cin);
 
-        let carry = self.bd.ins().bor(cout_a, cout_b);
-        let overflowed = self.subtraction_overflow(lhs, rhs, value);
-
         if op.record {
             self.update_cr0_cmpz(value);
         }
 
         if op.carry {
+            let carry = self.bd.ins().bor(cout_a, cout_b);
             self.update_xer_ca(carry);
         }
 
         if op.overflow {
+            let overflowed = self.subtraction_overflow(lhs, rhs, value);
             self.update_xer_ov(overflowed);
         }
 
