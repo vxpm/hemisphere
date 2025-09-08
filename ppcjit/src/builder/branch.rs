@@ -57,7 +57,7 @@ impl BlockBuilder<'_> {
         let cond_bit = 31 - ins.field_bi();
         let current_pc = self.get(Reg::PC);
 
-        let mut branch = true.into_value(&mut self.bd);
+        let mut branch = self.const_val(true);
         if !options.ignore_cr() {
             let cr = self.get(Reg::CR);
             let cond = self.bd.ins().band_imm(cr, 1 << cond_bit);
@@ -108,7 +108,7 @@ impl BlockBuilder<'_> {
         self.bd.seal_block(continue_block);
 
         self.bd.switch_to_block(exit_block);
-        let target = target.into_value(&mut self.bd);
+        let target = self.const_val(target);
         self.setup_jump(relative, ins.field_lk(), target);
         self.prologue();
 

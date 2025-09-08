@@ -321,6 +321,8 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Sync => self.stub(ins), // NOTE: stubbed
             Opcode::Xor => self.xor(ins),
             Opcode::Xori => self.xori(ins),
+            Opcode::Rlwimi => self.rlwimi(ins),
+            Opcode::Addme => self.addme(ins),
             Opcode::Illegal => {
                 return Err(EmitError::Illegal(ins));
             }

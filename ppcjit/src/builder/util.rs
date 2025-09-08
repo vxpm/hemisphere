@@ -44,10 +44,14 @@ impl BlockBuilder<'_> {
         // stub
     }
 
+    pub fn const_val(&mut self, value: impl IntoIrValue) -> ir::Value {
+        value.into_value(&mut self.bd)
+    }
+
     /// Gets bit `index` in the `value` (must be an I32).
     pub fn get_bit(&mut self, value: ir::Value, index: impl IntoIrValue) -> ir::Value {
-        let one = 1.into_value(&mut self.bd);
-        let index = index.into_value(&mut self.bd);
+        let one = self.const_val(1i32);
+        let index = self.const_val(index);
 
         let mask = self.bd.ins().ishl(one, index);
         let masked = self.bd.ins().band(value, mask);
@@ -63,10 +67,10 @@ impl BlockBuilder<'_> {
         index: impl IntoIrValue,
         set: impl IntoIrValue,
     ) -> ir::Value {
-        let zero = 0.into_value(&mut self.bd);
-        let one = 1.into_value(&mut self.bd);
-        let index = index.into_value(&mut self.bd);
-        let set = set.into_value(&mut self.bd);
+        let zero = self.const_val(0i32);
+        let one = self.const_val(1i32);
+        let index = self.const_val(index);
+        let set = self.const_val(set);
 
         // create mask for the bit
         let shifted = self.bd.ins().ishl(one, index);
@@ -84,7 +88,7 @@ impl BlockBuilder<'_> {
     /// Updates OV and SO in XER.
     pub fn update_xer_ov(&mut self, overflowed: impl IntoIrValue) {
         let xer = self.get(SPR::XER);
-        let overflowed = overflowed.into_value(&mut self.bd);
+        let overflowed = self.const_val(overflowed);
         let overflowed = self.bd.ins().uextend(ir::types::I32, overflowed);
 
         let ov = self.bd.ins().ishl_imm(overflowed, 30);
