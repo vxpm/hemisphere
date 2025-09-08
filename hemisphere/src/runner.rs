@@ -190,8 +190,6 @@ impl Runner {
         F: FnOnce(&mut State) -> R,
     {
         let mut state = self.state.lock();
-        let result = f(&mut state);
-
-        result
+        f(&mut state)
     }
 }

@@ -77,9 +77,8 @@ impl BlockBuilder<'_> {
 
         // set bit if `set` is true
         let rhs = self.bd.ins().select(set, shifted, zero);
-        let value = self.bd.ins().bor(value, rhs);
 
-        value
+        self.bd.ins().bor(value, rhs)
     }
 
     /// Updates OV and SO in XER.

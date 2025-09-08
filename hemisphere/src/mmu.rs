@@ -7,13 +7,13 @@ use hemicore::{
 use tracing::{trace, trace_span};
 
 const BASES_COUNT: usize = 1 << 15;
-type BATLUT = Box<[u16; BASES_COUNT]>;
+type BlockLUT = Box<[u16; BASES_COUNT]>;
 
 const NO_BAT: u16 = 1;
 
 pub struct Mmu {
-    data_bat_lut: BATLUT,
-    instr_bat_lut: BATLUT,
+    data_bat_lut: BlockLUT,
+    instr_bat_lut: BlockLUT,
 }
 
 impl Mmu {
@@ -24,7 +24,7 @@ impl Mmu {
         }
     }
 
-    fn update_lut_with(lut: &mut BATLUT, bat: &Bat) {
+    fn update_lut_with(lut: &mut BlockLUT, bat: &Bat) {
         let physical_start_base = (bat.physical_start().value() >> 17) as u16;
         let physical_end_base = (bat.physical_end().value() >> 17) as u16;
         let logical_start_base = bat.start().value() >> 17;

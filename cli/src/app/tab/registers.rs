@@ -261,7 +261,7 @@ impl RegistersPane {
                 .selected()
                 .is_some_and(|selected| selected == i)
             {
-                self.render_int_formats(&mut ctx.frame, formats, cpu.user.gpr[i]);
+                self.render_int_formats(ctx.frame, formats, cpu.user.gpr[i]);
             }
         }
 
@@ -297,7 +297,7 @@ impl RegistersPane {
                 .selected()
                 .is_some_and(|selected| selected == i)
             {
-                self.render_float_formats(&mut ctx.frame, formats, cpu.user.fpr[i][0]);
+                self.render_float_formats(ctx.frame, formats, cpu.user.fpr[i][0]);
             }
         }
 
