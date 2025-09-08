@@ -4,7 +4,6 @@ use super::BlockBuilder;
 use bitos::{bitos, integer::u5};
 use cranelift::{codegen::ir, prelude::InstBuilder};
 use hemicore::arch::{Reg, SPR, powerpc::Ins};
-use tracing::debug;
 
 #[bitos(1)]
 #[derive(Debug, Clone, Copy)]
@@ -44,17 +43,16 @@ impl BlockBuilder<'_> {
         }
     }
 
-    fn setup_jump_imm(&mut self, relative: bool, link: bool, data: i32) {
-        let data = self.bd.ins().iconst(ir::types::I32, data as i64);
-        self.setup_jump(relative, link, data);
-    }
-
-    pub fn branch(&mut self, ins: Ins) {
+    pub fn b(&mut self, ins: Ins) {
         // NOTE: the minus 4 is to work around the automatic PC increase in the emit method
-        self.setup_jump_imm(!ins.field_aa(), ins.field_lk(), ins.field_li() - 4);
+        let target = self
+            .bd
+            .ins()
+            .iconst(ir::types::I32, (ins.field_li() - 4) as u64 as i64);
+        self.setup_jump(!ins.field_aa(), ins.field_lk(), target);
     }
 
-    pub fn branch_cond(&mut self, ins: Ins) {
+    fn conditional_branch(&mut self, ins: Ins, relative: bool, target: impl IntoIrValue) {
         let options = BranchOptions::from_bits(u5::new(ins.field_bo()));
         let cond_bit = 31 - ins.field_bi();
         let current_pc = self.get(Reg::PC);
@@ -82,9 +80,8 @@ impl BlockBuilder<'_> {
 
             let ctr_ok = match options.ctr_cond() {
                 CtrCond::NotEqZero => {
-                    self.bd
-                        .ins()
-                        .icmp_imm(ir::condcodes::IntCC::UnsignedGreaterThan, ctr, 0)
+                    let eq = self.bd.ins().icmp_imm(ir::condcodes::IntCC::Equal, ctr, 0);
+                    self.bd.ins().bnot(eq)
                 }
                 CtrCond::EqZero => self.bd.ins().icmp_imm(ir::condcodes::IntCC::Equal, ctr, 0),
             };
@@ -111,7 +108,8 @@ impl BlockBuilder<'_> {
         self.bd.seal_block(continue_block);
 
         self.bd.switch_to_block(exit_block);
-        self.setup_jump_imm(!ins.field_aa(), ins.field_lk(), ins.field_bd() as i32);
+        let target = target.into_value(&mut self.bd);
+        self.setup_jump(relative, ins.field_lk(), target);
         self.prologue();
 
         self.bd.switch_to_block(continue_block);
@@ -119,138 +117,17 @@ impl BlockBuilder<'_> {
         self.set(Reg::PC, current_pc);
     }
 
-    pub fn branch_cond_lr(&mut self, ins: Ins) {
-        let options = BranchOptions::from_bits(u5::new(ins.field_bo()));
-        let cond_bit = 31 - ins.field_bi();
-        let addr = self.get(SPR::LR);
-        let current_pc = self.get(Reg::PC);
-
-        let mut branch = true.into_value(&mut self.bd);
-        if !options.ignore_cr() {
-            let cr = self.get(Reg::CR);
-            let cond = self.bd.ins().band_imm(cr, 1 << cond_bit);
-
-            let cond_ok = match options.desired_cr() {
-                true => self
-                    .bd
-                    .ins()
-                    .icmp_imm(ir::condcodes::IntCC::UnsignedGreaterThan, cond, 0),
-                false => self.bd.ins().icmp_imm(ir::condcodes::IntCC::Equal, cond, 0),
-            };
-
-            branch = self.bd.ins().band(branch, cond_ok);
-        }
-
-        if !options.ignore_ctr() {
-            let ctr = self.get(SPR::CTR);
-            let ctr = self.bd.ins().iadd_imm(ctr, -1);
-            self.set(SPR::CTR, ctr);
-
-            let ctr_ok = match options.ctr_cond() {
-                CtrCond::NotEqZero => {
-                    self.bd
-                        .ins()
-                        .icmp_imm(ir::condcodes::IntCC::UnsignedGreaterThan, ctr, 0)
-                }
-                CtrCond::EqZero => self.bd.ins().icmp_imm(ir::condcodes::IntCC::Equal, ctr, 0),
-            };
-
-            branch = self.bd.ins().band(branch, ctr_ok);
-        }
-
-        let exit_block = self.bd.create_block();
-        let continue_block = self.bd.create_block();
-
-        if !(options.ignore_ctr() && options.ignore_cr()) {
-            self.bd.set_cold_block(if options.likely() {
-                continue_block
-            } else {
-                exit_block
-            });
-        }
-
-        self.bd
-            .ins()
-            .brif(branch, exit_block, &[], continue_block, &[]);
-
-        self.bd.seal_block(exit_block);
-        self.bd.seal_block(continue_block);
-
-        self.bd.switch_to_block(exit_block);
-        self.setup_jump(false, ins.field_lk(), addr);
-        self.prologue();
-
-        self.bd.switch_to_block(continue_block);
-        self.current_bb = continue_block;
-        self.set(Reg::PC, current_pc);
+    pub fn bc(&mut self, ins: Ins) {
+        self.conditional_branch(ins, !ins.field_aa(), ins.field_bd() as i32);
     }
 
-    pub fn branch_cond_ctr(&mut self, ins: Ins) {
-        let options = BranchOptions::from_bits(u5::new(ins.field_bo()));
-        let cond_bit = 31 - ins.field_bi();
-        let current_pc = self.get(Reg::PC);
+    pub fn bclr(&mut self, ins: Ins) {
+        let lr = self.get(SPR::LR);
+        self.conditional_branch(ins, false, lr);
+    }
 
-        debug!("bcctr: {options:?}");
-
-        let mut branch = true.into_value(&mut self.bd);
-        if !options.ignore_cr() {
-            let cr = self.get(Reg::CR);
-            let cond = self.bd.ins().band_imm(cr, 1 << cond_bit);
-
-            let cond_ok = match options.desired_cr() {
-                true => self
-                    .bd
-                    .ins()
-                    .icmp_imm(ir::condcodes::IntCC::UnsignedGreaterThan, cond, 0),
-                false => self.bd.ins().icmp_imm(ir::condcodes::IntCC::Equal, cond, 0),
-            };
-
-            branch = self.bd.ins().band(branch, cond_ok);
-        }
-
-        if !options.ignore_ctr() {
-            let ctr = self.get(SPR::CTR);
-            let ctr = self.bd.ins().iadd_imm(ctr, -1);
-            self.set(SPR::CTR, ctr);
-
-            let ctr_ok = match options.ctr_cond() {
-                CtrCond::NotEqZero => {
-                    self.bd
-                        .ins()
-                        .icmp_imm(ir::condcodes::IntCC::UnsignedGreaterThan, ctr, 0)
-                }
-                CtrCond::EqZero => self.bd.ins().icmp_imm(ir::condcodes::IntCC::Equal, ctr, 0),
-            };
-
-            branch = self.bd.ins().band(branch, ctr_ok);
-        }
-
-        let exit_block = self.bd.create_block();
-        let continue_block = self.bd.create_block();
-
-        if !(options.ignore_ctr() && options.ignore_cr()) {
-            self.bd.set_cold_block(if options.likely() {
-                continue_block
-            } else {
-                exit_block
-            });
-        }
-
-        self.bd
-            .ins()
-            .brif(branch, exit_block, &[], continue_block, &[]);
-
-        self.bd.seal_block(exit_block);
-        self.bd.seal_block(continue_block);
-
-        self.bd.switch_to_block(exit_block);
+    pub fn bcctr(&mut self, ins: Ins) {
         let ctr = self.get(SPR::CTR);
-        let target = self.bd.ins().band_imm(ctr, !0b11);
-        self.setup_jump(false, ins.field_lk(), target);
-        self.prologue();
-
-        self.bd.switch_to_block(continue_block);
-        self.current_bb = continue_block;
-        self.set(Reg::PC, current_pc);
+        self.conditional_branch(ins, false, ctr);
     }
 }
