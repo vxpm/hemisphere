@@ -315,6 +315,8 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Subfc => self.subfc(ins),
             Opcode::Subfe => self.subfe(ins),
             Opcode::Subfic => self.subfic(ins),
+            Opcode::Subfme => self.subfme(ins),
+            Opcode::Subfze => self.subfze(ins),
             Opcode::Sync => self.stub(ins), // NOTE: stubbed
             Opcode::Xor => self.xor(ins),
             Opcode::Xori => self.xori(ins),
