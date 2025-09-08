@@ -16,8 +16,8 @@ enum BasicBitOpKind {
 }
 
 enum BasicBitOpRhs {
-    GPRB,
-    ComplementGPRB,
+    RB,
+    ComplementRB,
     Imm,
     ShiftedImm,
 }
@@ -60,8 +60,8 @@ impl BlockBuilder<'_> {
 
     fn basic_bitop_get_rhs(&mut self, ins: Ins, rhs: BasicBitOpRhs) -> ir::Value {
         match rhs {
-            BasicBitOpRhs::GPRB => self.get(ins.gpr_b()),
-            BasicBitOpRhs::ComplementGPRB => {
+            BasicBitOpRhs::RB => self.get(ins.gpr_b()),
+            BasicBitOpRhs::ComplementRB => {
                 let rb = self.get(ins.gpr_b());
                 self.bd.ins().bnot(rb)
             }
@@ -82,7 +82,7 @@ impl BlockBuilder<'_> {
         let value = self.basic_bitop_compute(op.kind, lhs, rhs);
 
         if op.record {
-            self.update_cr0_cmpz(value, false);
+            self.update_cr0_cmpz(value);
         }
 
         self.set(ins.gpr_a(), value);
@@ -93,7 +93,7 @@ impl BlockBuilder<'_> {
             ins,
             BasicBitOp {
                 kind: BasicBitOpKind::Or,
-                rhs: BasicBitOpRhs::GPRB,
+                rhs: BasicBitOpRhs::RB,
                 record: ins.field_rc(),
             },
         );
@@ -104,7 +104,7 @@ impl BlockBuilder<'_> {
             ins,
             BasicBitOp {
                 kind: BasicBitOpKind::Or,
-                rhs: BasicBitOpRhs::ComplementGPRB,
+                rhs: BasicBitOpRhs::ComplementRB,
                 record: ins.field_rc(),
             },
         );
@@ -137,7 +137,7 @@ impl BlockBuilder<'_> {
             ins,
             BasicBitOp {
                 kind: BasicBitOpKind::Nor,
-                rhs: BasicBitOpRhs::GPRB,
+                rhs: BasicBitOpRhs::RB,
                 record: ins.field_rc(),
             },
         );
@@ -148,7 +148,7 @@ impl BlockBuilder<'_> {
             ins,
             BasicBitOp {
                 kind: BasicBitOpKind::Xor,
-                rhs: BasicBitOpRhs::GPRB,
+                rhs: BasicBitOpRhs::RB,
                 record: ins.field_rc(),
             },
         );
@@ -170,7 +170,7 @@ impl BlockBuilder<'_> {
             ins,
             BasicBitOp {
                 kind: BasicBitOpKind::And,
-                rhs: BasicBitOpRhs::GPRB,
+                rhs: BasicBitOpRhs::RB,
                 record: ins.field_rc(),
             },
         );
@@ -181,7 +181,7 @@ impl BlockBuilder<'_> {
             ins,
             BasicBitOp {
                 kind: BasicBitOpKind::And,
-                rhs: BasicBitOpRhs::ComplementGPRB,
+                rhs: BasicBitOpRhs::ComplementRB,
                 record: ins.field_rc(),
             },
         );
@@ -214,7 +214,7 @@ impl BlockBuilder<'_> {
             ins,
             BasicBitOp {
                 kind: BasicBitOpKind::Nand,
-                rhs: BasicBitOpRhs::GPRB,
+                rhs: BasicBitOpRhs::RB,
                 record: ins.field_rc(),
             },
         );
@@ -225,7 +225,7 @@ impl BlockBuilder<'_> {
             ins,
             BasicBitOp {
                 kind: BasicBitOpKind::Eqv,
-                rhs: BasicBitOpRhs::GPRB,
+                rhs: BasicBitOpRhs::RB,
                 record: ins.field_rc(),
             },
         );
@@ -241,7 +241,7 @@ impl BlockBuilder<'_> {
         let value = self.bd.ins().sextend(ir::types::I32, byte);
 
         if ins.field_rc() {
-            self.update_cr0_cmpz(value, false);
+            self.update_cr0_cmpz(value);
         }
 
         self.set(ins.gpr_a(), value);
@@ -263,7 +263,7 @@ enum ShiftKind {
 }
 
 enum ShiftRhs {
-    GPRB,
+    RB,
     Imm,
 }
 
@@ -339,7 +339,7 @@ impl BlockBuilder<'_> {
 
     fn shift_get_rhs(&mut self, ins: Ins, rhs: ShiftRhs) -> ir::Value {
         match rhs {
-            ShiftRhs::GPRB => self.get(ins.gpr_b()),
+            ShiftRhs::RB => self.get(ins.gpr_b()),
             ShiftRhs::Imm => self
                 .bd
                 .ins()
@@ -357,7 +357,7 @@ impl BlockBuilder<'_> {
         let value = self.bd.ins().ireduce(ir::types::I32, shifted);
 
         if ins.field_rc() {
-            self.update_cr0_cmpz(value, false);
+            self.update_cr0_cmpz(value);
         }
 
         self.set(ins.gpr_a(), value);
@@ -368,7 +368,7 @@ impl BlockBuilder<'_> {
             ins,
             ShiftOp {
                 kind: ShiftKind::Left,
-                rhs: ShiftRhs::GPRB,
+                rhs: ShiftRhs::RB,
             },
         );
     }
@@ -378,7 +378,7 @@ impl BlockBuilder<'_> {
             ins,
             ShiftOp {
                 kind: ShiftKind::RightLogic,
-                rhs: ShiftRhs::GPRB,
+                rhs: ShiftRhs::RB,
             },
         );
     }
@@ -388,7 +388,7 @@ impl BlockBuilder<'_> {
             ins,
             ShiftOp {
                 kind: ShiftKind::RightArithmetic,
-                rhs: ShiftRhs::GPRB,
+                rhs: ShiftRhs::RB,
             },
         );
     }
@@ -411,7 +411,7 @@ impl BlockBuilder<'_> {
         let value = self.bd.ins().clz(rs);
 
         if ins.field_rc() {
-            self.update_cr0_cmpz(value, false);
+            self.update_cr0_cmpz(value);
         }
 
         self.set(ins.gpr_a(), value);

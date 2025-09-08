@@ -44,6 +44,18 @@ impl BlockBuilder<'_> {
         // stub
     }
 
+    /// Gets bit `index` in the `value` (must be an I32).
+    pub fn get_bit(&mut self, value: ir::Value, index: impl IntoIrValue) -> ir::Value {
+        let one = 1.into_value(&mut self.bd);
+        let index = index.into_value(&mut self.bd);
+
+        let mask = self.bd.ins().ishl(one, index);
+        let masked = self.bd.ins().band(value, mask);
+        let bit = self.bd.ins().ushr(masked, index);
+
+        self.bd.ins().ireduce(ir::types::I8, bit)
+    }
+
     /// Sets bit `index` to `set` in the `value` (must be an I32).
     pub fn set_bit(
         &mut self,
@@ -127,13 +139,22 @@ impl BlockBuilder<'_> {
         self.set(Reg::CR, updated);
     }
 
-    pub fn update_cr0_cmpz(&mut self, value: ir::Value, overflowed: impl IntoIrValue) {
-        let overflowed = overflowed.into_value(&mut self.bd);
-
+    pub fn update_cr0_cmpz(&mut self, value: ir::Value) {
         let lt = self.bd.ins().icmp_imm(IntCC::SignedLessThan, value, 0);
         let gt = self.bd.ins().icmp_imm(IntCC::SignedGreaterThan, value, 0);
         let eq = self.bd.ins().icmp_imm(IntCC::Equal, value, 0);
 
-        self.update_cr(0, lt, gt, eq, overflowed);
+        let xer = self.get(SPR::XER);
+        let ov = self.get_bit(xer, 30);
+
+        self.update_cr(0, lt, gt, eq, ov);
+    }
+
+    pub fn update_cr0_cmpz_ov(&mut self, value: ir::Value, ov: ir::Value) {
+        let lt = self.bd.ins().icmp_imm(IntCC::SignedLessThan, value, 0);
+        let gt = self.bd.ins().icmp_imm(IntCC::SignedGreaterThan, value, 0);
+        let eq = self.bd.ins().icmp_imm(IntCC::Equal, value, 0);
+
+        self.update_cr(0, lt, gt, eq, ov);
     }
 }
