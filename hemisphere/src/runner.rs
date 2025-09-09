@@ -20,8 +20,8 @@ fn to_duration(cycles: u32) -> Duration {
 
 #[derive(Default)]
 pub struct Stats {
-    /// Instructions per second, for the last 1024 slices.
-    pub ips: VecDeque<f32>,
+    /// Cycles per second, for the last 1024 slices.
+    pub cps: VecDeque<f32>,
 }
 
 pub struct State {
@@ -128,12 +128,12 @@ fn run(state: Arc<FairMutex<State>>, control: Arc<Control>) {
             }
         }
 
-        if guard.stats.ips.len() >= 1024 {
-            guard.stats.ips.pop_back();
+        if guard.stats.cps.len() >= 1024 {
+            guard.stats.cps.pop_back();
         }
 
-        let ips = emulated as f32 / next.elapsed().as_secs_f32();
-        guard.stats.ips.push_front(ips);
+        let cps = emulated as f32 / next.elapsed().as_secs_f32();
+        guard.stats.cps.push_front(cps);
 
         // calculate when the next slice should run
         next += to_duration(emulated);
