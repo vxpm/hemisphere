@@ -1,5 +1,6 @@
 use crate::Sequence;
 use common::{Address, arch::Registers};
+use cranelift::{codegen::ir, prelude::isa};
 use iced_x86::Formatter;
 use memmap2::{Mmap, MmapOptions};
 use std::fmt::Display;
@@ -26,6 +27,55 @@ pub struct ContextHooks {
     // hooks
     pub ibat_changed: GenericHookFn,
     pub dbat_changed: GenericHookFn,
+}
+
+impl ContextHooks {
+    /// Returns the function signature for the `get_registers` hook.
+    pub(crate) fn get_registers_sig(ptr_type: ir::Type) -> ir::Signature {
+        ir::Signature {
+            params: vec![
+                ir::AbiParam::new(ptr_type), // ctx
+            ],
+            returns: vec![ir::AbiParam::new(ptr_type)],
+            call_conv: isa::CallConv::SystemV,
+        }
+    }
+
+    /// Returns the function signature for a memory read hook.
+    pub(crate) fn read_sig(ptr_type: ir::Type, read_type: ir::Type) -> ir::Signature {
+        ir::Signature {
+            params: vec![
+                ir::AbiParam::new(ptr_type),       // ctx
+                ir::AbiParam::new(ir::types::I32), // address
+            ],
+            returns: vec![ir::AbiParam::new(read_type)], // value
+            call_conv: isa::CallConv::SystemV,
+        }
+    }
+
+    /// Returns the function signature for a memory write hook.
+    pub(crate) fn write_sig(ptr_type: ir::Type, write_type: ir::Type) -> ir::Signature {
+        ir::Signature {
+            params: vec![
+                ir::AbiParam::new(ptr_type),       // ctx
+                ir::AbiParam::new(ir::types::I32), // address
+                ir::AbiParam::new(write_type),     // value
+            ],
+            returns: vec![],
+            call_conv: isa::CallConv::SystemV,
+        }
+    }
+
+    /// Returns the function signature for a generic hook.
+    pub(crate) fn generic_hook_sig(ptr_type: ir::Type) -> ir::Signature {
+        ir::Signature {
+            params: vec![
+                ir::AbiParam::new(ptr_type), // ctx
+            ],
+            returns: vec![],
+            call_conv: isa::CallConv::SystemV,
+        }
+    }
 }
 
 pub type BlockFn = extern "sysv64" fn(*mut Context, *const ContextHooks) -> u32;

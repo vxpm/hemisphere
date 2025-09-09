@@ -59,18 +59,20 @@ impl IntoIrValue for u32 {
 }
 
 impl BlockBuilder<'_> {
+    /// Stub instruction - does absolutely nothing.
     pub fn stub(&mut self, _: Ins) {
-        // stub
+        self.bd.ins().nop();
     }
 
-    pub fn const_val(&mut self, value: impl IntoIrValue) -> ir::Value {
+    /// Creates an IR value from the given `value`.
+    pub fn ir_value(&mut self, value: impl IntoIrValue) -> ir::Value {
         value.into_value(&mut self.bd)
     }
 
     /// Gets bit `index` in the `value` (must be an I32).
     pub fn get_bit(&mut self, value: ir::Value, index: impl IntoIrValue) -> ir::Value {
-        let one = self.const_val(1i32);
-        let index = self.const_val(index);
+        let one = self.ir_value(1i32);
+        let index = self.ir_value(index);
 
         let mask = self.bd.ins().ishl(one, index);
         let masked = self.bd.ins().band(value, mask);
@@ -86,10 +88,10 @@ impl BlockBuilder<'_> {
         index: impl IntoIrValue,
         set: impl IntoIrValue,
     ) -> ir::Value {
-        let zero = self.const_val(0i32);
-        let one = self.const_val(1i32);
-        let index = self.const_val(index);
-        let set = self.const_val(set);
+        let zero = self.ir_value(0i32);
+        let one = self.ir_value(1i32);
+        let index = self.ir_value(index);
+        let set = self.ir_value(set);
 
         // create mask for the bit
         let shifted = self.bd.ins().ishl(one, index);
@@ -104,24 +106,24 @@ impl BlockBuilder<'_> {
         self.bd.ins().bor(value, rhs)
     }
 
-    /// Updates OV and SO in XER.
+    /// Updates OV and SO in XER. `overflowed` must be a boolean (I8).
     pub fn update_xer_ov(&mut self, overflowed: impl IntoIrValue) {
         let xer = self.get(SPR::XER);
-        let overflowed = self.const_val(overflowed);
+        let overflowed = self.ir_value(overflowed);
         let overflowed = self.bd.ins().uextend(ir::types::I32, overflowed);
 
         let ov = self.bd.ins().ishl_imm(overflowed, 30);
         let so = self.bd.ins().ishl_imm(overflowed, 31);
         let value = self.bd.ins().bor(ov, so);
 
-        let mask = self.const_val(!(0b1 << 30));
+        let mask = self.ir_value(!(0b1 << 30));
         let masked = self.bd.ins().band(xer, mask);
         let updated = self.bd.ins().bor(masked, value);
 
         self.set(SPR::XER, updated);
     }
 
-    /// Updates CA in XER.
+    /// Updates CA in XER. `carry` must be a boolean (I8).
     pub fn update_xer_ca(&mut self, carry: impl IntoIrValue) {
         let xer = self.get(SPR::XER);
         let updated = self.set_bit(xer, 29, carry);
@@ -129,7 +131,7 @@ impl BlockBuilder<'_> {
         self.set(SPR::XER, updated);
     }
 
-    /// All ir values must be booleans (i.e. I8).
+    /// All IR values must be booleans (i.e. I8).
     pub fn update_cr(
         &mut self,
         index: u8,
@@ -155,12 +157,14 @@ impl BlockBuilder<'_> {
         let value = self.bd.ins().bor(value, eq);
         let value = self.bd.ins().bor(value, ov);
 
-        let mask = self.const_val(0b1111u32 << base);
+        let mask = self.ir_value(0b1111u32 << base);
         let updated = self.bd.ins().bitselect(mask, value, cr);
 
         self.set(Reg::CR, updated);
     }
 
+    /// Updates CR0 by signed comparison of the given value with 0 and by copying the overflow flag
+    /// from XER SO. Value must be an I32.
     pub fn update_cr0_cmpz(&mut self, value: ir::Value) {
         let lt = self.bd.ins().icmp_imm(IntCC::SignedLessThan, value, 0);
         let gt = self.bd.ins().icmp_imm(IntCC::SignedGreaterThan, value, 0);
@@ -172,6 +176,8 @@ impl BlockBuilder<'_> {
         self.update_cr(0, lt, gt, eq, ov);
     }
 
+    /// Updates CR0 by signed comparison of the given value with 0 and withe the given overflow
+    /// flag. Value must be an I32.
     pub fn update_cr0_cmpz_ov(&mut self, value: ir::Value, ov: ir::Value) {
         let lt = self.bd.ins().icmp_imm(IntCC::SignedLessThan, value, 0);
         let gt = self.bd.ins().icmp_imm(IntCC::SignedGreaterThan, value, 0);

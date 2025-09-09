@@ -43,7 +43,7 @@ impl BlockBuilder<'_> {
 
     pub fn cmpi(&mut self, ins: Ins) {
         let ra = self.get(ins.gpr_a());
-        let imm = self.const_val(ins.field_simm() as i32);
+        let imm = self.ir_value(ins.field_simm() as i32);
 
         self.compare_signed(ra, imm, ins.field_crfd());
     }
@@ -57,7 +57,7 @@ impl BlockBuilder<'_> {
 
     pub fn cmpli(&mut self, ins: Ins) {
         let ra = self.get(ins.gpr_a());
-        let imm = self.const_val(ins.field_uimm() as u32);
+        let imm = self.ir_value(ins.field_uimm() as u32);
 
         self.compare_unsigned(ra, imm, ins.field_crfd());
     }

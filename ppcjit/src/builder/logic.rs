@@ -64,8 +64,8 @@ impl BlockBuilder<'_> {
                 let rb = self.get(ins.gpr_b());
                 self.bd.ins().bnot(rb)
             }
-            BasicBitOpRhs::Imm => self.const_val(ins.field_uimm() as u32),
-            BasicBitOpRhs::ShiftedImm => self.const_val((ins.field_uimm() as u32) << 16),
+            BasicBitOpRhs::Imm => self.ir_value(ins.field_uimm() as u32),
+            BasicBitOpRhs::ShiftedImm => self.ir_value((ins.field_uimm() as u32) << 16),
         }
     }
 
@@ -344,7 +344,7 @@ impl BlockBuilder<'_> {
     fn shift_get_rhs(&mut self, ins: Ins, rhs: ShiftRhs) -> ir::Value {
         match rhs {
             ShiftRhs::RB => self.get(ins.gpr_b()),
-            ShiftRhs::Imm => self.const_val(ins.field_sh() as u32),
+            ShiftRhs::Imm => self.ir_value(ins.field_sh() as u32),
         }
     }
 

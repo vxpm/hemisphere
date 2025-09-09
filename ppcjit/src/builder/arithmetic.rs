@@ -34,7 +34,7 @@ impl BlockBuilder<'_> {
             AddLhs::RA => self.get(ins.gpr_a()),
             AddLhs::ZeroOrRA => {
                 if ins.field_ra() == 0 {
-                    self.const_val(0i32)
+                    self.ir_value(0i32)
                 } else {
                     self.get(ins.gpr_a())
                 }
@@ -45,14 +45,14 @@ impl BlockBuilder<'_> {
     fn addition_get_rhs(&mut self, ins: Ins, rhs: AddRhs) -> ir::Value {
         match rhs {
             AddRhs::RB => self.get(ins.gpr_b()),
-            AddRhs::Imm => self.const_val(ins.field_simm() as i32),
-            AddRhs::ShiftedImm => self.const_val((ins.field_simm() as i32) << 16),
+            AddRhs::Imm => self.ir_value(ins.field_simm() as i32),
+            AddRhs::ShiftedImm => self.ir_value((ins.field_simm() as i32) << 16),
             AddRhs::Carry => {
                 let xer = self.get(SPR::XER);
                 let ca = self.get_bit(xer, 29);
                 self.bd.ins().uextend(ir::types::I32, ca)
             }
-            AddRhs::MinusOne => self.const_val(-1i32),
+            AddRhs::MinusOne => self.ir_value(-1i32),
         }
     }
 
@@ -81,7 +81,7 @@ impl BlockBuilder<'_> {
             let ca = self.get_bit(xer, 29);
             self.bd.ins().uextend(ir::types::I32, ca)
         } else {
-            self.const_val(0i32)
+            self.ir_value(0i32)
         };
 
         let (value, cout_a) = self.bd.ins().uadd_overflow(lhs, rhs);
@@ -251,9 +251,9 @@ impl BlockBuilder<'_> {
     fn subtraction_get_lhs(&mut self, ins: Ins, lhs: SubLhs) -> ir::Value {
         match lhs {
             SubLhs::RB => self.get(ins.gpr_b()),
-            SubLhs::Imm => self.const_val(ins.field_simm() as i32),
-            SubLhs::MinusOne => self.const_val(-1i32),
-            SubLhs::Zero => self.const_val(0i32),
+            SubLhs::Imm => self.ir_value(ins.field_simm() as i32),
+            SubLhs::MinusOne => self.ir_value(-1i32),
+            SubLhs::Zero => self.ir_value(0i32),
         }
     }
 
@@ -282,7 +282,7 @@ impl BlockBuilder<'_> {
             let ca = self.get_bit(xer, 29);
             self.bd.ins().uextend(ir::types::I32, ca)
         } else {
-            self.const_val(1i32)
+            self.ir_value(1i32)
         };
 
         let not_rhs = self.bd.ins().bnot(rhs);
@@ -407,7 +407,7 @@ impl BlockBuilder<'_> {
         let ra = self.get(ins.gpr_a());
         let rb = self.get(ins.gpr_b());
 
-        let one = self.const_val(1i32);
+        let one = self.ir_value(1i32);
         let div_by_zero = self.bd.ins().icmp_imm(IntCC::Equal, rb, 0);
         // since division by zero is undefined, just avoid it by using 1 as denom instead
         let denom = self.bd.ins().select(div_by_zero, one, rb);
@@ -444,7 +444,7 @@ impl BlockBuilder<'_> {
 
     pub fn mulli(&mut self, ins: Ins) {
         let ra = self.get(ins.gpr_a());
-        let imm = self.const_val(ins.field_simm() as i32);
+        let imm = self.ir_value(ins.field_simm() as i32);
 
         let result = self.bd.ins().imul(ra, imm);
         self.set(ins.gpr_d(), result);

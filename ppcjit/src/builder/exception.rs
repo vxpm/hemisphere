@@ -7,7 +7,7 @@ impl BlockBuilder<'_> {
         let msr = self.get(Reg::MSR);
         let srr0 = self.get(SPR::SRR0);
         let srr1 = self.get(SPR::SRR1);
-        let mask = self.const_val(0b1000_0111_1100_0000_1111_1111_0111_0011_u32);
+        let mask = self.ir_value(0b1000_0111_1100_0000_1111_1111_0111_0011_u32);
 
         // move only some bits from srr1
         let new_msr = self.bd.ins().bitselect(mask, srr1, msr);

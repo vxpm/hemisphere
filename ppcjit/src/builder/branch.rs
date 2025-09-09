@@ -45,7 +45,7 @@ impl BlockBuilder<'_> {
 
     pub fn b(&mut self, ins: Ins) {
         // NOTE: the minus 4 is to work around the automatic PC increase in the emit method
-        let target = self.const_val(ins.field_li().wrapping_sub(4) as u32);
+        let target = self.ir_value(ins.field_li().wrapping_sub(4) as u32);
         self.setup_jump(!ins.field_aa(), ins.field_lk(), target);
     }
 
@@ -54,7 +54,7 @@ impl BlockBuilder<'_> {
         let cond_bit = 31 - ins.field_bi();
         let current_pc = self.get(Reg::PC);
 
-        let mut branch = self.const_val(true);
+        let mut branch = self.ir_value(true);
         if !options.ignore_cr() {
             let cr = self.get(Reg::CR);
             let cond = self.bd.ins().band_imm(cr, 1 << cond_bit);
@@ -105,7 +105,7 @@ impl BlockBuilder<'_> {
         self.bd.seal_block(continue_block);
 
         self.bd.switch_to_block(exit_block);
-        let target = self.const_val(target);
+        let target = self.ir_value(target);
         self.setup_jump(relative, ins.field_lk(), target);
         self.prologue();
 

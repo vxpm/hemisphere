@@ -15,34 +15,11 @@ use common::arch::{
 use cranelift::{
     codegen::ir::{self, SigRef},
     frontend,
-    prelude::{
-        InstBuilder,
-        isa::{CallConv, TargetIsa},
-    },
+    prelude::{InstBuilder, isa::TargetIsa},
 };
 use easyerr::Error;
 use rustc_hash::FxHashMap;
 use std::{collections::hash_map::Entry, mem::offset_of};
-
-fn sig_get_registers(ptr_type: ir::Type) -> ir::Signature {
-    ir::Signature {
-        params: vec![
-            ir::AbiParam::new(ptr_type), // ctx
-        ],
-        returns: vec![ir::AbiParam::new(ptr_type)],
-        call_conv: CallConv::SystemV,
-    }
-}
-
-fn sig_generic_hook(ptr_type: ir::Type) -> ir::Signature {
-    ir::Signature {
-        params: vec![
-            ir::AbiParam::new(ptr_type), // ctx
-        ],
-        returns: vec![],
-        call_conv: CallConv::SystemV,
-    }
-}
 
 fn reg_ty(reg: Reg) -> ir::Type {
     match reg {
@@ -101,7 +78,7 @@ impl<'ctx> BlockBuilder<'ctx> {
         let ctx_hooks_ptr = params[1];
 
         // extract regs ptr
-        let signature = builder.import_signature(sig_get_registers(ptr_type));
+        let signature = builder.import_signature(ContextHooks::get_registers_sig(ptr_type));
         let get_registers = builder.ins().load(
             ptr_type,
             ir::MemFlags::trusted(),
@@ -194,7 +171,7 @@ impl<'ctx> BlockBuilder<'ctx> {
 
         let sig = *self.consts.ctx_hooks_sig.entry(offset).or_insert_with(|| {
             self.bd
-                .import_signature(sig_generic_hook(self.consts.ptr_type))
+                .import_signature(ContextHooks::generic_hook_sig(self.consts.ptr_type))
         });
 
         self.bd
@@ -204,7 +181,7 @@ impl<'ctx> BlockBuilder<'ctx> {
 
     fn prologue(&mut self) {
         self.bd.set_srcloc(ir::SourceLoc::new(u32::MAX));
-        let executed = self.const_val(self.executed);
+        let executed = self.ir_value(self.executed);
 
         for (reg, var) in &self.regs {
             if !var.modified {
