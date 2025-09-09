@@ -7,7 +7,7 @@ mod memory;
 mod others;
 mod util;
 
-use crate::block::ContextHooks;
+use crate::{block::ContextHooks, builder::util::IntoIrValue};
 use common::arch::{
     Reg,
     disasm::{Ins, Opcode},
@@ -21,7 +21,8 @@ use easyerr::Error;
 use rustc_hash::FxHashMap;
 use std::{collections::hash_map::Entry, mem::offset_of};
 
-fn reg_ty(reg: Reg) -> ir::Type {
+// NOTE: make sure to keep this up to date if anything else is not just 32 bits
+fn reg_ir_ty(reg: Reg) -> ir::Type {
     match reg {
         Reg::FPR(_) => ir::types::F64,
         _ => ir::types::I32,
@@ -36,6 +37,7 @@ pub enum EmitError {
     Unimplemented(Ins),
 }
 
+/// Constants used through block building.
 struct Consts {
     ptr_type: ir::Type,
     regs_ptr: ir::Value,
@@ -44,11 +46,13 @@ struct Consts {
     ctx_hooks_sig: FxHashMap<i32, SigRef>,
 }
 
+/// State of a register.
 struct RegState {
     var: frontend::Variable,
     modified: bool,
 }
 
+/// Structure to build JIT blocks.
 pub struct BlockBuilder<'ctx> {
     bd: frontend::FunctionBuilder<'ctx>,
     consts: Consts,
@@ -112,12 +116,13 @@ impl<'ctx> BlockBuilder<'ctx> {
         }
     }
 
+    /// Gets the current value of the given register.
     fn get(&mut self, reg: impl Into<Reg>) -> ir::Value {
         let reg = reg.into();
         let var = match self.regs.entry(reg) {
             Entry::Occupied(o) => o.into_mut(),
             Entry::Vacant(v) => {
-                let reg_ty = reg_ty(reg);
+                let reg_ty = reg_ir_ty(reg);
                 let dumped = self.bd.ins().load(
                     reg_ty,
                     ir::MemFlags::trusted(),
@@ -138,7 +143,8 @@ impl<'ctx> BlockBuilder<'ctx> {
         self.bd.use_var(var)
     }
 
-    fn set(&mut self, reg: impl Into<Reg>, value: ir::Value) {
+    /// Sets the value of the given register.
+    fn set(&mut self, reg: impl Into<Reg>, value: impl IntoIrValue) {
         let reg = reg.into();
         let var = match self.regs.entry(reg) {
             Entry::Occupied(o) => {
@@ -148,7 +154,7 @@ impl<'ctx> BlockBuilder<'ctx> {
                 var.var
             }
             Entry::Vacant(v) => {
-                let var = self.bd.declare_var(reg_ty(reg));
+                let var = self.bd.declare_var(reg_ir_ty(reg));
                 v.insert(RegState {
                     var,
                     modified: true,
@@ -158,10 +164,12 @@ impl<'ctx> BlockBuilder<'ctx> {
             }
         };
 
+        let value = self.ir_value(value);
         self.bd.def_var(var, value);
     }
 
-    fn call_hook(&mut self, offset: i32) {
+    /// Calls a generic context hook.
+    fn call_generic_hook(&mut self, offset: i32) {
         let hook = self.bd.ins().load(
             self.consts.ptr_type,
             ir::MemFlags::trusted(),
@@ -179,6 +187,10 @@ impl<'ctx> BlockBuilder<'ctx> {
             .call_indirect(sig, hook, &[self.consts.ctx_ptr]);
     }
 
+    /// Emits the prologue:
+    /// - Writes modified registers to the Registers struct
+    /// - Call BAT hooks if they were changed
+    /// - Returns
     fn prologue(&mut self) {
         self.bd.set_srcloc(ir::SourceLoc::new(u32::MAX));
         let executed = self.ir_value(self.executed);
@@ -198,16 +210,17 @@ impl<'ctx> BlockBuilder<'ctx> {
         }
 
         if self.dbat_changed {
-            self.call_hook(offset_of!(ContextHooks, dbat_changed) as i32);
+            self.call_generic_hook(offset_of!(ContextHooks, dbat_changed) as i32);
         }
 
         if self.ibat_changed {
-            self.call_hook(offset_of!(ContextHooks, ibat_changed) as i32);
+            self.call_generic_hook(offset_of!(ContextHooks, ibat_changed) as i32);
         }
 
         self.bd.ins().return_(&[executed]);
     }
 
+    /// Emits the given instruction into the block.
     pub fn emit(&mut self, ins: Ins) -> Result<(), EmitError> {
         self.bd.set_srcloc(ir::SourceLoc::new(self.executed));
         match ins.op {
@@ -313,6 +326,8 @@ impl<'ctx> BlockBuilder<'ctx> {
         Ok(())
     }
 
+    /// Finishes building the block. Must be called when you're finished, otherwise it is a logic
+    /// bug.
     pub fn finish(mut self) {
         self.prologue();
         self.bd.finalize();

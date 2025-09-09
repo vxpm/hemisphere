@@ -201,7 +201,7 @@ pub struct User {
     pub ctr: u32,
 }
 
-/// The block address translation registers.
+/// Block Address Translation register
 #[bitos(64)]
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Bat {

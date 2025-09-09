@@ -87,8 +87,7 @@ impl BlockBuilder<'_> {
 
     pub fn mftb(&mut self, ins: Ins) {
         // TODO: impl
-        let imm = self.ir_value(0);
-        self.set(ins.gpr_d(), imm);
+        self.set(ins.gpr_d(), 0i32);
     }
 
     pub fn sc(&mut self, ins: Ins) {
