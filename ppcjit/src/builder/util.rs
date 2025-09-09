@@ -3,7 +3,7 @@ use cranelift::{
     codegen::ir,
     prelude::{FunctionBuilder, InstBuilder, IntCC},
 };
-use hemicore::arch::{Reg, SPR, powerpc::Ins};
+use common::arch::{Reg, SPR, disasm::Ins};
 
 pub trait IntoIrValue {
     fn into_value(self, bd: &mut FunctionBuilder<'_>) -> ir::Value;

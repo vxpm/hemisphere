@@ -6,7 +6,7 @@ use cranelift::{
     codegen::ir,
     prelude::{InstBuilder, IntCC},
 };
-use hemicore::arch::{InsExt, powerpc::Ins};
+use common::arch::{InsExt, disasm::Ins};
 
 enum BasicBitOpKind {
     Or,

@@ -1,4 +1,4 @@
-use hemicore::util::boxed_array;
+use common::util::boxed_array;
 
 pub const RAM_LEN: u32 = 24 * bytesize::MIB as u32;
 pub const EFB_LEN: u32 = 2 * bytesize::MIB as u32;

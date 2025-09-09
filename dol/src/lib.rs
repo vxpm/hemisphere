@@ -1,3 +1,5 @@
+//! A simple .dol file parser using [`binrw`].
+
 pub use binrw;
 use binrw::{BinRead, BinWrite, helpers::until_eof};
 

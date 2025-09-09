@@ -1,5 +1,5 @@
 use bitos::BitUtils;
-use hemicore::{
+use common::{
     Address,
     arch::{Bat, MemoryManagement},
     util::boxed_array,
@@ -11,6 +11,7 @@ type BlockLUT = Box<[u16; BASES_COUNT]>;
 
 const NO_BAT: u16 = 1;
 
+/// Struct that performs efficient memory mapping
 pub struct Mmu {
     data_bat_lut: BlockLUT,
     instr_bat_lut: BlockLUT,

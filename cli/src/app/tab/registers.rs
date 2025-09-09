@@ -1,6 +1,6 @@
 use crate::app::{Action, border_style, tab::Context};
 use bytesize::ByteSize;
-use hemisphere::core::arch::{Bat, CondReg, MachineState, XerReg};
+use hemisphere::arch::{Bat, CondReg, MachineState, XerReg};
 use ratatui::{
     Frame,
     crossterm::event::{KeyCode, KeyEvent},

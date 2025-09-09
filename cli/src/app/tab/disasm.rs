@@ -1,7 +1,7 @@
 use crate::app::{Action, border_style, tab::Context};
-use hemisphere::core::{
+use hemisphere::{
     Address,
-    arch::powerpc::{Extensions, Ins, Opcode, ParsedIns},
+    arch::disasm::{Extensions, Ins, Opcode, ParsedIns},
 };
 use ratatui::{
     crossterm::event::{KeyCode, KeyEvent},

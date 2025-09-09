@@ -1,5 +1,6 @@
 [package]
 name = "dolinfo"
+description = "A small utility to print information about a .dol executable"
 version = "0.1.0"
 edition = "2024"
 

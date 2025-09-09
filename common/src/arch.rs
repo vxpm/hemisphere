@@ -1,3 +1,8 @@
+//! Items related to the PowerPC architecture, specifically in the context of the Gekko CPU.
+//!
+//! The `powerpc` crate, which is a disasembler of PowerPC instructions, is re-exported under
+//! [`disasm`].
+
 use crate::Address;
 use bitos::{
     BitUtils, bitos,
@@ -6,7 +11,8 @@ use bitos::{
 use std::fmt::Debug;
 use strum::{FromRepr, VariantArray};
 
-pub use powerpc;
+/// Disassembling of PowerPC instructions. Re-export of the [`powerpc`] crate.
+pub use powerpc as disasm;
 
 // like offset_of, except it also supports indexing arrays
 macro_rules! offset_of {
@@ -21,7 +27,7 @@ macro_rules! offset_of {
     }}
 }
 
-/// Extension trait for [`Ins`](powerpc::Ins).
+/// Extension trait for [`Ins`](disasm::Ins).
 pub trait InsExt {
     /// GPR indicated by field rA.
     fn gpr_a(&self) -> GPR;
@@ -35,7 +41,7 @@ pub trait InsExt {
     fn spr(&self) -> SPR;
 }
 
-impl InsExt for powerpc::Ins {
+impl InsExt for disasm::Ins {
     #[inline(always)]
     fn gpr_a(&self) -> GPR {
         GPR::new(self.field_ra())
@@ -347,8 +353,6 @@ pub enum QuantizedType {
     I16,
 }
 
-/// The XER register contains information about overflow and carry operations, and is also used by
-/// the load/store string indexed instructions.
 #[bitos(32)]
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct QuantReg {
@@ -410,6 +414,7 @@ pub struct Supervisor {
     pub misc: Miscellaneous,
 }
 
+/// Structure of all the registers in the PowerPC Gekko CPU.
 #[repr(C)]
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Registers {

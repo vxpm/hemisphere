@@ -1,5 +1,5 @@
 use easyerr::Error;
-use hemicore::arch::powerpc::{Ins, Opcode, ParsedIns};
+use common::arch::disasm::{Ins, Opcode, ParsedIns};
 use std::ops::Deref;
 
 /// A sequence of PowerPC instructions which can be contained in a single JIT [`Block`](super::Block).

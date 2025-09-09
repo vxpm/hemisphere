@@ -1,12 +1,12 @@
 [package]
-name = "hemicore"
+name = "common"
+description = "Crate with common definitions"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
 bitos.workspace = true
 bytesize.workspace = true
-binrw.workspace = true
 easyerr.workspace = true
 powerpc.workspace = true
 zerocopy.workspace = true

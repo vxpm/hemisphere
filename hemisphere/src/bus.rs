@@ -2,10 +2,11 @@ use crate::{
     mem::{Memory, RAM_LEN},
     video::VideoInterface,
 };
-use hemicore::{Address, Primitive};
+use common::{Address, Primitive};
 use tracing::{error, warn};
 use zerocopy::IntoBytes;
 
+/// The bus of the system. Contains all memory mapped peripherals.
 pub struct Bus {
     pub mem: Memory,
     pub video: VideoInterface,
@@ -26,6 +27,7 @@ impl Bus {
     }
 }
 
+/// Allows the usage of const values in patterns. It's a neat trick!
 struct ConstTrick<const N: u32>;
 impl<const N: u32> ConstTrick<N> {
     const OUTPUT: u32 = N;
@@ -55,7 +57,8 @@ impl Bus {
             };
         }
 
-        macro_rules! bb {
+        // read from big endian bytes
+        macro_rules! be {
             ($bytes:expr) => {
                 Some(P::read_be_bytes(&$bytes[offset..]))
             };
@@ -63,7 +66,7 @@ impl Bus {
 
         map! {
             // ADDR, SIZE => ACTION;
-            0, RAM_LEN => bb!(self.mem.ram.as_slice());
+            0, RAM_LEN => be!(self.mem.ram.as_slice());
         }
     }
 
@@ -90,13 +93,15 @@ impl Bus {
             };
         }
 
-        macro_rules! nn {
+        // read from native endian bytes
+        macro_rules! ne {
             ($bytes:expr) => {
                 P::read_ne_bytes(&$bytes[offset..])
             };
         }
 
-        macro_rules! bb {
+        // read from big endian bytes
+        macro_rules! be {
             ($bytes:expr) => {
                 P::read_be_bytes(&$bytes[offset..])
             };
@@ -104,24 +109,24 @@ impl Bus {
 
         map! {
             // ADDR, SIZE => ACTION;
-            0, RAM_LEN => bb!(self.mem.ram.as_slice());
+            0, RAM_LEN => be!(self.mem.ram.as_slice());
 
             // === MMIO ===
             // --> VI
-            0x0C00_2000, 2 => nn!(self.video.regs.vertical_timing.as_bytes());
-            0x0C00_2002, 2 => nn!(self.video.regs.display_config.as_bytes());
-            0x0C00_2004, 8 => nn!(self.video.regs.horizontal_timing.as_bytes());
-            0x0C00_200C, 4 => nn!(self.video.regs.odd_field_vertical_timing.as_bytes());
-            0x0C00_2010, 4 => nn!(self.video.regs.even_field_vertical_timing.as_bytes());
-            0x0C00_2014, 4 => nn!(self.video.regs.odd_field_bb_interval.as_bytes());
-            0x0C00_2018, 4 => nn!(self.video.regs.even_field_bb_interval.as_bytes());
-            0x0C00_201C, 4 => nn!(self.video.regs.top_field_base.as_bytes());
-            0x0C00_2020, 4 => nn!(self.video.regs.tfbr.as_bytes());
-            0x0C00_2024, 4 => nn!(self.video.regs.bottom_field_base.as_bytes());
-            0x0C00_2028, 4 => nn!(self.video.regs.bfbr.as_bytes());
-            0x0C00_204A, 2 => nn!(self.video.regs.horizontal_scaling.as_bytes());
-            0x0C00_206C, 2 => nn!(self.video.regs.clock.as_bytes());
-            0x0C00_2070, 2 => nn!(self.video.regs._2070.as_bytes());
+            0x0C00_2000, 2 => ne!(self.video.regs.vertical_timing.as_bytes());
+            0x0C00_2002, 2 => ne!(self.video.regs.display_config.as_bytes());
+            0x0C00_2004, 8 => ne!(self.video.regs.horizontal_timing.as_bytes());
+            0x0C00_200C, 4 => ne!(self.video.regs.odd_field_vertical_timing.as_bytes());
+            0x0C00_2010, 4 => ne!(self.video.regs.even_field_vertical_timing.as_bytes());
+            0x0C00_2014, 4 => ne!(self.video.regs.odd_field_bb_interval.as_bytes());
+            0x0C00_2018, 4 => ne!(self.video.regs.even_field_bb_interval.as_bytes());
+            0x0C00_201C, 4 => ne!(self.video.regs.top_field_base.as_bytes());
+            0x0C00_2020, 4 => ne!(self.video.regs.tfbr.as_bytes());
+            0x0C00_2024, 4 => ne!(self.video.regs.bottom_field_base.as_bytes());
+            0x0C00_2028, 4 => ne!(self.video.regs.bfbr.as_bytes());
+            0x0C00_204A, 2 => ne!(self.video.regs.horizontal_scaling.as_bytes());
+            0x0C00_206C, 2 => ne!(self.video.regs.clock.as_bytes());
+            0x0C00_2070, 2 => ne!(self.video.regs._2070.as_bytes());
         }
     }
 
@@ -147,13 +152,15 @@ impl Bus {
             };
         }
 
-        macro_rules! nn {
+        // write as native endian bytes
+        macro_rules! ne {
             ($bytes:expr) => {
                 value.write_ne_bytes(&mut $bytes[offset..])
             };
         }
 
-        macro_rules! bb {
+        // write as big endian bytes
+        macro_rules! be {
             ($bytes:expr) => {
                 value.write_be_bytes(&mut $bytes[offset..])
             };
@@ -161,24 +168,24 @@ impl Bus {
 
         map! {
             // ADDR, SIZE => ACTION;
-            0, RAM_LEN => bb!(self.mem.ram);
+            0, RAM_LEN => be!(self.mem.ram);
 
             // === MMIO ===
             // --> VI
-            0x0C00_2000, 2 => nn!(self.video.regs.vertical_timing.as_mut_bytes());
-            0x0C00_2002, 2 => nn!(self.video.regs.display_config.as_mut_bytes());
-            0x0C00_2004, 8 => nn!(self.video.regs.horizontal_timing.as_mut_bytes());
-            0x0C00_200C, 4 => nn!(self.video.regs.odd_field_vertical_timing.as_mut_bytes());
-            0x0C00_2010, 4 => nn!(self.video.regs.even_field_vertical_timing.as_mut_bytes());
-            0x0C00_2014, 4 => nn!(self.video.regs.odd_field_bb_interval.as_mut_bytes());
-            0x0C00_2018, 4 => nn!(self.video.regs.even_field_bb_interval.as_mut_bytes());
-            0x0C00_201C, 4 => nn!(self.video.regs.top_field_base.as_mut_bytes());
-            0x0C00_2020, 4 => nn!(self.video.regs.tfbr.as_mut_bytes());
-            0x0C00_2024, 4 => nn!(self.video.regs.bottom_field_base.as_mut_bytes());
-            0x0C00_2028, 4 => nn!(self.video.regs.bfbr.as_mut_bytes());
-            0x0C00_204A, 2 => nn!(self.video.regs.horizontal_scaling.as_mut_bytes());
-            0x0C00_206C, 2 => nn!(self.video.regs.clock.as_mut_bytes());
-            0x0C00_2070, 2 => nn!(self.video.regs._2070.as_mut_bytes());
+            0x0C00_2000, 2 => ne!(self.video.regs.vertical_timing.as_mut_bytes());
+            0x0C00_2002, 2 => ne!(self.video.regs.display_config.as_mut_bytes());
+            0x0C00_2004, 8 => ne!(self.video.regs.horizontal_timing.as_mut_bytes());
+            0x0C00_200C, 4 => ne!(self.video.regs.odd_field_vertical_timing.as_mut_bytes());
+            0x0C00_2010, 4 => ne!(self.video.regs.even_field_vertical_timing.as_mut_bytes());
+            0x0C00_2014, 4 => ne!(self.video.regs.odd_field_bb_interval.as_mut_bytes());
+            0x0C00_2018, 4 => ne!(self.video.regs.even_field_bb_interval.as_mut_bytes());
+            0x0C00_201C, 4 => ne!(self.video.regs.top_field_base.as_mut_bytes());
+            0x0C00_2020, 4 => ne!(self.video.regs.tfbr.as_mut_bytes());
+            0x0C00_2024, 4 => ne!(self.video.regs.bottom_field_base.as_mut_bytes());
+            0x0C00_2028, 4 => ne!(self.video.regs.bfbr.as_mut_bytes());
+            0x0C00_204A, 2 => ne!(self.video.regs.horizontal_scaling.as_mut_bytes());
+            0x0C00_206C, 2 => ne!(self.video.regs.clock.as_mut_bytes());
+            0x0C00_2070, 2 => ne!(self.video.regs._2070.as_mut_bytes());
 
             // FCT0 - FCT6 - stubbed, coefficients related to AA i guess?
             0x0C00_204C, 0x1A => ();

@@ -12,19 +12,16 @@ use crate::{
     jit::{CTX_HOOKS, Context, JIT},
     mmu::Mmu,
 };
-use dol::Dol;
-use hemicore::{
-    Address,
-    arch::{
-        Registers,
-        powerpc::{Extensions, Ins, ParsedIns},
-    },
+use common::arch::{
+    Registers,
+    disasm::{Extensions, Ins, ParsedIns},
 };
+use dol::Dol;
 use ppcjit::{Sequence, SequenceStatus};
 use tracing::{trace, trace_span};
 
+pub use common::{self, Address, Primitive, arch};
 pub use dol;
-pub use hemicore as core;
 
 /// The CPU frequency.
 pub const FREQUENCY: u32 = 486_000_000;

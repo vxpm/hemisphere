@@ -4,7 +4,7 @@ use cranelift::{
     codegen::ir,
     prelude::{InstBuilder, isa::CallConv},
 };
-use hemicore::arch::{GPR, InsExt, powerpc::Ins};
+use common::arch::{GPR, InsExt, disasm::Ins};
 use std::mem::offset_of;
 
 fn sig_read(ptr_type: ir::Type, read_type: ir::Type) -> ir::Signature {

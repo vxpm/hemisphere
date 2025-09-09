@@ -1,7 +1,7 @@
 [workspace]
 resolver = "3"
-members = ["hemicore", "ppcjit", "dol", "dolinfo", "hemisphere", "cli"]
-default-members = ["hemicore", "ppcjit", "dol", "hemisphere", "cli"]
+members = ["common", "ppcjit", "dol", "dolinfo", "hemisphere", "cli"]
+default-members = ["common", "ppcjit", "dol", "hemisphere", "cli"]
 
 [profile.dev.package."cranelift-codegen"]
 opt-level = 2

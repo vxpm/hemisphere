@@ -3,7 +3,7 @@ use cranelift::{
     codegen::ir,
     prelude::{InstBuilder, IntCC},
 };
-use hemicore::arch::{InsExt, SPR, powerpc::Ins};
+use common::arch::{InsExt, SPR, disasm::Ins};
 
 impl BlockBuilder<'_> {
     fn compare_signed(&mut self, a: ir::Value, b: ir::Value, index: u8) {

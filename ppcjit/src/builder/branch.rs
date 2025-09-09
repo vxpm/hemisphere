@@ -3,7 +3,7 @@ use crate::builder::util::IntoIrValue;
 use super::BlockBuilder;
 use bitos::{bitos, integer::u5};
 use cranelift::{codegen::ir, prelude::InstBuilder};
-use hemicore::arch::{Reg, SPR, powerpc::Ins};
+use common::arch::{Reg, SPR, disasm::Ins};
 
 #[bitos(1)]
 #[derive(Debug, Clone, Copy)]

@@ -1,6 +1,6 @@
 use super::BlockBuilder;
 use cranelift::{codegen::ir, prelude::InstBuilder};
-use hemicore::arch::{Reg, SPR, powerpc::Ins};
+use common::arch::{Reg, SPR, disasm::Ins};
 
 impl BlockBuilder<'_> {
     pub fn rfi(&mut self, _: Ins) {

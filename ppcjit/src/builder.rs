@@ -17,9 +17,9 @@ use cranelift::{
     },
 };
 use easyerr::Error;
-use hemicore::arch::{
+use common::arch::{
     Reg,
-    powerpc::{Ins, Opcode},
+    disasm::{Ins, Opcode},
 };
 use rustc_hash::FxHashMap;
 use std::{collections::hash_map::Entry, mem::offset_of};

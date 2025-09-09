@@ -1,10 +1,11 @@
 [package]
 name = "hemisphere"
+description = "The hemisphere emulator"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-hemicore = { path = "../hemicore" }
+common = { path = "../common" }
 dol = { path = "../dol" }
 ppcjit = { path = "../ppcjit" }
 bitos.workspace = true
@@ -16,6 +17,5 @@ slotmap.workspace = true
 tracing.workspace = true
 zerocopy.workspace = true
 
-schnellru = "0.2"
 interavl = "0.3.0"
 parking_lot = "0.12"

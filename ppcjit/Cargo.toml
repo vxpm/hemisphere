@@ -1,10 +1,11 @@
 [package]
 name = "ppcjit"
+description = "JIT for PowerPC code using cranelift"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-hemicore = { path = "../hemicore" }
+common = { path = "../common" }
 bitos.workspace = true
 bytesize.workspace = true
 easyerr.workspace = true

@@ -2,7 +2,7 @@ use bitos::{
     bitos,
     integer::{u4, u5, u7, u9, u10, u11, u15},
 };
-use hemicore::Address;
+use common::Address;
 
 // LINE = one horizontal line
 // FIELD = number of lines in a scan

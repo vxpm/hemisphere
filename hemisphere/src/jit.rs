@@ -1,5 +1,5 @@
 use crate::System;
-use hemicore::{Address, Primitive, arch::Registers, util::boxed_array};
+use common::{Address, Primitive, arch::Registers, util::boxed_array};
 use interavl::IntervalTree;
 use ppcjit::{
     Block,

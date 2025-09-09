@@ -1,7 +1,7 @@
 use super::BlockBuilder;
 use bitos::BitUtils;
 use cranelift::{codegen::ir, prelude::InstBuilder};
-use hemicore::arch::{InsExt, Reg, SPR, powerpc::Ins};
+use common::arch::{InsExt, Reg, SPR, disasm::Ins};
 use tracing::debug;
 
 impl BlockBuilder<'_> {
