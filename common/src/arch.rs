@@ -68,6 +68,7 @@ impl InsExt for disasm::Ins {
     }
 }
 
+/// A condition group field in the [`CondReg`].
 #[bitos(4)]
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Cond {
@@ -104,6 +105,7 @@ pub struct CondReg {
     pub fields: [Cond; 8],
 }
 
+/// The Machine State register.
 #[bitos(32)]
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct MachineState {
@@ -162,6 +164,7 @@ pub struct XerReg {
     pub overflow_fuse: bool,
 }
 
+/// A pair of double precision floating point numbers, used by the paired singles extension.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 #[repr(transparent)]
 pub struct FloatPair(pub [f64; 2]);
@@ -180,7 +183,7 @@ impl std::ops::DerefMut for FloatPair {
     }
 }
 
-/// User level registers
+/// User level registers.
 #[repr(C)]
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct User {
@@ -201,7 +204,7 @@ pub struct User {
     pub ctr: u32,
 }
 
-/// Block Address Translation register
+/// A Block Address Translation register.
 #[bitos(64)]
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Bat {
@@ -283,6 +286,7 @@ impl Bat {
     }
 }
 
+/// Memory management registers.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct MemoryManagement {
     /// Instruction Block Address Translation registers
@@ -319,6 +323,7 @@ impl MemoryManagement {
     }
 }
 
+/// Exception handling registers.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct ExceptionHandling {
     /// Data Address Register
@@ -331,6 +336,7 @@ pub struct ExceptionHandling {
     pub srr: [u32; 2],
 }
 
+/// Configuration registers.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Configuration {
     /// Machine State Register
@@ -339,6 +345,7 @@ pub struct Configuration {
     pub hid: [u32; 3],
 }
 
+/// A quantized type.
 #[bitos(3)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum QuantizedType {
@@ -353,6 +360,7 @@ pub enum QuantizedType {
     I16,
 }
 
+/// A graphics quantization register.
 #[bitos(32)]
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct QuantReg {
@@ -370,14 +378,7 @@ pub struct QuantReg {
     pub load_scale: u6,
 }
 
-#[derive(Debug, Clone, PartialEq, Default)]
-pub struct QuantizationRegisters {
-    /// Time Base
-    pub tbl: u64,
-    /// Decrementer
-    pub dec: u32,
-}
-
+/// Miscellaneous registers.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Miscellaneous {
     /// Time Base
@@ -388,6 +389,7 @@ pub struct Miscellaneous {
     pub l2cr: u32,
 }
 
+/// Performance monitor registers.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct PerformanceMonitor {
     /// Performance Counter registers
@@ -396,7 +398,7 @@ pub struct PerformanceMonitor {
     pub control: [u32; 2],
 }
 
-/// Supervisor level registers
+/// Supervisor level registers.
 #[repr(C)]
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Supervisor {
@@ -426,7 +428,7 @@ pub struct Registers {
     pub supervisor: Supervisor,
 }
 
-/// A General Purpose Register
+/// A General Purpose Register.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, FromRepr, VariantArray)]
 #[repr(u8)]
 pub enum GPR {
@@ -481,7 +483,7 @@ impl GPR {
     }
 }
 
-/// A Floating Point Register
+/// A Floating Point Register.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, FromRepr, VariantArray)]
 #[repr(u8)]
 pub enum FPR {
@@ -536,7 +538,7 @@ impl FPR {
     }
 }
 
-/// A Special Register
+/// A Special Purpose Register.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, FromRepr, VariantArray)]
 #[repr(u16)]
 pub enum SPR {

@@ -1,9 +1,7 @@
-use crate::builder::util::IntoIrValue;
-
 use super::BlockBuilder;
 use bitos::BitUtils;
 use common::arch::{InsExt, Reg, SPR, disasm::Ins};
-use cranelift::{codegen::ir, prelude::InstBuilder};
+use cranelift::prelude::InstBuilder;
 use tracing::debug;
 
 impl BlockBuilder<'_> {
