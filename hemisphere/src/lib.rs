@@ -12,7 +12,7 @@ use crate::{
     jit::{CTX_HOOKS, Context, JIT},
     mmu::Mmu,
 };
-use dolfile::Dol;
+use dol::Dol;
 use hemicore::{
     Address,
     arch::{
@@ -23,7 +23,7 @@ use hemicore::{
 use ppcjit::{Sequence, SequenceStatus};
 use tracing::{trace, trace_span};
 
-pub use dolfile;
+pub use dol;
 pub use hemicore as core;
 
 /// The CPU frequency.

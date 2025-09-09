@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 hemicore = { path = "../hemicore" }
-dolfile = { path = "../dolfile" }
+dol = { path = "../dol" }
 ppcjit = { path = "../ppcjit" }
 bitos.workspace = true
 bytesize.workspace = true

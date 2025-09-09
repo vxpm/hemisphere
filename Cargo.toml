@@ -1,7 +1,7 @@
 [workspace]
 resolver = "3"
-members = ["hemicore", "ppcjit", "dolfile", "dolinfo", "hemisphere", "cli"]
-default-members = ["hemicore", "ppcjit", "dolfile", "hemisphere", "cli"]
+members = ["hemicore", "ppcjit", "dol", "dolinfo", "hemisphere", "cli"]
+default-members = ["hemicore", "ppcjit", "dol", "hemisphere", "cli"]
 
 [profile.dev.package."cranelift-codegen"]
 opt-level = 2
@@ -9,7 +9,7 @@ opt-level = 2
 [profile.dev.package."binrw"]
 opt-level = 3
 
-[profile.dev.package."dolfile"]
+[profile.dev.package."dol"]
 opt-level = 3
 
 [profile.dev]

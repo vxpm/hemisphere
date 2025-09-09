@@ -5,7 +5,7 @@ use clap::Parser;
 use eyre_pretty::eyre::Result;
 use hemisphere::{
     Config, Hemisphere,
-    dolfile::{Dol, binrw::BinRead},
+    dol::{Dol, binrw::BinRead},
     runner::Runner,
 };
 use std::path::PathBuf;

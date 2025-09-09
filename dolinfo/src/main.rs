@@ -4,7 +4,7 @@ use comfy_table::{
     Cell, CellAlignment, ContentArrangement, Table, modifiers::UTF8_ROUND_CORNERS,
     presets::UTF8_FULL,
 };
-use dolfile::{Header, SectionInfo, binrw::BinRead};
+use dol::{Header, SectionInfo, binrw::BinRead};
 use eyre_pretty::{Context, Result};
 use std::path::PathBuf;
 

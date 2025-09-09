@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-dolfile = { path = "../dolfile" }
+dol = { path = "../dol" }
 eyre-pretty = { path = "/home/vxpm/dev/eyre-pretty" }
 bytesize.workspace = true
 clap.workspace = true
