@@ -8,6 +8,10 @@ mod others;
 mod util;
 
 use crate::block::ContextHooks;
+use common::arch::{
+    Reg,
+    disasm::{Ins, Opcode},
+};
 use cranelift::{
     codegen::ir::{self, SigRef},
     frontend,
@@ -17,10 +21,6 @@ use cranelift::{
     },
 };
 use easyerr::Error;
-use common::arch::{
-    Reg,
-    disasm::{Ins, Opcode},
-};
 use rustc_hash::FxHashMap;
 use std::{collections::hash_map::Entry, mem::offset_of};
 
@@ -204,10 +204,7 @@ impl<'ctx> BlockBuilder<'ctx> {
 
     fn prologue(&mut self) {
         self.bd.set_srcloc(ir::SourceLoc::new(u32::MAX));
-        let executed = self
-            .bd
-            .ins()
-            .iconst(ir::types::I32, self.executed as u64 as i64);
+        let executed = self.const_val(self.executed);
 
         for (reg, var) in &self.regs {
             if !var.modified {
@@ -244,6 +241,7 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Addic => self.addic(ins),
             Opcode::Addic_ => self.addic_record(ins),
             Opcode::Addis => self.addis(ins),
+            Opcode::Addme => self.addme(ins),
             Opcode::Addze => self.addze(ins),
             Opcode::And => self.and(ins),
             Opcode::Andc => self.andc(ins),
@@ -279,7 +277,7 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Mfcr => self.mfcr(ins),
             Opcode::Mfmsr => self.mfmsr(ins),
             Opcode::Mfspr => self.mfspr(ins),
-            Opcode::Mftb => self.mftb(ins),
+            Opcode::Mftb => self.mftb(ins), // NOTE: stubbed
             Opcode::Mtcrf => self.mtcrf(ins),
             Opcode::Mtfsb1 => self.mtsfb1(ins),
             Opcode::Mtfsf => self.stub(ins), // NOTE: stubbed
@@ -299,6 +297,7 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::PsMr => self.stub(ins), // NOTE: stubbed
             Opcode::PsqL => self.stub(ins), // NOTE: stubbed
             Opcode::Rfi => self.rfi(ins),
+            Opcode::Rlwimi => self.rlwimi(ins),
             Opcode::Rlwinm => self.rlwinm(ins),
             Opcode::Rlwnm => self.rlwnm(ins),
             Opcode::Slw => self.slw(ins),
@@ -321,8 +320,6 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Sync => self.stub(ins), // NOTE: stubbed
             Opcode::Xor => self.xor(ins),
             Opcode::Xori => self.xori(ins),
-            Opcode::Rlwimi => self.rlwimi(ins),
-            Opcode::Addme => self.addme(ins),
             Opcode::Illegal => {
                 return Err(EmitError::Illegal(ins));
             }

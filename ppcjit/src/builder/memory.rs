@@ -1,10 +1,10 @@
 use super::BlockBuilder;
 use crate::block::ContextHooks;
+use common::arch::{GPR, InsExt, disasm::Ins};
 use cranelift::{
     codegen::ir,
     prelude::{InstBuilder, isa::CallConv},
 };
-use common::arch::{GPR, InsExt, disasm::Ins};
 use std::mem::offset_of;
 
 fn sig_read(ptr_type: ir::Type, read_type: ir::Type) -> ir::Signature {
@@ -30,32 +30,32 @@ fn sig_write(ptr_type: ir::Type, write_type: ir::Type) -> ir::Signature {
     }
 }
 
-trait IrPrimitive {
+trait ReadWriteAble {
     const READ_OFFSET: i32;
     const WRITE_OFFSET: i32;
     const IR_TYPE: ir::Type;
 }
 
-impl IrPrimitive for i8 {
+impl ReadWriteAble for i8 {
     const READ_OFFSET: i32 = offset_of!(ContextHooks, read_i8) as i32;
     const WRITE_OFFSET: i32 = offset_of!(ContextHooks, write_i8) as i32;
     const IR_TYPE: ir::Type = ir::types::I8;
 }
 
-impl IrPrimitive for i16 {
+impl ReadWriteAble for i16 {
     const READ_OFFSET: i32 = offset_of!(ContextHooks, read_i16) as i32;
     const WRITE_OFFSET: i32 = offset_of!(ContextHooks, write_i16) as i32;
     const IR_TYPE: ir::Type = ir::types::I16;
 }
 
-impl IrPrimitive for i32 {
+impl ReadWriteAble for i32 {
     const READ_OFFSET: i32 = offset_of!(ContextHooks, read_i32) as i32;
     const WRITE_OFFSET: i32 = offset_of!(ContextHooks, write_i32) as i32;
     const IR_TYPE: ir::Type = ir::types::I32;
 }
 
 impl BlockBuilder<'_> {
-    fn read<P: IrPrimitive>(&mut self, addr: ir::Value) -> ir::Value {
+    fn read<P: ReadWriteAble>(&mut self, addr: ir::Value) -> ir::Value {
         let read_fn = self.bd.ins().load(
             self.consts.ptr_type,
             ir::MemFlags::trusted(),
@@ -81,7 +81,7 @@ impl BlockBuilder<'_> {
         ret[0]
     }
 
-    fn write<P: IrPrimitive>(&mut self, addr: ir::Value, value: ir::Value) {
+    fn write<P: ReadWriteAble>(&mut self, addr: ir::Value, value: ir::Value) {
         let write_fn = self.bd.ins().load(
             self.consts.ptr_type,
             ir::MemFlags::trusted(),
@@ -113,9 +113,7 @@ impl BlockBuilder<'_> {
 
     pub fn stw(&mut self, ins: Ins) {
         let addr = if ins.field_ra() == 0 {
-            self.bd
-                .ins()
-                .iconst(ir::types::I32, ins.field_offset() as i64)
+            self.const_val(ins.field_offset() as i32)
         } else {
             let ra = self.get(ins.gpr_a());
             self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
@@ -127,9 +125,7 @@ impl BlockBuilder<'_> {
 
     pub fn stmw(&mut self, ins: Ins) {
         let mut addr = if ins.field_ra() == 0 {
-            self.bd
-                .ins()
-                .iconst(ir::types::I32, ins.field_offset() as i64)
+            self.const_val(ins.field_offset() as i32)
         } else {
             let ra = self.get(ins.gpr_a());
             self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
@@ -161,9 +157,7 @@ impl BlockBuilder<'_> {
         let value = self.bd.ins().ireduce(ir::types::I16, value);
 
         let addr = if ins.field_ra() == 0 {
-            self.bd
-                .ins()
-                .iconst(ir::types::I32, ins.field_offset() as i64)
+            self.const_val(ins.field_offset() as i32)
         } else {
             let ra = self.get(ins.gpr_a());
             self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
@@ -177,9 +171,7 @@ impl BlockBuilder<'_> {
         let value = self.bd.ins().ireduce(ir::types::I8, value);
 
         let addr = if ins.field_ra() == 0 {
-            self.bd
-                .ins()
-                .iconst(ir::types::I32, ins.field_offset() as i64)
+            self.const_val(ins.field_offset() as i32)
         } else {
             let ra = self.get(ins.gpr_a());
             self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
@@ -200,9 +192,7 @@ impl BlockBuilder<'_> {
 
     pub fn lmw(&mut self, ins: Ins) {
         let mut addr = if ins.field_ra() == 0 {
-            self.bd
-                .ins()
-                .iconst(ir::types::I32, ins.field_offset() as i64)
+            self.const_val(ins.field_offset() as i32)
         } else {
             let ra = self.get(ins.gpr_a());
             self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
@@ -218,9 +208,7 @@ impl BlockBuilder<'_> {
 
     pub fn lwz(&mut self, ins: Ins) {
         let addr = if ins.field_ra() == 0 {
-            self.bd
-                .ins()
-                .iconst(ir::types::I32, ins.field_offset() as i64)
+            self.const_val(ins.field_offset() as i32)
         } else {
             let ra = self.get(ins.gpr_a());
             self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
@@ -253,9 +241,7 @@ impl BlockBuilder<'_> {
 
     pub fn lhz(&mut self, ins: Ins) {
         let addr = if ins.field_ra() == 0 {
-            self.bd
-                .ins()
-                .iconst(ir::types::I32, ins.field_offset() as i64)
+            self.const_val(ins.field_offset() as i32)
         } else {
             let ra = self.get(ins.gpr_a());
             self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
@@ -284,9 +270,7 @@ impl BlockBuilder<'_> {
 
     pub fn lbz(&mut self, ins: Ins) {
         let addr = if ins.field_ra() == 0 {
-            self.bd
-                .ins()
-                .iconst(ir::types::I32, ins.field_offset() as i64)
+            self.const_val(ins.field_offset() as i32)
         } else {
             let ra = self.get(ins.gpr_a());
             self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)

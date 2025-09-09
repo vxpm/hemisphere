@@ -2,8 +2,8 @@ use crate::builder::util::IntoIrValue;
 
 use super::BlockBuilder;
 use bitos::{bitos, integer::u5};
-use cranelift::{codegen::ir, prelude::InstBuilder};
 use common::arch::{Reg, SPR, disasm::Ins};
+use cranelift::{codegen::ir, prelude::InstBuilder};
 
 #[bitos(1)]
 #[derive(Debug, Clone, Copy)]
@@ -45,10 +45,7 @@ impl BlockBuilder<'_> {
 
     pub fn b(&mut self, ins: Ins) {
         // NOTE: the minus 4 is to work around the automatic PC increase in the emit method
-        let target = self
-            .bd
-            .ins()
-            .iconst(ir::types::I32, (ins.field_li() - 4) as u64 as i64);
+        let target = self.const_val(ins.field_li().wrapping_sub(4) as u32);
         self.setup_jump(!ins.field_aa(), ins.field_lk(), target);
     }
 

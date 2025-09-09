@@ -1,9 +1,9 @@
 use super::BlockBuilder;
+use common::arch::{InsExt, SPR, disasm::Ins};
 use cranelift::{
     codegen::ir,
     prelude::{InstBuilder, IntCC},
 };
-use common::arch::{InsExt, SPR, disasm::Ins};
 
 enum AddLhs {
     RA,
@@ -45,14 +45,8 @@ impl BlockBuilder<'_> {
     fn addition_get_rhs(&mut self, ins: Ins, rhs: AddRhs) -> ir::Value {
         match rhs {
             AddRhs::RB => self.get(ins.gpr_b()),
-            AddRhs::Imm => self
-                .bd
-                .ins()
-                .iconst(ir::types::I32, ins.field_simm() as i64),
-            AddRhs::ShiftedImm => self
-                .bd
-                .ins()
-                .iconst(ir::types::I32, (ins.field_simm() as i64) << 16),
+            AddRhs::Imm => self.const_val(ins.field_simm() as i32),
+            AddRhs::ShiftedImm => self.const_val((ins.field_simm() as i32) << 16),
             AddRhs::Carry => {
                 let xer = self.get(SPR::XER);
                 let ca = self.get_bit(xer, 29);
@@ -413,7 +407,7 @@ impl BlockBuilder<'_> {
         let ra = self.get(ins.gpr_a());
         let rb = self.get(ins.gpr_b());
 
-        let one = self.bd.ins().iconst(ir::types::I32, 1);
+        let one = self.const_val(1i32);
         let div_by_zero = self.bd.ins().icmp_imm(IntCC::Equal, rb, 0);
         // since division by zero is undefined, just avoid it by using 1 as denom instead
         let denom = self.bd.ins().select(div_by_zero, one, rb);
@@ -450,10 +444,7 @@ impl BlockBuilder<'_> {
 
     pub fn mulli(&mut self, ins: Ins) {
         let ra = self.get(ins.gpr_a());
-        let imm = self
-            .bd
-            .ins()
-            .iconst(ir::types::I32, ins.field_simm() as i64);
+        let imm = self.const_val(ins.field_simm() as i32);
 
         let result = self.bd.ins().imul(ra, imm);
         self.set(ins.gpr_d(), result);

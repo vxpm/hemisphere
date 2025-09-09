@@ -1,15 +1,13 @@
 use super::BlockBuilder;
-use cranelift::{codegen::ir, prelude::InstBuilder};
 use common::arch::{Reg, SPR, disasm::Ins};
+use cranelift::prelude::InstBuilder;
 
 impl BlockBuilder<'_> {
     pub fn rfi(&mut self, _: Ins) {
         let msr = self.get(Reg::MSR);
         let srr0 = self.get(SPR::SRR0);
         let srr1 = self.get(SPR::SRR1);
-
-        let mask = 0b1000_0111_1100_0000_1111_1111_0111_0011_u32;
-        let mask = self.bd.ins().iconst(ir::types::I32, mask as u64 as i64);
+        let mask = self.const_val(0b1000_0111_1100_0000_1111_1111_0111_0011_u32);
 
         // move only some bits from srr1
         let new_msr = self.bd.ins().bitselect(mask, srr1, msr);

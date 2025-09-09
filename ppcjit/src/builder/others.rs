@@ -1,7 +1,9 @@
+use crate::builder::util::IntoIrValue;
+
 use super::BlockBuilder;
 use bitos::BitUtils;
-use cranelift::{codegen::ir, prelude::InstBuilder};
 use common::arch::{InsExt, Reg, SPR, disasm::Ins};
+use cranelift::{codegen::ir, prelude::InstBuilder};
 use tracing::debug;
 
 impl BlockBuilder<'_> {
@@ -66,7 +68,7 @@ impl BlockBuilder<'_> {
         debug!("mask control: {:08b} mask: {:032b}", mask_control, mask);
 
         let cr = self.get(Reg::CR);
-        let mask = self.bd.ins().iconst(ir::types::I32, mask);
+        let mask = self.const_val(mask);
         let value = self.bd.ins().bitselect(mask, rs, cr);
 
         self.set(Reg::CR, value);
@@ -84,7 +86,8 @@ impl BlockBuilder<'_> {
     }
 
     pub fn mftb(&mut self, ins: Ins) {
-        let imm = self.bd.ins().iconst(ir::types::I32, 0);
+        // TODO: impl
+        let imm = self.const_val(0);
         self.set(ins.gpr_d(), imm);
     }
 

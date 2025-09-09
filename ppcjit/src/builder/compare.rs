@@ -1,9 +1,9 @@
 use super::BlockBuilder;
+use common::arch::{InsExt, SPR, disasm::Ins};
 use cranelift::{
     codegen::ir,
     prelude::{InstBuilder, IntCC},
 };
-use common::arch::{InsExt, SPR, disasm::Ins};
 
 impl BlockBuilder<'_> {
     fn compare_signed(&mut self, a: ir::Value, b: ir::Value, index: u8) {
@@ -43,10 +43,7 @@ impl BlockBuilder<'_> {
 
     pub fn cmpi(&mut self, ins: Ins) {
         let ra = self.get(ins.gpr_a());
-        let imm = self
-            .bd
-            .ins()
-            .iconst(ir::types::I32, ins.field_simm() as u64 as i64);
+        let imm = self.const_val(ins.field_simm() as i32);
 
         self.compare_signed(ra, imm, ins.field_crfd());
     }
@@ -60,10 +57,7 @@ impl BlockBuilder<'_> {
 
     pub fn cmpli(&mut self, ins: Ins) {
         let ra = self.get(ins.gpr_a());
-        let imm = self
-            .bd
-            .ins()
-            .iconst(ir::types::I32, ins.field_uimm() as u64 as i64);
+        let imm = self.const_val(ins.field_uimm() as u32);
 
         self.compare_unsigned(ra, imm, ins.field_crfd());
     }

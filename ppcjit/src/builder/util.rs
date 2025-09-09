@@ -1,10 +1,11 @@
 use super::BlockBuilder;
+use common::arch::{Reg, SPR, disasm::Ins};
 use cranelift::{
     codegen::ir,
     prelude::{FunctionBuilder, InstBuilder, IntCC},
 };
-use common::arch::{Reg, SPR, disasm::Ins};
 
+/// Trait for transforming values into an IR value in a function.
 pub trait IntoIrValue {
     fn into_value(self, bd: &mut FunctionBuilder<'_>) -> ir::Value;
 }
@@ -27,15 +28,33 @@ impl IntoIrValue for i8 {
     }
 }
 
+impl IntoIrValue for u8 {
+    fn into_value(self, bd: &mut FunctionBuilder<'_>) -> ir::Value {
+        bd.ins().iconst(ir::types::I8, self as u64 as i64)
+    }
+}
+
 impl IntoIrValue for i16 {
     fn into_value(self, bd: &mut FunctionBuilder<'_>) -> ir::Value {
         bd.ins().iconst(ir::types::I16, self as i64)
     }
 }
 
+impl IntoIrValue for u16 {
+    fn into_value(self, bd: &mut FunctionBuilder<'_>) -> ir::Value {
+        bd.ins().iconst(ir::types::I16, self as u64 as i64)
+    }
+}
+
 impl IntoIrValue for i32 {
     fn into_value(self, bd: &mut FunctionBuilder<'_>) -> ir::Value {
         bd.ins().iconst(ir::types::I32, self as i64)
+    }
+}
+
+impl IntoIrValue for u32 {
+    fn into_value(self, bd: &mut FunctionBuilder<'_>) -> ir::Value {
+        bd.ins().iconst(ir::types::I32, self as u64 as i64)
     }
 }
 
@@ -95,7 +114,7 @@ impl BlockBuilder<'_> {
         let so = self.bd.ins().ishl_imm(overflowed, 31);
         let value = self.bd.ins().bor(ov, so);
 
-        let mask = self.bd.ins().iconst(ir::types::I32, !(0b1 << 30));
+        let mask = self.const_val(!(0b1 << 30));
         let masked = self.bd.ins().band(xer, mask);
         let updated = self.bd.ins().bor(masked, value);
 
@@ -136,7 +155,7 @@ impl BlockBuilder<'_> {
         let value = self.bd.ins().bor(value, eq);
         let value = self.bd.ins().bor(value, ov);
 
-        let mask = self.bd.ins().iconst(ir::types::I32, 0b1111 << base);
+        let mask = self.const_val(0b1111u32 << base);
         let updated = self.bd.ins().bitselect(mask, value, cr);
 
         self.set(Reg::CR, updated);

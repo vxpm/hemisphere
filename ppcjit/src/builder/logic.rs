@@ -2,11 +2,11 @@ use crate::builder::util::IntoIrValue;
 
 use super::BlockBuilder;
 use bitos::BitUtils;
+use common::arch::{InsExt, disasm::Ins};
 use cranelift::{
     codegen::ir,
     prelude::{InstBuilder, IntCC},
 };
-use common::arch::{InsExt, disasm::Ins};
 
 enum BasicBitOpKind {
     Or,
@@ -25,11 +25,8 @@ enum BasicBitOpRhs {
 }
 
 struct BasicBitOp {
-    /// Operation to perform
     kind: BasicBitOpKind,
-    /// What value to use as the second operand
     rhs: BasicBitOpRhs,
-    /// Whether to update CR0
     record: bool,
 }
 
@@ -67,14 +64,8 @@ impl BlockBuilder<'_> {
                 let rb = self.get(ins.gpr_b());
                 self.bd.ins().bnot(rb)
             }
-            BasicBitOpRhs::Imm => self
-                .bd
-                .ins()
-                .iconst(ir::types::I32, ins.field_uimm() as u64 as i64),
-            BasicBitOpRhs::ShiftedImm => self
-                .bd
-                .ins()
-                .iconst(ir::types::I32, ((ins.field_uimm() as u64) << 16) as i64),
+            BasicBitOpRhs::Imm => self.const_val(ins.field_uimm() as u32),
+            BasicBitOpRhs::ShiftedImm => self.const_val((ins.field_uimm() as u32) << 16),
         }
     }
 
@@ -353,10 +344,7 @@ impl BlockBuilder<'_> {
     fn shift_get_rhs(&mut self, ins: Ins, rhs: ShiftRhs) -> ir::Value {
         match rhs {
             ShiftRhs::RB => self.get(ins.gpr_b()),
-            ShiftRhs::Imm => self
-                .bd
-                .ins()
-                .iconst(ir::types::I32, ins.field_sh() as u64 as i64),
+            ShiftRhs::Imm => self.const_val(ins.field_sh() as u32),
         }
     }
 
