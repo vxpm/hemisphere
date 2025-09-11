@@ -1,5 +1,5 @@
 use super::BlockBuilder;
-use crate::block::ContextHooks;
+use crate::block::Hooks;
 use common::arch::{GPR, InsExt, disasm::Ins};
 use cranelift::{codegen::ir, prelude::InstBuilder};
 use std::mem::offset_of;
@@ -12,20 +12,20 @@ trait ReadWriteAble {
 
 impl ReadWriteAble for i8 {
     const IR_TYPE: ir::Type = ir::types::I8;
-    const READ_OFFSET: i32 = offset_of!(ContextHooks, read_i8) as i32;
-    const WRITE_OFFSET: i32 = offset_of!(ContextHooks, write_i8) as i32;
+    const READ_OFFSET: i32 = offset_of!(Hooks, read_i8) as i32;
+    const WRITE_OFFSET: i32 = offset_of!(Hooks, write_i8) as i32;
 }
 
 impl ReadWriteAble for i16 {
     const IR_TYPE: ir::Type = ir::types::I16;
-    const READ_OFFSET: i32 = offset_of!(ContextHooks, read_i16) as i32;
-    const WRITE_OFFSET: i32 = offset_of!(ContextHooks, write_i16) as i32;
+    const READ_OFFSET: i32 = offset_of!(Hooks, read_i16) as i32;
+    const WRITE_OFFSET: i32 = offset_of!(Hooks, write_i16) as i32;
 }
 
 impl ReadWriteAble for i32 {
     const IR_TYPE: ir::Type = ir::types::I32;
-    const READ_OFFSET: i32 = offset_of!(ContextHooks, read_i32) as i32;
-    const WRITE_OFFSET: i32 = offset_of!(ContextHooks, write_i32) as i32;
+    const READ_OFFSET: i32 = offset_of!(Hooks, read_i32) as i32;
+    const WRITE_OFFSET: i32 = offset_of!(Hooks, write_i32) as i32;
 }
 
 impl BlockBuilder<'_> {
@@ -33,17 +33,17 @@ impl BlockBuilder<'_> {
         let read_fn = self.bd.ins().load(
             self.consts.ptr_type,
             ir::MemFlags::trusted(),
-            self.consts.ctx_hooks_ptr,
+            self.consts.hooks_ptr,
             P::READ_OFFSET,
         );
 
         let sig = *self
             .consts
-            .ctx_hooks_sig
+            .hooks_sig
             .entry(P::READ_OFFSET)
             .or_insert_with(|| {
                 self.bd
-                    .import_signature(ContextHooks::read_sig(self.consts.ptr_type, P::IR_TYPE))
+                    .import_signature(Hooks::read_sig(self.consts.ptr_type, P::IR_TYPE))
             });
 
         let inst = self
@@ -59,17 +59,17 @@ impl BlockBuilder<'_> {
         let write_fn = self.bd.ins().load(
             self.consts.ptr_type,
             ir::MemFlags::trusted(),
-            self.consts.ctx_hooks_ptr,
+            self.consts.hooks_ptr,
             P::WRITE_OFFSET,
         );
 
         let sig = *self
             .consts
-            .ctx_hooks_sig
+            .hooks_sig
             .entry(P::WRITE_OFFSET)
             .or_insert_with(|| {
                 self.bd
-                    .import_signature(ContextHooks::write_sig(self.consts.ptr_type, P::IR_TYPE))
+                    .import_signature(Hooks::write_sig(self.consts.ptr_type, P::IR_TYPE))
             });
 
         self.bd

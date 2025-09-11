@@ -88,6 +88,19 @@ pub enum Exception {
     Breakpoint = 0x1300,
 }
 
+impl Exception {
+    #[rustfmt::skip]    pub const SPECIAL_SRR1_BITS_MASK:   u32 = 0b0111_1000_0011_1100__0000_0000_0000_0000_u32;
+    #[rustfmt::skip]    pub const MSR_TO_SRR1_MASK:         u32 = 0b0000_0111_1100_0000__1111_1111_1111_1111_u32;
+    #[rustfmt::skip]    pub const SRR1_TO_MSR_MASK:         u32 = 0b1000_0111_1100_0000__1111_1111_0111_0011_u32;
+
+    pub fn srr0_skip(self) -> bool {
+        !matches!(
+            self,
+            Self::Reset | Self::MachineCheck | Self::Interrupt | Self::Decrementer
+        )
+    }
+}
+
 /// A condition group field in the [`CondReg`].
 #[bitos(4)]
 #[derive(Debug, Clone, Copy, Default)]
@@ -186,19 +199,12 @@ impl Default for MachineState {
 
 impl MachineState {
     pub fn enter_exception_mode(&mut self) {
-        self.set_little_endian(self.exception_little_endian());
-        self.set_recoverable_exception(false); // why always false?
-        self.set_performance_monitor(false);
-        self.set_data_addr_translation(false);
-        self.set_instr_addr_translation(false);
-        self.set_float_exception_mode_1(false);
-        self.set_branch_trace(false);
-        self.set_step_trace(false);
-        self.set_float_exception_mode_0(false);
-        self.set_float_available(false);
-        self.set_user_mode(false);
-        self.set_external_interrupts(false);
-        self.set_reduced_power(false);
+        let prev = self.clone();
+        *self = MachineState::from_bits(0)
+            .with_little_endian(prev.exception_little_endian())
+            .with_exception_prefix(prev.exception_prefix())
+            .with_machine_check(prev.machine_check())
+            .with_exception_little_endian(prev.exception_little_endian());
     }
 }
 
@@ -486,55 +492,34 @@ pub struct Registers {
 }
 
 impl Registers {
-    /// Jumps to the exception vector of the given exception.
-    pub fn jump_to_exception_vector(&mut self, exception: Exception) {
+    /// Takes an exception.
+    pub fn raise_exception(&mut self, exception: Exception) {
+        // save PC into SRR0
+        self.supervisor.exception.srr[0] = self.pc.value();
+        if exception.srr0_skip() {
+            self.supervisor.exception.srr[0] += 4;
+        }
+
+        // save MSR into SRR1
+        let mask = Exception::MSR_TO_SRR1_MASK;
+        self.supervisor.exception.srr[1] &= !mask;
+        self.supervisor.exception.srr[1] |= self.supervisor.config.msr.to_bits() & mask;
+
+        // set exception specific bits in SRR1
+        // NOTE: just clear them for now
+        self.supervisor.exception.srr[1] &= !Exception::SPECIAL_SRR1_BITS_MASK;
+
+        // update MSR
+        self.supervisor.config.msr.enter_exception_mode();
+
+        // jump to exception vector
         let base = if self.supervisor.config.msr.exception_prefix() {
-            0x0000_0000
-        } else {
             0xFFF0_0000
+        } else {
+            0x0000_0000
         };
 
         self.pc = Address(base | exception as u32);
-    }
-
-    /// Takes a system reset exception.
-    pub fn exception_system_reset(&mut self) {
-        let msr = self.supervisor.config.msr.to_bits();
-
-        // save PC + 4 into SRR0
-        self.supervisor.exception.srr[0] = (self.pc + 4u32).value();
-
-        // save MSR bits 22..27 and 0..16 into SRR1
-        self.supervisor.exception.srr[1] = 0
-            .with_bits(0, 16, msr.bits(0, 16))
-            .with_bits(22, 27, msr.bits(22, 27))
-            .with_bit(31, msr.bit(31));
-
-        // update MSR
-        self.supervisor.config.msr.enter_exception_mode();
-
-        // jump to exception vector
-        self.jump_to_exception_vector(Exception::Reset);
-    }
-
-    /// Takes a system reset exception.
-    pub fn exception_interrupt(&mut self) {
-        let msr = self.supervisor.config.msr.to_bits();
-
-        // save PC into SRR0
-        self.supervisor.exception.srr[0] = self.pc.value();
-
-        // save MSR bits 22..27 and 0..16 into SRR1
-        self.supervisor.exception.srr[1] = 0
-            .with_bits(0, 16, msr.bits(0, 16))
-            .with_bits(22, 27, msr.bits(22, 27))
-            .with_bit(31, msr.bit(31));
-
-        // update MSR
-        self.supervisor.config.msr.enter_exception_mode();
-
-        // jump to exception vector
-        self.jump_to_exception_vector(Exception::Interrupt);
     }
 }
 

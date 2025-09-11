@@ -87,15 +87,4 @@ impl BlockBuilder<'_> {
         // TODO: impl
         self.set(ins.gpr_d(), 0i32);
     }
-
-    pub fn sc(&mut self, ins: Ins) {
-        let current_pc = self.get(Reg::PC);
-        let target = self.bd.ins().iadd_imm(current_pc, 4);
-        self.set(SPR::SRR0, target);
-
-        let msr = self.get(Reg::MSR);
-        self.set(SPR::SRR1, msr);
-
-        todo!("syscall exception")
-    }
 }

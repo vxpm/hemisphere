@@ -6,35 +6,35 @@ use memmap2::{Mmap, MmapOptions};
 use std::fmt::Display;
 
 pub type Context = std::ffi::c_void;
-pub type GetRegistersFn = fn(*mut Context) -> *mut Registers;
-pub type ReadFn<T> = fn(*mut Context, Address) -> T;
-pub type WriteFn<T> = fn(*mut Context, Address, T);
-pub type GenericHookFn = fn(*mut Context);
+pub type GetRegistersHook = fn(*mut Context) -> *mut Registers;
+pub type ReadHook<T> = fn(*mut Context, Address) -> T;
+pub type WriteHook<T> = fn(*mut Context, Address, T);
+pub type GenericHook = fn(*mut Context);
 
 /// External functions that JITed code calls.
-pub struct ContextHooks {
+pub struct Hooks {
     // registers
-    pub get_registers: GetRegistersFn,
+    pub get_registers: GetRegistersHook,
 
     // memory
-    pub read_i8: ReadFn<i8>,
-    pub write_i8: WriteFn<i8>,
-    pub read_i16: ReadFn<i16>,
-    pub write_i16: WriteFn<i16>,
-    pub read_i32: ReadFn<i32>,
-    pub write_i32: WriteFn<i32>,
+    pub read_i8: ReadHook<i8>,
+    pub write_i8: WriteHook<i8>,
+    pub read_i16: ReadHook<i16>,
+    pub write_i16: WriteHook<i16>,
+    pub read_i32: ReadHook<i32>,
+    pub write_i32: WriteHook<i32>,
 
-    // hooks
-    pub ibat_changed: GenericHookFn,
-    pub dbat_changed: GenericHookFn,
+    // bats
+    pub ibat_changed: GenericHook,
+    pub dbat_changed: GenericHook,
 }
 
-impl ContextHooks {
+impl Hooks {
     /// Returns the function signature for the `get_registers` hook.
     pub(crate) fn get_registers_sig(ptr_type: ir::Type) -> ir::Signature {
         ir::Signature {
             params: vec![
-                ir::AbiParam::new(ptr_type), // ctx
+                ir::AbiParam::new(ptr_type), // registers
             ],
             returns: vec![ir::AbiParam::new(ptr_type)],
             call_conv: isa::CallConv::SystemV,
@@ -78,7 +78,7 @@ impl ContextHooks {
     }
 }
 
-pub type BlockFn = extern "sysv64" fn(*mut Context, *const ContextHooks) -> u32;
+pub type BlockFn = extern "sysv64" fn(*mut Context, *const Hooks) -> u32;
 
 /// A compiled block of PowerPC instructions.
 pub struct Block {
@@ -103,7 +103,7 @@ impl Block {
 
     /// Executes this block of instructions.
     #[inline(always)]
-    pub fn run(&self, ctx: *mut Context, hooks: &ContextHooks) -> u32 {
+    pub fn run(&self, ctx: *mut Context, hooks: &Hooks) -> u32 {
         let func: BlockFn = unsafe { std::mem::transmute(self.code.as_ptr()) };
         func(ctx, hooks)
     }

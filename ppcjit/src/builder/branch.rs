@@ -107,7 +107,11 @@ impl BlockBuilder<'_> {
         self.bd.switch_to_block(exit_block);
         let target = self.ir_value(target);
         self.setup_jump(relative, ins.field_lk(), target);
+
+        // HACK: add to executed to count this instruction
+        self.executed += 1;
         self.prologue();
+        self.executed -= 1;
 
         self.bd.switch_to_block(continue_block);
         self.current_bb = continue_block;

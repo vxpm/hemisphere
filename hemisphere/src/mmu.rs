@@ -4,7 +4,7 @@ use common::{
     arch::{Bat, MemoryManagement},
     util::boxed_array,
 };
-use tracing::{trace, trace_span};
+use tracing::{info_span, trace, warn};
 
 const BASES_COUNT: usize = 1 << 15;
 type BlockLUT = Box<[u16; BASES_COUNT]>;
@@ -49,25 +49,35 @@ impl Mmu {
     }
 
     pub fn build_data_bat_lut(&mut self, dbats: &[Bat; 4]) {
-        let _span = trace_span!("building dbat lut");
+        let _span = info_span!("building dbat lut").entered();
 
         self.data_bat_lut.fill(NO_BAT);
-        for bat in dbats {
+        for (i, bat) in dbats.iter().enumerate() {
+            if !bat.supervisor_mode() {
+                warn!("dbat{i} is disabled in supervisor mode - ignoring it");
+                continue;
+            }
+
             Self::update_lut_with(&mut self.data_bat_lut, bat);
         }
     }
 
     pub fn build_instr_bat_lut(&mut self, ibats: &[Bat; 4]) {
-        let _span = trace_span!("building ibat lut");
+        let _span = info_span!("building ibat lut").entered();
 
         self.instr_bat_lut.fill(NO_BAT);
-        for bat in ibats {
+        for (i, bat) in ibats.iter().enumerate() {
+            if !bat.supervisor_mode() {
+                warn!("ibat{i} is disabled in supervisor mode");
+                continue;
+            }
+
             Self::update_lut_with(&mut self.instr_bat_lut, bat);
         }
     }
 
     pub fn build_bat_lut(&mut self, memory: &MemoryManagement) {
-        let _span = trace_span!("building bat luts");
+        let _span = info_span!("building bat luts").entered();
 
         self.build_data_bat_lut(&memory.dbat);
         self.build_instr_bat_lut(&memory.ibat);
