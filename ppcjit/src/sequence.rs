@@ -1,16 +1,24 @@
-use easyerr::Error;
 use common::arch::disasm::{Ins, Opcode, ParsedIns};
+use easyerr::Error;
 use std::ops::Deref;
 
 /// A sequence of PowerPC instructions which can be contained in a single JIT [`Block`](super::Block).
 pub struct Sequence(Vec<Ins>);
 
+fn is_jump(ins: &Ins) -> bool {
+    ins.is_unconditional_branch() || matches!(ins.op, Opcode::Rfi)
+}
+
+fn is_sync(ins: &Ins) -> bool {
+    matches!(ins.op, Opcode::Isync | Opcode::Sync | Opcode::Tlbsync)
+}
+
+fn is_exception(ins: &Ins) -> bool {
+    matches!(ins.op, Opcode::Sc)
+}
+
 fn is_terminal(ins: &Ins) -> bool {
-    ins.is_unconditional_branch()
-        || matches!(
-            ins.op,
-            Opcode::Illegal | Opcode::Rfi | Opcode::Isync | Opcode::Sync | Opcode::Tlbsync
-        )
+    is_jump(ins) || is_sync(ins) || is_exception(ins)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

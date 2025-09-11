@@ -3,7 +3,7 @@ use common::{Address, Primitive, arch::Registers, util::boxed_array};
 use interavl::IntervalTree;
 use ppcjit::{
     Block,
-    block::{ContextHooks, GenericHookFn, GetRegistersFn, ReadFn, WriteFn},
+    block::{GenericHook, GetRegistersHook, Hooks, ReadHook, WriteHook},
 };
 use slotmap::{SlotMap, new_key_type};
 use std::{collections::BTreeMap, ops::Range};
@@ -154,7 +154,7 @@ pub struct Context<'a> {
     pub mapping: &'a mut BlockMapping,
 }
 
-pub static CTX_HOOKS: ContextHooks = {
+pub static CTX_HOOKS: Hooks = {
     extern "sysv64" fn get_registers<'a>(ctx: &'a mut Context) -> &'a mut Registers {
         &mut ctx.system.cpu
     }
@@ -195,19 +195,19 @@ pub static CTX_HOOKS: ContextHooks = {
         use std::mem::transmute;
 
         let get_registers =
-            transmute::<_, GetRegistersFn>(get_registers as extern "sysv64" fn(_) -> _);
+            transmute::<_, GetRegistersHook>(get_registers as extern "sysv64" fn(_) -> _);
 
-        let read_i8 = transmute::<_, ReadFn<i8>>(read::<i8> as extern "sysv64" fn(_, _) -> _);
-        let write_i8 = transmute::<_, WriteFn<i8>>(write::<i8> as extern "sysv64" fn(_, _, _));
-        let read_i16 = transmute::<_, ReadFn<i16>>(read::<i16> as extern "sysv64" fn(_, _) -> _);
-        let write_i16 = transmute::<_, WriteFn<i16>>(write::<i16> as extern "sysv64" fn(_, _, _));
-        let read_i32 = transmute::<_, ReadFn<i32>>(read::<i32> as extern "sysv64" fn(_, _) -> _);
-        let write_i32 = transmute::<_, WriteFn<i32>>(write::<i32> as extern "sysv64" fn(_, _, _));
+        let read_i8 = transmute::<_, ReadHook<i8>>(read::<i8> as extern "sysv64" fn(_, _) -> _);
+        let write_i8 = transmute::<_, WriteHook<i8>>(write::<i8> as extern "sysv64" fn(_, _, _));
+        let read_i16 = transmute::<_, ReadHook<i16>>(read::<i16> as extern "sysv64" fn(_, _) -> _);
+        let write_i16 = transmute::<_, WriteHook<i16>>(write::<i16> as extern "sysv64" fn(_, _, _));
+        let read_i32 = transmute::<_, ReadHook<i32>>(read::<i32> as extern "sysv64" fn(_, _) -> _);
+        let write_i32 = transmute::<_, WriteHook<i32>>(write::<i32> as extern "sysv64" fn(_, _, _));
 
-        let ibat_changed = transmute::<_, GenericHookFn>(ibat_changed as extern "sysv64" fn(_));
-        let dbat_changed = transmute::<_, GenericHookFn>(dbat_changed as extern "sysv64" fn(_));
+        let ibat_changed = transmute::<_, GenericHook>(ibat_changed as extern "sysv64" fn(_));
+        let dbat_changed = transmute::<_, GenericHook>(dbat_changed as extern "sysv64" fn(_));
 
-        ContextHooks {
+        Hooks {
             get_registers,
 
             read_i8,

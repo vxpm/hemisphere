@@ -3,6 +3,9 @@ resolver = "3"
 members = ["common", "ppcjit", "dol", "dolinfo", "hemisphere", "cli"]
 default-members = ["common", "ppcjit", "dol", "hemisphere", "cli"]
 
+[profile.dev.package."iced-x86"]
+opt-level = 0
+
 [profile.dev.package."cranelift-codegen"]
 opt-level = 2
 

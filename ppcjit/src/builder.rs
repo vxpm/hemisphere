@@ -7,7 +7,7 @@ mod memory;
 mod others;
 mod util;
 
-use crate::{block::ContextHooks, builder::util::IntoIrValue};
+use crate::{block::Hooks, builder::util::IntoIrValue};
 use common::arch::{
     Reg,
     disasm::{Ins, Opcode},
@@ -40,10 +40,13 @@ pub enum EmitError {
 /// Constants used through block building.
 struct Consts {
     ptr_type: ir::Type,
+
     regs_ptr: ir::Value,
     ctx_ptr: ir::Value,
-    ctx_hooks_ptr: ir::Value,
-    ctx_hooks_sig: FxHashMap<i32, SigRef>,
+    hooks_ptr: ir::Value,
+
+    hooks_sig: FxHashMap<i32, SigRef>,
+    raise_exception_sig: Option<SigRef>,
 }
 
 /// State of a register.
@@ -79,15 +82,15 @@ impl<'ctx> BlockBuilder<'ctx> {
         let ptr_type = isa.pointer_type();
         let params = builder.block_params(entry_bb);
         let ctx_ptr = params[0];
-        let ctx_hooks_ptr = params[1];
+        let hooks_ptr = params[1];
 
         // extract regs ptr
-        let signature = builder.import_signature(ContextHooks::get_registers_sig(ptr_type));
+        let signature = builder.import_signature(Hooks::get_registers_sig(ptr_type));
         let get_registers = builder.ins().load(
             ptr_type,
             ir::MemFlags::trusted(),
-            ctx_hooks_ptr,
-            offset_of!(ContextHooks, get_registers) as i32,
+            hooks_ptr,
+            offset_of!(Hooks, get_registers) as i32,
         );
 
         let inst = builder
@@ -100,8 +103,9 @@ impl<'ctx> BlockBuilder<'ctx> {
             ptr_type,
             regs_ptr,
             ctx_ptr,
-            ctx_hooks_ptr,
-            ctx_hooks_sig: FxHashMap::default(),
+            hooks_ptr,
+            hooks_sig: FxHashMap::default(),
+            raise_exception_sig: None,
         };
 
         Self {
@@ -173,13 +177,13 @@ impl<'ctx> BlockBuilder<'ctx> {
         let hook = self.bd.ins().load(
             self.consts.ptr_type,
             ir::MemFlags::trusted(),
-            self.consts.ctx_hooks_ptr,
+            self.consts.hooks_ptr,
             offset,
         );
 
-        let sig = *self.consts.ctx_hooks_sig.entry(offset).or_insert_with(|| {
+        let sig = *self.consts.hooks_sig.entry(offset).or_insert_with(|| {
             self.bd
-                .import_signature(ContextHooks::generic_hook_sig(self.consts.ptr_type))
+                .import_signature(Hooks::generic_hook_sig(self.consts.ptr_type))
         });
 
         self.bd
@@ -187,14 +191,8 @@ impl<'ctx> BlockBuilder<'ctx> {
             .call_indirect(sig, hook, &[self.consts.ctx_ptr]);
     }
 
-    /// Emits the prologue:
-    /// - Writes modified registers to the Registers struct
-    /// - Call BAT hooks if they were changed
-    /// - Returns
-    fn prologue(&mut self) {
-        self.bd.set_srcloc(ir::SourceLoc::new(u32::MAX));
-        let executed = self.ir_value(self.executed);
-
+    /// Consolidates modified registers to the registers struct.
+    fn consolidate(&mut self) {
         for (reg, var) in &self.regs {
             if !var.modified {
                 continue;
@@ -208,13 +206,24 @@ impl<'ctx> BlockBuilder<'ctx> {
                 reg.offset() as i32,
             );
         }
+    }
+
+    /// Emits the prologue:
+    /// - Writes modified registers to the Registers struct
+    /// - Call BAT hooks if they were changed
+    /// - Returns
+    fn prologue(&mut self) {
+        self.bd.set_srcloc(ir::SourceLoc::new(u32::MAX));
+        let executed = self.ir_value(self.executed);
+
+        self.consolidate();
 
         if self.dbat_changed {
-            self.call_generic_hook(offset_of!(ContextHooks, dbat_changed) as i32);
+            self.call_generic_hook(offset_of!(Hooks, dbat_changed) as i32);
         }
 
         if self.ibat_changed {
-            self.call_generic_hook(offset_of!(ContextHooks, ibat_changed) as i32);
+            self.call_generic_hook(offset_of!(Hooks, ibat_changed) as i32);
         }
 
         self.bd.ins().return_(&[executed]);
@@ -310,6 +319,7 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Sync => self.stub(ins), // NOTE: stubbed
             Opcode::Xor => self.xor(ins),
             Opcode::Xori => self.xori(ins),
+            Opcode::Sc => self.sc(ins),
             Opcode::Illegal => {
                 return Err(EmitError::Illegal(ins));
             }
