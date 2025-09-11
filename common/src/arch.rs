@@ -445,7 +445,7 @@ pub struct QuantReg {
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Miscellaneous {
     /// Time Base
-    pub tbl: u64,
+    pub tb: u64,
     /// Decrementer
     pub dec: u32,
     /// L2 Control
@@ -805,6 +805,8 @@ pub enum Reg {
     SR13,
     SR14,
     SR15,
+    TBL,
+    TBU,
 }
 
 impl Reg {
@@ -854,6 +856,8 @@ impl Reg {
             Self::SR13 => offset_of!(Registers, supervisor.memory.sr[13]),
             Self::SR14 => offset_of!(Registers, supervisor.memory.sr[14]),
             Self::SR15 => offset_of!(Registers, supervisor.memory.sr[15]),
+            Self::TBL => offset_of!(Registers, supervisor.misc.tb),
+            Self::TBU => offset_of!(Registers, supervisor.misc.tb) + 4,
         }
     }
 

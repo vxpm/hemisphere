@@ -320,6 +320,8 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Xor => self.xor(ins),
             Opcode::Xori => self.xori(ins),
             Opcode::Sc => self.sc(ins),
+            Opcode::Sthu => self.sthu(ins),
+            Opcode::Lha => self.lha(ins),
             Opcode::Illegal => {
                 return Err(EmitError::Illegal(ins));
             }

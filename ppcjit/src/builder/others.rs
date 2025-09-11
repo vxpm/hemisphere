@@ -1,7 +1,7 @@
 use super::BlockBuilder;
 use bitos::BitUtils;
-use common::arch::{InsExt, Reg, SPR, disasm::Ins};
-use cranelift::prelude::InstBuilder;
+use common::arch::{InsExt, Reg, disasm::Ins};
+use cranelift::{codegen::ir, prelude::InstBuilder};
 use tracing::debug;
 
 impl BlockBuilder<'_> {
@@ -84,7 +84,25 @@ impl BlockBuilder<'_> {
     }
 
     pub fn mftb(&mut self, ins: Ins) {
-        // TODO: impl
-        self.set(ins.gpr_d(), 0i32);
+        let tb = match ins.field_tbr() {
+            268 => Reg::TBL,
+            269 => Reg::TBU,
+            _ => todo!(),
+        };
+
+        let value = self.get(tb);
+
+        // increment time base
+        let tbl = self.get(Reg::TBL);
+        let tbu = self.get(Reg::TBU);
+
+        let one = self.ir_value(1);
+        let (new_tbl, ov) = self.bd.ins().uadd_overflow(tbl, one);
+        let ov = self.bd.ins().uextend(ir::types::I32, ov);
+        let new_tbu = self.bd.ins().iadd(tbu, ov);
+
+        self.set(Reg::TBL, new_tbl);
+        self.set(Reg::TBU, new_tbu);
+        self.set(ins.gpr_d(), value);
     }
 }

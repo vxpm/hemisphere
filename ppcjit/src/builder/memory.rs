@@ -140,6 +140,15 @@ impl BlockBuilder<'_> {
         self.write::<i16>(addr, value);
     }
 
+    pub fn sthu(&mut self, ins: Ins) {
+        let value = self.get(ins.gpr_s());
+        let value = self.bd.ins().ireduce(ir::types::I16, value);
+        let base = self.get(ins.gpr_a());
+        let addr = self.bd.ins().iadd_imm(base, ins.field_offset() as i64);
+        self.set(ins.gpr_a(), addr);
+        self.write::<i16>(addr, value);
+    }
+
     pub fn stb(&mut self, ins: Ins) {
         let value = self.get(ins.gpr_s());
         let value = self.bd.ins().ireduce(ir::types::I8, value);
@@ -223,6 +232,20 @@ impl BlockBuilder<'_> {
 
         let value = self.read::<i16>(addr);
         let extended = self.bd.ins().uextend(ir::types::I32, value);
+
+        self.set(ins.gpr_d(), extended);
+    }
+
+    pub fn lha(&mut self, ins: Ins) {
+        let addr = if ins.field_ra() == 0 {
+            self.ir_value(ins.field_offset() as i32)
+        } else {
+            let ra = self.get(ins.gpr_a());
+            self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
+        };
+
+        let value = self.read::<i16>(addr);
+        let extended = self.bd.ins().sextend(ir::types::I32, value);
 
         self.set(ins.gpr_d(), extended);
     }
