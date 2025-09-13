@@ -2,7 +2,7 @@ mod app;
 
 use binrw::io::BufReader;
 use clap::Parser;
-use eyre_pretty::eyre::Result;
+use eyre_pretty::eyre::{self, Result};
 use hemisphere::{
     Config, Hemisphere,
     dol::{Dol, binrw::BinRead},
@@ -19,6 +19,8 @@ use crate::app::App;
 struct CliArgs {
     /// Path to a .dol file to load and execute
     input: PathBuf,
+    #[arg(long)]
+    dwarf: Option<PathBuf>,
     /// Whether to start running right away
     #[arg(short, long, default_value_t = false)]
     run: bool,
@@ -61,13 +63,22 @@ fn main() -> Result<()> {
     let file = std::fs::File::open(args.input).unwrap();
     let dol = Dol::read(&mut BufReader::new(file)).unwrap();
 
+    let addr2line = match args
+        .dwarf
+        .map(|path| addr2line::Loader::new(path))
+        .transpose()
+    {
+        Ok(dwarf) => dwarf,
+        Err(e) => eyre::bail!("{e}"),
+    };
+
     let mut runner = Runner::new(Hemisphere::new(Config {
         instr_per_block: args.instr_per_block,
     }));
     runner.with_state(|state| state.hemisphere_mut().system.load(&dol));
     runner.set_run(args.run);
 
-    let mut app = App::new(runner);
+    let mut app = App::new(runner, addr2line);
 
     info!("starting interface");
     let terminal = ratatui::init();

@@ -265,8 +265,10 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Icbi => self.stub(ins),  // NOTE: stubbed
             Opcode::Isync => self.stub(ins), // NOTE: stubbed
             Opcode::Lbz => self.lbz(ins),
+            Opcode::Lbzu => self.lbzu(ins),
             Opcode::Lbzx => self.lbzx(ins),
             Opcode::Lfd => self.stub(ins), // NOTE: stubbed
+            Opcode::Lha => self.lha(ins),
             Opcode::Lhz => self.lhz(ins),
             Opcode::Lhzx => self.lhzx(ins),
             Opcode::Lmw => self.lmw(ins),
@@ -299,13 +301,17 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Rlwimi => self.rlwimi(ins),
             Opcode::Rlwinm => self.rlwinm(ins),
             Opcode::Rlwnm => self.rlwnm(ins),
+            Opcode::Sc => self.sc(ins),
             Opcode::Slw => self.slw(ins),
             Opcode::Sraw => self.sraw(ins),
             Opcode::Srawi => self.srawi(ins),
             Opcode::Srw => self.srw(ins),
             Opcode::Stb => self.stb(ins),
             Opcode::Stbu => self.stbu(ins),
+            Opcode::Stbx => self.stbx(ins),
             Opcode::Sth => self.sth(ins),
+            Opcode::Sthu => self.sthu(ins),
+            Opcode::Sthx => self.sthx(ins),
             Opcode::Stmw => self.stmw(ins),
             Opcode::Stw => self.stw(ins),
             Opcode::Stwu => self.stwu(ins),
@@ -319,9 +325,6 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Sync => self.stub(ins), // NOTE: stubbed
             Opcode::Xor => self.xor(ins),
             Opcode::Xori => self.xori(ins),
-            Opcode::Sc => self.sc(ins),
-            Opcode::Sthu => self.sthu(ins),
-            Opcode::Lha => self.lha(ins),
             Opcode::Illegal => {
                 return Err(EmitError::Illegal(ins));
             }

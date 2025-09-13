@@ -1,3 +1,5 @@
+use std::fmt::Write;
+
 use crate::app::{Action, border_style, tab::Context};
 use hemisphere::{
     Address,
@@ -5,10 +7,10 @@ use hemisphere::{
 };
 use ratatui::{
     crossterm::event::{KeyCode, KeyEvent},
-    layout::{Constraint, Rect},
+    layout::{Constraint, Layout, Rect},
     style::{Style, Stylize},
     text::Text,
-    widgets::{Block, Borders, Row, Table},
+    widgets::{Block, Borders, Paragraph, Row, Table},
 };
 
 pub struct DisasmPane {
@@ -50,14 +52,10 @@ impl DisasmPane {
         None
     }
 
-    pub fn render(&mut self, ctx: &mut Context, area: Rect, focused: bool) {
+    fn render_instrs(&mut self, ctx: &mut Context, area: Rect, focused: bool) {
         let system = &ctx.state.hemisphere().system;
         let header = Row::new(vec!["Address", "Instruction"]).light_magenta();
         let widths = [Constraint::Length(11), Constraint::Min(1)];
-
-        if self.follow_pc {
-            self.target = system.cpu.pc;
-        }
 
         let mut rows = Vec::new();
         let mut parsed = ParsedIns::new();
@@ -96,16 +94,56 @@ impl DisasmPane {
             ]));
         }
 
-        let table = Table::new(rows, widths)
-            .column_spacing(2)
-            .header(header)
+        let table = Table::new(rows, widths).column_spacing(2).header(header);
+        ctx.frame.render_widget(table, area);
+    }
+
+    fn render_line(&mut self, ctx: &mut Context, area: Rect, focused: bool) {
+        let text = if let Some(addr2line) = ctx.addr2line
+            && let Ok(Some(loc)) = addr2line.find_location(self.target.value() as u64)
+        {
+            let mut text = loc.file.unwrap_or("unknown").to_string();
+            if let Some(line) = loc.line {
+                write!(&mut text, ":{line}").unwrap();
+            }
+            if let Some(col) = loc.column {
+                write!(&mut text, ":{col}").unwrap();
+            }
+
+            text
+        } else {
+            String::new()
+        };
+
+        let scroll = text.chars().count().saturating_sub(area.width as usize) as u16;
+        let paragraph = Paragraph::new(text)
             .block(
                 Block::new()
-                    .title("Disassembly")
-                    .borders(Borders::ALL)
+                    .borders(Borders::TOP)
                     .border_style(border_style(focused)),
-            );
+            )
+            .scroll((0, scroll));
 
-        ctx.frame.render_widget(table, area);
+        ctx.frame.render_widget(paragraph, area);
+    }
+
+    pub fn render(&mut self, ctx: &mut Context, area: Rect, focused: bool) {
+        if self.follow_pc {
+            self.target = ctx.state.hemisphere().system.cpu.pc;
+        }
+
+        let block = Block::new()
+            .title("Disassembly")
+            .borders(Borders::ALL)
+            .border_style(border_style(focused));
+        let inner = block.inner(area);
+
+        ctx.frame.render_widget(block, area);
+
+        let [instrs, line] =
+            Layout::vertical([Constraint::Min(1), Constraint::Length(2)]).areas(inner);
+
+        self.render_instrs(ctx, instrs, focused);
+        self.render_line(ctx, line, focused);
     }
 }
