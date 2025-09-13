@@ -446,7 +446,7 @@ impl BlockBuilder<'_> {
 
         self.set(ins.gpr_d(), result);
 
-        MUL_INFO
+        DIV_INFO
     }
 
     pub fn mullw(&mut self, ins: Ins) -> Info {
