@@ -28,6 +28,7 @@ impl ReadWriteAble for i32 {
     const WRITE_OFFSET: i32 = offset_of!(Hooks, write_i32) as i32;
 }
 
+/// Helpers
 impl BlockBuilder<'_> {
     fn read<P: ReadWriteAble>(&mut self, addr: ir::Value) -> ir::Value {
         let read_fn = self.bd.ins().load(
@@ -76,129 +77,222 @@ impl BlockBuilder<'_> {
             .ins()
             .call_indirect(sig, write_fn, &[self.consts.ctx_ptr, addr, value]);
     }
+}
 
-    pub fn stwu(&mut self, ins: Ins) {
-        let value = self.get(ins.gpr_s());
-        let base = self.get(ins.gpr_a());
-        let addr = self.bd.ins().iadd_imm(base, ins.field_offset() as i64);
-        self.set(ins.gpr_a(), addr);
-        self.write::<i32>(addr, value);
-    }
+struct LoadOp {
+    update: bool,
+    signed: bool,
+}
 
-    pub fn stw(&mut self, ins: Ins) {
-        let addr = if ins.field_ra() == 0 {
+/// Load operations
+impl BlockBuilder<'_> {
+    fn load<P: ReadWriteAble>(&mut self, ins: Ins, op: LoadOp) {
+        let addr = if !op.update && ins.field_ra() == 0 {
             self.ir_value(ins.field_offset() as i32)
         } else {
             let ra = self.get(ins.gpr_a());
             self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
         };
 
-        let value = self.get(ins.gpr_s());
-        self.write::<i32>(addr, value);
-    }
-
-    pub fn stmw(&mut self, ins: Ins) {
-        let mut addr = if ins.field_ra() == 0 {
-            self.ir_value(ins.field_offset() as i32)
-        } else {
-            let ra = self.get(ins.gpr_a());
-            self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
-        };
-
-        for i in ins.field_rs()..32 {
-            let value = self.get(GPR::new(i));
-            self.write::<i32>(addr, value);
-
-            addr = self.bd.ins().iadd_imm(addr, 4);
+        if op.update {
+            self.set(ins.gpr_a(), addr);
         }
+
+        let mut value = self.read::<P>(addr);
+        if P::IR_TYPE != ir::types::I32 {
+            value = if op.signed {
+                self.bd.ins().sextend(ir::types::I32, value)
+            } else {
+                self.bd.ins().uextend(ir::types::I32, value)
+            };
+        }
+
+        self.set(ins.gpr_d(), value);
     }
 
-    pub fn stwx(&mut self, ins: Ins) {
+    fn load_indexed<P: ReadWriteAble>(&mut self, ins: Ins, op: LoadOp) {
         let rb = self.get(ins.gpr_b());
-        let addr = if ins.field_ra() == 0 {
+        let addr = if !op.update && ins.field_ra() == 0 {
             rb
         } else {
             let ra = self.get(ins.gpr_a());
             self.bd.ins().iadd(ra, rb)
         };
 
-        let value = self.get(ins.gpr_s());
-        self.write::<i32>(addr, value);
+        if op.update {
+            self.set(ins.gpr_a(), addr);
+        }
+
+        let mut value = self.read::<P>(addr);
+        if P::IR_TYPE != ir::types::I32 {
+            value = if op.signed {
+                self.bd.ins().sextend(ir::types::I32, value)
+            } else {
+                self.bd.ins().uextend(ir::types::I32, value)
+            };
+        }
+
+        self.set(ins.gpr_d(), value);
     }
 
-    pub fn sth(&mut self, ins: Ins) {
-        let value = self.get(ins.gpr_s());
-        let value = self.bd.ins().ireduce(ir::types::I16, value);
-
-        let addr = if ins.field_ra() == 0 {
-            self.ir_value(ins.field_offset() as i32)
-        } else {
-            let ra = self.get(ins.gpr_a());
-            self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
-        };
-
-        self.write::<i16>(addr, value);
+    pub fn lbz(&mut self, ins: Ins) {
+        self.load::<i8>(
+            ins,
+            LoadOp {
+                update: false,
+                signed: false,
+            },
+        );
     }
 
-    pub fn sthu(&mut self, ins: Ins) {
-        let value = self.get(ins.gpr_s());
-        let value = self.bd.ins().ireduce(ir::types::I16, value);
-        let base = self.get(ins.gpr_a());
-        let addr = self.bd.ins().iadd_imm(base, ins.field_offset() as i64);
-        self.set(ins.gpr_a(), addr);
-        self.write::<i16>(addr, value);
+    pub fn lbzx(&mut self, ins: Ins) {
+        self.load_indexed::<i8>(
+            ins,
+            LoadOp {
+                update: false,
+                signed: false,
+            },
+        );
     }
 
-    pub fn sthx(&mut self, ins: Ins) {
-        let rb = self.get(ins.gpr_b());
-        let addr = if ins.field_ra() == 0 {
-            rb
-        } else {
-            let ra = self.get(ins.gpr_a());
-            self.bd.ins().iadd(ra, rb)
-        };
-
-        let value = self.get(ins.gpr_s());
-        let extended = self.bd.ins().ireduce(ir::types::I16, value);
-        self.write::<i16>(addr, extended);
+    pub fn lbzu(&mut self, ins: Ins) {
+        self.load::<i8>(
+            ins,
+            LoadOp {
+                update: true,
+                signed: false,
+            },
+        );
     }
 
-    pub fn stb(&mut self, ins: Ins) {
-        let value = self.get(ins.gpr_s());
-        let value = self.bd.ins().ireduce(ir::types::I8, value);
-
-        let addr = if ins.field_ra() == 0 {
-            self.ir_value(ins.field_offset() as i32)
-        } else {
-            let ra = self.get(ins.gpr_a());
-            self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
-        };
-
-        self.write::<i8>(addr, value);
+    pub fn lbzux(&mut self, ins: Ins) {
+        self.load_indexed::<i8>(
+            ins,
+            LoadOp {
+                update: true,
+                signed: false,
+            },
+        );
     }
 
-    pub fn stbu(&mut self, ins: Ins) {
-        let value = self.get(ins.gpr_s());
-        let value = self.bd.ins().ireduce(ir::types::I8, value);
-
-        let base = self.get(ins.gpr_a());
-        let addr = self.bd.ins().iadd_imm(base, ins.field_offset() as i64);
-        self.set(ins.gpr_a(), addr);
-        self.write::<i8>(addr, value);
+    pub fn lhz(&mut self, ins: Ins) {
+        self.load::<i16>(
+            ins,
+            LoadOp {
+                update: false,
+                signed: false,
+            },
+        );
     }
 
-    pub fn stbx(&mut self, ins: Ins) {
-        let rb = self.get(ins.gpr_b());
-        let addr = if ins.field_ra() == 0 {
-            rb
-        } else {
-            let ra = self.get(ins.gpr_a());
-            self.bd.ins().iadd(ra, rb)
-        };
+    pub fn lhzx(&mut self, ins: Ins) {
+        self.load_indexed::<i32>(
+            ins,
+            LoadOp {
+                update: false,
+                signed: false,
+            },
+        );
+    }
 
-        let value = self.get(ins.gpr_s());
-        let extended = self.bd.ins().ireduce(ir::types::I8, value);
-        self.write::<i8>(addr, extended);
+    pub fn lhzu(&mut self, ins: Ins) {
+        self.load::<i32>(
+            ins,
+            LoadOp {
+                update: true,
+                signed: false,
+            },
+        );
+    }
+
+    pub fn lhzux(&mut self, ins: Ins) {
+        self.load_indexed::<i32>(
+            ins,
+            LoadOp {
+                update: true,
+                signed: false,
+            },
+        );
+    }
+
+    pub fn lha(&mut self, ins: Ins) {
+        self.load::<i16>(
+            ins,
+            LoadOp {
+                update: false,
+                signed: true,
+            },
+        );
+    }
+
+    pub fn lhax(&mut self, ins: Ins) {
+        self.load_indexed::<i16>(
+            ins,
+            LoadOp {
+                update: false,
+                signed: true,
+            },
+        );
+    }
+
+    pub fn lhau(&mut self, ins: Ins) {
+        self.load::<i16>(
+            ins,
+            LoadOp {
+                update: true,
+                signed: true,
+            },
+        );
+    }
+
+    pub fn lhaux(&mut self, ins: Ins) {
+        self.load_indexed::<i16>(
+            ins,
+            LoadOp {
+                update: true,
+                signed: true,
+            },
+        );
+    }
+
+    pub fn lwz(&mut self, ins: Ins) {
+        self.load::<i32>(
+            ins,
+            LoadOp {
+                update: false,
+                signed: false,
+            },
+        );
+    }
+
+    pub fn lwzx(&mut self, ins: Ins) {
+        self.load_indexed::<i32>(
+            ins,
+            LoadOp {
+                update: false,
+                signed: false,
+            },
+        );
+    }
+
+    pub fn lwzu(&mut self, ins: Ins) {
+        self.load::<i32>(
+            ins,
+            LoadOp {
+                update: true,
+                signed: false,
+            },
+        );
+    }
+
+    pub fn lwzux(&mut self, ins: Ins) {
+        self.load_indexed::<i32>(
+            ins,
+            LoadOp {
+                update: true,
+                signed: false,
+            },
+        );
     }
 
     pub fn lmw(&mut self, ins: Ins) {
@@ -216,118 +310,112 @@ impl BlockBuilder<'_> {
             addr = self.bd.ins().iadd_imm(addr, 4);
         }
     }
+}
 
-    pub fn lwz(&mut self, ins: Ins) {
-        let addr = if ins.field_ra() == 0 {
+/// Store operations
+impl BlockBuilder<'_> {
+    fn store<P: ReadWriteAble>(&mut self, ins: Ins, update: bool) {
+        let addr = if !update && ins.field_ra() == 0 {
             self.ir_value(ins.field_offset() as i32)
         } else {
             let ra = self.get(ins.gpr_a());
             self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
         };
 
-        let value = self.read::<i32>(addr);
-        self.set(ins.gpr_d(), value);
+        if update {
+            self.set(ins.gpr_a(), addr);
+        }
+
+        let mut value = self.get(ins.gpr_s());
+        if P::IR_TYPE != ir::types::I32 {
+            value = self.bd.ins().ireduce(P::IR_TYPE, value);
+        }
+
+        self.write::<P>(addr, value);
     }
 
-    pub fn lwzx(&mut self, ins: Ins) {
+    fn store_indexed<P: ReadWriteAble>(&mut self, ins: Ins, update: bool) {
         let rb = self.get(ins.gpr_b());
-        let addr = if ins.field_ra() == 0 {
+        let addr = if !update && ins.field_ra() == 0 {
             rb
         } else {
             let ra = self.get(ins.gpr_a());
             self.bd.ins().iadd(ra, rb)
         };
 
-        let value = self.read::<i32>(addr);
-        self.set(ins.gpr_d(), value);
+        if update {
+            self.set(ins.gpr_a(), addr);
+        }
+
+        let mut value = self.get(ins.gpr_s());
+        if P::IR_TYPE != ir::types::I32 {
+            value = self.bd.ins().ireduce(P::IR_TYPE, value);
+        }
+
+        self.write::<P>(addr, value);
     }
 
-    pub fn lwzu(&mut self, ins: Ins) {
-        let base = self.get(ins.gpr_a());
-        let addr = self.bd.ins().iadd_imm(base, ins.field_offset() as i64);
-        let value = self.read::<i32>(addr);
-        self.set(ins.gpr_d(), value);
-        self.set(ins.gpr_a(), addr);
+    pub fn stb(&mut self, ins: Ins) {
+        self.store::<i8>(ins, false);
     }
 
-    pub fn lhz(&mut self, ins: Ins) {
-        let addr = if ins.field_ra() == 0 {
+    pub fn stbx(&mut self, ins: Ins) {
+        self.store_indexed::<i8>(ins, false);
+    }
+
+    pub fn stbu(&mut self, ins: Ins) {
+        self.store::<i8>(ins, true);
+    }
+
+    pub fn stbux(&mut self, ins: Ins) {
+        self.store_indexed::<i8>(ins, true);
+    }
+
+    pub fn sth(&mut self, ins: Ins) {
+        self.store::<i16>(ins, false);
+    }
+
+    pub fn sthx(&mut self, ins: Ins) {
+        self.store_indexed::<i16>(ins, false);
+    }
+
+    pub fn sthu(&mut self, ins: Ins) {
+        self.store::<i16>(ins, true);
+    }
+
+    pub fn sthux(&mut self, ins: Ins) {
+        self.store_indexed::<i8>(ins, true);
+    }
+
+    pub fn stw(&mut self, ins: Ins) {
+        self.store::<i32>(ins, false);
+    }
+
+    pub fn stwx(&mut self, ins: Ins) {
+        self.store_indexed::<i32>(ins, false);
+    }
+
+    pub fn stwu(&mut self, ins: Ins) {
+        self.store::<i32>(ins, true);
+    }
+
+    pub fn stwux(&mut self, ins: Ins) {
+        self.store_indexed::<i32>(ins, true);
+    }
+
+    pub fn stmw(&mut self, ins: Ins) {
+        let mut addr = if ins.field_ra() == 0 {
             self.ir_value(ins.field_offset() as i32)
         } else {
             let ra = self.get(ins.gpr_a());
             self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
         };
 
-        let value = self.read::<i16>(addr);
-        let extended = self.bd.ins().uextend(ir::types::I32, value);
+        for i in ins.field_rs()..32 {
+            let value = self.get(GPR::new(i));
+            self.write::<i32>(addr, value);
 
-        self.set(ins.gpr_d(), extended);
-    }
-
-    pub fn lha(&mut self, ins: Ins) {
-        let addr = if ins.field_ra() == 0 {
-            self.ir_value(ins.field_offset() as i32)
-        } else {
-            let ra = self.get(ins.gpr_a());
-            self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
-        };
-
-        let value = self.read::<i16>(addr);
-        let extended = self.bd.ins().sextend(ir::types::I32, value);
-
-        self.set(ins.gpr_d(), extended);
-    }
-
-    pub fn lhzx(&mut self, ins: Ins) {
-        let rb = self.get(ins.gpr_b());
-        let addr = if ins.field_ra() == 0 {
-            rb
-        } else {
-            let ra = self.get(ins.gpr_a());
-            self.bd.ins().iadd(ra, rb)
-        };
-
-        let value = self.read::<i16>(addr);
-        let extended = self.bd.ins().uextend(ir::types::I32, value);
-
-        self.set(ins.gpr_d(), extended);
-    }
-
-    pub fn lbz(&mut self, ins: Ins) {
-        let addr = if ins.field_ra() == 0 {
-            self.ir_value(ins.field_offset() as i32)
-        } else {
-            let ra = self.get(ins.gpr_a());
-            self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
-        };
-
-        let value = self.read::<i8>(addr);
-        let extended = self.bd.ins().uextend(ir::types::I32, value);
-
-        self.set(ins.gpr_d(), extended);
-    }
-
-    pub fn lbzu(&mut self, ins: Ins) {
-        let base = self.get(ins.gpr_a());
-        let addr = self.bd.ins().iadd_imm(base, ins.field_offset() as i64);
-        let value = self.read::<i8>(addr);
-        let extended = self.bd.ins().uextend(ir::types::I32, value);
-        self.set(ins.gpr_d(), extended);
-        self.set(ins.gpr_a(), addr);
-    }
-
-    pub fn lbzx(&mut self, ins: Ins) {
-        let rb = self.get(ins.gpr_b());
-        let addr = if ins.field_ra() == 0 {
-            rb
-        } else {
-            let ra = self.get(ins.gpr_a());
-            self.bd.ins().iadd(ra, rb)
-        };
-
-        let value = self.read::<i8>(addr);
-        let extended = self.bd.ins().uextend(ir::types::I32, value);
-
-        self.set(ins.gpr_d(), extended);
+            addr = self.bd.ins().iadd_imm(addr, 4);
+        }
     }
 }
