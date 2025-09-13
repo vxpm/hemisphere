@@ -1,3 +1,5 @@
+//! Hemisphere: a Nintendo GameCube emulator
+
 #![feature(cold_path)]
 
 pub mod bus;
@@ -23,9 +25,6 @@ use tracing::{trace, trace_span};
 
 pub use common::{self, Address, Primitive, arch};
 pub use dol;
-
-/// The CPU frequency.
-pub const FREQUENCY: u32 = 486_000_000;
 
 /// Emulator configuration.
 pub struct Config {

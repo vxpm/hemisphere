@@ -1,5 +1,5 @@
-use crate::{FREQUENCY, Hemisphere};
-use common::Address;
+use crate::Hemisphere;
+use common::{Address, arch::FREQUENCY};
 use parking_lot::FairMutex;
 use std::{
     collections::VecDeque,

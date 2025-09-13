@@ -31,7 +31,10 @@ extern "sysv64" fn raise_exception(regs: &mut Registers, exception: Exception) {
 impl BlockBuilder<'_> {
     fn raise_exception(&mut self, exception: Exception) -> Info {
         let func = raise_exception as extern "sysv64" fn(_, _);
-        let ptr = self.bd.ins().iconst(self.consts.ptr_type, func as i64);
+        let ptr = self
+            .bd
+            .ins()
+            .iconst(self.consts.ptr_type, func as usize as u64 as i64);
         let sig = *self.consts.raise_exception_sig.get_or_insert_with(|| {
             self.bd
                 .import_signature(raise_exception_sig(self.consts.ptr_type))

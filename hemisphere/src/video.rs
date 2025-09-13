@@ -1,6 +1,6 @@
 mod regs;
 
-use crate::FREQUENCY;
+use common::arch::FREQUENCY;
 
 pub use regs::*;
 

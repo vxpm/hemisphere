@@ -1,5 +1,5 @@
 use crate::app::{Action, border_style, tab::Context};
-use hemisphere::FREQUENCY;
+use hemisphere::arch::FREQUENCY;
 use ratatui::{
     crossterm::event::{KeyCode, KeyEvent},
     layout::{Constraint, Layout, Rect},
