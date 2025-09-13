@@ -1,6 +1,7 @@
 #![feature(cold_path)]
 
 pub mod bus;
+pub mod dsp;
 pub mod jit;
 pub mod mem;
 pub mod mmu;
