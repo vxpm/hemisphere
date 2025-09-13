@@ -1,10 +1,16 @@
 use super::BlockBuilder;
+use crate::builder::Info;
 use common::arch::{Exception, Reg, Registers, SPR, disasm::Ins};
 use cranelift::{
     codegen::ir,
     prelude::{InstBuilder, isa},
 };
 use tracing::info;
+
+const EXCEPTION_INFO: Info = Info {
+    cycles: 2,
+    auto_pc: false,
+};
 
 fn raise_exception_sig(ptr_type: ir::Type) -> ir::Signature {
     ir::Signature {
@@ -23,7 +29,7 @@ extern "sysv64" fn raise_exception(regs: &mut Registers, exception: Exception) {
 }
 
 impl BlockBuilder<'_> {
-    fn raise_exception(&mut self, exception: Exception) {
+    fn raise_exception(&mut self, exception: Exception) -> Info {
         let func = raise_exception as extern "sysv64" fn(_, _);
         let ptr = self.bd.ins().iconst(self.consts.ptr_type, func as i64);
         let sig = *self.consts.raise_exception_sig.get_or_insert_with(|| {
@@ -51,13 +57,15 @@ impl BlockBuilder<'_> {
 
         self.bd.switch_to_block(dummy);
         self.current_bb = dummy;
+
+        EXCEPTION_INFO
     }
 
-    pub fn sc(&mut self, _: Ins) {
-        self.raise_exception(Exception::Syscall);
+    pub fn sc(&mut self, _: Ins) -> Info {
+        self.raise_exception(Exception::Syscall)
     }
 
-    pub fn rfi(&mut self, _: Ins) {
+    pub fn rfi(&mut self, _: Ins) -> Info {
         let msr = self.get(Reg::MSR);
         let srr0 = self.get(SPR::SRR0);
         let srr1 = self.get(SPR::SRR1);
@@ -73,9 +81,9 @@ impl BlockBuilder<'_> {
 
         // set PC to SRR0
         let new_pc = self.bd.ins().band_imm(srr0, !0b11);
-        let new_pc = self.bd.ins().iadd_imm(new_pc, -4);
-
         self.set(Reg::PC, new_pc);
         self.set(Reg::MSR, new_msr);
+
+        EXCEPTION_INFO
     }
 }

@@ -1,4 +1,5 @@
 use super::BlockBuilder;
+use crate::builder::Info;
 use common::arch::{Reg, SPR, disasm::Ins};
 use cranelift::{
     codegen::ir,
@@ -60,8 +61,12 @@ impl IntoIrValue for u32 {
 
 impl BlockBuilder<'_> {
     /// Stub instruction - does absolutely nothing.
-    pub fn stub(&mut self, _: Ins) {
+    pub fn stub(&mut self, _: Ins) -> Info {
         self.bd.ins().nop();
+        Info {
+            cycles: 2,
+            auto_pc: true,
+        }
     }
 
     /// Creates an IR value from the given `value`.

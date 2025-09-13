@@ -1,16 +1,44 @@
 use super::BlockBuilder;
+use crate::builder::Info;
 use bitos::BitUtils;
 use common::arch::{InsExt, Reg, disasm::Ins};
 use cranelift::{codegen::ir, prelude::InstBuilder};
 use tracing::debug;
 
+const SPR_INFO: Info = Info {
+    cycles: 1,
+    auto_pc: true,
+};
+
+const MSR_INFO: Info = Info {
+    cycles: 1,
+    auto_pc: true,
+};
+
+const CR_INFO: Info = Info {
+    cycles: 1,
+    auto_pc: true,
+};
+
+const SR_INFO: Info = Info {
+    cycles: 2,
+    auto_pc: true,
+};
+
+const TB_INFO: Info = Info {
+    cycles: 1,
+    auto_pc: true,
+};
+
 impl BlockBuilder<'_> {
-    pub fn mfspr(&mut self, ins: Ins) {
+    pub fn mfspr(&mut self, ins: Ins) -> Info {
         let value = self.get(ins.spr());
         self.set(ins.gpr_d(), value);
+
+        SPR_INFO
     }
 
-    pub fn mtspr(&mut self, ins: Ins) {
+    pub fn mtspr(&mut self, ins: Ins) -> Info {
         let value = self.get(ins.gpr_s());
         let spr = ins.spr();
 
@@ -23,35 +51,45 @@ impl BlockBuilder<'_> {
         }
 
         self.set(spr, value);
+
+        SPR_INFO
     }
 
-    pub fn mtsr(&mut self, ins: Ins) {
+    pub fn mtsr(&mut self, ins: Ins) -> Info {
         let value = self.get(ins.gpr_s());
         let sr = Reg::SR[ins.field_sr() as usize];
         self.set(sr, value);
+
+        SR_INFO
     }
 
-    pub fn mfmsr(&mut self, ins: Ins) {
+    pub fn mfmsr(&mut self, ins: Ins) -> Info {
         // TODO: check user mode
 
         let value = self.get(Reg::MSR);
         self.set(ins.gpr_d(), value);
+
+        MSR_INFO
     }
 
-    pub fn mtmsr(&mut self, ins: Ins) {
+    pub fn mtmsr(&mut self, ins: Ins) -> Info {
         // TODO: check user mode
         // TODO: deal with exception stuff
 
         let value = self.get(ins.gpr_s());
         self.set(Reg::MSR, value);
+
+        MSR_INFO
     }
 
-    pub fn mfcr(&mut self, ins: Ins) {
+    pub fn mfcr(&mut self, ins: Ins) -> Info {
         let value = self.get(Reg::CR);
         self.set(ins.gpr_d(), value);
+
+        CR_INFO
     }
 
-    pub fn mtcrf(&mut self, ins: Ins) {
+    pub fn mtcrf(&mut self, ins: Ins) -> Info {
         let rs = self.get(ins.gpr_s());
         let mask_control = ins.field_crm();
 
@@ -70,20 +108,11 @@ impl BlockBuilder<'_> {
         let value = self.bd.ins().bitselect(mask, rs, cr);
 
         self.set(Reg::CR, value);
+
+        CR_INFO
     }
 
-    pub fn mtsfb1(&mut self, ins: Ins) {
-        let bit = ins.field_crbd();
-        let old = self.get(Reg::FPSCR);
-        let new = self.bd.ins().bor_imm(old, 1 << bit);
-        self.set(Reg::FPSCR, new);
-
-        if ins.field_rc() {
-            todo!()
-        }
-    }
-
-    pub fn mftb(&mut self, ins: Ins) {
+    pub fn mftb(&mut self, ins: Ins) -> Info {
         let tb = match ins.field_tbr() {
             268 => Reg::TBL,
             269 => Reg::TBU,
@@ -104,5 +133,7 @@ impl BlockBuilder<'_> {
         self.set(Reg::TBL, new_tbl);
         self.set(Reg::TBU, new_tbu);
         self.set(ins.gpr_d(), value);
+
+        TB_INFO
     }
 }

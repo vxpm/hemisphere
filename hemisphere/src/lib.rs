@@ -221,9 +221,9 @@ impl Hemisphere {
         self.exec_with_limit(limit)
     }
 
-    /// Executes a single block and returns how many instructions were executed.
+    /// Executes a single block and returns how many cycles were executed.
     pub fn exec(&mut self) -> u32 {
-        tracing::debug!("exec at {}", self.system.cpu.pc);
+        // tracing::debug!("exec at {}", self.system.cpu.pc);
 
         let block = self
             .jit

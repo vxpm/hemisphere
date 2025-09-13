@@ -1,11 +1,15 @@
-use crate::builder::util::IntoIrValue;
-
 use super::BlockBuilder;
+use crate::builder::{Info, util::IntoIrValue};
 use bitos::BitUtils;
 use common::arch::{InsExt, disasm::Ins};
 use cranelift::{
     codegen::ir,
     prelude::{InstBuilder, IntCC},
+};
+
+const LOGIC_INFO: Info = Info {
+    cycles: 1,
+    auto_pc: true,
 };
 
 enum BasicBitOpKind {
@@ -69,7 +73,7 @@ impl BlockBuilder<'_> {
         }
     }
 
-    fn basic_bitop(&mut self, ins: Ins, op: BasicBitOp) {
+    fn basic_bitop(&mut self, ins: Ins, op: BasicBitOp) -> Info {
         let lhs = self.get(ins.gpr_s());
         let rhs = self.basic_bitop_get_rhs(ins, op.rhs);
         let value = self.basic_bitop_compute(op.kind, lhs, rhs);
@@ -79,9 +83,11 @@ impl BlockBuilder<'_> {
         }
 
         self.set(ins.gpr_a(), value);
+
+        LOGIC_INFO
     }
 
-    pub fn or(&mut self, ins: Ins) {
+    pub fn or(&mut self, ins: Ins) -> Info {
         self.basic_bitop(
             ins,
             BasicBitOp {
@@ -89,10 +95,10 @@ impl BlockBuilder<'_> {
                 rhs: BasicBitOpRhs::RB,
                 record: ins.field_rc(),
             },
-        );
+        )
     }
 
-    pub fn orc(&mut self, ins: Ins) {
+    pub fn orc(&mut self, ins: Ins) -> Info {
         self.basic_bitop(
             ins,
             BasicBitOp {
@@ -100,10 +106,10 @@ impl BlockBuilder<'_> {
                 rhs: BasicBitOpRhs::ComplementRB,
                 record: ins.field_rc(),
             },
-        );
+        )
     }
 
-    pub fn ori(&mut self, ins: Ins) {
+    pub fn ori(&mut self, ins: Ins) -> Info {
         self.basic_bitop(
             ins,
             BasicBitOp {
@@ -111,10 +117,10 @@ impl BlockBuilder<'_> {
                 rhs: BasicBitOpRhs::Imm,
                 record: false,
             },
-        );
+        )
     }
 
-    pub fn oris(&mut self, ins: Ins) {
+    pub fn oris(&mut self, ins: Ins) -> Info {
         self.basic_bitop(
             ins,
             BasicBitOp {
@@ -122,10 +128,10 @@ impl BlockBuilder<'_> {
                 rhs: BasicBitOpRhs::ShiftedImm,
                 record: false,
             },
-        );
+        )
     }
 
-    pub fn nor(&mut self, ins: Ins) {
+    pub fn nor(&mut self, ins: Ins) -> Info {
         self.basic_bitop(
             ins,
             BasicBitOp {
@@ -133,10 +139,10 @@ impl BlockBuilder<'_> {
                 rhs: BasicBitOpRhs::RB,
                 record: ins.field_rc(),
             },
-        );
+        )
     }
 
-    pub fn xor(&mut self, ins: Ins) {
+    pub fn xor(&mut self, ins: Ins) -> Info {
         self.basic_bitop(
             ins,
             BasicBitOp {
@@ -144,10 +150,10 @@ impl BlockBuilder<'_> {
                 rhs: BasicBitOpRhs::RB,
                 record: ins.field_rc(),
             },
-        );
+        )
     }
 
-    pub fn xori(&mut self, ins: Ins) {
+    pub fn xori(&mut self, ins: Ins) -> Info {
         self.basic_bitop(
             ins,
             BasicBitOp {
@@ -155,10 +161,10 @@ impl BlockBuilder<'_> {
                 rhs: BasicBitOpRhs::Imm,
                 record: false,
             },
-        );
+        )
     }
 
-    pub fn and(&mut self, ins: Ins) {
+    pub fn and(&mut self, ins: Ins) -> Info {
         self.basic_bitop(
             ins,
             BasicBitOp {
@@ -166,10 +172,10 @@ impl BlockBuilder<'_> {
                 rhs: BasicBitOpRhs::RB,
                 record: ins.field_rc(),
             },
-        );
+        )
     }
 
-    pub fn andc(&mut self, ins: Ins) {
+    pub fn andc(&mut self, ins: Ins) -> Info {
         self.basic_bitop(
             ins,
             BasicBitOp {
@@ -177,10 +183,10 @@ impl BlockBuilder<'_> {
                 rhs: BasicBitOpRhs::ComplementRB,
                 record: ins.field_rc(),
             },
-        );
+        )
     }
 
-    pub fn andi_record(&mut self, ins: Ins) {
+    pub fn andi_record(&mut self, ins: Ins) -> Info {
         self.basic_bitop(
             ins,
             BasicBitOp {
@@ -188,10 +194,10 @@ impl BlockBuilder<'_> {
                 rhs: BasicBitOpRhs::Imm,
                 record: true,
             },
-        );
+        )
     }
 
-    pub fn andis_record(&mut self, ins: Ins) {
+    pub fn andis_record(&mut self, ins: Ins) -> Info {
         self.basic_bitop(
             ins,
             BasicBitOp {
@@ -199,10 +205,10 @@ impl BlockBuilder<'_> {
                 rhs: BasicBitOpRhs::ShiftedImm,
                 record: true,
             },
-        );
+        )
     }
 
-    pub fn nand(&mut self, ins: Ins) {
+    pub fn nand(&mut self, ins: Ins) -> Info {
         self.basic_bitop(
             ins,
             BasicBitOp {
@@ -210,10 +216,10 @@ impl BlockBuilder<'_> {
                 rhs: BasicBitOpRhs::RB,
                 record: ins.field_rc(),
             },
-        );
+        )
     }
 
-    pub fn eqv(&mut self, ins: Ins) {
+    pub fn eqv(&mut self, ins: Ins) -> Info {
         self.basic_bitop(
             ins,
             BasicBitOp {
@@ -221,13 +227,13 @@ impl BlockBuilder<'_> {
                 rhs: BasicBitOpRhs::RB,
                 record: ins.field_rc(),
             },
-        );
+        )
     }
 }
 
 /// Signed extension operations
 impl BlockBuilder<'_> {
-    fn signext(&mut self, ins: Ins, ty: ir::Type) {
+    fn signext(&mut self, ins: Ins, ty: ir::Type) -> Info {
         let rs = self.get(ins.gpr_s());
 
         let byte = self.bd.ins().ireduce(ty, rs);
@@ -238,14 +244,16 @@ impl BlockBuilder<'_> {
         }
 
         self.set(ins.gpr_a(), value);
+
+        LOGIC_INFO
     }
 
-    pub fn extsb(&mut self, ins: Ins) {
-        self.signext(ins, ir::types::I8);
+    pub fn extsb(&mut self, ins: Ins) -> Info {
+        self.signext(ins, ir::types::I8)
     }
 
-    pub fn extsh(&mut self, ins: Ins) {
-        self.signext(ins, ir::types::I16);
+    pub fn extsh(&mut self, ins: Ins) -> Info {
+        self.signext(ins, ir::types::I16)
     }
 }
 
@@ -283,7 +291,7 @@ impl BlockBuilder<'_> {
         }
     }
 
-    pub fn rlwinm(&mut self, ins: Ins) {
+    pub fn rlwinm(&mut self, ins: Ins) -> Info {
         let rs = self.get(ins.gpr_s());
         let mask = self.generate_mask(ins);
 
@@ -291,9 +299,11 @@ impl BlockBuilder<'_> {
         let masked = self.bd.ins().band_imm(rotated, mask as i64);
 
         self.set(ins.gpr_a(), masked);
+
+        LOGIC_INFO
     }
 
-    pub fn rlwnm(&mut self, ins: Ins) {
+    pub fn rlwnm(&mut self, ins: Ins) -> Info {
         let rs = self.get(ins.gpr_s());
         let rb = self.get(ins.gpr_b());
         let mask = self.generate_mask(ins);
@@ -303,9 +313,11 @@ impl BlockBuilder<'_> {
         let masked = self.bd.ins().band_imm(rotated, mask as i64);
 
         self.set(ins.gpr_a(), masked);
+
+        LOGIC_INFO
     }
 
-    pub fn rlwimi(&mut self, ins: Ins) {
+    pub fn rlwimi(&mut self, ins: Ins) -> Info {
         let rs = self.get(ins.gpr_s());
         let ra = self.get(ins.gpr_a());
         let mask = self.generate_mask(ins).into_value(&mut self.bd);
@@ -314,6 +326,8 @@ impl BlockBuilder<'_> {
         let inserted = self.bd.ins().bitselect(mask, rotated, ra);
 
         self.set(ins.gpr_a(), inserted);
+
+        LOGIC_INFO
     }
 
     fn shift_compute(&mut self, op: ShiftKind, lhs: ir::Value, rhs: ir::Value) -> ir::Value {
@@ -348,7 +362,7 @@ impl BlockBuilder<'_> {
         }
     }
 
-    fn shift(&mut self, ins: Ins, op: ShiftOp) {
+    fn shift(&mut self, ins: Ins, op: ShiftOp) -> Info {
         let lhs = self.get(ins.gpr_s());
         let rhs = self.shift_get_rhs(ins, op.rhs);
 
@@ -362,52 +376,54 @@ impl BlockBuilder<'_> {
         }
 
         self.set(ins.gpr_a(), value);
+
+        LOGIC_INFO
     }
 
-    pub fn slw(&mut self, ins: Ins) {
+    pub fn slw(&mut self, ins: Ins) -> Info {
         self.shift(
             ins,
             ShiftOp {
                 kind: ShiftKind::Left,
                 rhs: ShiftRhs::RB,
             },
-        );
+        )
     }
 
-    pub fn srw(&mut self, ins: Ins) {
+    pub fn srw(&mut self, ins: Ins) -> Info {
         self.shift(
             ins,
             ShiftOp {
                 kind: ShiftKind::RightLogic,
                 rhs: ShiftRhs::RB,
             },
-        );
+        )
     }
 
-    pub fn sraw(&mut self, ins: Ins) {
+    pub fn sraw(&mut self, ins: Ins) -> Info {
         self.shift(
             ins,
             ShiftOp {
                 kind: ShiftKind::RightArithmetic,
                 rhs: ShiftRhs::RB,
             },
-        );
+        )
     }
 
-    pub fn srawi(&mut self, ins: Ins) {
+    pub fn srawi(&mut self, ins: Ins) -> Info {
         self.shift(
             ins,
             ShiftOp {
                 kind: ShiftKind::RightArithmetic,
                 rhs: ShiftRhs::Imm,
             },
-        );
+        )
     }
 }
 
 /// Misc operations
 impl BlockBuilder<'_> {
-    pub fn cntlzw(&mut self, ins: Ins) {
+    pub fn cntlzw(&mut self, ins: Ins) -> Info {
         let rs = self.get(ins.gpr_s());
         let value = self.bd.ins().clz(rs);
 
@@ -416,5 +432,7 @@ impl BlockBuilder<'_> {
         }
 
         self.set(ins.gpr_a(), value);
+
+        LOGIC_INFO
     }
 }

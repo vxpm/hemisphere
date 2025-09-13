@@ -1,9 +1,18 @@
-use crate::builder::util::IntoIrValue;
-
 use super::BlockBuilder;
+use crate::builder::{Info, util::IntoIrValue};
 use bitos::{bitos, integer::u5};
 use common::arch::{Reg, SPR, disasm::Ins};
 use cranelift::{codegen::ir, prelude::InstBuilder};
+
+const JUMP_INFO: Info = Info {
+    cycles: 2,
+    auto_pc: false,
+};
+
+const BRANCH_INFO: Info = Info {
+    cycles: 3,
+    auto_pc: true,
+};
 
 #[bitos(1)]
 #[derive(Debug, Clone, Copy)]
@@ -43,13 +52,14 @@ impl BlockBuilder<'_> {
         }
     }
 
-    pub fn b(&mut self, ins: Ins) {
-        // NOTE: the minus 4 is to work around the automatic PC increase in the emit method
-        let target = self.ir_value(ins.field_li().wrapping_sub(4) as u32);
+    pub fn b(&mut self, ins: Ins) -> Info {
+        let target = self.ir_value(ins.field_li());
         self.setup_jump(!ins.field_aa(), ins.field_lk(), target);
+
+        JUMP_INFO
     }
 
-    fn conditional_branch(&mut self, ins: Ins, relative: bool, target: impl IntoIrValue) {
+    fn conditional_branch(&mut self, ins: Ins, relative: bool, target: impl IntoIrValue) -> Info {
         let options = BranchOptions::from_bits(u5::new(ins.field_bo()));
         let cond_bit = 31 - ins.field_bi();
         let current_pc = self.get(Reg::PC);
@@ -108,27 +118,29 @@ impl BlockBuilder<'_> {
         let target = self.ir_value(target);
         self.setup_jump(relative, ins.field_lk(), target);
 
-        // HACK: add to executed to count this instruction
-        self.executed += 1;
+        // HACK: add to cycles for prologue emission
+        self.cycles += BRANCH_INFO.cycles as u32;
         self.prologue();
-        self.executed -= 1;
+        self.cycles -= BRANCH_INFO.cycles as u32;
 
         self.bd.switch_to_block(continue_block);
         self.current_bb = continue_block;
         self.set(Reg::PC, current_pc);
+
+        BRANCH_INFO
     }
 
-    pub fn bc(&mut self, ins: Ins) {
-        self.conditional_branch(ins, !ins.field_aa(), ins.field_bd() as i32);
+    pub fn bc(&mut self, ins: Ins) -> Info {
+        self.conditional_branch(ins, !ins.field_aa(), ins.field_bd() as i32)
     }
 
-    pub fn bclr(&mut self, ins: Ins) {
+    pub fn bclr(&mut self, ins: Ins) -> Info {
         let lr = self.get(SPR::LR);
-        self.conditional_branch(ins, false, lr);
+        self.conditional_branch(ins, false, lr)
     }
 
-    pub fn bcctr(&mut self, ins: Ins) {
+    pub fn bcctr(&mut self, ins: Ins) -> Info {
         let ctr = self.get(SPR::CTR);
-        self.conditional_branch(ins, false, ctr);
+        self.conditional_branch(ins, false, ctr)
     }
 }

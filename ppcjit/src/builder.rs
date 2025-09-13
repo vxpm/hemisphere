@@ -37,6 +37,11 @@ pub enum EmitError {
     Unimplemented(Ins),
 }
 
+pub(crate) struct Info {
+    cycles: u8,
+    auto_pc: bool,
+}
+
 /// Constants used through block building.
 struct Consts {
     ptr_type: ir::Type,
@@ -62,6 +67,7 @@ pub struct BlockBuilder<'ctx> {
     regs: FxHashMap<Reg, RegState>,
     current_bb: ir::Block,
 
+    cycles: u32,
     executed: u32,
     ibat_changed: bool,
     dbat_changed: bool,
@@ -113,8 +119,9 @@ impl<'ctx> BlockBuilder<'ctx> {
             consts: ctx,
             regs: FxHashMap::default(),
             current_bb: entry_bb,
-            executed: 0,
 
+            cycles: 0,
+            executed: 0,
             ibat_changed: false,
             dbat_changed: false,
         }
@@ -214,7 +221,7 @@ impl<'ctx> BlockBuilder<'ctx> {
     /// - Returns
     fn prologue(&mut self) {
         self.bd.set_srcloc(ir::SourceLoc::new(u32::MAX));
-        let executed = self.ir_value(self.executed);
+        let cycles = self.ir_value(self.cycles);
 
         self.consolidate();
 
@@ -226,13 +233,13 @@ impl<'ctx> BlockBuilder<'ctx> {
             self.call_generic_hook(offset_of!(Hooks, ibat_changed) as i32);
         }
 
-        self.bd.ins().return_(&[executed]);
+        self.bd.ins().return_(&[cycles]);
     }
 
     /// Emits the given instruction into the block.
     pub fn emit(&mut self, ins: Ins) -> Result<(), EmitError> {
         self.bd.set_srcloc(ir::SourceLoc::new(self.executed));
-        match ins.op {
+        let info: Info = match ins.op {
             Opcode::Add => self.add(ins),
             Opcode::Addc => self.addc(ins),
             Opcode::Adde => self.adde(ins),
@@ -287,7 +294,7 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Mfspr => self.mfspr(ins),
             Opcode::Mftb => self.mftb(ins), // NOTE: stubbed
             Opcode::Mtcrf => self.mtcrf(ins),
-            Opcode::Mtfsb1 => self.mtsfb1(ins),
+            Opcode::Mtfsb1 => self.stub(ins),
             Opcode::Mtfsf => self.stub(ins), // NOTE: stubbed
             Opcode::Mtmsr => self.mtmsr(ins),
             Opcode::Mtspr => self.mtspr(ins),
@@ -341,13 +348,17 @@ impl<'ctx> BlockBuilder<'ctx> {
             _ => {
                 return Err(EmitError::Unimplemented(ins));
             }
-        }
-
-        let old_pc = self.get(Reg::PC);
-        let new_pc = self.bd.ins().iadd_imm(old_pc, 4);
-        self.set(Reg::PC, new_pc);
+        };
 
         self.executed += 1;
+        self.cycles += info.cycles as u32;
+
+        if info.auto_pc {
+            let old_pc = self.get(Reg::PC);
+            let new_pc = self.bd.ins().iadd_imm(old_pc, 4);
+            self.set(Reg::PC, new_pc);
+        }
+
         Ok(())
     }
 

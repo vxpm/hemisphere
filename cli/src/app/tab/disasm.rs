@@ -52,7 +52,7 @@ impl DisasmPane {
         None
     }
 
-    fn render_instrs(&mut self, ctx: &mut Context, area: Rect, focused: bool) {
+    fn render_instrs(&mut self, ctx: &mut Context, area: Rect) {
         let system = &ctx.state.hemisphere().system;
         let header = Row::new(vec!["Address", "Instruction"]).light_magenta();
         let widths = [Constraint::Length(11), Constraint::Min(1)];
@@ -106,9 +106,6 @@ impl DisasmPane {
             if let Some(line) = loc.line {
                 write!(&mut text, ":{line}").unwrap();
             }
-            if let Some(col) = loc.column {
-                write!(&mut text, ":{col}").unwrap();
-            }
 
             text
         } else {
@@ -143,7 +140,7 @@ impl DisasmPane {
         let [instrs, line] =
             Layout::vertical([Constraint::Min(1), Constraint::Length(2)]).areas(inner);
 
-        self.render_instrs(ctx, instrs, focused);
+        self.render_instrs(ctx, instrs);
         self.render_line(ctx, line, focused);
     }
 }

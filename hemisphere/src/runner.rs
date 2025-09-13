@@ -86,12 +86,11 @@ fn run(state: Arc<FairMutex<State>>, control: Arc<Control>) {
         }
 
         // emulate
-        // NOTE: assume 2 cycles per instruction
         let mut guard = state.lock();
         let mut emulated = 0;
         if guard.breakpoints.is_empty() {
             while emulated < STEP_SIZE {
-                emulated += 2 * guard.hemisphere.exec();
+                emulated += guard.hemisphere.exec();
             }
         } else {
             std::hint::cold_path();
@@ -114,7 +113,7 @@ fn run(state: Arc<FairMutex<State>>, control: Arc<Control>) {
 
                 let target_distance = min_distance / 4;
                 if target_distance <= guard.hemisphere.config.instr_per_block as u32 {
-                    emulated += 2 * guard
+                    emulated += guard
                         .hemisphere
                         .exec_with_limit_and_cached(target_distance as u16);
 
@@ -123,7 +122,7 @@ fn run(state: Arc<FairMutex<State>>, control: Arc<Control>) {
                         break;
                     }
                 } else {
-                    emulated += 2 * guard.hemisphere.exec();
+                    emulated += guard.hemisphere.exec();
                 }
             }
         }

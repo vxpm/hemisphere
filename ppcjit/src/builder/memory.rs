@@ -1,5 +1,5 @@
 use super::BlockBuilder;
-use crate::block::Hooks;
+use crate::{block::Hooks, builder::Info};
 use common::arch::{GPR, InsExt, disasm::Ins};
 use cranelift::{codegen::ir, prelude::InstBuilder};
 use std::mem::offset_of;
@@ -79,6 +79,11 @@ impl BlockBuilder<'_> {
     }
 }
 
+const LOAD_INFO: Info = Info {
+    cycles: 2,
+    auto_pc: true,
+};
+
 struct LoadOp {
     update: bool,
     signed: bool,
@@ -86,7 +91,7 @@ struct LoadOp {
 
 /// Load operations
 impl BlockBuilder<'_> {
-    fn load<P: ReadWriteAble>(&mut self, ins: Ins, op: LoadOp) {
+    fn load<P: ReadWriteAble>(&mut self, ins: Ins, op: LoadOp) -> Info {
         let addr = if !op.update && ins.field_ra() == 0 {
             self.ir_value(ins.field_offset() as i32)
         } else {
@@ -108,9 +113,11 @@ impl BlockBuilder<'_> {
         }
 
         self.set(ins.gpr_d(), value);
+
+        LOAD_INFO
     }
 
-    fn load_indexed<P: ReadWriteAble>(&mut self, ins: Ins, op: LoadOp) {
+    fn load_indexed<P: ReadWriteAble>(&mut self, ins: Ins, op: LoadOp) -> Info {
         let rb = self.get(ins.gpr_b());
         let addr = if !op.update && ins.field_ra() == 0 {
             rb
@@ -133,169 +140,171 @@ impl BlockBuilder<'_> {
         }
 
         self.set(ins.gpr_d(), value);
+
+        LOAD_INFO
     }
 
-    pub fn lbz(&mut self, ins: Ins) {
+    pub fn lbz(&mut self, ins: Ins) -> Info {
         self.load::<i8>(
             ins,
             LoadOp {
                 update: false,
                 signed: false,
             },
-        );
+        )
     }
 
-    pub fn lbzx(&mut self, ins: Ins) {
+    pub fn lbzx(&mut self, ins: Ins) -> Info {
         self.load_indexed::<i8>(
             ins,
             LoadOp {
                 update: false,
                 signed: false,
             },
-        );
+        )
     }
 
-    pub fn lbzu(&mut self, ins: Ins) {
+    pub fn lbzu(&mut self, ins: Ins) -> Info {
         self.load::<i8>(
             ins,
             LoadOp {
                 update: true,
                 signed: false,
             },
-        );
+        )
     }
 
-    pub fn lbzux(&mut self, ins: Ins) {
+    pub fn lbzux(&mut self, ins: Ins) -> Info {
         self.load_indexed::<i8>(
             ins,
             LoadOp {
                 update: true,
                 signed: false,
             },
-        );
+        )
     }
 
-    pub fn lhz(&mut self, ins: Ins) {
+    pub fn lhz(&mut self, ins: Ins) -> Info {
         self.load::<i16>(
             ins,
             LoadOp {
                 update: false,
                 signed: false,
             },
-        );
+        )
     }
 
-    pub fn lhzx(&mut self, ins: Ins) {
+    pub fn lhzx(&mut self, ins: Ins) -> Info {
         self.load_indexed::<i32>(
             ins,
             LoadOp {
                 update: false,
                 signed: false,
             },
-        );
+        )
     }
 
-    pub fn lhzu(&mut self, ins: Ins) {
+    pub fn lhzu(&mut self, ins: Ins) -> Info {
         self.load::<i32>(
             ins,
             LoadOp {
                 update: true,
                 signed: false,
             },
-        );
+        )
     }
 
-    pub fn lhzux(&mut self, ins: Ins) {
+    pub fn lhzux(&mut self, ins: Ins) -> Info {
         self.load_indexed::<i32>(
             ins,
             LoadOp {
                 update: true,
                 signed: false,
             },
-        );
+        )
     }
 
-    pub fn lha(&mut self, ins: Ins) {
+    pub fn lha(&mut self, ins: Ins) -> Info {
         self.load::<i16>(
             ins,
             LoadOp {
                 update: false,
                 signed: true,
             },
-        );
+        )
     }
 
-    pub fn lhax(&mut self, ins: Ins) {
+    pub fn lhax(&mut self, ins: Ins) -> Info {
         self.load_indexed::<i16>(
             ins,
             LoadOp {
                 update: false,
                 signed: true,
             },
-        );
+        )
     }
 
-    pub fn lhau(&mut self, ins: Ins) {
+    pub fn lhau(&mut self, ins: Ins) -> Info {
         self.load::<i16>(
             ins,
             LoadOp {
                 update: true,
                 signed: true,
             },
-        );
+        )
     }
 
-    pub fn lhaux(&mut self, ins: Ins) {
+    pub fn lhaux(&mut self, ins: Ins) -> Info {
         self.load_indexed::<i16>(
             ins,
             LoadOp {
                 update: true,
                 signed: true,
             },
-        );
+        )
     }
 
-    pub fn lwz(&mut self, ins: Ins) {
+    pub fn lwz(&mut self, ins: Ins) -> Info {
         self.load::<i32>(
             ins,
             LoadOp {
                 update: false,
                 signed: false,
             },
-        );
+        )
     }
 
-    pub fn lwzx(&mut self, ins: Ins) {
+    pub fn lwzx(&mut self, ins: Ins) -> Info {
         self.load_indexed::<i32>(
             ins,
             LoadOp {
                 update: false,
                 signed: false,
             },
-        );
+        )
     }
 
-    pub fn lwzu(&mut self, ins: Ins) {
+    pub fn lwzu(&mut self, ins: Ins) -> Info {
         self.load::<i32>(
             ins,
             LoadOp {
                 update: true,
                 signed: false,
             },
-        );
+        )
     }
 
-    pub fn lwzux(&mut self, ins: Ins) {
+    pub fn lwzux(&mut self, ins: Ins) -> Info {
         self.load_indexed::<i32>(
             ins,
             LoadOp {
                 update: true,
                 signed: false,
             },
-        );
+        )
     }
 
-    pub fn lmw(&mut self, ins: Ins) {
+    pub fn lmw(&mut self, ins: Ins) -> Info {
         let mut addr = if ins.field_ra() == 0 {
             self.ir_value(ins.field_offset() as i32)
         } else {
@@ -309,12 +318,22 @@ impl BlockBuilder<'_> {
 
             addr = self.bd.ins().iadd_imm(addr, 4);
         }
+
+        Info {
+            cycles: 10, // random, chosen by fair dice roll
+            auto_pc: true,
+        }
     }
 }
 
+const STORE_INFO: Info = Info {
+    cycles: 2,
+    auto_pc: true,
+};
+
 /// Store operations
 impl BlockBuilder<'_> {
-    fn store<P: ReadWriteAble>(&mut self, ins: Ins, update: bool) {
+    fn store<P: ReadWriteAble>(&mut self, ins: Ins, update: bool) -> Info {
         let addr = if !update && ins.field_ra() == 0 {
             self.ir_value(ins.field_offset() as i32)
         } else {
@@ -332,9 +351,11 @@ impl BlockBuilder<'_> {
         }
 
         self.write::<P>(addr, value);
+
+        STORE_INFO
     }
 
-    fn store_indexed<P: ReadWriteAble>(&mut self, ins: Ins, update: bool) {
+    fn store_indexed<P: ReadWriteAble>(&mut self, ins: Ins, update: bool) -> Info {
         let rb = self.get(ins.gpr_b());
         let addr = if !update && ins.field_ra() == 0 {
             rb
@@ -353,57 +374,59 @@ impl BlockBuilder<'_> {
         }
 
         self.write::<P>(addr, value);
+
+        STORE_INFO
     }
 
-    pub fn stb(&mut self, ins: Ins) {
-        self.store::<i8>(ins, false);
+    pub fn stb(&mut self, ins: Ins) -> Info {
+        self.store::<i8>(ins, false)
     }
 
-    pub fn stbx(&mut self, ins: Ins) {
-        self.store_indexed::<i8>(ins, false);
+    pub fn stbx(&mut self, ins: Ins) -> Info {
+        self.store_indexed::<i8>(ins, false)
     }
 
-    pub fn stbu(&mut self, ins: Ins) {
-        self.store::<i8>(ins, true);
+    pub fn stbu(&mut self, ins: Ins) -> Info {
+        self.store::<i8>(ins, true)
     }
 
-    pub fn stbux(&mut self, ins: Ins) {
-        self.store_indexed::<i8>(ins, true);
+    pub fn stbux(&mut self, ins: Ins) -> Info {
+        self.store_indexed::<i8>(ins, true)
     }
 
-    pub fn sth(&mut self, ins: Ins) {
-        self.store::<i16>(ins, false);
+    pub fn sth(&mut self, ins: Ins) -> Info {
+        self.store::<i16>(ins, false)
     }
 
-    pub fn sthx(&mut self, ins: Ins) {
-        self.store_indexed::<i16>(ins, false);
+    pub fn sthx(&mut self, ins: Ins) -> Info {
+        self.store_indexed::<i16>(ins, false)
     }
 
-    pub fn sthu(&mut self, ins: Ins) {
-        self.store::<i16>(ins, true);
+    pub fn sthu(&mut self, ins: Ins) -> Info {
+        self.store::<i16>(ins, true)
     }
 
-    pub fn sthux(&mut self, ins: Ins) {
-        self.store_indexed::<i8>(ins, true);
+    pub fn sthux(&mut self, ins: Ins) -> Info {
+        self.store_indexed::<i8>(ins, true)
     }
 
-    pub fn stw(&mut self, ins: Ins) {
-        self.store::<i32>(ins, false);
+    pub fn stw(&mut self, ins: Ins) -> Info {
+        self.store::<i32>(ins, false)
     }
 
-    pub fn stwx(&mut self, ins: Ins) {
-        self.store_indexed::<i32>(ins, false);
+    pub fn stwx(&mut self, ins: Ins) -> Info {
+        self.store_indexed::<i32>(ins, false)
     }
 
-    pub fn stwu(&mut self, ins: Ins) {
-        self.store::<i32>(ins, true);
+    pub fn stwu(&mut self, ins: Ins) -> Info {
+        self.store::<i32>(ins, true)
     }
 
-    pub fn stwux(&mut self, ins: Ins) {
-        self.store_indexed::<i32>(ins, true);
+    pub fn stwux(&mut self, ins: Ins) -> Info {
+        self.store_indexed::<i32>(ins, true)
     }
 
-    pub fn stmw(&mut self, ins: Ins) {
+    pub fn stmw(&mut self, ins: Ins) -> Info {
         let mut addr = if ins.field_ra() == 0 {
             self.ir_value(ins.field_offset() as i32)
         } else {
@@ -416,6 +439,11 @@ impl BlockBuilder<'_> {
             self.write::<i32>(addr, value);
 
             addr = self.bd.ins().iadd_imm(addr, 4);
+        }
+
+        Info {
+            cycles: 10, // random, chosen by fair dice roll
+            auto_pc: true,
         }
     }
 }

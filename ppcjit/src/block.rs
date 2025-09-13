@@ -101,7 +101,7 @@ impl Block {
         }
     }
 
-    /// Executes this block of instructions.
+    /// Executes this block of instructions and returns how many cycles were executed.
     #[inline(always)]
     pub fn run(&self, ctx: *mut Context, hooks: &Hooks) -> u32 {
         let func: BlockFn = unsafe { std::mem::transmute(self.code.as_ptr()) };

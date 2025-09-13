@@ -1,8 +1,14 @@
 use super::BlockBuilder;
+use crate::builder::Info;
 use common::arch::{InsExt, SPR, disasm::Ins};
 use cranelift::{
     codegen::ir,
     prelude::{InstBuilder, IntCC},
+};
+
+const INT_INFO: Info = Info {
+    cycles: 1,
+    auto_pc: true,
 };
 
 enum AddLhs {
@@ -72,7 +78,7 @@ impl BlockBuilder<'_> {
         self.bd.ins().band(lhs_eq_rhs, result_sign_diff)
     }
 
-    fn addition(&mut self, ins: Ins, op: AddOp) {
+    fn addition(&mut self, ins: Ins, op: AddOp) -> Info {
         let lhs = self.addition_get_lhs(ins, op.lhs);
         let rhs = self.addition_get_rhs(ins, op.rhs);
 
@@ -102,9 +108,11 @@ impl BlockBuilder<'_> {
         }
 
         self.set(ins.gpr_d(), value);
+
+        INT_INFO
     }
 
-    pub fn add(&mut self, ins: Ins) {
+    pub fn add(&mut self, ins: Ins) -> Info {
         self.addition(
             ins,
             AddOp {
@@ -115,10 +123,10 @@ impl BlockBuilder<'_> {
                 carry: false,
                 overflow: ins.field_oe(),
             },
-        );
+        )
     }
 
-    pub fn addc(&mut self, ins: Ins) {
+    pub fn addc(&mut self, ins: Ins) -> Info {
         self.addition(
             ins,
             AddOp {
@@ -129,10 +137,10 @@ impl BlockBuilder<'_> {
                 carry: true,
                 overflow: ins.field_oe(),
             },
-        );
+        )
     }
 
-    pub fn adde(&mut self, ins: Ins) {
+    pub fn adde(&mut self, ins: Ins) -> Info {
         self.addition(
             ins,
             AddOp {
@@ -143,10 +151,10 @@ impl BlockBuilder<'_> {
                 carry: true,
                 overflow: ins.field_oe(),
             },
-        );
+        )
     }
 
-    pub fn addze(&mut self, ins: Ins) {
+    pub fn addze(&mut self, ins: Ins) -> Info {
         self.addition(
             ins,
             AddOp {
@@ -157,10 +165,10 @@ impl BlockBuilder<'_> {
                 carry: true,
                 overflow: ins.field_oe(),
             },
-        );
+        )
     }
 
-    pub fn addi(&mut self, ins: Ins) {
+    pub fn addi(&mut self, ins: Ins) -> Info {
         self.addition(
             ins,
             AddOp {
@@ -171,10 +179,10 @@ impl BlockBuilder<'_> {
                 carry: false,
                 overflow: false,
             },
-        );
+        )
     }
 
-    pub fn addis(&mut self, ins: Ins) {
+    pub fn addis(&mut self, ins: Ins) -> Info {
         self.addition(
             ins,
             AddOp {
@@ -185,10 +193,10 @@ impl BlockBuilder<'_> {
                 carry: false,
                 overflow: false,
             },
-        );
+        )
     }
 
-    pub fn addic(&mut self, ins: Ins) {
+    pub fn addic(&mut self, ins: Ins) -> Info {
         self.addition(
             ins,
             AddOp {
@@ -199,10 +207,10 @@ impl BlockBuilder<'_> {
                 carry: true,
                 overflow: false,
             },
-        );
+        )
     }
 
-    pub fn addic_record(&mut self, ins: Ins) {
+    pub fn addic_record(&mut self, ins: Ins) -> Info {
         self.addition(
             ins,
             AddOp {
@@ -213,10 +221,10 @@ impl BlockBuilder<'_> {
                 carry: true,
                 overflow: false,
             },
-        );
+        )
     }
 
-    pub fn addme(&mut self, ins: Ins) {
+    pub fn addme(&mut self, ins: Ins) -> Info {
         self.addition(
             ins,
             AddOp {
@@ -227,7 +235,7 @@ impl BlockBuilder<'_> {
                 carry: true,
                 overflow: ins.field_oe(),
             },
-        );
+        )
     }
 }
 
@@ -273,7 +281,7 @@ impl BlockBuilder<'_> {
         self.bd.ins().band(rhs_eq_value, lhs_sign_diff)
     }
 
-    fn subtraction(&mut self, ins: Ins, op: SubOp) {
+    fn subtraction(&mut self, ins: Ins, op: SubOp) -> Info {
         let lhs = self.subtraction_get_lhs(ins, op.lhs);
         let rhs = self.get(ins.gpr_a());
 
@@ -304,9 +312,11 @@ impl BlockBuilder<'_> {
         }
 
         self.set(ins.gpr_d(), value);
+
+        INT_INFO
     }
 
-    pub fn subf(&mut self, ins: Ins) {
+    pub fn subf(&mut self, ins: Ins) -> Info {
         self.subtraction(
             ins,
             SubOp {
@@ -316,10 +326,10 @@ impl BlockBuilder<'_> {
                 carry: false,
                 overflow: ins.field_oe(),
             },
-        );
+        )
     }
 
-    pub fn subfe(&mut self, ins: Ins) {
+    pub fn subfe(&mut self, ins: Ins) -> Info {
         self.subtraction(
             ins,
             SubOp {
@@ -329,10 +339,10 @@ impl BlockBuilder<'_> {
                 carry: true,
                 overflow: ins.field_oe(),
             },
-        );
+        )
     }
 
-    pub fn subfc(&mut self, ins: Ins) {
+    pub fn subfc(&mut self, ins: Ins) -> Info {
         self.subtraction(
             ins,
             SubOp {
@@ -342,10 +352,10 @@ impl BlockBuilder<'_> {
                 carry: true,
                 overflow: ins.field_oe(),
             },
-        );
+        )
     }
 
-    pub fn subfic(&mut self, ins: Ins) {
+    pub fn subfic(&mut self, ins: Ins) -> Info {
         self.subtraction(
             ins,
             SubOp {
@@ -355,10 +365,10 @@ impl BlockBuilder<'_> {
                 carry: true,
                 overflow: false,
             },
-        );
+        )
     }
 
-    pub fn subfme(&mut self, ins: Ins) {
+    pub fn subfme(&mut self, ins: Ins) -> Info {
         self.subtraction(
             ins,
             SubOp {
@@ -368,10 +378,10 @@ impl BlockBuilder<'_> {
                 carry: true,
                 overflow: ins.field_oe(),
             },
-        );
+        )
     }
 
-    pub fn subfze(&mut self, ins: Ins) {
+    pub fn subfze(&mut self, ins: Ins) -> Info {
         self.subtraction(
             ins,
             SubOp {
@@ -381,13 +391,23 @@ impl BlockBuilder<'_> {
                 carry: true,
                 overflow: ins.field_oe(),
             },
-        );
+        )
     }
 }
 
+const MUL_INFO: Info = Info {
+    cycles: 3,
+    auto_pc: true,
+};
+
+const DIV_INFO: Info = Info {
+    cycles: 19,
+    auto_pc: true,
+};
+
 /// Multiplication and division operations
 impl BlockBuilder<'_> {
-    pub fn neg(&mut self, ins: Ins) {
+    pub fn neg(&mut self, ins: Ins) -> Info {
         let ra = self.get(ins.gpr_a());
         let value = self.bd.ins().ineg(ra);
         let overflowed = self.bd.ins().icmp_imm(IntCC::Equal, ra, i32::MIN as i64);
@@ -401,9 +421,11 @@ impl BlockBuilder<'_> {
         }
 
         self.set(ins.gpr_d(), value);
+
+        INT_INFO
     }
 
-    pub fn divwu(&mut self, ins: Ins) {
+    pub fn divwu(&mut self, ins: Ins) -> Info {
         let ra = self.get(ins.gpr_a());
         let rb = self.get(ins.gpr_b());
 
@@ -423,9 +445,11 @@ impl BlockBuilder<'_> {
         }
 
         self.set(ins.gpr_d(), result);
+
+        MUL_INFO
     }
 
-    pub fn mullw(&mut self, ins: Ins) {
+    pub fn mullw(&mut self, ins: Ins) -> Info {
         let ra = self.get(ins.gpr_a());
         let rb = self.get(ins.gpr_b());
 
@@ -440,17 +464,21 @@ impl BlockBuilder<'_> {
         }
 
         self.set(ins.gpr_d(), result);
+
+        MUL_INFO
     }
 
-    pub fn mulli(&mut self, ins: Ins) {
+    pub fn mulli(&mut self, ins: Ins) -> Info {
         let ra = self.get(ins.gpr_a());
         let imm = self.ir_value(ins.field_simm() as i32);
 
         let result = self.bd.ins().imul(ra, imm);
         self.set(ins.gpr_d(), result);
+
+        MUL_INFO
     }
 
-    pub fn mulhwu(&mut self, ins: Ins) {
+    pub fn mulhwu(&mut self, ins: Ins) -> Info {
         let ra = self.get(ins.gpr_a());
         let rb = self.get(ins.gpr_b());
 
@@ -461,5 +489,7 @@ impl BlockBuilder<'_> {
         }
 
         self.set(ins.gpr_d(), result);
+
+        MUL_INFO
     }
 }
