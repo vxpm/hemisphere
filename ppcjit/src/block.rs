@@ -1,12 +1,12 @@
 use crate::Sequence;
-use common::{Address, arch::Registers};
+use common::{Address, arch::Cpu};
 use cranelift::{codegen::ir, prelude::isa};
 use iced_x86::Formatter;
 use memmap2::{Mmap, MmapOptions};
 use std::fmt::Display;
 
 pub type Context = std::ffi::c_void;
-pub type GetRegistersHook = fn(*mut Context) -> *mut Registers;
+pub type GetRegistersHook = fn(*mut Context) -> *mut Cpu;
 pub type ReadHook<T> = fn(*mut Context, Address) -> T;
 pub type WriteHook<T> = fn(*mut Context, Address, T);
 pub type GenericHook = fn(*mut Context);

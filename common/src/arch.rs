@@ -485,7 +485,7 @@ pub struct Supervisor {
 /// Structure of all the registers in the PowerPC Gekko CPU.
 #[repr(C)]
 #[derive(Debug, Clone, PartialEq, Default)]
-pub struct Registers {
+pub struct Cpu {
     /// Program Counter
     pub pc: Address,
     /// User level registers
@@ -494,7 +494,7 @@ pub struct Registers {
     pub supervisor: Supervisor,
 }
 
-impl Registers {
+impl Cpu {
     /// Takes an exception.
     pub fn raise_exception(&mut self, exception: Exception) {
         // save PC into SRR0
@@ -577,7 +577,7 @@ impl GPR {
     /// Offset of this GPR in the [`Registers`] struct.
     #[inline(always)]
     pub fn offset(self) -> usize {
-        offset_of!(Registers, user.gpr) + size_of::<u32>() * (self as usize)
+        offset_of!(Cpu, user.gpr) + size_of::<u32>() * (self as usize)
     }
 }
 
@@ -632,7 +632,7 @@ impl FPR {
     /// Offset of this FPR in the [`Registers`] struct.
     #[inline(always)]
     pub fn offset(self) -> usize {
-        offset_of!(Registers, user.fpr) + size_of::<FloatPair>() * (self as usize)
+        offset_of!(Cpu, user.fpr) + size_of::<FloatPair>() * (self as usize)
     }
 }
 
@@ -704,52 +704,52 @@ impl SPR {
     /// Offset of this SPR in the [`Registers`] struct.
     pub fn offset(self) -> usize {
         match self {
-            Self::XER => offset_of!(Registers, user.xer),
-            Self::LR => offset_of!(Registers, user.lr),
-            Self::CTR => offset_of!(Registers, user.ctr),
-            Self::DEC => offset_of!(Registers, supervisor.misc.dec),
-            Self::SRR0 => offset_of!(Registers, supervisor.exception.srr[0]),
-            Self::SRR1 => offset_of!(Registers, supervisor.exception.srr[1]),
-            Self::SPRG0 => offset_of!(Registers, supervisor.exception.sprg[0]),
-            Self::SPRG1 => offset_of!(Registers, supervisor.exception.sprg[1]),
-            Self::SPRG2 => offset_of!(Registers, supervisor.exception.sprg[2]),
-            Self::SPRG3 => offset_of!(Registers, supervisor.exception.sprg[3]),
-            Self::TBL => offset_of!(Registers, supervisor.misc.tb),
-            Self::TBU => offset_of!(Registers, supervisor.misc.tb) + 4,
-            Self::IBAT0U => offset_of!(Registers, supervisor.memory.ibat[0]) + 4,
-            Self::IBAT0L => offset_of!(Registers, supervisor.memory.ibat[0]),
-            Self::IBAT1U => offset_of!(Registers, supervisor.memory.ibat[1]) + 4,
-            Self::IBAT1L => offset_of!(Registers, supervisor.memory.ibat[1]),
-            Self::IBAT2U => offset_of!(Registers, supervisor.memory.ibat[2]) + 4,
-            Self::IBAT2L => offset_of!(Registers, supervisor.memory.ibat[2]),
-            Self::IBAT3U => offset_of!(Registers, supervisor.memory.ibat[3]) + 4,
-            Self::IBAT3L => offset_of!(Registers, supervisor.memory.ibat[3]),
-            Self::DBAT0U => offset_of!(Registers, supervisor.memory.dbat[0]) + 4,
-            Self::DBAT0L => offset_of!(Registers, supervisor.memory.dbat[0]),
-            Self::DBAT1U => offset_of!(Registers, supervisor.memory.dbat[1]) + 4,
-            Self::DBAT1L => offset_of!(Registers, supervisor.memory.dbat[1]),
-            Self::DBAT2U => offset_of!(Registers, supervisor.memory.dbat[2]) + 4,
-            Self::DBAT2L => offset_of!(Registers, supervisor.memory.dbat[2]),
-            Self::DBAT3U => offset_of!(Registers, supervisor.memory.dbat[3]) + 4,
-            Self::DBAT3L => offset_of!(Registers, supervisor.memory.dbat[3]),
-            Self::GQR0 => offset_of!(Registers, supervisor.gq[0]),
-            Self::GQR1 => offset_of!(Registers, supervisor.gq[1]),
-            Self::GQR2 => offset_of!(Registers, supervisor.gq[2]),
-            Self::GQR3 => offset_of!(Registers, supervisor.gq[3]),
-            Self::GQR4 => offset_of!(Registers, supervisor.gq[4]),
-            Self::GQR5 => offset_of!(Registers, supervisor.gq[5]),
-            Self::GQR6 => offset_of!(Registers, supervisor.gq[6]),
-            Self::GQR7 => offset_of!(Registers, supervisor.gq[7]),
-            Self::HID2 => offset_of!(Registers, supervisor.config.hid[2]),
-            Self::MMCR0 => offset_of!(Registers, supervisor.performance.control[0]),
-            Self::PMC1 => offset_of!(Registers, supervisor.performance.counters[0]),
-            Self::PMC2 => offset_of!(Registers, supervisor.performance.counters[1]),
-            Self::MMCR1 => offset_of!(Registers, supervisor.performance.control[1]),
-            Self::PMC3 => offset_of!(Registers, supervisor.performance.counters[2]),
-            Self::PMC4 => offset_of!(Registers, supervisor.performance.counters[3]),
-            Self::HID0 => offset_of!(Registers, supervisor.config.hid[0]),
-            Self::HID1 => offset_of!(Registers, supervisor.config.hid[1]),
-            Self::L2CR => offset_of!(Registers, supervisor.misc.l2cr),
+            Self::XER => offset_of!(Cpu, user.xer),
+            Self::LR => offset_of!(Cpu, user.lr),
+            Self::CTR => offset_of!(Cpu, user.ctr),
+            Self::DEC => offset_of!(Cpu, supervisor.misc.dec),
+            Self::SRR0 => offset_of!(Cpu, supervisor.exception.srr[0]),
+            Self::SRR1 => offset_of!(Cpu, supervisor.exception.srr[1]),
+            Self::SPRG0 => offset_of!(Cpu, supervisor.exception.sprg[0]),
+            Self::SPRG1 => offset_of!(Cpu, supervisor.exception.sprg[1]),
+            Self::SPRG2 => offset_of!(Cpu, supervisor.exception.sprg[2]),
+            Self::SPRG3 => offset_of!(Cpu, supervisor.exception.sprg[3]),
+            Self::TBL => offset_of!(Cpu, supervisor.misc.tb),
+            Self::TBU => offset_of!(Cpu, supervisor.misc.tb) + 4,
+            Self::IBAT0U => offset_of!(Cpu, supervisor.memory.ibat[0]) + 4,
+            Self::IBAT0L => offset_of!(Cpu, supervisor.memory.ibat[0]),
+            Self::IBAT1U => offset_of!(Cpu, supervisor.memory.ibat[1]) + 4,
+            Self::IBAT1L => offset_of!(Cpu, supervisor.memory.ibat[1]),
+            Self::IBAT2U => offset_of!(Cpu, supervisor.memory.ibat[2]) + 4,
+            Self::IBAT2L => offset_of!(Cpu, supervisor.memory.ibat[2]),
+            Self::IBAT3U => offset_of!(Cpu, supervisor.memory.ibat[3]) + 4,
+            Self::IBAT3L => offset_of!(Cpu, supervisor.memory.ibat[3]),
+            Self::DBAT0U => offset_of!(Cpu, supervisor.memory.dbat[0]) + 4,
+            Self::DBAT0L => offset_of!(Cpu, supervisor.memory.dbat[0]),
+            Self::DBAT1U => offset_of!(Cpu, supervisor.memory.dbat[1]) + 4,
+            Self::DBAT1L => offset_of!(Cpu, supervisor.memory.dbat[1]),
+            Self::DBAT2U => offset_of!(Cpu, supervisor.memory.dbat[2]) + 4,
+            Self::DBAT2L => offset_of!(Cpu, supervisor.memory.dbat[2]),
+            Self::DBAT3U => offset_of!(Cpu, supervisor.memory.dbat[3]) + 4,
+            Self::DBAT3L => offset_of!(Cpu, supervisor.memory.dbat[3]),
+            Self::GQR0 => offset_of!(Cpu, supervisor.gq[0]),
+            Self::GQR1 => offset_of!(Cpu, supervisor.gq[1]),
+            Self::GQR2 => offset_of!(Cpu, supervisor.gq[2]),
+            Self::GQR3 => offset_of!(Cpu, supervisor.gq[3]),
+            Self::GQR4 => offset_of!(Cpu, supervisor.gq[4]),
+            Self::GQR5 => offset_of!(Cpu, supervisor.gq[5]),
+            Self::GQR6 => offset_of!(Cpu, supervisor.gq[6]),
+            Self::GQR7 => offset_of!(Cpu, supervisor.gq[7]),
+            Self::HID2 => offset_of!(Cpu, supervisor.config.hid[2]),
+            Self::MMCR0 => offset_of!(Cpu, supervisor.performance.control[0]),
+            Self::PMC1 => offset_of!(Cpu, supervisor.performance.counters[0]),
+            Self::PMC2 => offset_of!(Cpu, supervisor.performance.counters[1]),
+            Self::MMCR1 => offset_of!(Cpu, supervisor.performance.control[1]),
+            Self::PMC3 => offset_of!(Cpu, supervisor.performance.counters[2]),
+            Self::PMC4 => offset_of!(Cpu, supervisor.performance.counters[3]),
+            Self::HID0 => offset_of!(Cpu, supervisor.config.hid[0]),
+            Self::HID1 => offset_of!(Cpu, supervisor.config.hid[1]),
+            Self::L2CR => offset_of!(Cpu, supervisor.misc.l2cr),
         }
     }
 
@@ -843,28 +843,28 @@ impl Reg {
             Self::GPR(gpr) => gpr.offset(),
             Self::FPR(fpr) => fpr.offset(),
             Self::SPR(spr) => spr.offset(),
-            Self::PC => offset_of!(Registers, pc),
-            Self::MSR => offset_of!(Registers, supervisor.config.msr),
-            Self::CR => offset_of!(Registers, user.cr),
-            Self::FPSCR => offset_of!(Registers, user.fpscr),
-            Self::SR0 => offset_of!(Registers, supervisor.memory.sr[0]),
-            Self::SR1 => offset_of!(Registers, supervisor.memory.sr[1]),
-            Self::SR2 => offset_of!(Registers, supervisor.memory.sr[2]),
-            Self::SR3 => offset_of!(Registers, supervisor.memory.sr[3]),
-            Self::SR4 => offset_of!(Registers, supervisor.memory.sr[4]),
-            Self::SR5 => offset_of!(Registers, supervisor.memory.sr[5]),
-            Self::SR6 => offset_of!(Registers, supervisor.memory.sr[6]),
-            Self::SR7 => offset_of!(Registers, supervisor.memory.sr[7]),
-            Self::SR8 => offset_of!(Registers, supervisor.memory.sr[8]),
-            Self::SR9 => offset_of!(Registers, supervisor.memory.sr[9]),
-            Self::SR10 => offset_of!(Registers, supervisor.memory.sr[10]),
-            Self::SR11 => offset_of!(Registers, supervisor.memory.sr[11]),
-            Self::SR12 => offset_of!(Registers, supervisor.memory.sr[12]),
-            Self::SR13 => offset_of!(Registers, supervisor.memory.sr[13]),
-            Self::SR14 => offset_of!(Registers, supervisor.memory.sr[14]),
-            Self::SR15 => offset_of!(Registers, supervisor.memory.sr[15]),
-            Self::TBL => offset_of!(Registers, supervisor.misc.tb),
-            Self::TBU => offset_of!(Registers, supervisor.misc.tb) + 4,
+            Self::PC => offset_of!(Cpu, pc),
+            Self::MSR => offset_of!(Cpu, supervisor.config.msr),
+            Self::CR => offset_of!(Cpu, user.cr),
+            Self::FPSCR => offset_of!(Cpu, user.fpscr),
+            Self::SR0 => offset_of!(Cpu, supervisor.memory.sr[0]),
+            Self::SR1 => offset_of!(Cpu, supervisor.memory.sr[1]),
+            Self::SR2 => offset_of!(Cpu, supervisor.memory.sr[2]),
+            Self::SR3 => offset_of!(Cpu, supervisor.memory.sr[3]),
+            Self::SR4 => offset_of!(Cpu, supervisor.memory.sr[4]),
+            Self::SR5 => offset_of!(Cpu, supervisor.memory.sr[5]),
+            Self::SR6 => offset_of!(Cpu, supervisor.memory.sr[6]),
+            Self::SR7 => offset_of!(Cpu, supervisor.memory.sr[7]),
+            Self::SR8 => offset_of!(Cpu, supervisor.memory.sr[8]),
+            Self::SR9 => offset_of!(Cpu, supervisor.memory.sr[9]),
+            Self::SR10 => offset_of!(Cpu, supervisor.memory.sr[10]),
+            Self::SR11 => offset_of!(Cpu, supervisor.memory.sr[11]),
+            Self::SR12 => offset_of!(Cpu, supervisor.memory.sr[12]),
+            Self::SR13 => offset_of!(Cpu, supervisor.memory.sr[13]),
+            Self::SR14 => offset_of!(Cpu, supervisor.memory.sr[14]),
+            Self::SR15 => offset_of!(Cpu, supervisor.memory.sr[15]),
+            Self::TBL => offset_of!(Cpu, supervisor.misc.tb),
+            Self::TBU => offset_of!(Cpu, supervisor.misc.tb) + 4,
         }
     }
 

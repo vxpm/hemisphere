@@ -1,6 +1,6 @@
 use super::BlockBuilder;
 use crate::builder::Info;
-use common::arch::{Exception, Reg, Registers, SPR, disasm::Ins};
+use common::arch::{Cpu, Exception, Reg, SPR, disasm::Ins};
 use cranelift::{
     codegen::ir,
     prelude::{InstBuilder, isa},
@@ -23,7 +23,7 @@ fn raise_exception_sig(ptr_type: ir::Type) -> ir::Signature {
     }
 }
 
-extern "sysv64" fn raise_exception(regs: &mut Registers, exception: Exception) {
+extern "sysv64" fn raise_exception(regs: &mut Cpu, exception: Exception) {
     info!("raising exception: {exception:?}");
     regs.raise_exception(exception);
 }

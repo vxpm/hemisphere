@@ -115,7 +115,7 @@ fn run(state: Arc<FairMutex<State>>, control: Arc<Control>) {
                 if target_distance <= guard.hemisphere.config.instr_per_block as u32 {
                     emulated += guard
                         .hemisphere
-                        .exec_with_limit_and_cached(target_distance as u16);
+                        .exec_with_limit_and_try_cache(target_distance as u16);
 
                     if guard.hemisphere.system.cpu.pc == target {
                         control.should_run.store(false, Ordering::Relaxed);

@@ -1,5 +1,5 @@
 use crate::System;
-use common::{Address, Primitive, arch::Registers, util::boxed_array};
+use common::{Address, Primitive, arch::Cpu, util::boxed_array};
 use interavl::IntervalTree;
 use ppcjit::{
     Block,
@@ -155,7 +155,7 @@ pub struct Context<'a> {
 }
 
 pub static CTX_HOOKS: Hooks = {
-    extern "sysv64" fn get_registers<'a>(ctx: &'a mut Context) -> &'a mut Registers {
+    extern "sysv64" fn get_registers<'a>(ctx: &'a mut Context) -> &'a mut Cpu {
         &mut ctx.system.cpu
     }
 

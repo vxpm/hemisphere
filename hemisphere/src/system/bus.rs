@@ -1,4 +1,4 @@
-use crate::{
+use crate::system::{
     dsp::{DspControl, DspInterface},
     mem::{Memory, RAM_LEN},
     video::VideoInterface,
@@ -10,8 +10,8 @@ use zerocopy::IntoBytes;
 /// The bus of the system. Contains all memory mapped peripherals.
 pub struct Bus {
     pub mem: Memory,
-    pub video: VideoInterface,
     pub dsp: DspInterface,
+    pub video: VideoInterface,
 }
 
 impl Default for Bus {
