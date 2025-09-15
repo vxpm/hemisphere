@@ -78,32 +78,41 @@ impl Hooks {
     }
 }
 
-pub type BlockFn = extern "sysv64" fn(*mut Context, *const Hooks) -> u32;
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Executed {
+    pub instructions: u32,
+    pub cycles: u32,
+}
+
+pub type BlockFn = extern "sysv64" fn(*mut Context, *const Hooks) -> Executed;
 
 /// A compiled block of PowerPC instructions.
 pub struct Block {
     seq: Sequence,
     clir: String,
+    cycles: u32,
     code: Mmap,
 }
 
 impl Block {
     /// # Safety
     /// `code` must be the bytes of a valid host function with the [`BlockFn`] signature.
-    pub(crate) unsafe fn new(seq: Sequence, clir: String, code: &[u8]) -> Self {
+    pub(crate) unsafe fn new(seq: Sequence, clir: String, cycles: u32, code: &[u8]) -> Self {
         let mut map = MmapOptions::new().len(code.len()).map_anon().unwrap();
         map.copy_from_slice(code);
 
         Self {
             seq,
             clir,
+            cycles,
             code: map.make_exec().unwrap(),
         }
     }
 
     /// Executes this block of instructions and returns how many cycles were executed.
     #[inline(always)]
-    pub fn run(&self, ctx: *mut Context, hooks: &Hooks) -> u32 {
+    pub fn run(&self, ctx: *mut Context, hooks: &Hooks) -> Executed {
         let func: BlockFn = unsafe { std::mem::transmute(self.code.as_ptr()) };
         func(ctx, hooks)
     }
@@ -116,6 +125,11 @@ impl Block {
     /// Returns the Cranelift IR generated for this block.
     pub fn clir(&self) -> &str {
         &self.clir
+    }
+
+    /// Returns how many cycles this block executes _at most_ (i.e. without any early exits).
+    pub fn cycles(&self) -> u32 {
+        self.cycles
     }
 
     /// Returns the length, in bytes, of this block.

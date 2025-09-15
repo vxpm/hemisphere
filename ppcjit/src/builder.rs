@@ -221,7 +221,12 @@ impl<'ctx> BlockBuilder<'ctx> {
     /// - Returns
     fn prologue(&mut self) {
         self.bd.set_srcloc(ir::SourceLoc::new(u32::MAX));
+        let instructions = self.ir_value(self.executed);
+        let instructions = self.bd.ins().uextend(ir::types::I64, instructions);
         let cycles = self.ir_value(self.cycles);
+        let cycles = self.bd.ins().uextend(ir::types::I64, cycles);
+        let cycles = self.bd.ins().ishl_imm(cycles, 32);
+        let merged = self.bd.ins().bor(instructions, cycles);
 
         self.consolidate();
 
@@ -233,7 +238,7 @@ impl<'ctx> BlockBuilder<'ctx> {
             self.call_generic_hook(offset_of!(Hooks, ibat_changed) as i32);
         }
 
-        self.bd.ins().return_(&[cycles]);
+        self.bd.ins().return_(&[merged]);
     }
 
     /// Emits the given instruction into the block.
@@ -362,10 +367,12 @@ impl<'ctx> BlockBuilder<'ctx> {
         Ok(())
     }
 
-    /// Finishes building the block. Must be called when you're finished, otherwise it is a logic
-    /// bug.
-    pub fn finish(mut self) {
+    /// Finishes building the block and returns how many cycles it executes at most. Must be
+    /// called when you're finished, otherwise it is a logic bug.
+    pub fn finish(mut self) -> u32 {
         self.prologue();
         self.bd.finalize();
+
+        self.cycles
     }
 }

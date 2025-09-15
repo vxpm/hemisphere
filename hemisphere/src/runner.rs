@@ -1,4 +1,4 @@
-use crate::Hemisphere;
+use crate::{Hemisphere, Limits};
 use common::{Address, arch::FREQUENCY};
 use parking_lot::FairMutex;
 use std::{
@@ -9,6 +9,7 @@ use std::{
     },
     thread::JoinHandle,
     time::{Duration, Instant},
+    u32,
 };
 
 const STEP_SIZE: u32 = 4096;
@@ -87,45 +88,43 @@ fn run(state: Arc<FairMutex<State>>, control: Arc<Control>) {
 
         // emulate
         let mut guard = state.lock();
-        let mut emulated = 0;
-        if guard.breakpoints.is_empty() {
-            while emulated < STEP_SIZE {
-                emulated += guard.hemisphere.exec();
-            }
+        let emulated = if guard.breakpoints.is_empty() {
+            let executed = guard.hemisphere.run(Limits::cycles(STEP_SIZE));
+            executed.cycles
         } else {
             std::hint::cold_path();
-            while emulated < STEP_SIZE {
-                let mut target = Address(0);
-                let mut min_distance = u32::MAX;
-                for breakpoint in guard.breakpoints.iter().copied() {
-                    let distance = breakpoint
-                        .value()
-                        .checked_sub(guard.hemisphere.system.cpu.pc.value());
+            todo!("redo breakpoints")
 
-                    if let Some(distance) = distance
-                        && distance <= min_distance
-                        && distance != 0
-                    {
-                        target = breakpoint;
-                        min_distance = distance;
-                    }
-                }
-
-                let target_distance = min_distance / 4;
-                if target_distance <= guard.hemisphere.config.instr_per_block as u32 {
-                    emulated += guard
-                        .hemisphere
-                        .exec_with_limit_and_try_cache(target_distance as u16);
-
-                    if guard.hemisphere.system.cpu.pc == target {
-                        control.should_run.store(false, Ordering::Relaxed);
-                        break;
-                    }
-                } else {
-                    emulated += guard.hemisphere.exec();
-                }
-            }
-        }
+            // let mut emulated = 0;
+            // while emulated < STEP_SIZE {
+            //     let mut target = Address(0);
+            //     let mut min_distance = u32::MAX;
+            //     for breakpoint in guard.breakpoints.iter().copied() {
+            //         let distance = breakpoint
+            //             .value()
+            //             .checked_sub(guard.hemisphere.system.cpu.pc.value());
+            //
+            //         if let Some(distance) = distance
+            //             && distance <= min_distance
+            //             && distance != 0
+            //         {
+            //             target = breakpoint;
+            //             min_distance = distance;
+            //         }
+            //     }
+            //
+            //     let target_distance = min_distance / 4;
+            //     guard.hemisphere.run(target_distance);
+            //     emulated += target_distance;
+            //
+            //     if guard.hemisphere.system.cpu.pc == target {
+            //         control.should_run.store(false, Ordering::Relaxed);
+            //         break;
+            //     }
+            // }
+            //
+            // emulated
+        };
 
         if guard.stats.cps.len() >= 1024 {
             guard.stats.cps.pop_back();

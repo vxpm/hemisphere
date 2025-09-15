@@ -14,7 +14,7 @@ use crate::{
     system::System,
 };
 use common::arch::disasm::{Extensions, Ins, ParsedIns};
-use ppcjit::{Sequence, SequenceStatus};
+use ppcjit::{Sequence, SequenceStatus, block::Executed};
 use tracing::{trace, trace_span};
 
 pub use common::{self, Address, Primitive, arch};
@@ -23,13 +23,40 @@ pub use dol;
 /// Emulator configuration.
 pub struct Config {
     /// Maximum number of instructions per JIT block.
-    pub instr_per_block: u16,
+    pub instr_per_block: u32,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
             instr_per_block: 256,
+        }
+    }
+}
+
+/// Represents limits for execution.
+#[derive(Debug, Clone, Copy)]
+pub struct Limits {
+    /// A hard-limit on how many instructions can be executed. This means that the number of
+    /// executed instructions will always be less than or equal to this value.
+    pub instructions: u32,
+    /// A soft-limit on how many cycles can be executed. This means that the number of executed
+    /// instructions might be less than this value or, at most, slightly above it.
+    pub cycles: u32,
+}
+
+impl Limits {
+    pub fn instructions(value: u32) -> Self {
+        Self {
+            instructions: value,
+            cycles: u32::MAX,
+        }
+    }
+
+    pub fn cycles(value: u32) -> Self {
+        Self {
+            instructions: u32::MAX,
+            cycles: value,
         }
     }
 }
@@ -51,7 +78,7 @@ impl Hemisphere {
     }
 
     /// Compiles a sequence of at most `limit` instructions starting at `addr` into a JIT block.
-    fn compile(&mut self, addr: Address, limit: u16) -> ppcjit::Block {
+    fn compile(&mut self, addr: Address, limit: u32) -> ppcjit::Block {
         let _span = trace_span!("compiling new block", addr = ?self.system.cpu.pc).entered();
 
         let mut seq = Sequence::new();
@@ -84,19 +111,15 @@ impl Hemisphere {
         self.jit.compiler.compile(seq).unwrap()
     }
 
-    /// Executes a single block and returns how many cycles were executed. The block must execute
-    /// at most `limit` instructions.
-    ///
-    /// If there's no block in storage which meets the requirements, a block will be compiled for
-    /// execution then immediately get discarded.
-    pub fn exec_with_limit(&mut self, limit: u16) -> u32 {
+    #[inline(always)]
+    fn exec_inner(&mut self, instr_limit: u32) -> Executed {
         let block = self
             .jit
             .blocks
             .mapping
             .get(self.system.cpu.pc)
             .and_then(|id| self.jit.blocks.storage.get(id))
-            .filter(|b| b.sequence().len() <= limit as usize);
+            .filter(|b| b.sequence().len() <= instr_limit as usize);
 
         let compiled: ppcjit::Block;
         let block = match block {
@@ -104,7 +127,7 @@ impl Hemisphere {
             None => {
                 std::hint::cold_path();
 
-                compiled = self.compile(self.system.cpu.pc, limit);
+                compiled = self.compile(self.system.cpu.pc, instr_limit);
                 &compiled
             }
         };
@@ -117,13 +140,7 @@ impl Hemisphere {
         block.run(&mut ctx as *mut _ as *mut _, &CTX_HOOKS)
     }
 
-    /// Executes a single block and returns how many cycles were executed. The block must execute
-    /// at most `limit` instructions.
-    ///
-    /// If there's no block in storage which meets the requirements, a block will be compiled with
-    /// normal limits and get cached. If the compiled block _still_ doesn't meet the requirements,
-    /// a block will be compiled for execution then immediately get discarded.
-    fn exec_with_limit_and_try_cache(&mut self, limit: u16) -> u32 {
+    fn exec(&mut self, limits: Limits) -> Executed {
         let block = self
             .jit
             .blocks
@@ -136,43 +153,46 @@ impl Hemisphere {
             self.jit.blocks.insert(self.system.cpu.pc, block);
         }
 
-        self.exec_with_limit(limit)
+        self.exec_inner(limits.instructions)
     }
 
-    /// Executes a single block and returns how many cycles were executed.
-    pub fn exec(&mut self) -> u32 {
-        // tracing::debug!("exec at {}", self.system.cpu.pc);
+    pub fn step(&mut self) -> Executed {
+        self.exec(Limits {
+            instructions: 1,
+            cycles: u32::MAX,
+        })
+    }
 
-        let block = self
-            .jit
-            .blocks
-            .mapping
-            .get(self.system.cpu.pc)
-            .and_then(|id| self.jit.blocks.storage.get(id));
+    /// Runs the emulator respecting the given `limits`.
+    pub fn run(&mut self, limits: Limits) -> Executed {
+        let mut executed = Executed::default();
+        let mut remaining_instr = limits.instructions;
+        let mut remaining_cycles = limits.cycles;
 
-        let block = match block {
-            Some(block) => block,
-            None => {
-                std::hint::cold_path();
+        while remaining_cycles > 0 && remaining_instr > 0 {
+            let until_next_event = self.system.scheduler.until_next().unwrap_or(u64::MAX);
+            let cycles_to_run = until_next_event
+                .min(remaining_cycles as u64)
+                .min(u32::MAX as u64) as u32;
 
-                let block = self.compile(self.system.cpu.pc, self.config.instr_per_block);
-                let id = self.jit.blocks.insert(self.system.cpu.pc, block);
+            let e = self.exec(Limits {
+                cycles: cycles_to_run,
+                instructions: remaining_instr,
+            });
 
-                self.jit.blocks.storage.get(id).unwrap()
+            executed.instructions += e.instructions;
+            executed.cycles += e.cycles;
+
+            remaining_instr = remaining_instr.saturating_sub(e.instructions);
+            remaining_cycles = remaining_cycles.saturating_sub(e.cycles);
+
+            // process all events
+            self.system.scheduler.advance(e.cycles as u64);
+            while let Some(event) = self.system.scheduler.pop() {
+                self.system.process(event);
             }
-        };
+        }
 
-        // tracing::debug!(
-        //     "====> block seq:\n{}\n",
-        //     block.sequence(),
-        //     // block.clir(),
-        // );
-
-        let mut ctx = Context {
-            system: &mut self.system,
-            mapping: &mut self.jit.blocks.mapping,
-        };
-
-        block.run(&mut ctx as *mut _ as *mut _, &CTX_HOOKS)
+        executed
     }
 }

@@ -61,7 +61,7 @@ impl Compiler {
         let ptr = self.isa.pointer_type();
         ir::Signature {
             params: vec![ir::AbiParam::new(ptr); 4],
-            returns: vec![ir::AbiParam::new(ir::types::I32)],
+            returns: vec![ir::AbiParam::new(ir::types::I64)],
             call_conv: codegen::isa::CallConv::SystemV,
         }
     }
@@ -74,7 +74,7 @@ impl Compiler {
         for ins in sequence.iter().copied() {
             builder.emit(ins).context(BuildCtx::Builder)?;
         }
-        builder.finish();
+        let cycles = builder.finish();
 
         let mut ctx = codegen::Context::for_function(func);
         let ir = ctx.func.display().to_string();
@@ -84,6 +84,6 @@ impl Compiler {
             .map_err(|e| e.inner)
             .context(BuildCtx::Codegen)?;
 
-        Ok(unsafe { Block::new(sequence, ir, compiled.code_buffer()) })
+        Ok(unsafe { Block::new(sequence, ir, cycles, compiled.code_buffer()) })
     }
 }

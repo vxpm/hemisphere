@@ -26,7 +26,7 @@ struct CliArgs {
     run: bool,
     /// Maximum number of instructions per block
     #[arg(visible_alias("ipb"), long, default_value_t = 128)]
-    instr_per_block: u16,
+    instr_per_block: u32,
 }
 
 fn setup_tracing() -> tracing_appender::non_blocking::WorkerGuard {

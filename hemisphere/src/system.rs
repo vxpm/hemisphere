@@ -4,14 +4,22 @@ pub mod bus;
 pub mod dsp;
 pub mod mem;
 pub mod mmu;
+pub mod scheduler;
 pub mod video;
 
-use crate::system::{bus::Bus, mmu::Mmu};
+use crate::system::{bus::Bus, mmu::Mmu, scheduler::Scheduler};
 use common::{Address, arch::Cpu};
 use dol::Dol;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Event {
+    Decrementer,
+}
+
 /// System state.
 pub struct System {
+    /// Scheduler for events.
+    pub scheduler: Scheduler,
     /// The CPU state.
     pub cpu: Cpu,
     /// The system bus. Contains all other peripherals.
@@ -29,6 +37,7 @@ impl Default for System {
 impl System {
     pub fn new() -> Self {
         System {
+            scheduler: Scheduler::default(),
             cpu: Cpu::default(),
             bus: Bus::new(),
             mmu: Mmu::new(),
@@ -98,5 +107,10 @@ impl System {
                 self.bus.write(target, byte);
             }
         }
+    }
+
+    pub fn process(&mut self, event: Event) {
+        tracing::info!("got {event:?}");
+        self.scheduler.schedule(Event::Decrementer, 128);
     }
 }

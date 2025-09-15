@@ -2,7 +2,7 @@ mod tab;
 
 use crate::app::tab::Tab;
 use eyre_pretty::eyre::Result;
-use hemisphere::{Address, runner::Runner};
+use hemisphere::{Address, Limits, runner::Runner};
 use ratatui::{
     DefaultTerminal, Frame,
     crossterm::event::{self, Event, KeyCode, KeyModifiers},
@@ -199,7 +199,7 @@ impl App {
                     if !self.runner.running() {
                         self.runner.with_state(|s| {
                             debug!("stepping at {}", s.hemisphere().system.cpu.pc);
-                            s.hemisphere_mut().exec_with_limit(1)
+                            s.hemisphere_mut().step();
                         });
                     }
                 }
