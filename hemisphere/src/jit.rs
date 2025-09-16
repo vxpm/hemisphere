@@ -132,7 +132,7 @@ impl Default for Blocks {
 impl Blocks {
     #[inline(always)]
     pub fn insert(&mut self, addr: Address, block: Block) -> BlockId {
-        let end = addr + block.sequence().len() as u32 * 4;
+        let end = addr + block.meta().seq.len() as u32 * 4;
         let range = addr..end;
 
         let id = self.storage.insert(block);
@@ -155,11 +155,11 @@ pub struct Context<'a> {
 }
 
 pub static CTX_HOOKS: Hooks = {
-    extern "sysv64" fn get_registers<'a>(ctx: &'a mut Context) -> &'a mut Cpu {
+    extern "sysv64-unwind" fn get_registers<'a>(ctx: &'a mut Context) -> &'a mut Cpu {
         &mut ctx.system.cpu
     }
 
-    extern "sysv64" fn read<T: Primitive>(ctx: &mut Context, addr: Address) -> T {
+    extern "sysv64-unwind" fn read<T: Primitive>(ctx: &mut Context, addr: Address) -> T {
         tracing::debug!(
             "pc: {}, r3 is {:08X}, r8 is {:08X}",
             ctx.system.cpu.pc,
@@ -170,7 +170,7 @@ pub static CTX_HOOKS: Hooks = {
         ctx.system.bus.read(physical)
     }
 
-    extern "sysv64" fn write<T: Primitive>(ctx: &mut Context, addr: Address, value: T) {
+    extern "sysv64-unwind" fn write<T: Primitive>(ctx: &mut Context, addr: Address, value: T) {
         let physical = ctx.system.translate_data_addr(addr);
         ctx.system.bus.write(physical, value);
         for i in 0..size_of::<T>() {
@@ -178,7 +178,7 @@ pub static CTX_HOOKS: Hooks = {
         }
     }
 
-    extern "sysv64" fn ibat_changed(ctx: &mut Context) {
+    extern "sysv64-unwind" fn ibat_changed(ctx: &mut Context) {
         info!("ibats changed - clearing blocks mapping and rebuilding ibat lut");
         ctx.mapping.clear();
         ctx.system
@@ -186,14 +186,14 @@ pub static CTX_HOOKS: Hooks = {
             .build_instr_bat_lut(&ctx.system.cpu.supervisor.memory.ibat);
     }
 
-    extern "sysv64" fn dbat_changed(ctx: &mut Context) {
+    extern "sysv64-unwind" fn dbat_changed(ctx: &mut Context) {
         info!("dbats changed - rebuilding dbat lut");
         ctx.system
             .mmu
             .build_data_bat_lut(&ctx.system.cpu.supervisor.memory.dbat);
     }
 
-    extern "sysv64" fn dec_read(ctx: &mut Context) {
+    extern "sysv64-unwind" fn dec_read(ctx: &mut Context) {
         let last_updated = ctx.system.lazy.last_updated_dec;
         let elapsed = ctx.system.scheduler.elapsed();
 
@@ -207,7 +207,7 @@ pub static CTX_HOOKS: Hooks = {
             .wrapping_sub((elapsed - last_updated) as u32);
     }
 
-    extern "sysv64" fn dec_changed(ctx: &mut Context) {
+    extern "sysv64-unwind" fn dec_changed(ctx: &mut Context) {
         ctx.system
             .scheduler
             .retain(|e| e.event != Event::Decrementer);
@@ -228,20 +228,28 @@ pub static CTX_HOOKS: Hooks = {
         use std::mem::transmute;
 
         let get_registers =
-            transmute::<_, GetRegistersHook>(get_registers as extern "sysv64" fn(_) -> _);
+            transmute::<_, GetRegistersHook>(get_registers as extern "sysv64-unwind" fn(_) -> _);
 
-        let read_i8 = transmute::<_, ReadHook<i8>>(read::<i8> as extern "sysv64" fn(_, _) -> _);
-        let write_i8 = transmute::<_, WriteHook<i8>>(write::<i8> as extern "sysv64" fn(_, _, _));
-        let read_i16 = transmute::<_, ReadHook<i16>>(read::<i16> as extern "sysv64" fn(_, _) -> _);
-        let write_i16 = transmute::<_, WriteHook<i16>>(write::<i16> as extern "sysv64" fn(_, _, _));
-        let read_i32 = transmute::<_, ReadHook<i32>>(read::<i32> as extern "sysv64" fn(_, _) -> _);
-        let write_i32 = transmute::<_, WriteHook<i32>>(write::<i32> as extern "sysv64" fn(_, _, _));
+        let read_i8 =
+            transmute::<_, ReadHook<i8>>(read::<i8> as extern "sysv64-unwind" fn(_, _) -> _);
+        let write_i8 =
+            transmute::<_, WriteHook<i8>>(write::<i8> as extern "sysv64-unwind" fn(_, _, _));
+        let read_i16 =
+            transmute::<_, ReadHook<i16>>(read::<i16> as extern "sysv64-unwind" fn(_, _) -> _);
+        let write_i16 =
+            transmute::<_, WriteHook<i16>>(write::<i16> as extern "sysv64-unwind" fn(_, _, _));
+        let read_i32 =
+            transmute::<_, ReadHook<i32>>(read::<i32> as extern "sysv64-unwind" fn(_, _) -> _);
+        let write_i32 =
+            transmute::<_, WriteHook<i32>>(write::<i32> as extern "sysv64-unwind" fn(_, _, _));
 
-        let ibat_changed = transmute::<_, GenericHook>(ibat_changed as extern "sysv64" fn(_));
-        let dbat_changed = transmute::<_, GenericHook>(dbat_changed as extern "sysv64" fn(_));
+        let ibat_changed =
+            transmute::<_, GenericHook>(ibat_changed as extern "sysv64-unwind" fn(_));
+        let dbat_changed =
+            transmute::<_, GenericHook>(dbat_changed as extern "sysv64-unwind" fn(_));
 
-        let dec_read = transmute::<_, GenericHook>(dec_read as extern "sysv64" fn(_));
-        let dec_changed = transmute::<_, GenericHook>(dec_changed as extern "sysv64" fn(_));
+        let dec_read = transmute::<_, GenericHook>(dec_read as extern "sysv64-unwind" fn(_));
+        let dec_changed = transmute::<_, GenericHook>(dec_changed as extern "sysv64-unwind" fn(_));
 
         Hooks {
             get_registers,

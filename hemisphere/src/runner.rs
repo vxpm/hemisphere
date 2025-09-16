@@ -1,10 +1,10 @@
 use crate::{Hemisphere, Limits};
 use common::{Address, arch::FREQUENCY};
-use parking_lot::FairMutex;
+// use parking_lot::FairMutex;
 use std::{
     collections::VecDeque,
     sync::{
-        Arc,
+        Arc, Mutex,
         atomic::{AtomicBool, Ordering},
     },
     thread::JoinHandle,
@@ -65,7 +65,7 @@ struct Control {
     should_run: AtomicBool,
 }
 
-fn run(state: Arc<FairMutex<State>>, control: Arc<Control>) {
+fn run(state: Arc<Mutex<State>>, control: Arc<Control>) {
     let mut next = Instant::now();
     'outer: loop {
         if !control.should_run.load(Ordering::Relaxed) {
@@ -87,7 +87,7 @@ fn run(state: Arc<FairMutex<State>>, control: Arc<Control>) {
         }
 
         // emulate
-        let mut guard = state.lock();
+        let mut guard = state.lock().unwrap();
         let emulated = if guard.breakpoints.is_empty() {
             let executed = guard.hemisphere.run(Limits::cycles(STEP_SIZE));
             executed.cycles
@@ -143,14 +143,14 @@ fn run(state: Arc<FairMutex<State>>, control: Arc<Control>) {
 
 /// A simple runner for the Hemisphere emulator.
 pub struct Runner {
-    state: Arc<FairMutex<State>>,
+    state: Arc<Mutex<State>>,
     control: Arc<Control>,
     handle: JoinHandle<()>,
 }
 
 impl Runner {
     pub fn new(hemisphere: Hemisphere) -> Self {
-        let state = Arc::new(FairMutex::new(State::new(hemisphere)));
+        let state = Arc::new(Mutex::new(State::new(hemisphere)));
         let control = Arc::new(Control {
             should_run: AtomicBool::new(false),
         });
@@ -187,7 +187,7 @@ impl Runner {
     where
         F: FnOnce(&mut State) -> R,
     {
-        let mut state = self.state.lock();
+        let mut state = self.state.lock().unwrap();
         f(&mut state)
     }
 }

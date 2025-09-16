@@ -23,14 +23,14 @@ fn raise_exception_sig(ptr_type: ir::Type) -> ir::Signature {
     }
 }
 
-extern "sysv64" fn raise_exception(regs: &mut Cpu, exception: Exception) {
+extern "sysv64-unwind" fn raise_exception(regs: &mut Cpu, exception: Exception) {
     info!("raising exception: {exception:?}");
     regs.raise_exception(exception);
 }
 
 impl BlockBuilder<'_> {
     fn raise_exception(&mut self, exception: Exception) -> Info {
-        let func = raise_exception as extern "sysv64" fn(_, _);
+        let func = raise_exception as extern "sysv64-unwind" fn(_, _);
         let ptr = self
             .bd
             .ins()

@@ -5,7 +5,7 @@ mod sequence;
 
 pub mod block;
 
-use crate::builder::BlockBuilder;
+use crate::{block::Meta, builder::BlockBuilder};
 use cranelift::{
     codegen::{self, ir},
     frontend, native,
@@ -30,6 +30,7 @@ impl Default for Compiler {
         builder.set("is_pic", "false").unwrap();
         builder.set("stack_switch_model", "basic").unwrap();
         builder.set("opt_level", "speed_and_size").unwrap();
+        builder.set("unwind_info", "true").unwrap();
         builder.enable("enable_alias_analysis").unwrap();
         builder.enable("enable_jump_tables").unwrap();
 
@@ -84,6 +85,14 @@ impl Compiler {
             .map_err(|e| e.inner)
             .context(BuildCtx::Codegen)?;
 
-        Ok(unsafe { Block::new(sequence, ir, cycles, compiled.code_buffer()) })
+        let meta = Meta {
+            seq: sequence,
+            clir: ir,
+            cycles,
+        };
+
+        let block = unsafe { Block::new(meta, &*self.isa, compiled) };
+
+        Ok(block)
     }
 }

@@ -119,7 +119,7 @@ impl Hemisphere {
             .mapping
             .get(self.system.cpu.pc)
             .and_then(|id| self.jit.blocks.storage.get(id))
-            .filter(|b| b.sequence().len() <= instr_limit as usize);
+            .filter(|b| b.meta().seq.len() <= instr_limit as usize);
 
         let compiled: ppcjit::Block;
         let block = match block {
@@ -137,7 +137,7 @@ impl Hemisphere {
             mapping: &mut self.jit.blocks.mapping,
         };
 
-        block.run(&mut ctx as *mut _ as *mut _, &CTX_HOOKS)
+        block.call(&mut ctx as *mut _ as *mut _, &CTX_HOOKS)
     }
 
     fn exec(&mut self, limits: Limits) -> Executed {

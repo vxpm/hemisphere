@@ -1,6 +1,11 @@
-use crate::Sequence;
+mod unwind;
+
+use crate::{Sequence, block::unwind::UnwindGuard};
 use common::{Address, arch::Cpu};
-use cranelift::{codegen::ir, prelude::isa};
+use cranelift::{
+    codegen::{CompiledCode, ir},
+    prelude::isa,
+};
 use iced_x86::Formatter;
 use memmap2::{Mmap, MmapOptions};
 use std::fmt::Display;
@@ -89,56 +94,56 @@ pub struct Executed {
     pub cycles: u32,
 }
 
-pub type BlockFn = extern "sysv64" fn(*mut Context, *const Hooks) -> Executed;
+pub type BlockFn = extern "sysv64-unwind" fn(*mut Context, *const Hooks) -> Executed;
+
+pub struct Meta {
+    pub seq: Sequence,
+    pub clir: String,
+    pub cycles: u32,
+}
 
 /// A compiled block of PowerPC instructions.
 pub struct Block {
-    seq: Sequence,
-    clir: String,
-    cycles: u32,
+    meta: Meta,
     code: Mmap,
+    _unwind: Option<UnwindGuard>,
 }
 
 impl Block {
-    /// # Safety
-    /// `code` must be the bytes of a valid host function with the [`BlockFn`] signature.
-    pub(crate) unsafe fn new(seq: Sequence, clir: String, cycles: u32, code: &[u8]) -> Self {
-        let mut map = MmapOptions::new().len(code.len()).map_anon().unwrap();
-        map.copy_from_slice(code);
+    pub(crate) unsafe fn new(meta: Meta, isa: &dyn isa::TargetIsa, code: &CompiledCode) -> Self {
+        let mut map = MmapOptions::new()
+            .len(code.code_buffer().len())
+            .map_anon()
+            .unwrap();
+        map.copy_from_slice(code.code_buffer());
+
+        let unwind = if let Ok(Some(unwind_info)) = code.create_unwind_info(isa) {
+            Some(unwind::register(isa, map.as_ptr() as usize, &unwind_info))
+        } else {
+            None
+        };
 
         Self {
-            seq,
-            clir,
-            cycles,
+            meta,
             code: map.make_exec().unwrap(),
+            _unwind: unwind,
         }
+    }
+
+    /// Returns the bytes of the host code.
+    pub fn bytes(&self) -> &[u8] {
+        &self.code
+    }
+
+    pub fn meta(&self) -> &Meta {
+        &self.meta
     }
 
     /// Executes this block of instructions and returns how many cycles were executed.
     #[inline(always)]
-    pub fn run(&self, ctx: *mut Context, hooks: &Hooks) -> Executed {
+    pub fn call(&self, ctx: *mut Context, hooks: &Hooks) -> Executed {
         let func: BlockFn = unsafe { std::mem::transmute(self.code.as_ptr()) };
         func(ctx, hooks)
-    }
-
-    /// Returns the sequence of instructions this block represents.
-    pub fn sequence(&self) -> &Sequence {
-        &self.seq
-    }
-
-    /// Returns the Cranelift IR generated for this block.
-    pub fn clir(&self) -> &str {
-        &self.clir
-    }
-
-    /// Returns how many cycles this block executes _at most_ (i.e. without any early exits).
-    pub fn cycles(&self) -> u32 {
-        self.cycles
-    }
-
-    /// Returns the length, in bytes, of this block.
-    pub fn len(&self) -> usize {
-        self.code.len()
     }
 }
 
