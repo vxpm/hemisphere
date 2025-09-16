@@ -27,6 +27,10 @@ pub struct Hooks {
     // bats
     pub ibat_changed: GenericHook,
     pub dbat_changed: GenericHook,
+
+    // decrementer
+    pub dec_read: GenericHook,
+    pub dec_changed: GenericHook,
 }
 
 impl Hooks {

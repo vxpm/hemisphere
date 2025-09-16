@@ -8,12 +8,20 @@ pub mod scheduler;
 pub mod video;
 
 use crate::system::{bus::Bus, mmu::Mmu, scheduler::Scheduler};
-use common::{Address, arch::Cpu};
+use common::{
+    Address,
+    arch::{Cpu, Exception},
+};
 use dol::Dol;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Event {
     Decrementer,
+}
+
+#[derive(Debug, Default)]
+pub struct Lazy {
+    pub last_updated_dec: u64,
 }
 
 /// System state.
@@ -26,6 +34,8 @@ pub struct System {
     pub bus: Bus,
     /// State of memory mapping.
     pub mmu: Mmu,
+    /// State of mechanisms that update lazily (e.g. time related registers).
+    pub lazy: Lazy,
 }
 
 impl Default for System {
@@ -39,8 +49,9 @@ impl System {
         System {
             scheduler: Scheduler::default(),
             cpu: Cpu::default(),
-            bus: Bus::new(),
-            mmu: Mmu::new(),
+            bus: Bus::default(),
+            mmu: Mmu::default(),
+            lazy: Lazy::default(),
         }
     }
 
@@ -110,7 +121,10 @@ impl System {
     }
 
     pub fn process(&mut self, event: Event) {
-        tracing::info!("got {event:?}");
-        self.scheduler.schedule(Event::Decrementer, 128);
+        match event {
+            Event::Decrementer => {
+                self.cpu.raise_exception(Exception::Decrementer);
+            }
+        }
     }
 }

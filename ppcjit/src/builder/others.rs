@@ -1,7 +1,9 @@
+use std::mem::offset_of;
+
 use super::BlockBuilder;
-use crate::builder::Info;
+use crate::{block::Hooks, builder::Info};
 use bitos::BitUtils;
-use common::arch::{InsExt, Reg, disasm::Ins};
+use common::arch::{InsExt, Reg, SPR, disasm::Ins};
 use cranelift::{codegen::ir, prelude::InstBuilder};
 use tracing::debug;
 
@@ -32,7 +34,12 @@ const TB_INFO: Info = Info {
 
 impl BlockBuilder<'_> {
     pub fn mfspr(&mut self, ins: Ins) -> Info {
-        let value = self.get(ins.spr());
+        let spr = ins.spr();
+        if spr == SPR::DEC {
+            self.call_generic_hook(offset_of!(Hooks, dec_read) as i32);
+        }
+
+        let value = self.get(spr);
         self.set(ins.gpr_d(), value);
 
         SPR_INFO
@@ -41,6 +48,7 @@ impl BlockBuilder<'_> {
     pub fn mtspr(&mut self, ins: Ins) -> Info {
         let value = self.get(ins.gpr_s());
         let spr = ins.spr();
+        self.set(spr, value);
 
         if spr.is_data_bat() {
             self.dbat_changed = true;
@@ -50,7 +58,9 @@ impl BlockBuilder<'_> {
             self.ibat_changed = true;
         }
 
-        self.set(spr, value);
+        if ins.spr() == SPR::DEC {
+            self.call_generic_hook(offset_of!(Hooks, dec_changed) as i32);
+        }
 
         SPR_INFO
     }

@@ -9,7 +9,7 @@ mod util;
 
 use crate::{block::Hooks, builder::util::IntoIrValue};
 use common::arch::{
-    Reg,
+    Reg, SPR,
     disasm::{Ins, Opcode},
 };
 use cranelift::{
@@ -26,6 +26,17 @@ fn reg_ir_ty(reg: Reg) -> ir::Type {
     match reg {
         Reg::FPR(_) => ir::types::F64,
         _ => ir::types::I32,
+    }
+}
+
+fn reg_cacheable(reg: Reg) -> bool {
+    match reg {
+        Reg::SPR(spr) => match spr {
+            SPR::DEC | SPR::TBL | SPR::TBU => false,
+            spr if spr.is_bat() => false,
+            _ => true,
+        },
+        _ => true,
     }
 }
 
@@ -130,53 +141,75 @@ impl<'ctx> BlockBuilder<'ctx> {
     /// Gets the current value of the given register.
     fn get(&mut self, reg: impl Into<Reg>) -> ir::Value {
         let reg = reg.into();
-        let var = match self.regs.entry(reg) {
-            Entry::Occupied(o) => o.into_mut(),
-            Entry::Vacant(v) => {
-                let reg_ty = reg_ir_ty(reg);
-                let dumped = self.bd.ins().load(
-                    reg_ty,
-                    ir::MemFlags::trusted(),
-                    self.consts.regs_ptr,
-                    reg.offset() as i32,
-                );
 
-                let var = self.bd.declare_var(reg_ty);
-                self.bd.def_var(var, dumped);
-                v.insert(RegState {
-                    var,
-                    modified: false,
-                })
+        if reg_cacheable(reg) {
+            let var = match self.regs.entry(reg) {
+                Entry::Occupied(o) => o.into_mut(),
+                Entry::Vacant(v) => {
+                    let reg_ty = reg_ir_ty(reg);
+                    let dumped = self.bd.ins().load(
+                        reg_ty,
+                        ir::MemFlags::trusted(),
+                        self.consts.regs_ptr,
+                        reg.offset() as i32,
+                    );
+
+                    let var = self.bd.declare_var(reg_ty);
+                    self.bd.def_var(var, dumped);
+                    v.insert(RegState {
+                        var,
+                        modified: false,
+                    })
+                }
             }
-        }
-        .var;
+            .var;
 
-        self.bd.use_var(var)
+            self.bd.use_var(var)
+        } else {
+            let reg_ty = reg_ir_ty(reg);
+            self.bd.ins().load(
+                reg_ty,
+                ir::MemFlags::trusted(),
+                self.consts.regs_ptr,
+                reg.offset() as i32,
+            )
+        }
     }
 
     /// Sets the value of the given register.
     fn set(&mut self, reg: impl Into<Reg>, value: impl IntoIrValue) {
         let reg = reg.into();
-        let var = match self.regs.entry(reg) {
-            Entry::Occupied(o) => {
-                let var = o.into_mut();
-                var.modified = true;
 
-                var.var
-            }
-            Entry::Vacant(v) => {
-                let var = self.bd.declare_var(reg_ir_ty(reg));
-                v.insert(RegState {
-                    var,
-                    modified: true,
-                });
+        if reg_cacheable(reg) {
+            let var = match self.regs.entry(reg) {
+                Entry::Occupied(o) => {
+                    let var = o.into_mut();
+                    var.modified = true;
 
-                var
-            }
-        };
+                    var.var
+                }
+                Entry::Vacant(v) => {
+                    let var = self.bd.declare_var(reg_ir_ty(reg));
+                    v.insert(RegState {
+                        var,
+                        modified: true,
+                    });
 
-        let value = self.ir_value(value);
-        self.bd.def_var(var, value);
+                    var
+                }
+            };
+
+            let value = self.ir_value(value);
+            self.bd.def_var(var, value);
+        } else {
+            let value = self.ir_value(value);
+            self.bd.ins().store(
+                ir::MemFlags::trusted(),
+                value,
+                self.consts.regs_ptr,
+                reg.offset() as i32,
+            );
+        }
     }
 
     /// Calls a generic context hook.
@@ -198,8 +231,8 @@ impl<'ctx> BlockBuilder<'ctx> {
             .call_indirect(sig, hook, &[self.consts.ctx_ptr]);
     }
 
-    /// Consolidates modified registers to the registers struct.
-    fn consolidate(&mut self) {
+    /// Writes modified registers to the registers struct.
+    fn flush(&mut self) {
         for (reg, var) in &self.regs {
             if !var.modified {
                 continue;
@@ -228,7 +261,7 @@ impl<'ctx> BlockBuilder<'ctx> {
         let cycles = self.bd.ins().ishl_imm(cycles, 32);
         let merged = self.bd.ins().bor(instructions, cycles);
 
-        self.consolidate();
+        self.flush();
 
         if self.dbat_changed {
             self.call_generic_hook(offset_of!(Hooks, dbat_changed) as i32);

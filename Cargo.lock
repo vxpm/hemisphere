@@ -311,6 +311,7 @@ dependencies = [
  "easyerr",
  "powerpc",
  "strum 0.27.2",
+ "tracing",
  "zerocopy",
 ]
 

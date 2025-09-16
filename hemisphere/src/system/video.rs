@@ -4,24 +4,12 @@ use common::arch::FREQUENCY;
 
 pub use regs::*;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct VideoInterface {
     pub regs: Registers,
 }
 
-impl Default for VideoInterface {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl VideoInterface {
-    pub fn new() -> Self {
-        Self {
-            regs: Registers::default(),
-        }
-    }
-
     /// The current video clock.
     pub fn video_clock(&self) -> u32 {
         if self.regs.clock.double() {

@@ -56,7 +56,15 @@ impl BlockBuilder<'_> {
         let target = self.ir_value(ins.field_li());
         self.setup_jump(!ins.field_aa(), ins.field_lk(), target);
 
-        JUMP_INFO
+        if !ins.field_aa() && ins.field_li() == 0 {
+            // PERF: spin loop - lie and say we executed more cycles instead
+            Info {
+                cycles: 32,
+                auto_pc: false,
+            }
+        } else {
+            JUMP_INFO
+        }
     }
 
     fn conditional_branch(&mut self, ins: Ins, relative: bool, target: impl IntoIrValue) -> Info {
@@ -118,10 +126,12 @@ impl BlockBuilder<'_> {
         let target = self.ir_value(target);
         self.setup_jump(relative, ins.field_lk(), target);
 
-        // HACK: add to cycles for prologue emission
+        // HACK: add to cycles and instructions for prologue emission
+        self.executed += 1;
         self.cycles += BRANCH_INFO.cycles as u32;
         self.prologue();
         self.cycles -= BRANCH_INFO.cycles as u32;
+        self.executed -= 1;
 
         self.bd.switch_to_block(continue_block);
         self.current_bb = continue_block;

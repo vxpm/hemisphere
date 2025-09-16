@@ -17,14 +17,16 @@ pub struct Mmu {
     instr_bat_lut: BlockLUT,
 }
 
-impl Mmu {
-    pub fn new() -> Self {
+impl Default for Mmu {
+    fn default() -> Self {
         Self {
             data_bat_lut: boxed_array(NO_BAT),
             instr_bat_lut: boxed_array(NO_BAT),
         }
     }
+}
 
+impl Mmu {
     fn update_lut_with(lut: &mut BlockLUT, bat: &Bat) {
         let physical_start_base = (bat.physical_start().value() >> 17) as u16;
         let physical_end_base = (bat.physical_end().value() >> 17) as u16;

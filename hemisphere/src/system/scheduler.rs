@@ -1,9 +1,9 @@
 use crate::system::Event;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct ScheduledEvent {
-    cycle: u64,
-    event: Event,
+pub struct ScheduledEvent {
+    pub cycle: u64,
+    pub event: Event,
 }
 
 #[derive(Debug)]
@@ -16,10 +16,7 @@ impl Default for Scheduler {
     fn default() -> Self {
         Self {
             elapsed: 0,
-            scheduled: vec![ScheduledEvent {
-                cycle: 0,
-                event: Event::Decrementer,
-            }],
+            scheduled: Vec::with_capacity(16),
         }
     }
 }
@@ -56,6 +53,11 @@ impl Scheduler {
             .iter()
             .position(|e| e.cycle <= self.elapsed)
             .map(|i| self.scheduled.swap_remove(i).event)
+    }
+
+    #[inline(always)]
+    pub fn retain(&mut self, f: impl FnMut(&ScheduledEvent) -> bool) {
+        self.scheduled.retain(f);
     }
 
     #[inline(always)]

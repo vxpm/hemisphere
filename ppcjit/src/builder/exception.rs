@@ -45,7 +45,7 @@ impl BlockBuilder<'_> {
             .ins()
             .iconst(ir::types::I16, exception as u64 as i64);
 
-        self.consolidate();
+        self.flush();
         self.regs.clear();
 
         self.bd
@@ -57,7 +57,6 @@ impl BlockBuilder<'_> {
         // HACK: ignore any code emitted afterwards
         let dummy = self.bd.create_block();
         self.bd.seal_block(dummy);
-
         self.bd.switch_to_block(dummy);
         self.current_bb = dummy;
 

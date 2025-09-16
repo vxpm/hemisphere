@@ -29,7 +29,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            instr_per_block: 256,
+            instr_per_block: 512,
         }
     }
 }
@@ -175,6 +175,7 @@ impl Hemisphere {
                 .min(remaining_cycles as u64)
                 .min(u32::MAX as u64) as u32;
 
+            // tracing::debug!("executing at {}", self.system.cpu.pc);
             let e = self.exec(Limits {
                 cycles: cycles_to_run,
                 instructions: remaining_instr,

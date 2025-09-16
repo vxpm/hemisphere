@@ -1,4 +1,4 @@
-use crate::System;
+use crate::{System, system::Event};
 use common::{Address, Primitive, arch::Cpu, util::boxed_array};
 use interavl::IntervalTree;
 use ppcjit::{
@@ -160,6 +160,12 @@ pub static CTX_HOOKS: Hooks = {
     }
 
     extern "sysv64" fn read<T: Primitive>(ctx: &mut Context, addr: Address) -> T {
+        tracing::debug!(
+            "pc: {}, r3 is {:08X}, r8 is {:08X}",
+            ctx.system.cpu.pc,
+            ctx.system.cpu.user.gpr[3],
+            ctx.system.cpu.user.gpr[8],
+        );
         let physical = ctx.system.translate_data_addr(addr);
         ctx.system.bus.read(physical)
     }
@@ -187,6 +193,33 @@ pub static CTX_HOOKS: Hooks = {
             .build_data_bat_lut(&ctx.system.cpu.supervisor.memory.dbat);
     }
 
+    extern "sysv64" fn dec_read(ctx: &mut Context) {
+        let last_updated = ctx.system.lazy.last_updated_dec;
+        let elapsed = ctx.system.scheduler.elapsed();
+
+        ctx.system.lazy.last_updated_dec = elapsed;
+        ctx.system.cpu.supervisor.misc.dec = ctx
+            .system
+            .cpu
+            .supervisor
+            .misc
+            .dec
+            .wrapping_sub((elapsed - last_updated) as u32);
+    }
+
+    extern "sysv64" fn dec_changed(ctx: &mut Context) {
+        ctx.system
+            .scheduler
+            .retain(|e| e.event != Event::Decrementer);
+
+        let dec = ctx.system.cpu.supervisor.misc.dec;
+        info!("decrementer changed to {dec}");
+
+        ctx.system
+            .scheduler
+            .schedule(Event::Decrementer, dec as u64);
+    }
+
     #[expect(
         clippy::missing_transmute_annotations,
         reason = "unnecessary - the definitions are above"
@@ -207,6 +240,9 @@ pub static CTX_HOOKS: Hooks = {
         let ibat_changed = transmute::<_, GenericHook>(ibat_changed as extern "sysv64" fn(_));
         let dbat_changed = transmute::<_, GenericHook>(dbat_changed as extern "sysv64" fn(_));
 
+        let dec_read = transmute::<_, GenericHook>(dec_read as extern "sysv64" fn(_));
+        let dec_changed = transmute::<_, GenericHook>(dec_changed as extern "sysv64" fn(_));
+
         Hooks {
             get_registers,
 
@@ -219,6 +255,9 @@ pub static CTX_HOOKS: Hooks = {
 
             ibat_changed,
             dbat_changed,
+
+            dec_read,
+            dec_changed,
         }
     }
 };

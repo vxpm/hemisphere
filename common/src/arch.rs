@@ -497,11 +497,16 @@ pub struct Cpu {
 impl Cpu {
     /// Takes an exception.
     pub fn raise_exception(&mut self, exception: Exception) {
+        tracing::debug!("raised exception {exception:?}");
+
         // save PC into SRR0
         self.supervisor.exception.srr[0] = self.pc.value();
         if exception.srr0_skip() {
             self.supervisor.exception.srr[0] += 4;
         }
+
+        // and into DAR, fuck it
+        self.supervisor.exception.dar = self.pc.value();
 
         // save MSR into SRR1
         let mask = Exception::MSR_TO_SRR1_MASK;
@@ -643,6 +648,7 @@ pub enum SPR {
     XER = 1,
     LR = 8,
     CTR = 9,
+    DAR = 19,
     DEC = 22,
     SRR0 = 26,
     SRR1 = 27,
@@ -707,6 +713,7 @@ impl SPR {
             Self::XER => offset_of!(Cpu, user.xer),
             Self::LR => offset_of!(Cpu, user.lr),
             Self::CTR => offset_of!(Cpu, user.ctr),
+            Self::DAR => offset_of!(Cpu, supervisor.exception.dar),
             Self::DEC => offset_of!(Cpu, supervisor.misc.dec),
             Self::SRR0 => offset_of!(Cpu, supervisor.exception.srr[0]),
             Self::SRR1 => offset_of!(Cpu, supervisor.exception.srr[1]),

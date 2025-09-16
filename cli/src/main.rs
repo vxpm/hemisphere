@@ -29,7 +29,7 @@ struct CliArgs {
     instr_per_block: u32,
 }
 
-fn setup_tracing() -> tracing_appender::non_blocking::WorkerGuard {
+fn setup_tracing() -> () {
     use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
     let file = std::fs::File::options()
@@ -39,7 +39,7 @@ fn setup_tracing() -> tracing_appender::non_blocking::WorkerGuard {
         .open("log.log")
         .unwrap();
 
-    let (file, _guard_file) = tracing_appender::non_blocking(file);
+    // let (file, _guard_file) = tracing_appender::non_blocking(file);
     let file_layer = fmt::layer().with_writer(file).with_ansi(false);
     let env_filter = EnvFilter::try_from_default_env().unwrap_or(EnvFilter::new(
         "cli=debug,hemisphere=debug,common=debug,ppcjit=debug",
@@ -51,7 +51,7 @@ fn setup_tracing() -> tracing_appender::non_blocking::WorkerGuard {
 
     subscriber.init();
 
-    _guard_file
+    // _guard_file
 }
 
 fn main() -> Result<()> {

@@ -8,26 +8,11 @@ use tracing::{debug, error, warn};
 use zerocopy::IntoBytes;
 
 /// The bus of the system. Contains all memory mapped peripherals.
+#[derive(Default)]
 pub struct Bus {
     pub mem: Memory,
     pub dsp: DspInterface,
     pub video: VideoInterface,
-}
-
-impl Default for Bus {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl Bus {
-    pub fn new() -> Self {
-        Self {
-            mem: Memory::default(),
-            video: VideoInterface::new(),
-            dsp: DspInterface::default(),
-        }
-    }
 }
 
 /// Allows the usage of const values in patterns. It's a neat trick!

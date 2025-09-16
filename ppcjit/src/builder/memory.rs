@@ -103,6 +103,7 @@ impl BlockBuilder<'_> {
             self.set(ins.gpr_a(), addr);
         }
 
+        self.flush();
         let mut value = self.read::<P>(addr);
         if P::IR_TYPE != ir::types::I32 {
             value = if op.signed {
