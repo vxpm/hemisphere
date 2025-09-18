@@ -20,7 +20,7 @@ struct CliArgs {
     /// Path to a .dol file to load and execute
     input: PathBuf,
     #[arg(long)]
-    debug: Option<PathBuf>,
+    dwarf: Option<PathBuf>,
     /// Whether to start running right away
     #[arg(short, long, default_value_t = false)]
     run: bool,
@@ -60,7 +60,17 @@ fn main() -> Result<()> {
     let _tracing_guard = setup_tracing();
 
     info!("loading executable");
-    let executable = Executable::open(&args.input, args.debug.as_deref())?;
+
+    let dwarf = match args.dwarf {
+        Some(debug) => Some(debug),
+        None => {
+            let mut elf = args.input.clone();
+            elf.set_extension("elf");
+            elf.exists().then_some(elf)
+        }
+    };
+
+    let executable = Executable::open(&args.input, dwarf.as_deref())?;
     let mut runner = Runner::new(Hemisphere::new(Config {
         system: system::Config {
             executable: Some(executable),
