@@ -8,6 +8,7 @@ use hemisphere::{
     dol::{Dol, binrw::BinRead},
     runner::Runner,
 };
+use ratatui::crossterm;
 use std::path::PathBuf;
 use tracing::info;
 
@@ -25,11 +26,11 @@ struct CliArgs {
     #[arg(short, long, default_value_t = false)]
     run: bool,
     /// Maximum number of instructions per block
-    #[arg(visible_alias("ipb"), long, default_value_t = 128)]
+    #[arg(visible_alias("ipb"), long, default_value_t = 256)]
     instr_per_block: u32,
 }
 
-fn setup_tracing() -> () {
+fn setup_tracing() -> tracing_appender::non_blocking::WorkerGuard {
     use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
     let file = std::fs::File::options()
@@ -39,8 +40,8 @@ fn setup_tracing() -> () {
         .open("log.log")
         .unwrap();
 
-    // let (file, _guard_file) = tracing_appender::non_blocking(file);
-    let file_layer = fmt::layer().with_writer(file).with_ansi(false);
+    let (file_nb, _guard_file) = tracing_appender::non_blocking(file);
+    let file_layer = fmt::layer().with_writer(file_nb).with_ansi(false);
     let env_filter = EnvFilter::try_from_default_env().unwrap_or(EnvFilter::new(
         "cli=debug,hemisphere=debug,common=debug,ppcjit=debug",
     ));
@@ -51,7 +52,7 @@ fn setup_tracing() -> () {
 
     subscriber.init();
 
-    // _guard_file
+    _guard_file
 }
 
 fn main() -> Result<()> {
@@ -81,7 +82,21 @@ fn main() -> Result<()> {
     let mut app = App::new(runner, addr2line);
 
     info!("starting interface");
-    let terminal = ratatui::init();
+
+    // setup panic hook to restore terminal first
+    // NOTE: don't use ratatui::init as it replaces the panic hook
+    hemisphere::panic::set_hook(
+        Box::new(move |_| {
+            ratatui::restore();
+        }),
+        true,
+    );
+
+    crossterm::terminal::enable_raw_mode()?;
+    crossterm::execute!(std::io::stdout(), crossterm::terminal::EnterAlternateScreen)?;
+    let backend = ratatui::backend::CrosstermBackend::new(std::io::stdout());
+    let terminal = ratatui::Terminal::new(backend)?;
+
     app.run(terminal)?;
     ratatui::restore();
 

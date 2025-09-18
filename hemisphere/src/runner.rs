@@ -1,10 +1,11 @@
 use crate::{Hemisphere, Limits};
+use color_backtrace::BacktracePrinter;
 use common::{Address, arch::FREQUENCY};
-// use parking_lot::FairMutex;
+use parking_lot::FairMutex;
 use std::{
     collections::VecDeque,
     sync::{
-        Arc, Mutex,
+        Arc,
         atomic::{AtomicBool, Ordering},
     },
     thread::JoinHandle,
@@ -65,7 +66,25 @@ struct Control {
     should_run: AtomicBool,
 }
 
-fn run(state: Arc<Mutex<State>>, control: Arc<Control>) {
+fn run(state: Arc<FairMutex<State>>, control: Arc<Control>) {
+    crate::panic::set_hook(
+        Box::new(move |info| {
+            let backtrace = backtrace::Backtrace::new();
+            let message = info.payload_as_str().unwrap_or("(unknown)");
+
+            let mut buffer = color_backtrace::termcolor::Buffer::no_color();
+            _ = BacktracePrinter::new()
+                .message(message)
+                .print_trace(&backtrace, &mut buffer);
+
+            tracing::error!(
+                "runner panicked: {message}\n{}",
+                String::from_utf8_lossy(buffer.as_slice())
+            );
+        }),
+        false,
+    );
+
     let mut next = Instant::now();
     'outer: loop {
         if !control.should_run.load(Ordering::Relaxed) {
@@ -87,7 +106,7 @@ fn run(state: Arc<Mutex<State>>, control: Arc<Control>) {
         }
 
         // emulate
-        let mut guard = state.lock().unwrap();
+        let mut guard = state.lock();
         let emulated = if guard.breakpoints.is_empty() {
             let executed = guard.hemisphere.run(Limits::cycles(STEP_SIZE));
             executed.cycles
@@ -143,14 +162,14 @@ fn run(state: Arc<Mutex<State>>, control: Arc<Control>) {
 
 /// A simple runner for the Hemisphere emulator.
 pub struct Runner {
-    state: Arc<Mutex<State>>,
+    state: Arc<FairMutex<State>>,
     control: Arc<Control>,
     handle: JoinHandle<()>,
 }
 
 impl Runner {
     pub fn new(hemisphere: Hemisphere) -> Self {
-        let state = Arc::new(Mutex::new(State::new(hemisphere)));
+        let state = Arc::new(FairMutex::new(State::new(hemisphere)));
         let control = Arc::new(Control {
             should_run: AtomicBool::new(false),
         });
@@ -187,7 +206,11 @@ impl Runner {
     where
         F: FnOnce(&mut State) -> R,
     {
-        let mut state = self.state.lock().unwrap();
+        if self.handle.is_finished() {
+            panic!("runner thread died");
+        }
+
+        let mut state = self.state.lock();
         f(&mut state)
     }
 }

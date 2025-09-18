@@ -1,6 +1,6 @@
 mod unwind;
 
-use crate::{Sequence, block::unwind::UnwindGuard};
+use crate::{Sequence, block::unwind::UnwindHandle};
 use common::{Address, arch::Cpu};
 use cranelift::{
     codegen::{CompiledCode, ir},
@@ -106,7 +106,7 @@ pub struct Meta {
 pub struct Block {
     meta: Meta,
     code: Mmap,
-    _unwind: Option<UnwindGuard>,
+    _unwind: Option<UnwindHandle>,
 }
 
 impl Block {
@@ -117,8 +117,8 @@ impl Block {
             .unwrap();
         map.copy_from_slice(code.code_buffer());
 
-        let unwind = if let Ok(Some(unwind_info)) = code.create_unwind_info(isa) {
-            Some(unwind::register(isa, map.as_ptr() as usize, &unwind_info))
+        let _unwind = if let Ok(Some(unwind_info)) = code.create_unwind_info(isa) {
+            UnwindHandle::new(isa, map.as_ptr() as usize, &unwind_info)
         } else {
             None
         };
@@ -126,7 +126,7 @@ impl Block {
         Self {
             meta,
             code: map.make_exec().unwrap(),
-            _unwind: unwind,
+            _unwind,
         }
     }
 

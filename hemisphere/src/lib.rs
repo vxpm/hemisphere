@@ -6,6 +6,7 @@
 #![feature(cold_path)]
 
 pub mod jit;
+pub mod panic;
 pub mod runner;
 pub mod system;
 

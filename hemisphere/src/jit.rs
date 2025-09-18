@@ -160,12 +160,12 @@ pub static CTX_HOOKS: Hooks = {
     }
 
     extern "sysv64-unwind" fn read<T: Primitive>(ctx: &mut Context, addr: Address) -> T {
-        tracing::debug!(
-            "pc: {}, r3 is {:08X}, r8 is {:08X}",
-            ctx.system.cpu.pc,
-            ctx.system.cpu.user.gpr[3],
-            ctx.system.cpu.user.gpr[8],
-        );
+        // tracing::debug!(
+        //     "pc: {}, r3 is {:08X}, r8 is {:08X}",
+        //     ctx.system.cpu.pc,
+        //     ctx.system.cpu.user.gpr[3],
+        //     ctx.system.cpu.user.gpr[8],
+        // );
         let physical = ctx.system.translate_data_addr(addr);
         ctx.system.bus.read(physical)
     }
