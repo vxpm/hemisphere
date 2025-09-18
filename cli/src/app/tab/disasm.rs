@@ -98,30 +98,49 @@ impl DisasmPane {
         ctx.frame.render_widget(table, area);
     }
 
-    fn render_line(&mut self, ctx: &mut Context, area: Rect, focused: bool) {
-        let text = if let Some(addr2line) = ctx.addr2line
-            && let Ok(Some(loc)) = addr2line.find_location(self.target.value() as u64)
-        {
-            let mut text = loc.file.unwrap_or("unknown").to_string();
+    fn render_debug_info(&mut self, ctx: &mut Context, area: Rect, focused: bool) {
+        let Some(addr2line) = ctx.addr2line else {
+            let block = Block::new()
+                .title("Debug Info (Unavailable)")
+                .borders(Borders::TOP)
+                .border_style(border_style(focused));
+
+            ctx.frame.render_widget(block, area);
+            return;
+        };
+
+        let path = if let Ok(Some(loc)) = addr2line.find_location(self.target.value() as u64) {
+            let mut path = loc.file.unwrap_or("unknown").to_string();
             if let Some(line) = loc.line {
-                write!(&mut text, ":{line}").unwrap();
+                write!(&mut path, ":{line}").unwrap();
             }
 
-            text
+            path
         } else {
             String::new()
         };
 
-        let scroll = text.chars().count().saturating_sub(area.width as usize) as u16;
-        let paragraph = Paragraph::new(text)
-            .block(
-                Block::new()
-                    .borders(Borders::TOP)
-                    .border_style(border_style(focused)),
-            )
-            .scroll((0, scroll));
+        let sym = if let Some(sym) = addr2line.find_symbol(self.target.value() as u64) {
+            sym.to_owned()
+        } else {
+            String::new()
+        };
 
-        ctx.frame.render_widget(paragraph, area);
+        let [sym_area, path_area] =
+            Layout::vertical([Constraint::Length(2), Constraint::Length(1)]).areas(area);
+
+        let sym = Paragraph::new(sym).block(
+            Block::new()
+                .title("Debug Info")
+                .borders(Borders::TOP)
+                .border_style(border_style(focused)),
+        );
+
+        let scroll = path.chars().count().saturating_sub(area.width as usize) as u16;
+        let path = Paragraph::new(path).scroll((0, scroll));
+
+        ctx.frame.render_widget(sym, sym_area);
+        ctx.frame.render_widget(path, path_area);
     }
 
     pub fn render(&mut self, ctx: &mut Context, area: Rect, focused: bool) {
@@ -137,10 +156,10 @@ impl DisasmPane {
 
         ctx.frame.render_widget(block, area);
 
-        let [instrs, line] =
-            Layout::vertical([Constraint::Min(1), Constraint::Length(2)]).areas(inner);
+        let [instrs, debug] =
+            Layout::vertical([Constraint::Min(1), Constraint::Length(3)]).areas(inner);
 
         self.render_instrs(ctx, instrs);
-        self.render_line(ctx, line, focused);
+        self.render_debug_info(ctx, debug, focused);
     }
 }
