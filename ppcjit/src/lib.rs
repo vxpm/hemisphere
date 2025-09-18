@@ -60,6 +60,8 @@ impl Default for Compiler {
 
 #[derive(Debug, Error)]
 pub enum BuildError {
+    #[error("block contains no instructions")]
+    EmptyBlock,
     #[error(transparent)]
     Builder { source: builder::BuilderError },
     #[error(transparent)]
@@ -86,6 +88,9 @@ impl Compiler {
 
         let builder = BlockBuilder::new(&*self.isa, &mut func, &mut self.func_ctx);
         let (sequence, cycles) = builder.build(instructions).context(BuildCtx::Builder)?;
+        if sequence.is_empty() {
+            return Err(BuildError::EmptyBlock);
+        }
 
         let mut ctx = codegen::Context::for_function(func);
         let ir = ctx.func.display().to_string();
@@ -102,6 +107,11 @@ impl Compiler {
         };
 
         let block = unsafe { Block::new(meta, &*self.isa, compiled) };
+        tracing::debug!(
+            "compiled block:\n{}\n{}",
+            block.meta().seq,
+            block.meta().clir
+        );
 
         Ok(block)
     }

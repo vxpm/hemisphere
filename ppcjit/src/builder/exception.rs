@@ -30,7 +30,7 @@ extern "sysv64-unwind" fn raise_exception(regs: &mut Cpu, exception: Exception) 
 }
 
 impl BlockBuilder<'_> {
-    fn raise_exception(&mut self, exception: Exception) -> Info {
+    pub fn raise_exception(&mut self, exception: Exception) {
         let func = raise_exception as extern "sysv64-unwind" fn(_, _);
         let ptr = self
             .bd
@@ -52,20 +52,11 @@ impl BlockBuilder<'_> {
         self.bd
             .ins()
             .call_indirect(sig, ptr, &[self.consts.regs_ptr, exception]);
-
-        self.prologue();
-
-        // HACK: ignore any code emitted afterwards
-        let dummy = self.bd.create_block();
-        self.bd.seal_block(dummy);
-        self.bd.switch_to_block(dummy);
-        self.current_bb = dummy;
-
-        EXCEPTION_INFO
     }
 
     pub fn sc(&mut self, _: Ins) -> Info {
-        self.raise_exception(Exception::Syscall)
+        self.raise_exception(Exception::Syscall);
+        EXCEPTION_INFO
     }
 
     pub fn rfi(&mut self, _: Ins) -> Info {

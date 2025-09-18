@@ -159,7 +159,11 @@ pub static CTX_HOOKS: Hooks = {
         &mut ctx.system.cpu
     }
 
-    extern "sysv64-unwind" fn read<T: Primitive>(ctx: &mut Context, addr: Address) -> T {
+    extern "sysv64-unwind" fn read<T: Primitive>(
+        ctx: &mut Context,
+        addr: Address,
+        value: &mut T,
+    ) -> bool {
         tracing::debug!(
             "pc: {}, r3 is {:08X}, r8 is {:08X}",
             ctx.system.cpu.pc,
@@ -167,22 +171,30 @@ pub static CTX_HOOKS: Hooks = {
             ctx.system.cpu.user.gpr[8],
         );
 
-        let physical = ctx
-            .system
-            .translate_data_addr(addr)
-            .expect("translation should be a success");
-        ctx.system.bus.read(physical)
+        if let Some(physical) = ctx.system.translate_data_addr(addr) {
+            *value = ctx.system.bus.read(physical);
+            true
+        } else {
+            tracing::error!("failed to translate address {addr}");
+            false
+        }
     }
 
-    extern "sysv64-unwind" fn write<T: Primitive>(ctx: &mut Context, addr: Address, value: T) {
-        let physical = ctx
-            .system
-            .translate_data_addr(addr)
-            .expect("translation should be a success");
+    extern "sysv64-unwind" fn write<T: Primitive>(
+        ctx: &mut Context,
+        addr: Address,
+        value: T,
+    ) -> bool {
+        if let Some(physical) = ctx.system.translate_data_addr(addr) {
+            ctx.system.bus.write(physical, value);
+            for i in 0..size_of::<T>() {
+                ctx.mapping.invalidate(addr + i as u32);
+            }
 
-        ctx.system.bus.write(physical, value);
-        for i in 0..size_of::<T>() {
-            ctx.mapping.invalidate(addr + i as u32);
+            true
+        } else {
+            tracing::error!("failed to translate address {addr}");
+            false
         }
     }
 
@@ -241,17 +253,17 @@ pub static CTX_HOOKS: Hooks = {
             transmute::<_, GetRegistersHook>(get_registers as extern "sysv64-unwind" fn(_) -> _);
 
         let read_i8 =
-            transmute::<_, ReadHook<i8>>(read::<i8> as extern "sysv64-unwind" fn(_, _) -> _);
+            transmute::<_, ReadHook<i8>>(read::<i8> as extern "sysv64-unwind" fn(_, _, _) -> _);
         let write_i8 =
-            transmute::<_, WriteHook<i8>>(write::<i8> as extern "sysv64-unwind" fn(_, _, _));
+            transmute::<_, WriteHook<i8>>(write::<i8> as extern "sysv64-unwind" fn(_, _, _) -> _);
         let read_i16 =
-            transmute::<_, ReadHook<i16>>(read::<i16> as extern "sysv64-unwind" fn(_, _) -> _);
+            transmute::<_, ReadHook<i16>>(read::<i16> as extern "sysv64-unwind" fn(_, _, _) -> _);
         let write_i16 =
-            transmute::<_, WriteHook<i16>>(write::<i16> as extern "sysv64-unwind" fn(_, _, _));
+            transmute::<_, WriteHook<i16>>(write::<i16> as extern "sysv64-unwind" fn(_, _, _) -> _);
         let read_i32 =
-            transmute::<_, ReadHook<i32>>(read::<i32> as extern "sysv64-unwind" fn(_, _) -> _);
+            transmute::<_, ReadHook<i32>>(read::<i32> as extern "sysv64-unwind" fn(_, _, _) -> _);
         let write_i32 =
-            transmute::<_, WriteHook<i32>>(write::<i32> as extern "sysv64-unwind" fn(_, _, _));
+            transmute::<_, WriteHook<i32>>(write::<i32> as extern "sysv64-unwind" fn(_, _, _) -> _);
 
         let ibat_changed =
             transmute::<_, GenericHook>(ibat_changed as extern "sysv64-unwind" fn(_));

@@ -145,6 +145,12 @@ impl<'ctx> BlockBuilder<'ctx> {
         }
     }
 
+    fn switch_to_bb(&mut self, bb: ir::Block) {
+        self.bd.switch_to_block(bb);
+        self.bd.set_srcloc(ir::SourceLoc::new(self.executed));
+        self.current_bb = bb;
+    }
+
     /// Gets the current value of the given register.
     fn get(&mut self, reg: impl Into<Reg>) -> ir::Value {
         let reg = reg.into();
@@ -279,6 +285,17 @@ impl<'ctx> BlockBuilder<'ctx> {
         }
 
         self.bd.ins().return_(&[merged]);
+        self.bd.set_srcloc(ir::SourceLoc::new(self.executed));
+    }
+
+    fn prologue_with(&mut self, info: Info) {
+        self.executed += 1;
+        self.cycles += info.cycles as u32;
+
+        self.prologue();
+
+        self.executed -= 1;
+        self.cycles -= info.cycles as u32;
     }
 
     /// Emits the given instruction into the block.

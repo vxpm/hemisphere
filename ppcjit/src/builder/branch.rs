@@ -137,18 +137,12 @@ impl BlockBuilder<'_> {
             self.bd.seal_block(exit_block);
             self.bd.seal_block(continue_block);
 
-            self.bd.switch_to_block(exit_block);
+            self.switch_to_bb(exit_block);
             let target = self.ir_value(target);
             self.setup_jump(relative, ins.field_lk(), target);
 
-            // HACK: add to cycles and instructions for prologue emission
-            self.executed += 1;
-            self.cycles += BRANCH_INFO.cycles as u32;
-            self.prologue();
-            self.cycles -= BRANCH_INFO.cycles as u32;
-            self.executed -= 1;
-
-            self.bd.switch_to_block(continue_block);
+            self.prologue_with(BRANCH_INFO);
+            self.switch_to_bb(continue_block);
             self.current_bb = continue_block;
 
             // undo PC change from `setup_jump`

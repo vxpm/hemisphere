@@ -3,7 +3,7 @@ use crate::{
     block::Hooks,
     builder::{Action, Info},
 };
-use common::arch::{GPR, InsExt, disasm::Ins};
+use common::arch::{Exception, GPR, InsExt, disasm::Ins};
 use cranelift::{codegen::ir, prelude::InstBuilder};
 use std::mem::offset_of;
 
@@ -50,13 +50,40 @@ impl BlockBuilder<'_> {
                     .import_signature(Hooks::read_sig(self.consts.ptr_type, P::IR_TYPE))
             });
 
-        let inst = self
+        let stack_slot = self.bd.create_sized_stack_slot(ir::StackSlotData::new(
+            ir::StackSlotKind::ExplicitSlot,
+            size_of::<P>() as u32,
+            align_of::<P>().ilog2() as u8,
+        ));
+
+        let stack_slot_addr = self
             .bd
             .ins()
-            .call_indirect(sig, read_fn, &[self.consts.ctx_ptr, addr]);
+            .stack_addr(self.consts.ptr_type, stack_slot, 0);
 
-        let ret = self.bd.inst_results(inst);
-        ret[0]
+        let inst = self.bd.ins().call_indirect(
+            sig,
+            read_fn,
+            &[self.consts.ctx_ptr, addr, stack_slot_addr],
+        );
+
+        let success = self.bd.inst_results(inst)[0];
+        let exit_block = self.bd.create_block();
+        let continue_block = self.bd.create_block();
+
+        self.bd
+            .ins()
+            .brif(success, continue_block, &[], exit_block, &[]);
+
+        self.bd.seal_block(exit_block);
+        self.bd.seal_block(continue_block);
+
+        self.switch_to_bb(exit_block);
+        self.raise_exception(Exception::DSI);
+        self.prologue_with(LOAD_INFO);
+
+        self.switch_to_bb(continue_block);
+        self.bd.ins().stack_load(P::IR_TYPE, stack_slot, 0)
     }
 
     fn write<P: ReadWriteAble>(&mut self, addr: ir::Value, value: ir::Value) {
