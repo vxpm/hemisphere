@@ -292,21 +292,31 @@ pub static CTX_HOOKS: Hooks = {
     }
 };
 
+/// JIT configuration.
+pub struct Config {
+    /// Maximum number of instructions per JIT block.
+    pub instr_per_block: u32,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            instr_per_block: 512,
+        }
+    }
+}
+
 /// The JIT context.
 pub struct JIT {
+    pub config: Config,
     pub compiler: ppcjit::Compiler,
     pub blocks: Blocks,
 }
 
-impl Default for JIT {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl JIT {
-    pub fn new() -> Self {
+    pub fn new(config: Config) -> Self {
         Self {
+            config,
             compiler: ppcjit::Compiler::default(),
             blocks: Blocks::default(),
         }

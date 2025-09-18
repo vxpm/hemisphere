@@ -21,20 +21,6 @@ use tracing::{trace, trace_span};
 pub use common::{self, Address, Primitive, arch};
 pub use dol;
 
-/// Emulator configuration.
-pub struct Config {
-    /// Maximum number of instructions per JIT block.
-    pub instr_per_block: u32,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            instr_per_block: 512,
-        }
-    }
-}
-
 /// Represents limits for execution.
 #[derive(Debug, Clone, Copy)]
 pub struct Limits {
@@ -62,9 +48,14 @@ impl Limits {
     }
 }
 
+/// Emulator configuration.
+pub struct Config {
+    pub system: system::Config,
+    pub jit: jit::Config,
+}
+
 /// The Hemisphere emulator.
 pub struct Hemisphere {
-    pub config: Config,
     pub system: System,
     pub jit: JIT,
 }
@@ -72,9 +63,8 @@ pub struct Hemisphere {
 impl Hemisphere {
     pub fn new(config: Config) -> Self {
         Self {
-            config,
-            system: System::new(),
-            jit: JIT::new(),
+            system: System::new(config.system),
+            jit: JIT::new(config.jit),
         }
     }
 
@@ -144,7 +134,7 @@ impl Hemisphere {
             .and_then(|id| self.jit.blocks.storage.get(id));
 
         if block.is_none() {
-            let block = self.compile(self.system.cpu.pc, self.config.instr_per_block);
+            let block = self.compile(self.system.cpu.pc, self.jit.config.instr_per_block);
             self.jit.blocks.insert(self.system.cpu.pc, block);
         }
 

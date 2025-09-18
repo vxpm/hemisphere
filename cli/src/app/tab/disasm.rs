@@ -103,7 +103,7 @@ impl DisasmPane {
     }
 
     fn render_debug_info(&mut self, ctx: &mut Context, area: Rect, focused: bool) {
-        let Some(addr2line) = ctx.addr2line else {
+        let Some(executable) = &ctx.state.hemisphere().system.config.executable else {
             let block = Block::new()
                 .title("Debug Info (Unavailable)")
                 .borders(Borders::TOP)
@@ -113,7 +113,7 @@ impl DisasmPane {
             return;
         };
 
-        let path = if let Ok(Some(loc)) = addr2line.find_location(self.target.value() as u64) {
+        let path = if let Some(loc) = executable.find_location(self.target) {
             let mut path = loc.file.unwrap_or("unknown").to_string();
             if let Some(line) = loc.line {
                 write!(&mut path, ":{line}").unwrap();
@@ -124,7 +124,7 @@ impl DisasmPane {
             String::new()
         };
 
-        let sym = if let Some(sym) = addr2line.find_symbol(self.target.value() as u64) {
+        let sym = if let Some(sym) = executable.find_symbol(self.target) {
             sym.to_owned()
         } else {
             String::new()
