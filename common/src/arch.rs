@@ -92,9 +92,9 @@ pub enum Exception {
 }
 
 impl Exception {
-    #[rustfmt::skip]    pub const SPECIAL_SRR1_BITS_MASK:   u32 = 0b0111_1000_0011_1100__0000_0000_0000_0000_u32;
-    #[rustfmt::skip]    pub const MSR_TO_SRR1_MASK:         u32 = 0b0000_0111_1100_0000__1111_1111_1111_1111_u32;
-    #[rustfmt::skip]    pub const SRR1_TO_MSR_MASK:         u32 = 0b1000_0111_1100_0000__1111_1111_0111_0011_u32;
+    #[rustfmt::skip]    pub const SPECIAL_SRR1_BITS_MASK:   u32 = 0b0111_1000_0011_1100_0000_0000_0000_0000_u32;
+    #[rustfmt::skip]    pub const MSR_TO_SRR1_MASK:         u32 = 0b0000_0111_1100_0000_1111_1111_1111_1111_u32;
+    #[rustfmt::skip]    pub const SRR1_TO_MSR_MASK:         u32 = 0b1000_0111_1100_0000_1111_1111_0111_0011_u32;
 
     pub fn srr0_skip(self) -> bool {
         !matches!(

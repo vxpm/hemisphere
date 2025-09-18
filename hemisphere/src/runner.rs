@@ -10,7 +10,6 @@ use std::{
     },
     thread::JoinHandle,
     time::{Duration, Instant},
-    u32,
 };
 
 const STEP_SIZE: u32 = 4096;

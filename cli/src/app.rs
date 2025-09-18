@@ -2,7 +2,7 @@ mod tab;
 
 use crate::app::tab::Tab;
 use eyre_pretty::eyre::Result;
-use hemisphere::{Address, Limits, runner::Runner};
+use hemisphere::{Address, runner::Runner};
 use ratatui::{
     DefaultTerminal, Frame,
     crossterm::event::{self, Event, KeyCode, KeyModifiers},

@@ -64,11 +64,7 @@ fn main() -> Result<()> {
     let file = std::fs::File::open(args.input).unwrap();
     let dol = Dol::read(&mut BufReader::new(file)).unwrap();
 
-    let addr2line = match args
-        .dwarf
-        .map(|path| addr2line::Loader::new(path))
-        .transpose()
-    {
+    let addr2line = match args.dwarf.map(addr2line::Loader::new).transpose() {
         Ok(dwarf) => dwarf,
         Err(e) => eyre::bail!("{e}"),
     };
