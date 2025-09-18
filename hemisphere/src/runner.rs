@@ -106,42 +106,23 @@ fn run(state: Arc<FairMutex<State>>, control: Arc<Control>) {
 
         // emulate
         let mut guard = state.lock();
-        let emulated = if guard.breakpoints.is_empty() {
-            let executed = guard.hemisphere.run(Limits::cycles(STEP_SIZE));
+        let state = &mut *guard;
+
+        let emulated = if state.breakpoints.is_empty() {
+            let executed = state.hemisphere.run(Limits::cycles(STEP_SIZE));
             executed.cycles
         } else {
             std::hint::cold_path();
-            todo!("redo breakpoints")
 
-            // let mut emulated = 0;
-            // while emulated < STEP_SIZE {
-            //     let mut target = Address(0);
-            //     let mut min_distance = u32::MAX;
-            //     for breakpoint in guard.breakpoints.iter().copied() {
-            //         let distance = breakpoint
-            //             .value()
-            //             .checked_sub(guard.hemisphere.system.cpu.pc.value());
-            //
-            //         if let Some(distance) = distance
-            //             && distance <= min_distance
-            //             && distance != 0
-            //         {
-            //             target = breakpoint;
-            //             min_distance = distance;
-            //         }
-            //     }
-            //
-            //     let target_distance = min_distance / 4;
-            //     guard.hemisphere.run(target_distance);
-            //     emulated += target_distance;
-            //
-            //     if guard.hemisphere.system.cpu.pc == target {
-            //         control.should_run.store(false, Ordering::Relaxed);
-            //         break;
-            //     }
-            // }
-            //
-            // emulated
+            let (executed, hit) = state
+                .hemisphere
+                .run_breakpoints(Limits::cycles(STEP_SIZE), &state.breakpoints);
+
+            if hit {
+                control.should_run.store(false, Ordering::Relaxed);
+            }
+
+            executed.cycles
         };
 
         if guard.stats.cps.len() >= 1024 {

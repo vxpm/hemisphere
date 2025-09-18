@@ -124,6 +124,7 @@ impl System {
         match event {
             Event::Decrementer => {
                 self.cpu.raise_exception(Exception::Decrementer);
+                self.scheduler.schedule(Event::Decrementer, u32::MAX as u64);
             }
         }
     }

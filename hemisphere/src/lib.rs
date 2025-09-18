@@ -176,7 +176,6 @@ impl Hemisphere {
                 .min(remaining_cycles as u64)
                 .min(u32::MAX as u64) as u32;
 
-            // tracing::debug!("executing at {}", self.system.cpu.pc);
             let e = self.exec(Limits {
                 cycles: cycles_to_run,
                 instructions: remaining_instr,
@@ -196,5 +195,63 @@ impl Hemisphere {
         }
 
         executed
+    }
+
+    fn closest_breakpoint(&self, breakpoints: &[Address]) -> Address {
+        let mut closest_breakpoint = Address(self.system.cpu.pc.value().saturating_add(u32::MAX));
+        let mut closest_distance = closest_breakpoint.value() - self.system.cpu.pc.value();
+        for breakpoint in breakpoints.iter().copied() {
+            let distance = breakpoint.value().checked_sub(self.system.cpu.pc.value());
+            if let Some(distance) = distance
+                && distance <= closest_distance
+                && distance != 0
+            {
+                closest_breakpoint = breakpoint;
+                closest_distance = distance;
+            }
+        }
+
+        closest_breakpoint
+    }
+
+    /// Runs the emulator respecting the given `limits` and stopping at any address in `breakpoints`.
+    /// Returns executed cycles/instructions and whether a breakpoint was hit.
+    pub fn run_breakpoints(&mut self, limits: Limits, breakpoints: &[Address]) -> (Executed, bool) {
+        let mut executed = Executed::default();
+        let mut remaining_instr = limits.instructions;
+        let mut remaining_cycles = limits.cycles;
+
+        while remaining_cycles > 0 && remaining_instr > 0 {
+            let until_next_event = self.system.scheduler.until_next().unwrap_or(u64::MAX);
+            let cycles_to_run = until_next_event
+                .min(remaining_cycles as u64)
+                .min(u32::MAX as u64) as u32;
+
+            let closest_breakpoint = self.closest_breakpoint(breakpoints);
+            let breakpoint_distance = (closest_breakpoint.value() - self.system.cpu.pc.value()) / 4;
+
+            let e = self.exec(Limits {
+                cycles: cycles_to_run,
+                instructions: remaining_instr.min(breakpoint_distance),
+            });
+
+            executed.instructions += e.instructions;
+            executed.cycles += e.cycles;
+
+            remaining_instr = remaining_instr.saturating_sub(e.instructions);
+            remaining_cycles = remaining_cycles.saturating_sub(e.cycles);
+
+            // process all events
+            self.system.scheduler.advance(e.cycles as u64);
+            while let Some(event) = self.system.scheduler.pop() {
+                self.system.process(event);
+            }
+
+            if self.system.cpu.pc == closest_breakpoint {
+                return (executed, true);
+            }
+        }
+
+        (executed, false)
     }
 }
