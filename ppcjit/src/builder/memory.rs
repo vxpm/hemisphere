@@ -1,7 +1,7 @@
 use super::BlockBuilder;
 use crate::{
     block::Hooks,
-    builder::{Info, Status},
+    builder::{Action, Info},
 };
 use common::arch::{GPR, InsExt, disasm::Ins};
 use cranelift::{codegen::ir, prelude::InstBuilder};
@@ -85,7 +85,7 @@ impl BlockBuilder<'_> {
 const LOAD_INFO: Info = Info {
     cycles: 2,
     auto_pc: true,
-    status: Status::Open,
+    action: Action::Continue,
 };
 
 struct LoadOp {
@@ -334,7 +334,7 @@ impl BlockBuilder<'_> {
 const STORE_INFO: Info = Info {
     cycles: 2,
     auto_pc: true,
-    status: Status::Open,
+    action: Action::Continue,
 };
 
 /// Store operations

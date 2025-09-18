@@ -3,7 +3,7 @@ use std::mem::offset_of;
 use super::BlockBuilder;
 use crate::{
     block::Hooks,
-    builder::{Info, Status},
+    builder::{Action, Info},
 };
 use bitos::BitUtils;
 use common::arch::{InsExt, Reg, SPR, disasm::Ins};
@@ -13,31 +13,31 @@ use tracing::debug;
 const SPR_INFO: Info = Info {
     cycles: 1,
     auto_pc: true,
-    status: Status::Open,
+    action: Action::Continue,
 };
 
 const MSR_INFO: Info = Info {
     cycles: 1,
     auto_pc: true,
-    status: Status::Open,
+    action: Action::Continue,
 };
 
 const CR_INFO: Info = Info {
     cycles: 1,
     auto_pc: true,
-    status: Status::Open,
+    action: Action::Continue,
 };
 
 const SR_INFO: Info = Info {
     cycles: 2,
     auto_pc: true,
-    status: Status::Open,
+    action: Action::Continue,
 };
 
 const TB_INFO: Info = Info {
     cycles: 1,
     auto_pc: true,
-    status: Status::Open,
+    action: Action::Continue,
 };
 
 impl BlockBuilder<'_> {

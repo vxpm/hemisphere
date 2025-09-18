@@ -1,5 +1,5 @@
 use super::BlockBuilder;
-use crate::builder::{Info, Status, util::IntoIrValue};
+use crate::builder::{Action, Info, util::IntoIrValue};
 use bitos::{bitos, integer::u5};
 use common::arch::{Reg, SPR, disasm::Ins};
 use cranelift::{codegen::ir, prelude::InstBuilder};
@@ -7,13 +7,13 @@ use cranelift::{codegen::ir, prelude::InstBuilder};
 const JUMP_INFO: Info = Info {
     cycles: 2,
     auto_pc: false,
-    status: Status::Terminated,
+    action: Action::FinishAndPrologue,
 };
 
 const BRANCH_INFO: Info = Info {
     cycles: 3,
     auto_pc: true,
-    status: Status::Open,
+    action: Action::Continue,
 };
 
 #[bitos(1)]
@@ -73,6 +73,11 @@ impl BlockBuilder<'_> {
         let options = BranchOptions::from_bits(u5::new(ins.field_bo()));
         let cond_bit = 31 - ins.field_bi();
         let current_pc = self.get(Reg::PC);
+        let info = if ins.is_unconditional_branch() {
+            JUMP_INFO
+        } else {
+            BRANCH_INFO
+        };
 
         let mut branch = self.ir_value(true);
         if !options.ignore_cr() {
@@ -130,16 +135,16 @@ impl BlockBuilder<'_> {
 
         // HACK: add to cycles and instructions for prologue emission
         self.executed += 1;
-        self.cycles += BRANCH_INFO.cycles as u32;
+        self.cycles += info.cycles as u32;
         self.prologue();
-        self.cycles -= BRANCH_INFO.cycles as u32;
+        self.cycles -= info.cycles as u32;
         self.executed -= 1;
 
         self.bd.switch_to_block(continue_block);
         self.current_bb = continue_block;
         self.set(Reg::PC, current_pc);
 
-        BRANCH_INFO
+        info
     }
 
     pub fn bc(&mut self, ins: Ins) -> Info {

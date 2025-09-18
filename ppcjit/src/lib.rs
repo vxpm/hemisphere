@@ -61,7 +61,7 @@ impl Default for Compiler {
 #[derive(Debug, Error)]
 pub enum BuildError {
     #[error(transparent)]
-    Builder { source: builder::EmitError },
+    Builder { source: builder::BuilderError },
     #[error(transparent)]
     Codegen { source: codegen::CodegenError },
 }
@@ -84,15 +84,8 @@ impl Compiler {
         let mut func = ir::Function::new();
         func.signature = self.block_signature();
 
-        let mut builder = BlockBuilder::new(&*self.isa, &mut func, &mut self.func_ctx);
-        let mut sequence = Sequence::default();
-        for ins in instructions {
-            sequence.0.push(ins);
-            if builder.emit(ins).context(BuildCtx::Builder)? == builder::Status::Terminated {
-                break;
-            }
-        }
-        let cycles = builder.finish();
+        let builder = BlockBuilder::new(&*self.isa, &mut func, &mut self.func_ctx);
+        let (sequence, cycles) = builder.build(instructions).context(BuildCtx::Builder)?;
 
         let mut ctx = codegen::Context::for_function(func);
         let ir = ctx.func.display().to_string();

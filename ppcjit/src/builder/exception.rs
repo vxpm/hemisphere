@@ -1,5 +1,5 @@
 use super::BlockBuilder;
-use crate::builder::{Info, Status};
+use crate::builder::{Action, Info};
 use common::arch::{Cpu, Exception, Reg, SPR, disasm::Ins};
 use cranelift::{
     codegen::ir,
@@ -10,7 +10,7 @@ use tracing::info;
 const EXCEPTION_INFO: Info = Info {
     cycles: 2,
     auto_pc: false,
-    status: Status::Terminated,
+    action: Action::FinishAndPrologue,
 };
 
 fn raise_exception_sig(ptr_type: ir::Type) -> ir::Signature {
@@ -47,7 +47,7 @@ impl BlockBuilder<'_> {
             .iconst(ir::types::I16, exception as u64 as i64);
 
         self.flush();
-        self.regs.clear();
+        self.cache.clear();
 
         self.bd
             .ins()
