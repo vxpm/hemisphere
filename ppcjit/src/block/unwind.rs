@@ -26,8 +26,6 @@ mod unix {
         let cie_id = table.add_cie(isa.create_systemv_cie()?);
         table.add_fde(cie_id, fde);
 
-        tracing::debug!("{:#?}", table);
-
         let mut eh_frame = EhFrame(EndianVec::new(RunTimeEndian::default()));
         table.write_eh_frame(&mut eh_frame).unwrap();
 
