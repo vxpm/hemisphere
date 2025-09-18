@@ -29,7 +29,7 @@ fn reg_ir_ty(reg: Reg) -> ir::Type {
     }
 }
 
-fn reg_cacheable(reg: Reg) -> bool {
+fn is_cacheable(reg: Reg) -> bool {
     match reg {
         Reg::SPR(spr) => match spr {
             SPR::DEC | SPR::TBL | SPR::TBU => false,
@@ -72,8 +72,8 @@ struct Consts {
     raise_exception_sig: Option<SigRef>,
 }
 
-/// State of a register.
-struct RegState {
+/// A cached register.
+struct CachedReg {
     var: frontend::Variable,
     modified: bool,
 }
@@ -81,7 +81,7 @@ struct RegState {
 /// Structure to build JIT blocks.
 pub struct BlockBuilder<'ctx> {
     bd: frontend::FunctionBuilder<'ctx>,
-    cache: FxHashMap<Reg, RegState>,
+    cache: FxHashMap<Reg, CachedReg>,
     consts: Consts,
     current_bb: ir::Block,
 
@@ -149,7 +149,7 @@ impl<'ctx> BlockBuilder<'ctx> {
     fn get(&mut self, reg: impl Into<Reg>) -> ir::Value {
         let reg = reg.into();
 
-        if reg_cacheable(reg) {
+        if is_cacheable(reg) {
             let var = match self.cache.entry(reg) {
                 Entry::Occupied(o) => o.into_mut(),
                 Entry::Vacant(v) => {
@@ -163,7 +163,7 @@ impl<'ctx> BlockBuilder<'ctx> {
 
                     let var = self.bd.declare_var(reg_ty);
                     self.bd.def_var(var, dumped);
-                    v.insert(RegState {
+                    v.insert(CachedReg {
                         var,
                         modified: false,
                     })
@@ -187,7 +187,7 @@ impl<'ctx> BlockBuilder<'ctx> {
     fn set(&mut self, reg: impl Into<Reg>, value: impl IntoIrValue) {
         let reg = reg.into();
 
-        if reg_cacheable(reg) {
+        if is_cacheable(reg) {
             let var = match self.cache.entry(reg) {
                 Entry::Occupied(o) => {
                     let var = o.into_mut();
@@ -197,7 +197,7 @@ impl<'ctx> BlockBuilder<'ctx> {
                 }
                 Entry::Vacant(v) => {
                     let var = self.bd.declare_var(reg_ir_ty(reg));
-                    v.insert(RegState {
+                    v.insert(CachedReg {
                         var,
                         modified: true,
                     });
