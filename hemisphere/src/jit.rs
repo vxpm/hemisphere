@@ -166,12 +166,20 @@ pub static CTX_HOOKS: Hooks = {
             ctx.system.cpu.user.gpr[3],
             ctx.system.cpu.user.gpr[8],
         );
-        let physical = ctx.system.translate_data_addr(addr);
+
+        let physical = ctx
+            .system
+            .translate_data_addr(addr)
+            .expect("translation should be a success");
         ctx.system.bus.read(physical)
     }
 
     extern "sysv64-unwind" fn write<T: Primitive>(ctx: &mut Context, addr: Address, value: T) {
-        let physical = ctx.system.translate_data_addr(addr);
+        let physical = ctx
+            .system
+            .translate_data_addr(addr)
+            .expect("translation should be a success");
+
         ctx.system.bus.write(physical, value);
         for i in 0..size_of::<T>() {
             ctx.mapping.invalidate(addr + i as u32);

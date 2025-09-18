@@ -90,7 +90,7 @@ impl Hemisphere {
                 break;
             }
 
-            let physical = self.system.translate_instr_addr(current);
+            let physical = self.system.translate_instr_addr(current).unwrap();
             let ins = Ins::new(self.system.bus.read(physical), Extensions::gekko_broadway());
 
             let mut parsed = ParsedIns::new();

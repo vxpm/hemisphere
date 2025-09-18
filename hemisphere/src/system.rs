@@ -56,29 +56,21 @@ impl System {
     }
 
     /// Translates a data logical address into a physical address.
-    pub fn translate_data_addr(&self, addr: Address) -> Address {
+    pub fn translate_data_addr(&self, addr: Address) -> Option<Address> {
         if !self.cpu.supervisor.config.msr.data_addr_translation() {
-            return addr;
+            return Some(addr);
         }
 
-        if let Some(addr) = self.mmu.translate_data_addr(addr) {
-            return addr;
-        }
-
-        panic!("couldn't translate data addr {addr} with bats!")
+        self.mmu.translate_data_addr(addr)
     }
 
     /// Translates an instruction logical address into a physical address.
-    pub fn translate_instr_addr(&self, addr: Address) -> Address {
+    pub fn translate_instr_addr(&self, addr: Address) -> Option<Address> {
         if !self.cpu.supervisor.config.msr.instr_addr_translation() {
-            return addr;
+            return Some(addr);
         }
 
-        if let Some(addr) = self.mmu.translate_instr_addr(addr) {
-            return addr;
-        }
-
-        panic!("couldn't translate instruction addr {addr} with bats!")
+        self.mmu.translate_instr_addr(addr)
     }
 
     /// Loads a `.dol` file.
@@ -101,20 +93,26 @@ impl System {
 
         // zero bss first, let others section overwrite it if it occurs
         for offset in 0..dol.header.bss_size {
-            let target = self.translate_data_addr(Address(dol.header.bss_target + offset));
+            let target = self
+                .translate_data_addr(Address(dol.header.bss_target + offset))
+                .unwrap();
             self.bus.write(target, 0u8);
         }
 
         for section in dol.text_sections() {
             for (offset, byte) in section.content.iter().copied().enumerate() {
-                let target = self.translate_instr_addr(Address(section.target) + offset as u32);
+                let target = self
+                    .translate_instr_addr(Address(section.target) + offset as u32)
+                    .unwrap();
                 self.bus.write(target, byte);
             }
         }
 
         for section in dol.data_sections() {
             for (offset, byte) in section.content.iter().copied().enumerate() {
-                let target = self.translate_data_addr(Address(section.target) + offset as u32);
+                let target = self
+                    .translate_data_addr(Address(section.target) + offset as u32)
+                    .unwrap();
                 self.bus.write(target, byte);
             }
         }
