@@ -30,6 +30,8 @@ extern "sysv64-unwind" fn raise_exception(regs: &mut Cpu, exception: Exception) 
 }
 
 impl BlockBuilder<'_> {
+    /// # Warning
+    /// You should _always_ exit after raising an exception.
     pub fn raise_exception(&mut self, exception: Exception) {
         let func = raise_exception as extern "sysv64-unwind" fn(_, _);
         let ptr = self
@@ -47,7 +49,6 @@ impl BlockBuilder<'_> {
             .iconst(ir::types::I16, exception as u64 as i64);
 
         self.flush();
-        self.cache.clear();
 
         self.bd
             .ins()
