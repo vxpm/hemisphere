@@ -1,5 +1,5 @@
 use super::BlockBuilder;
-use crate::builder::{Info, util::IntoIrValue};
+use crate::builder::{Info, Status, util::IntoIrValue};
 use bitos::{bitos, integer::u5};
 use common::arch::{Reg, SPR, disasm::Ins};
 use cranelift::{codegen::ir, prelude::InstBuilder};
@@ -7,11 +7,13 @@ use cranelift::{codegen::ir, prelude::InstBuilder};
 const JUMP_INFO: Info = Info {
     cycles: 2,
     auto_pc: false,
+    status: Status::Terminated,
 };
 
 const BRANCH_INFO: Info = Info {
     cycles: 3,
     auto_pc: true,
+    status: Status::Open,
 };
 
 #[bitos(1)]
@@ -60,7 +62,7 @@ impl BlockBuilder<'_> {
             // PERF: spin loop - lie and say we executed more cycles instead
             Info {
                 cycles: 32,
-                auto_pc: false,
+                ..JUMP_INFO
             }
         } else {
             JUMP_INFO

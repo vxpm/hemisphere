@@ -1,4 +1,4 @@
-use super::BlockBuilder;
+use super::{BlockBuilder, Status};
 use crate::builder::Info;
 use common::arch::{InsExt, SPR, disasm::Ins};
 use cranelift::{
@@ -9,6 +9,7 @@ use cranelift::{
 const INT_INFO: Info = Info {
     cycles: 1,
     auto_pc: true,
+    status: Status::Open,
 };
 
 enum AddLhs {
@@ -398,11 +399,13 @@ impl BlockBuilder<'_> {
 const MUL_INFO: Info = Info {
     cycles: 3,
     auto_pc: true,
+    status: Status::Open,
 };
 
 const DIV_INFO: Info = Info {
     cycles: 19,
     auto_pc: true,
+    status: Status::Open,
 };
 
 /// Multiplication and division operations

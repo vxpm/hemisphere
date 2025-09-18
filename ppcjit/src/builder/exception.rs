@@ -1,5 +1,5 @@
 use super::BlockBuilder;
-use crate::builder::Info;
+use crate::builder::{Info, Status};
 use common::arch::{Cpu, Exception, Reg, SPR, disasm::Ins};
 use cranelift::{
     codegen::ir,
@@ -10,6 +10,7 @@ use tracing::info;
 const EXCEPTION_INFO: Info = Info {
     cycles: 2,
     auto_pc: false,
+    status: Status::Terminated,
 };
 
 fn raise_exception_sig(ptr_type: ir::Type) -> ir::Signature {

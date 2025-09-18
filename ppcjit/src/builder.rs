@@ -48,9 +48,16 @@ pub enum EmitError {
     Unimplemented(Ins),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Status {
+    Open,
+    Terminated,
+}
+
 pub(crate) struct Info {
     cycles: u8,
     auto_pc: bool,
+    status: Status,
 }
 
 /// Constants used through block building.
@@ -275,7 +282,7 @@ impl<'ctx> BlockBuilder<'ctx> {
     }
 
     /// Emits the given instruction into the block.
-    pub fn emit(&mut self, ins: Ins) -> Result<(), EmitError> {
+    pub fn emit(&mut self, ins: Ins) -> Result<Status, EmitError> {
         self.bd.set_srcloc(ir::SourceLoc::new(self.executed));
         let info: Info = match ins.op {
             Opcode::Add => self.add(ins),
@@ -397,7 +404,7 @@ impl<'ctx> BlockBuilder<'ctx> {
             self.set(Reg::PC, new_pc);
         }
 
-        Ok(())
+        Ok(info.status)
     }
 
     /// Finishes building the block and returns how many cycles it executes at most. Must be

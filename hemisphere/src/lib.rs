@@ -14,8 +14,8 @@ use crate::{
     jit::{CTX_HOOKS, Context, JIT},
     system::System,
 };
-use common::arch::disasm::{Extensions, Ins, ParsedIns};
-use ppcjit::{Sequence, SequenceStatus, block::Executed};
+use common::arch::disasm::{Extensions, Ins};
+use ppcjit::block::Executed;
 use tracing::{trace, trace_span};
 
 pub use common::{self, Address, Primitive, arch};
@@ -82,34 +82,27 @@ impl Hemisphere {
     fn compile(&mut self, addr: Address, limit: u32) -> ppcjit::Block {
         let _span = trace_span!("compiling new block", addr = ?self.system.cpu.pc).entered();
 
-        let mut seq = Sequence::new();
-        let mut current = addr;
-
-        loop {
-            if seq.len() >= limit as usize {
-                break;
+        let mut count = 0;
+        let instructions = std::iter::from_fn(|| {
+            if count >= limit {
+                return None;
             }
 
+            let current = addr + 4 * count;
             let physical = self.system.translate_instr_addr(current).unwrap();
             let ins = Ins::new(self.system.bus.read(physical), Extensions::gekko_broadway());
+            count += 1;
 
-            let mut parsed = ParsedIns::new();
-            ins.parse_basic(&mut parsed);
+            Some(ins)
+        });
 
-            match seq.push(ins) {
-                Ok(SequenceStatus::Open) => {
-                    if current == u32::MAX {
-                        break;
-                    } else {
-                        current += 4
-                    }
-                }
-                _ => break,
-            }
-        }
+        let block = self.jit.compiler.compile(instructions).unwrap();
+        trace!(
+            instructions = block.meta().seq.len(),
+            "block sequence built"
+        );
 
-        trace!(instructions = seq.len(), "block sequence built");
-        self.jit.compiler.compile(seq).unwrap()
+        block
     }
 
     #[inline(always)]
@@ -176,6 +169,7 @@ impl Hemisphere {
                 .min(remaining_cycles as u64)
                 .min(u32::MAX as u64) as u32;
 
+            tracing::debug!("exec at {}", self.system.cpu.pc);
             let e = self.exec(Limits {
                 cycles: cycles_to_run,
                 instructions: remaining_instr,

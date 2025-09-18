@@ -1,5 +1,5 @@
 use super::BlockBuilder;
-use crate::builder::Info;
+use crate::builder::{Info, Status};
 use common::arch::{InsExt, SPR, disasm::Ins};
 use cranelift::{
     codegen::ir,
@@ -9,6 +9,7 @@ use cranelift::{
 const CMP_INFO: Info = Info {
     cycles: 1,
     auto_pc: true,
+    status: Status::Open,
 };
 
 impl BlockBuilder<'_> {

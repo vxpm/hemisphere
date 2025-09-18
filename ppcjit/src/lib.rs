@@ -6,6 +6,7 @@ mod sequence;
 pub mod block;
 
 use crate::{block::Meta, builder::BlockBuilder};
+use common::arch::disasm::Ins;
 use cranelift::{
     codegen::{self, ir},
     frontend, native,
@@ -15,9 +16,17 @@ use easyerr::{Error, ResultExt};
 use std::sync::Arc;
 
 pub use block::{Block, BlockFn};
-pub use sequence::{Sequence, SequenceStatus};
+pub use sequence::Sequence;
 
-/// A JIT compiler of [`Sequence`]s, producing [`Block`]s.
+// fn is_terminal(ins: &Ins) -> bool {
+//     let is_jump = ins.is_unconditional_branch() || matches!(ins.op, Opcode::Rfi);
+//     let is_sync = matches!(ins.op, Opcode::Isync | Opcode::Sync | Opcode::Tlbsync);
+//     let is_exception = matches!(ins.op, Opcode::Sc);
+//
+//     is_jump(ins) || is_sync(ins) || is_exception(ins)
+// }
+
+/// A JIT compiler, producing [`Block`]s.
 pub struct Compiler {
     isa: Arc<dyn codegen::isa::TargetIsa>,
     func_ctx: frontend::FunctionBuilderContext,
@@ -67,13 +76,21 @@ impl Compiler {
         }
     }
 
-    pub fn compile(&mut self, sequence: Sequence) -> Result<Block, BuildError> {
+    /// Compiles a block with the given instructions (up until a terminal instruction or the end).
+    pub fn compile(
+        &mut self,
+        instructions: impl Iterator<Item = Ins>,
+    ) -> Result<Block, BuildError> {
         let mut func = ir::Function::new();
         func.signature = self.block_signature();
 
         let mut builder = BlockBuilder::new(&*self.isa, &mut func, &mut self.func_ctx);
-        for ins in sequence.iter().copied() {
-            builder.emit(ins).context(BuildCtx::Builder)?;
+        let mut sequence = Sequence::default();
+        for ins in instructions {
+            sequence.0.push(ins);
+            if builder.emit(ins).context(BuildCtx::Builder)? == builder::Status::Terminated {
+                break;
+            }
         }
         let cycles = builder.finish();
 

@@ -1,4 +1,4 @@
-use super::BlockBuilder;
+use super::{BlockBuilder, Status};
 use crate::builder::Info;
 use common::arch::{Reg, SPR, disasm::Ins};
 use cranelift::{
@@ -66,6 +66,7 @@ impl BlockBuilder<'_> {
         Info {
             cycles: 2,
             auto_pc: true,
+            status: Status::Terminated,
         }
     }
 

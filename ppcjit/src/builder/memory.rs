@@ -1,5 +1,8 @@
 use super::BlockBuilder;
-use crate::{block::Hooks, builder::Info};
+use crate::{
+    block::Hooks,
+    builder::{Info, Status},
+};
 use common::arch::{GPR, InsExt, disasm::Ins};
 use cranelift::{codegen::ir, prelude::InstBuilder};
 use std::mem::offset_of;
@@ -82,6 +85,7 @@ impl BlockBuilder<'_> {
 const LOAD_INFO: Info = Info {
     cycles: 2,
     auto_pc: true,
+    status: Status::Open,
 };
 
 struct LoadOp {
@@ -322,7 +326,7 @@ impl BlockBuilder<'_> {
 
         Info {
             cycles: 10, // random, chosen by fair dice roll
-            auto_pc: true,
+            ..LOAD_INFO
         }
     }
 }
@@ -330,6 +334,7 @@ impl BlockBuilder<'_> {
 const STORE_INFO: Info = Info {
     cycles: 2,
     auto_pc: true,
+    status: Status::Open,
 };
 
 /// Store operations
@@ -444,7 +449,7 @@ impl BlockBuilder<'_> {
 
         Info {
             cycles: 10, // random, chosen by fair dice roll
-            auto_pc: true,
+            ..STORE_INFO
         }
     }
 }

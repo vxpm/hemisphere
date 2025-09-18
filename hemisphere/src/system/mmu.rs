@@ -56,7 +56,7 @@ impl Mmu {
         self.data_bat_lut.fill(NO_BAT);
         for (i, bat) in dbats.iter().enumerate() {
             if !bat.supervisor_mode() {
-                warn!("dbat{i} is disabled in supervisor mode - ignoring it");
+                warn!("dbat{i} is disabled in supervisor mode");
                 continue;
             }
 
