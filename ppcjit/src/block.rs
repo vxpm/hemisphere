@@ -33,6 +33,10 @@ pub struct Hooks {
     pub ibat_changed: GenericHook,
     pub dbat_changed: GenericHook,
 
+    // time base
+    pub tb_read: GenericHook,
+    pub tb_changed: GenericHook,
+
     // decrementer
     pub dec_read: GenericHook,
     pub dec_changed: GenericHook,

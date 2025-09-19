@@ -4,6 +4,7 @@ pub mod bus;
 pub mod dsp;
 pub mod eabi;
 pub mod executable;
+pub mod lazy;
 pub mod mem;
 pub mod mmu;
 pub mod scheduler;
@@ -12,6 +13,7 @@ pub mod video;
 use crate::system::{
     bus::Bus,
     executable::{Code, Executable},
+    lazy::Lazy,
     mmu::Mmu,
     scheduler::Scheduler,
 };
@@ -28,11 +30,6 @@ pub struct Config {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Event {
     Decrementer,
-}
-
-#[derive(Debug, Default)]
-pub struct Lazy {
-    pub last_updated_dec: u64,
 }
 
 /// System state.
@@ -139,6 +136,7 @@ impl System {
     pub fn process(&mut self, event: Event) {
         match event {
             Event::Decrementer => {
+                self.update_decrementer();
                 if self.cpu.supervisor.config.msr.interrupts() {
                     self.cpu.raise_exception(Exception::Decrementer);
                     self.scheduler.schedule(Event::Decrementer, u32::MAX as u64);

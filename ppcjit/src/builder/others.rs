@@ -7,7 +7,7 @@ use crate::{
 };
 use bitos::BitUtils;
 use common::arch::{InsExt, Reg, SPR, disasm::Ins};
-use cranelift::{codegen::ir, prelude::InstBuilder};
+use cranelift::prelude::InstBuilder;
 use tracing::debug;
 
 const SPR_INFO: Info = Info {
@@ -43,8 +43,10 @@ const TB_INFO: Info = Info {
 impl BlockBuilder<'_> {
     pub fn mfspr(&mut self, ins: Ins) -> Info {
         let spr = ins.spr();
-        if spr == SPR::DEC {
-            self.call_generic_hook(offset_of!(Hooks, dec_read) as i32);
+        match spr {
+            SPR::DEC => self.call_generic_hook(offset_of!(Hooks, dec_read) as i32),
+            SPR::TBL | SPR::TBU => self.call_generic_hook(offset_of!(Hooks, tb_read) as i32),
+            _ => (),
         }
 
         let value = self.get(spr);
@@ -66,8 +68,10 @@ impl BlockBuilder<'_> {
             self.ibat_changed = true;
         }
 
-        if ins.spr() == SPR::DEC {
-            self.call_generic_hook(offset_of!(Hooks, dec_changed) as i32);
+        match spr {
+            SPR::DEC => self.call_generic_hook(offset_of!(Hooks, dec_changed) as i32),
+            SPR::TBL | SPR::TBU => self.call_generic_hook(offset_of!(Hooks, tb_changed) as i32),
+            _ => (),
         }
 
         SPR_INFO
@@ -82,8 +86,6 @@ impl BlockBuilder<'_> {
     }
 
     pub fn mfmsr(&mut self, ins: Ins) -> Info {
-        // TODO: check user mode
-
         let value = self.get(Reg::MSR);
         self.set(ins.gpr_d(), value);
 
@@ -91,7 +93,6 @@ impl BlockBuilder<'_> {
     }
 
     pub fn mtmsr(&mut self, ins: Ins) -> Info {
-        // TODO: check user mode
         // TODO: deal with exception stuff
 
         let value = self.get(ins.gpr_s());
@@ -131,6 +132,8 @@ impl BlockBuilder<'_> {
     }
 
     pub fn mftb(&mut self, ins: Ins) -> Info {
+        self.call_generic_hook(offset_of!(Hooks, tb_read) as i32);
+
         let tb = match ins.field_tbr() {
             268 => Reg::TBL,
             269 => Reg::TBU,
@@ -138,18 +141,6 @@ impl BlockBuilder<'_> {
         };
 
         let value = self.get(tb);
-
-        // increment time base
-        let tbl = self.get(Reg::TBL);
-        let tbu = self.get(Reg::TBU);
-
-        let one = self.ir_value(1);
-        let (new_tbl, ov) = self.bd.ins().uadd_overflow(tbl, one);
-        let ov = self.bd.ins().uextend(ir::types::I32, ov);
-        let new_tbu = self.bd.ins().iadd(tbu, ov);
-
-        self.set(Reg::TBL, new_tbl);
-        self.set(Reg::TBU, new_tbu);
         self.set(ins.gpr_d(), value);
 
         TB_INFO

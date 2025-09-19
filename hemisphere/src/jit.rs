@@ -7,7 +7,7 @@ use ppcjit::{
 };
 use slotmap::{SlotMap, new_key_type};
 use std::{collections::BTreeMap, ops::Range};
-use tracing::{debug, info};
+use tracing::info;
 
 const PAGE_COUNT: usize = 1 << 20;
 type PageLUT = Box<[u16; PAGE_COUNT]>;
@@ -164,13 +164,6 @@ pub static CTX_HOOKS: Hooks = {
         addr: Address,
         value: &mut T,
     ) -> bool {
-        // tracing::debug!(
-        //     "pc: {}, r3 is {:08X}, r8 is {:08X}",
-        //     ctx.system.cpu.pc,
-        //     ctx.system.cpu.user.gpr[3],
-        //     ctx.system.cpu.user.gpr[8],
-        // );
-
         if let Some(physical) = ctx.system.translate_data_addr(addr) {
             *value = ctx.system.bus.read(physical);
             true
@@ -214,22 +207,11 @@ pub static CTX_HOOKS: Hooks = {
     }
 
     extern "sysv64-unwind" fn dec_read(ctx: &mut Context) {
-        let last_updated = ctx.system.lazy.last_updated_dec;
-        let now = ctx.system.scheduler.elapsed();
-        let since_last_update = now - last_updated;
-
-        let prev_dec = ctx.system.cpu.supervisor.misc.dec;
-        let new_dec = prev_dec.wrapping_sub(since_last_update as u32);
-
-        debug!(
-            "reading from dec - now {now}, last updated {last_updated}, since then {since_last_update}. prev: {prev_dec}, new: {new_dec}"
-        );
-
-        ctx.system.lazy.last_updated_dec = now;
-        ctx.system.cpu.supervisor.misc.dec = new_dec;
+        ctx.system.update_decrementer();
     }
 
     extern "sysv64-unwind" fn dec_changed(ctx: &mut Context) {
+        ctx.system.lazy.last_updated_dec = ctx.system.scheduler.elapsed();
         ctx.system
             .scheduler
             .retain(|e| e.event != Event::Decrementer);
@@ -240,6 +222,15 @@ pub static CTX_HOOKS: Hooks = {
         ctx.system
             .scheduler
             .schedule(Event::Decrementer, dec as u64);
+    }
+
+    extern "sysv64-unwind" fn tb_read(ctx: &mut Context) {
+        ctx.system.update_time_base();
+    }
+
+    extern "sysv64-unwind" fn tb_changed(ctx: &mut Context) {
+        ctx.system.lazy.last_updated_tb = ctx.system.scheduler.elapsed();
+        info!("time base changed to {}", ctx.system.cpu.supervisor.misc.tb);
     }
 
     #[expect(
@@ -270,6 +261,9 @@ pub static CTX_HOOKS: Hooks = {
         let dbat_changed =
             transmute::<_, GenericHook>(dbat_changed as extern "sysv64-unwind" fn(_));
 
+        let tb_read = transmute::<_, GenericHook>(tb_read as extern "sysv64-unwind" fn(_));
+        let tb_changed = transmute::<_, GenericHook>(tb_changed as extern "sysv64-unwind" fn(_));
+
         let dec_read = transmute::<_, GenericHook>(dec_read as extern "sysv64-unwind" fn(_));
         let dec_changed = transmute::<_, GenericHook>(dec_changed as extern "sysv64-unwind" fn(_));
 
@@ -285,6 +279,9 @@ pub static CTX_HOOKS: Hooks = {
 
             ibat_changed,
             dbat_changed,
+
+            tb_read,
+            tb_changed,
 
             dec_read,
             dec_changed,
