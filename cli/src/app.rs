@@ -42,7 +42,6 @@ enum Action {
 
 pub struct App {
     runner: Runner,
-    addr2line: Option<addr2line::Loader>,
 
     current_tab: Tab,
     tab_focused: bool,
@@ -78,10 +77,9 @@ fn render_tabs(frame: &mut Frame, area: Rect, focused: bool, current: usize) {
 }
 
 impl App {
-    pub fn new(runner: Runner, addr2line: Option<addr2line::Loader>) -> Self {
+    pub fn new(runner: Runner) -> Self {
         Self {
             runner,
-            addr2line,
 
             current_tab: Tab::Main,
             tab_focused: false,
@@ -109,7 +107,6 @@ impl App {
                 self.runner.with_state(|state| {
                     let ctx = tab::Context {
                         running,
-                        addr2line: self.addr2line.as_ref(),
                         state,
                         frame,
                         area: chunks[1],

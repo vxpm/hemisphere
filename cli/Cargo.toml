@@ -14,4 +14,3 @@ tracing-subscriber.workspace = true
 
 ratatui = "0.29"
 tracing-appender = "0.2"
-addr2line = "0.25"

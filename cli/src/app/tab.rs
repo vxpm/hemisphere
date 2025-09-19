@@ -20,7 +20,6 @@ use ratatui::{
 
 pub struct Context<'ctx, 'frame> {
     pub running: bool,
-    pub addr2line: Option<&'ctx addr2line::Loader>,
     pub state: &'ctx mut State,
     pub frame: &'ctx mut Frame<'frame>,
     pub area: Rect,

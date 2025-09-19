@@ -7,7 +7,7 @@ mod memory;
 mod others;
 mod util;
 
-use crate::{block::Hooks, builder::util::IntoIrValue};
+use crate::{Sequence, block::Hooks, builder::util::IntoIrValue};
 use common::arch::{
     Reg, SPR,
     disasm::{Ins, Opcode},
@@ -29,7 +29,7 @@ fn reg_ir_ty(reg: Reg) -> ir::Type {
     }
 }
 
-fn reg_cacheable(reg: Reg) -> bool {
+fn is_cacheable(reg: Reg) -> bool {
     match reg {
         Reg::SPR(spr) => match spr {
             SPR::DEC | SPR::TBL | SPR::TBU => false,
@@ -41,16 +41,24 @@ fn reg_cacheable(reg: Reg) -> bool {
 }
 
 #[derive(Debug, Error)]
-pub enum EmitError {
+pub enum BuilderError {
     #[error("illegal instruction {f0:?}")]
     Illegal(Ins),
     #[error("unimplemented instruction {f0:?}")]
     Unimplemented(Ins),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Action {
+    Continue,
+    FlushAndPrologue,
+    Prologue,
+}
+
 pub(crate) struct Info {
     cycles: u8,
     auto_pc: bool,
+    action: Action,
 }
 
 /// Constants used through block building.
@@ -65,8 +73,8 @@ struct Consts {
     raise_exception_sig: Option<SigRef>,
 }
 
-/// State of a register.
-struct RegState {
+/// A cached register.
+struct CachedReg {
     var: frontend::Variable,
     modified: bool,
 }
@@ -74,8 +82,8 @@ struct RegState {
 /// Structure to build JIT blocks.
 pub struct BlockBuilder<'ctx> {
     bd: frontend::FunctionBuilder<'ctx>,
+    cache: FxHashMap<Reg, CachedReg>,
     consts: Consts,
-    regs: FxHashMap<Reg, RegState>,
     current_bb: ir::Block,
 
     cycles: u32,
@@ -116,7 +124,7 @@ impl<'ctx> BlockBuilder<'ctx> {
 
         let regs_ptr = builder.inst_results(inst)[0];
 
-        let ctx = Consts {
+        let consts = Consts {
             ptr_type,
             regs_ptr,
             ctx_ptr,
@@ -127,8 +135,8 @@ impl<'ctx> BlockBuilder<'ctx> {
 
         Self {
             bd: builder,
-            consts: ctx,
-            regs: FxHashMap::default(),
+            cache: FxHashMap::default(),
+            consts,
             current_bb: entry_bb,
 
             cycles: 0,
@@ -138,12 +146,18 @@ impl<'ctx> BlockBuilder<'ctx> {
         }
     }
 
+    fn switch_to_bb(&mut self, bb: ir::Block) {
+        self.bd.switch_to_block(bb);
+        self.bd.set_srcloc(ir::SourceLoc::new(self.executed));
+        self.current_bb = bb;
+    }
+
     /// Gets the current value of the given register.
     fn get(&mut self, reg: impl Into<Reg>) -> ir::Value {
         let reg = reg.into();
 
-        if reg_cacheable(reg) {
-            let var = match self.regs.entry(reg) {
+        if is_cacheable(reg) {
+            let var = match self.cache.entry(reg) {
                 Entry::Occupied(o) => o.into_mut(),
                 Entry::Vacant(v) => {
                     let reg_ty = reg_ir_ty(reg);
@@ -156,7 +170,7 @@ impl<'ctx> BlockBuilder<'ctx> {
 
                     let var = self.bd.declare_var(reg_ty);
                     self.bd.def_var(var, dumped);
-                    v.insert(RegState {
+                    v.insert(CachedReg {
                         var,
                         modified: false,
                     })
@@ -180,8 +194,8 @@ impl<'ctx> BlockBuilder<'ctx> {
     fn set(&mut self, reg: impl Into<Reg>, value: impl IntoIrValue) {
         let reg = reg.into();
 
-        if reg_cacheable(reg) {
-            let var = match self.regs.entry(reg) {
+        if is_cacheable(reg) {
+            let var = match self.cache.entry(reg) {
                 Entry::Occupied(o) => {
                     let var = o.into_mut();
                     var.modified = true;
@@ -190,7 +204,7 @@ impl<'ctx> BlockBuilder<'ctx> {
                 }
                 Entry::Vacant(v) => {
                     let var = self.bd.declare_var(reg_ir_ty(reg));
-                    v.insert(RegState {
+                    v.insert(CachedReg {
                         var,
                         modified: true,
                     });
@@ -231,9 +245,9 @@ impl<'ctx> BlockBuilder<'ctx> {
             .call_indirect(sig, hook, &[self.consts.ctx_ptr]);
     }
 
-    /// Writes modified registers to the registers struct.
+    /// Flushes the register cache to the registers struct.
     fn flush(&mut self) {
-        for (reg, var) in &self.regs {
+        for (reg, var) in &self.cache {
             if !var.modified {
                 continue;
             }
@@ -249,7 +263,6 @@ impl<'ctx> BlockBuilder<'ctx> {
     }
 
     /// Emits the prologue:
-    /// - Writes modified registers to the Registers struct
     /// - Call BAT hooks if they were changed
     /// - Returns
     fn prologue(&mut self) {
@@ -261,8 +274,6 @@ impl<'ctx> BlockBuilder<'ctx> {
         let cycles = self.bd.ins().ishl_imm(cycles, 32);
         let merged = self.bd.ins().bor(instructions, cycles);
 
-        self.flush();
-
         if self.dbat_changed {
             self.call_generic_hook(offset_of!(Hooks, dbat_changed) as i32);
         }
@@ -272,10 +283,21 @@ impl<'ctx> BlockBuilder<'ctx> {
         }
 
         self.bd.ins().return_(&[merged]);
+        self.bd.set_srcloc(ir::SourceLoc::new(self.executed));
+    }
+
+    fn prologue_with(&mut self, info: Info) {
+        self.executed += 1;
+        self.cycles += info.cycles as u32;
+
+        self.prologue();
+
+        self.executed -= 1;
+        self.cycles -= info.cycles as u32;
     }
 
     /// Emits the given instruction into the block.
-    pub fn emit(&mut self, ins: Ins) -> Result<(), EmitError> {
+    fn emit(&mut self, ins: Ins) -> Result<Action, BuilderError> {
         self.bd.set_srcloc(ir::SourceLoc::new(self.executed));
         let info: Info = match ins.op {
             Opcode::Add => self.add(ins),
@@ -381,10 +403,10 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Xor => self.xor(ins),
             Opcode::Xori => self.xori(ins),
             Opcode::Illegal => {
-                return Err(EmitError::Illegal(ins));
+                return Err(BuilderError::Illegal(ins));
             }
             _ => {
-                return Err(EmitError::Unimplemented(ins));
+                return Err(BuilderError::Unimplemented(ins));
             }
         };
 
@@ -397,15 +419,40 @@ impl<'ctx> BlockBuilder<'ctx> {
             self.set(Reg::PC, new_pc);
         }
 
-        Ok(())
+        Ok(info.action)
     }
 
-    /// Finishes building the block and returns how many cycles it executes at most. Must be
-    /// called when you're finished, otherwise it is a logic bug.
-    pub fn finish(mut self) -> u32 {
-        self.prologue();
-        self.bd.finalize();
+    pub fn build(
+        mut self,
+        mut instructions: impl Iterator<Item = Ins>,
+    ) -> Result<(Sequence, u32), BuilderError> {
+        let mut sequence = Sequence::default();
+        loop {
+            let Some(ins) = instructions.next() else {
+                self.flush();
+                self.prologue();
+                self.bd.finalize();
+                break;
+            };
 
-        self.cycles
+            sequence.0.push(ins);
+
+            match self.emit(ins)? {
+                Action::Continue => (),
+                Action::FlushAndPrologue => {
+                    self.flush();
+                    self.prologue();
+                    self.bd.finalize();
+                    break;
+                }
+                Action::Prologue => {
+                    self.prologue();
+                    self.bd.finalize();
+                    break;
+                }
+            }
+        }
+
+        Ok((sequence, self.cycles))
     }
 }

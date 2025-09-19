@@ -1,5 +1,5 @@
 use super::BlockBuilder;
-use crate::builder::{Info, util::IntoIrValue};
+use crate::builder::{Action, Info, util::IntoIrValue};
 use bitos::BitUtils;
 use common::arch::{InsExt, disasm::Ins};
 use cranelift::{
@@ -10,6 +10,7 @@ use cranelift::{
 const LOGIC_INFO: Info = Info {
     cycles: 1,
     auto_pc: true,
+    action: Action::Continue,
 };
 
 enum BasicBitOpKind {

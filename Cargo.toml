@@ -7,7 +7,7 @@ default-members = ["common", "ppcjit", "dol", "hemisphere", "cli"]
 opt-level = 0
 
 [profile.dev.package."cranelift-codegen"]
-opt-level = 2
+opt-level = 3
 
 [profile.dev.package."binrw"]
 opt-level = 3
@@ -36,8 +36,8 @@ memmap2 = "0.9"
 powerpc = "0.4"
 rustc-hash = "2"
 slotmap = "1.0"
+strum = { version = "0.27", features = ["derive"] }
 tracing = { version = "0.1", default-features = false, features = ["std"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 wgpu = "26.0"
-strum = { version = "0.27", features = ["derive"] }
 zerocopy = { version = "0.8", features = ["derive"] }

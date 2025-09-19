@@ -12,7 +12,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-const STEP_SIZE: u32 = 4096;
+const STEP_SIZE: u32 = 8 * 1024;
 
 #[inline(always)]
 fn to_duration(cycles: u32) -> Duration {

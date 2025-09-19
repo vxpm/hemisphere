@@ -12,8 +12,8 @@ use std::fmt::Display;
 
 pub type Context = std::ffi::c_void;
 pub type GetRegistersHook = fn(*mut Context) -> *mut Cpu;
-pub type ReadHook<T> = fn(*mut Context, Address) -> T;
-pub type WriteHook<T> = fn(*mut Context, Address, T);
+pub type ReadHook<T> = fn(*mut Context, Address, *mut T) -> bool;
+pub type WriteHook<T> = fn(*mut Context, Address, T) -> bool;
 pub type GenericHook = fn(*mut Context);
 
 /// External functions that JITed code calls.
@@ -51,13 +51,14 @@ impl Hooks {
     }
 
     /// Returns the function signature for a memory read hook.
-    pub(crate) fn read_sig(ptr_type: ir::Type, read_type: ir::Type) -> ir::Signature {
+    pub(crate) fn read_sig(ptr_type: ir::Type, _read_type: ir::Type) -> ir::Signature {
         ir::Signature {
             params: vec![
                 ir::AbiParam::new(ptr_type),       // ctx
                 ir::AbiParam::new(ir::types::I32), // address
+                ir::AbiParam::new(ptr_type),       // value ptr
             ],
-            returns: vec![ir::AbiParam::new(read_type)], // value
+            returns: vec![ir::AbiParam::new(ir::types::I8)], // success
             call_conv: isa::CallConv::SystemV,
         }
     }
@@ -70,7 +71,7 @@ impl Hooks {
                 ir::AbiParam::new(ir::types::I32), // address
                 ir::AbiParam::new(write_type),     // value
             ],
-            returns: vec![],
+            returns: vec![ir::AbiParam::new(ir::types::I8)], // success
             call_conv: isa::CallConv::SystemV,
         }
     }
@@ -98,7 +99,7 @@ pub type BlockFn = extern "sysv64-unwind" fn(*mut Context, *const Hooks) -> Exec
 
 pub struct Meta {
     pub seq: Sequence,
-    pub clir: String,
+    pub clir: Option<String>,
     pub cycles: u32,
 }
 
@@ -147,6 +148,7 @@ impl Block {
     }
 }
 
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 impl Display for Block {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut decoder =
@@ -185,5 +187,12 @@ impl Display for Block {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+impl Display for Block {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "disasm unsupported");
     }
 }

@@ -1,12 +1,11 @@
 mod app;
 
-use binrw::io::BufReader;
 use clap::Parser;
-use eyre_pretty::eyre::{self, Result};
+use eyre_pretty::eyre::Result;
 use hemisphere::{
-    Config, Hemisphere,
-    dol::{Dol, binrw::BinRead},
+    Config, Hemisphere, jit,
     runner::Runner,
+    system::{self, executable::Executable},
 };
 use ratatui::crossterm;
 use std::path::PathBuf;
@@ -60,24 +59,29 @@ fn main() -> Result<()> {
     let args = CliArgs::parse();
     let _tracing_guard = setup_tracing();
 
-    info!("loading {}", args.input.display());
-    let file = std::fs::File::open(args.input).unwrap();
-    let dol = Dol::read(&mut BufReader::new(file)).unwrap();
+    info!("loading executable");
 
-    let addr2line = match args.dwarf.map(addr2line::Loader::new).transpose() {
-        Ok(dwarf) => dwarf,
-        Err(e) => eyre::bail!("{e}"),
+    let dwarf = match args.dwarf {
+        Some(debug) => Some(debug),
+        None => {
+            let mut elf = args.input.clone();
+            elf.set_extension("elf");
+            elf.exists().then_some(elf)
+        }
     };
 
+    let executable = Executable::open(&args.input, dwarf.as_deref())?;
     let mut runner = Runner::new(Hemisphere::new(Config {
-        instr_per_block: args.instr_per_block,
+        system: system::Config {
+            executable: Some(executable),
+        },
+        jit: jit::Config {
+            instr_per_block: args.instr_per_block,
+        },
     }));
-    runner.with_state(|state| state.hemisphere_mut().system.load(&dol));
+
     runner.set_run(args.run);
-
-    let mut app = App::new(runner, addr2line);
-
-    info!("starting interface");
+    let mut app = App::new(runner);
 
     // setup panic hook to restore terminal first
     // NOTE: don't use ratatui::init as it replaces the panic hook
@@ -88,6 +92,7 @@ fn main() -> Result<()> {
         true,
     );
 
+    info!("starting interface");
     crossterm::terminal::enable_raw_mode()?;
     crossterm::execute!(std::io::stdout(), crossterm::terminal::EnterAlternateScreen)?;
     let backend = ratatui::backend::CrosstermBackend::new(std::io::stdout());

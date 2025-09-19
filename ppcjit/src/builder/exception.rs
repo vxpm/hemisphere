@@ -1,5 +1,5 @@
 use super::BlockBuilder;
-use crate::builder::Info;
+use crate::builder::{Action, Info};
 use common::arch::{Cpu, Exception, Reg, SPR, disasm::Ins};
 use cranelift::{
     codegen::ir,
@@ -7,9 +7,16 @@ use cranelift::{
 };
 use tracing::info;
 
+const RFI_INFO: Info = Info {
+    cycles: 2,
+    auto_pc: false,
+    action: Action::FlushAndPrologue,
+};
+
 const EXCEPTION_INFO: Info = Info {
     cycles: 2,
     auto_pc: false,
+    action: Action::Prologue,
 };
 
 fn raise_exception_sig(ptr_type: ir::Type) -> ir::Signature {
@@ -29,7 +36,9 @@ extern "sysv64-unwind" fn raise_exception(regs: &mut Cpu, exception: Exception) 
 }
 
 impl BlockBuilder<'_> {
-    fn raise_exception(&mut self, exception: Exception) -> Info {
+    /// # Warning
+    /// You should _always_ exit after raising an exception.
+    pub fn raise_exception(&mut self, exception: Exception) {
         let func = raise_exception as extern "sysv64-unwind" fn(_, _);
         let ptr = self
             .bd
@@ -46,25 +55,15 @@ impl BlockBuilder<'_> {
             .iconst(ir::types::I16, exception as u64 as i64);
 
         self.flush();
-        self.regs.clear();
 
         self.bd
             .ins()
             .call_indirect(sig, ptr, &[self.consts.regs_ptr, exception]);
-
-        self.prologue();
-
-        // HACK: ignore any code emitted afterwards
-        let dummy = self.bd.create_block();
-        self.bd.seal_block(dummy);
-        self.bd.switch_to_block(dummy);
-        self.current_bb = dummy;
-
-        EXCEPTION_INFO
     }
 
     pub fn sc(&mut self, _: Ins) -> Info {
-        self.raise_exception(Exception::Syscall)
+        self.raise_exception(Exception::Syscall);
+        EXCEPTION_INFO
     }
 
     pub fn rfi(&mut self, _: Ins) -> Info {
@@ -86,6 +85,6 @@ impl BlockBuilder<'_> {
         self.set(Reg::PC, new_pc);
         self.set(Reg::MSR, new_msr);
 
-        EXCEPTION_INFO
+        RFI_INFO
     }
 }

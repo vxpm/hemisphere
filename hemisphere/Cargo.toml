@@ -17,7 +17,8 @@ slotmap.workspace = true
 tracing.workspace = true
 zerocopy.workspace = true
 
-interavl = "0.3.0"
-parking_lot = "0.12"
+addr2line = "0.25"
 backtrace = "0.3"
 color-backtrace = "0.7"
+interavl = "0.3.0"
+parking_lot = "0.12"

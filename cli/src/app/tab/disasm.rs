@@ -62,11 +62,15 @@ impl DisasmPane {
         for i in 0..area.height {
             let offset = i as i32 - area.height as i32 / 2;
             let current = Address(self.target.value().wrapping_add_signed(offset * 4));
-            let translated = system.translate_instr_addr(current);
-            let instruction = Ins::new(
-                system.bus.read_pure(translated).unwrap_or(0),
-                Extensions::gekko_broadway(),
-            );
+
+            let instruction = if let Some(translated) = system.translate_instr_addr(current) {
+                Ins::new(
+                    system.bus.read_pure(translated).unwrap_or(0),
+                    Extensions::gekko_broadway(),
+                )
+            } else {
+                Ins::new(0, Extensions::gekko_broadway())
+            };
 
             if self.simplified_asm {
                 instruction.parse_simplified(&mut parsed);
@@ -99,7 +103,7 @@ impl DisasmPane {
     }
 
     fn render_debug_info(&mut self, ctx: &mut Context, area: Rect, focused: bool) {
-        let Some(addr2line) = ctx.addr2line else {
+        let Some(executable) = &ctx.state.hemisphere().system.config.executable else {
             let block = Block::new()
                 .title("Debug Info (Unavailable)")
                 .borders(Borders::TOP)
@@ -109,7 +113,7 @@ impl DisasmPane {
             return;
         };
 
-        let path = if let Ok(Some(loc)) = addr2line.find_location(self.target.value() as u64) {
+        let path = if let Some(loc) = executable.find_location(self.target) {
             let mut path = loc.file.unwrap_or("unknown").to_string();
             if let Some(line) = loc.line {
                 write!(&mut path, ":{line}").unwrap();
@@ -120,8 +124,8 @@ impl DisasmPane {
             String::new()
         };
 
-        let sym = if let Some(sym) = addr2line.find_symbol(self.target.value() as u64) {
-            sym.to_owned()
+        let sym = if let Some(sym) = executable.find_symbol(self.target) {
+            sym.into_owned()
         } else {
             String::new()
         };

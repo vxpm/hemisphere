@@ -14,26 +14,12 @@ use crate::{
     jit::{CTX_HOOKS, Context, JIT},
     system::System,
 };
-use common::arch::disasm::{Extensions, Ins, ParsedIns};
-use ppcjit::{Sequence, SequenceStatus, block::Executed};
-use tracing::{trace, trace_span};
+use common::arch::disasm::{Extensions, Ins};
+use ppcjit::block::Executed;
+use tracing::{debug, trace, trace_span};
 
 pub use common::{self, Address, Primitive, arch};
 pub use dol;
-
-/// Emulator configuration.
-pub struct Config {
-    /// Maximum number of instructions per JIT block.
-    pub instr_per_block: u32,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            instr_per_block: 512,
-        }
-    }
-}
 
 /// Represents limits for execution.
 #[derive(Debug, Clone, Copy)]
@@ -62,9 +48,14 @@ impl Limits {
     }
 }
 
+/// Emulator configuration.
+pub struct Config {
+    pub system: system::Config,
+    pub jit: jit::Config,
+}
+
 /// The Hemisphere emulator.
 pub struct Hemisphere {
-    pub config: Config,
     pub system: System,
     pub jit: JIT,
 }
@@ -72,9 +63,8 @@ pub struct Hemisphere {
 impl Hemisphere {
     pub fn new(config: Config) -> Self {
         Self {
-            config,
-            system: System::new(),
-            jit: JIT::new(),
+            system: System::new(config.system),
+            jit: JIT::new(config.jit),
         }
     }
 
@@ -82,34 +72,28 @@ impl Hemisphere {
     fn compile(&mut self, addr: Address, limit: u32) -> ppcjit::Block {
         let _span = trace_span!("compiling new block", addr = ?self.system.cpu.pc).entered();
 
-        let mut seq = Sequence::new();
-        let mut current = addr;
-
-        loop {
-            if seq.len() >= limit as usize {
-                break;
+        let mut count = 0;
+        let instructions = std::iter::from_fn(|| {
+            if count >= limit {
+                return None;
             }
 
-            let physical = self.system.translate_instr_addr(current);
+            let current = addr + 4 * count;
+            let physical = self.system.translate_instr_addr(current)?;
+
             let ins = Ins::new(self.system.bus.read(physical), Extensions::gekko_broadway());
+            count += 1;
 
-            let mut parsed = ParsedIns::new();
-            ins.parse_basic(&mut parsed);
+            Some(ins)
+        });
 
-            match seq.push(ins) {
-                Ok(SequenceStatus::Open) => {
-                    if current == u32::MAX {
-                        break;
-                    } else {
-                        current += 4
-                    }
-                }
-                _ => break,
-            }
-        }
+        let block = self.jit.compiler.compile(instructions).unwrap();
+        debug!(
+            instructions = block.meta().seq.len(),
+            "block sequence built"
+        );
 
-        trace!(instructions = seq.len(), "block sequence built");
-        self.jit.compiler.compile(seq).unwrap()
+        block
     }
 
     #[inline(always)]
@@ -150,7 +134,7 @@ impl Hemisphere {
             .and_then(|id| self.jit.blocks.storage.get(id));
 
         if block.is_none() {
-            let block = self.compile(self.system.cpu.pc, self.config.instr_per_block);
+            let block = self.compile(self.system.cpu.pc, self.jit.config.instr_per_block);
             self.jit.blocks.insert(self.system.cpu.pc, block);
         }
 
@@ -162,39 +146,6 @@ impl Hemisphere {
             instructions: 1,
             cycles: u32::MAX,
         })
-    }
-
-    /// Runs the emulator respecting the given `limits`.
-    pub fn run(&mut self, limits: Limits) -> Executed {
-        let mut executed = Executed::default();
-        let mut remaining_instr = limits.instructions;
-        let mut remaining_cycles = limits.cycles;
-
-        while remaining_cycles > 0 && remaining_instr > 0 {
-            let until_next_event = self.system.scheduler.until_next().unwrap_or(u64::MAX);
-            let cycles_to_run = until_next_event
-                .min(remaining_cycles as u64)
-                .min(u32::MAX as u64) as u32;
-
-            let e = self.exec(Limits {
-                cycles: cycles_to_run,
-                instructions: remaining_instr,
-            });
-
-            executed.instructions += e.instructions;
-            executed.cycles += e.cycles;
-
-            remaining_instr = remaining_instr.saturating_sub(e.instructions);
-            remaining_cycles = remaining_cycles.saturating_sub(e.cycles);
-
-            // process all events
-            self.system.scheduler.advance(e.cycles as u64);
-            while let Some(event) = self.system.scheduler.pop() {
-                self.system.process(event);
-            }
-        }
-
-        executed
     }
 
     fn closest_breakpoint(&self, breakpoints: &[Address]) -> Address {
@@ -214,9 +165,12 @@ impl Hemisphere {
         closest_breakpoint
     }
 
-    /// Runs the emulator respecting the given `limits` and stopping at any address in `breakpoints`.
-    /// Returns executed cycles/instructions and whether a breakpoint was hit.
-    pub fn run_breakpoints(&mut self, limits: Limits, breakpoints: &[Address]) -> (Executed, bool) {
+    #[inline(always)]
+    fn run_inner<const BREAKPOINTS: bool>(
+        &mut self,
+        limits: Limits,
+        breakpoints: &[Address],
+    ) -> (Executed, bool) {
         let mut executed = Executed::default();
         let mut remaining_instr = limits.instructions;
         let mut remaining_cycles = limits.cycles;
@@ -227,12 +181,24 @@ impl Hemisphere {
                 .min(remaining_cycles as u64)
                 .min(u32::MAX as u64) as u32;
 
-            let closest_breakpoint = self.closest_breakpoint(breakpoints);
-            let breakpoint_distance = (closest_breakpoint.value() - self.system.cpu.pc.value()) / 4;
+            let (instructions, closest_breakpoint) = if BREAKPOINTS {
+                let closest_breakpoint = self.closest_breakpoint(breakpoints);
+                let breakpoint_distance =
+                    (closest_breakpoint.value() - self.system.cpu.pc.value()) / 4;
+
+                (remaining_instr.min(breakpoint_distance), closest_breakpoint)
+            } else {
+                (remaining_instr, Address(0))
+            };
+
+            // let call_stack = self.system.call_stack();
+            // if call_stack.0.len() > 0 {
+            //     tracing::debug!("call stack:\n{call_stack}");
+            // }
 
             let e = self.exec(Limits {
                 cycles: cycles_to_run,
-                instructions: remaining_instr.min(breakpoint_distance),
+                instructions,
             });
 
             executed.instructions += e.instructions;
@@ -247,11 +213,22 @@ impl Hemisphere {
                 self.system.process(event);
             }
 
-            if self.system.cpu.pc == closest_breakpoint {
+            if BREAKPOINTS && self.system.cpu.pc == closest_breakpoint {
                 return (executed, true);
             }
         }
 
         (executed, false)
+    }
+
+    /// Runs the emulator respecting the given `limits`.
+    pub fn run(&mut self, limits: Limits) -> Executed {
+        self.run_inner::<false>(limits, &[]).0
+    }
+
+    /// Runs the emulator respecting the given `limits` and stopping at any address in `breakpoints`.
+    /// Returns executed cycles/instructions and whether a breakpoint was hit.
+    pub fn run_breakpoints(&mut self, limits: Limits, breakpoints: &[Address]) -> (Executed, bool) {
+        self.run_inner::<true>(limits, breakpoints)
     }
 }
