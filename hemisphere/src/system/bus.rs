@@ -128,7 +128,6 @@ impl Bus {
 
             // --> DSPI
             0x0C00_5000, 4 => ne!(self.dsp.dsp_mailbox.as_bytes());
-
             0x0C00_5004, 4 => {
                 let data = ne!(self.dsp.cpu_mailbox.as_bytes());
 

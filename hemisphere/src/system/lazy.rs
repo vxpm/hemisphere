@@ -15,7 +15,7 @@ impl System {
         let prev = self.cpu.supervisor.misc.tb;
         let new = prev.wrapping_add(delta);
 
-        tracing::debug!(
+        tracing::trace!(
             "updating time base - now {now}, last updated {last_updated}, since then {delta}. prev: {prev}, new: {new}"
         );
 
@@ -31,7 +31,7 @@ impl System {
         let prev = self.cpu.supervisor.misc.dec;
         let new = prev.wrapping_sub(delta as u32);
 
-        tracing::debug!(
+        tracing::trace!(
             "updating dec - now {now}, last updated {last_updated}, since then {delta}. prev: {prev}, new: {new}"
         );
 

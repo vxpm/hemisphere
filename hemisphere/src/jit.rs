@@ -7,7 +7,7 @@ use ppcjit::{
 };
 use slotmap::{SlotMap, new_key_type};
 use std::{collections::BTreeMap, ops::Range};
-use tracing::info;
+use tracing::{info, trace};
 
 const PAGE_COUNT: usize = 1 << 20;
 type PageLUT = Box<[u16; PAGE_COUNT]>;
@@ -217,7 +217,7 @@ pub static CTX_HOOKS: Hooks = {
             .retain(|e| e.event != Event::Decrementer);
 
         let dec = ctx.system.cpu.supervisor.misc.dec;
-        info!("decrementer changed to {dec}");
+        trace!("decrementer changed to {dec}");
 
         ctx.system
             .scheduler
