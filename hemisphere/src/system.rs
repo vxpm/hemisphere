@@ -139,11 +139,12 @@ impl System {
     pub fn process(&mut self, event: Event) {
         match event {
             Event::Decrementer => {
-                if self.cpu.supervisor.config.msr.external_interrupts() {
+                if self.cpu.supervisor.config.msr.interrupts() {
                     self.cpu.raise_exception(Exception::Decrementer);
+                    self.scheduler.schedule(Event::Decrementer, u32::MAX as u64);
+                } else {
+                    self.scheduler.schedule(Event::Decrementer, 32);
                 }
-
-                self.scheduler.schedule(Event::Decrementer, u32::MAX as u64);
             }
         }
     }

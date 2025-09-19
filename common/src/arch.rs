@@ -182,9 +182,9 @@ pub struct MachineState {
     /// Whether the processor is running in user mode. Not supported.
     #[bits(14)]
     pub user_mode: bool,
-    /// Whether external interrupts are enabled.
+    /// Whether external exceptions are enabled.
     #[bits(15)]
-    pub external_interrupts: bool,
+    pub interrupts: bool,
     /// Whether the CPU should be set to little endian mode after an exception occurs. Not
     /// supported.
     #[bits(16)]
@@ -648,6 +648,7 @@ pub enum SPR {
     XER = 1,
     LR = 8,
     CTR = 9,
+    DSISR = 18,
     DAR = 19,
     DEC = 22,
     SRR0 = 26,
@@ -713,6 +714,7 @@ impl SPR {
             Self::XER => offset_of!(Cpu, user.xer),
             Self::LR => offset_of!(Cpu, user.lr),
             Self::CTR => offset_of!(Cpu, user.ctr),
+            Self::DSISR => offset_of!(Cpu, supervisor.exception.dsisr),
             Self::DAR => offset_of!(Cpu, supervisor.exception.dar),
             Self::DEC => offset_of!(Cpu, supervisor.misc.dec),
             Self::SRR0 => offset_of!(Cpu, supervisor.exception.srr[0]),

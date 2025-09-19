@@ -85,7 +85,7 @@ impl RegistersPane {
             row!("Machine Check Exceptions"; "{}", msr.machine_check()),
             row!("Float Available"; "{}", msr.float_available()),
             row!("User Mode"; "{}", msr.user_mode()),
-            row!("External Interrupts"; "{}", msr.external_interrupts()),
+            row!("External Interrupts"; "{}", msr.interrupts()),
             row!("Little Endian Exception"; "{}", msr.exception_little_endian()),
         ];
 
