@@ -16,7 +16,7 @@ use crate::{
 };
 use common::arch::disasm::{Extensions, Ins};
 use ppcjit::block::Executed;
-use tracing::{debug, trace, trace_span};
+use tracing::{trace, trace_span};
 
 pub use common::{self, Address, Primitive, arch};
 pub use dol;
@@ -88,7 +88,7 @@ impl Hemisphere {
         });
 
         let block = self.jit.compiler.compile(instructions).unwrap();
-        debug!(
+        trace!(
             instructions = block.meta().seq.len(),
             "block sequence built"
         );
