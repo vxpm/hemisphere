@@ -51,7 +51,8 @@ pub enum BuilderError {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Action {
     Continue,
-    FinishAndPrologue,
+    FlushAndPrologue,
+    Prologue,
 }
 
 pub(crate) struct Info {
@@ -262,7 +263,6 @@ impl<'ctx> BlockBuilder<'ctx> {
     }
 
     /// Emits the prologue:
-    /// - Flushes register cache
     /// - Call BAT hooks if they were changed
     /// - Returns
     fn prologue(&mut self) {
@@ -273,8 +273,6 @@ impl<'ctx> BlockBuilder<'ctx> {
         let cycles = self.bd.ins().uextend(ir::types::I64, cycles);
         let cycles = self.bd.ins().ishl_imm(cycles, 32);
         let merged = self.bd.ins().bor(instructions, cycles);
-
-        self.flush();
 
         if self.dbat_changed {
             self.call_generic_hook(offset_of!(Hooks, dbat_changed) as i32);
@@ -431,6 +429,7 @@ impl<'ctx> BlockBuilder<'ctx> {
         let mut sequence = Sequence::default();
         loop {
             let Some(ins) = instructions.next() else {
+                self.flush();
                 self.prologue();
                 self.bd.finalize();
                 break;
@@ -440,7 +439,13 @@ impl<'ctx> BlockBuilder<'ctx> {
 
             match self.emit(ins)? {
                 Action::Continue => (),
-                Action::FinishAndPrologue => {
+                Action::FlushAndPrologue => {
+                    self.flush();
+                    self.prologue();
+                    self.bd.finalize();
+                    break;
+                }
+                Action::Prologue => {
                     self.prologue();
                     self.bd.finalize();
                     break;

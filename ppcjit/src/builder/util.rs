@@ -66,7 +66,7 @@ impl BlockBuilder<'_> {
         Info {
             cycles: 2,
             auto_pc: true,
-            action: Action::FinishAndPrologue,
+            action: Action::FlushAndPrologue,
         }
     }
 

@@ -7,7 +7,7 @@ use cranelift::{codegen::ir, prelude::InstBuilder};
 const JUMP_INFO: Info = Info {
     cycles: 2,
     auto_pc: false,
-    action: Action::FinishAndPrologue,
+    action: Action::FlushAndPrologue,
 };
 
 const BRANCH_INFO: Info = Info {
@@ -140,8 +140,9 @@ impl BlockBuilder<'_> {
             self.switch_to_bb(exit_block);
             let target = self.ir_value(target);
             self.setup_jump(relative, ins.field_lk(), target);
-
+            self.flush();
             self.prologue_with(BRANCH_INFO);
+
             self.switch_to_bb(continue_block);
             self.current_bb = continue_block;
 

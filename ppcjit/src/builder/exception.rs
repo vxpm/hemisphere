@@ -7,10 +7,16 @@ use cranelift::{
 };
 use tracing::info;
 
+const RFI_INFO: Info = Info {
+    cycles: 2,
+    auto_pc: false,
+    action: Action::FlushAndPrologue,
+};
+
 const EXCEPTION_INFO: Info = Info {
     cycles: 2,
     auto_pc: false,
-    action: Action::FinishAndPrologue,
+    action: Action::Prologue,
 };
 
 fn raise_exception_sig(ptr_type: ir::Type) -> ir::Signature {
@@ -79,6 +85,6 @@ impl BlockBuilder<'_> {
         self.set(Reg::PC, new_pc);
         self.set(Reg::MSR, new_msr);
 
-        EXCEPTION_INFO
+        RFI_INFO
     }
 }
