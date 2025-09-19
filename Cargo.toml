@@ -7,7 +7,7 @@ default-members = ["common", "ppcjit", "dol", "hemisphere", "cli"]
 opt-level = 0
 
 [profile.dev.package."cranelift-codegen"]
-opt-level = 2
+opt-level = 3
 
 [profile.dev.package."binrw"]
 opt-level = 3

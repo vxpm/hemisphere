@@ -16,7 +16,7 @@ use crate::{
 };
 use common::arch::disasm::{Extensions, Ins};
 use ppcjit::block::Executed;
-use tracing::{trace, trace_span};
+use tracing::{debug, trace, trace_span};
 
 pub use common::{self, Address, Primitive, arch};
 pub use dol;
@@ -88,7 +88,7 @@ impl Hemisphere {
         });
 
         let block = self.jit.compiler.compile(instructions).unwrap();
-        trace!(
+        debug!(
             instructions = block.meta().seq.len(),
             "block sequence built"
         );
@@ -191,10 +191,10 @@ impl Hemisphere {
                 (remaining_instr, Address(0))
             };
 
-            let call_stack = self.system.call_stack();
-            if call_stack.0.len() > 0 {
-                tracing::debug!("call stack:\n{call_stack}");
-            }
+            // let call_stack = self.system.call_stack();
+            // if call_stack.0.len() > 0 {
+            //     tracing::debug!("call stack:\n{call_stack}");
+            // }
 
             let e = self.exec(Limits {
                 cycles: cycles_to_run,

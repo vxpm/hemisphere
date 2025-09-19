@@ -1,12 +1,11 @@
-use std::path::Path;
-
-use addr2line::Location;
+use addr2line::{Location, gimli};
 use common::Address;
 use dol::{
     Dol,
     binrw::{BinRead, io::BufReader},
 };
 use easyerr::{Error, ResultExt};
+use std::{borrow::Cow, path::Path};
 
 pub enum Code {
     Dol(Dol),
@@ -49,10 +48,11 @@ impl Executable {
         &self.code
     }
 
-    pub fn find_symbol(&self, addr: Address) -> Option<&str> {
+    pub fn find_symbol(&self, addr: Address) -> Option<Cow<'_, str>> {
         self.debug
             .as_ref()
             .and_then(|d| d.find_symbol(addr.value() as u64))
+            .map(|s| addr2line::demangle_auto(Cow::Borrowed(s), Some(gimli::DW_LANG_C_plus_plus)))
     }
 
     pub fn find_location(&self, addr: Address) -> Option<Location<'_>> {

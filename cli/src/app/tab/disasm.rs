@@ -125,7 +125,7 @@ impl DisasmPane {
         };
 
         let sym = if let Some(sym) = executable.find_symbol(self.target) {
-            sym.to_owned()
+            sym.into_owned()
         } else {
             String::new()
         };

@@ -65,7 +65,7 @@ impl System {
                 .executable
                 .as_ref()
                 .and_then(|e| e.find_symbol(Address(current_lr)))
-                .map(|s| s.to_owned());
+                .map(|s| s.into_owned());
 
             call_stack.push(StackFrame {
                 routine,
