@@ -428,23 +428,53 @@ impl BlockBuilder<'_> {
         INT_INFO
     }
 
+    pub fn divw(&mut self, ins: Ins) -> Info {
+        let ra = self.get(ins.gpr_a());
+        let rb = self.get(ins.gpr_b());
+
+        // division by zero: undefined, just avoid it by using 1 as denom instead
+        let one = self.ir_value(1i32);
+        let is_div_by_zero = self.bd.ins().icmp_imm(IntCC::Equal, rb, 0);
+        let denom = self.bd.ins().select(is_div_by_zero, one, rb);
+
+        // special case: if dividing 0x8000_0000 by -1, replace the denom with 1 too
+        let is_min_neg = self.bd.ins().icmp_imm(IntCC::Equal, ra, 0x8000_0000);
+        let is_div_by_minus_one = self.bd.ins().icmp_imm(IntCC::Equal, rb, -1);
+        let is_special_case = self.bd.ins().bor(is_min_neg, is_div_by_minus_one);
+        let denom = self.bd.ins().select(is_special_case, one, denom);
+
+        let result = self.bd.ins().sdiv(ra, denom);
+
+        if ins.field_rc() {
+            self.update_cr0_cmpz_ov(result, is_div_by_zero);
+        }
+
+        if ins.field_oe() {
+            self.update_xer_ov(is_div_by_zero);
+        }
+
+        self.set(ins.gpr_d(), result);
+
+        DIV_INFO
+    }
+
     pub fn divwu(&mut self, ins: Ins) -> Info {
         let ra = self.get(ins.gpr_a());
         let rb = self.get(ins.gpr_b());
 
+        // division by zero: undefined, just avoid it by using 1 as denom instead
         let one = self.ir_value(1i32);
-        let div_by_zero = self.bd.ins().icmp_imm(IntCC::Equal, rb, 0);
-        // since division by zero is undefined, just avoid it by using 1 as denom instead
-        let denom = self.bd.ins().select(div_by_zero, one, rb);
+        let is_div_by_zero = self.bd.ins().icmp_imm(IntCC::Equal, rb, 0);
+        let denom = self.bd.ins().select(is_div_by_zero, one, rb);
 
         let result = self.bd.ins().udiv(ra, denom);
 
         if ins.field_rc() {
-            self.update_cr0_cmpz_ov(result, div_by_zero);
+            self.update_cr0_cmpz_ov(result, is_div_by_zero);
         }
 
         if ins.field_oe() {
-            self.update_xer_ov(div_by_zero);
+            self.update_xer_ov(is_div_by_zero);
         }
 
         self.set(ins.gpr_d(), result);
@@ -481,11 +511,26 @@ impl BlockBuilder<'_> {
         MUL_INFO
     }
 
-    pub fn mulhwu(&mut self, ins: Ins) -> Info {
+    pub fn mulhw(&mut self, ins: Ins) -> Info {
         let ra = self.get(ins.gpr_a());
         let rb = self.get(ins.gpr_b());
 
         let result = self.bd.ins().smulhi(ra, rb);
+
+        if ins.field_rc() {
+            self.update_cr0_cmpz(result);
+        }
+
+        self.set(ins.gpr_d(), result);
+
+        MUL_INFO
+    }
+
+    pub fn mulhwu(&mut self, ins: Ins) -> Info {
+        let ra = self.get(ins.gpr_a());
+        let rb = self.get(ins.gpr_b());
+
+        let result = self.bd.ins().umulhi(ra, rb);
 
         if ins.field_rc() {
             self.update_cr0_cmpz(result);

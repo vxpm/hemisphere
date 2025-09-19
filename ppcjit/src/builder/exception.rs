@@ -31,7 +31,6 @@ fn raise_exception_sig(ptr_type: ir::Type) -> ir::Signature {
 }
 
 extern "sysv64-unwind" fn raise_exception(regs: &mut Cpu, exception: Exception) {
-    info!("raising exception: {exception:?}");
     regs.raise_exception(exception);
 }
 

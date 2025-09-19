@@ -324,6 +324,7 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Cntlzw => self.cntlzw(ins),
             Opcode::Dcbf => self.stub(ins), // NOTE: stubbed
             Opcode::Dcbi => self.stub(ins), // NOTE: stubbed
+            Opcode::Divw => self.divw(ins),
             Opcode::Divwu => self.divwu(ins),
             Opcode::Eqv => self.eqv(ins),
             Opcode::Extsb => self.extsb(ins),
@@ -359,6 +360,7 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Mtmsr => self.mtmsr(ins),
             Opcode::Mtspr => self.mtspr(ins),
             Opcode::Mtsr => self.mtsr(ins),
+            Opcode::Mulhw => self.mulhw(ins),
             Opcode::Mulhwu => self.mulhwu(ins),
             Opcode::Mulli => self.mulli(ins),
             Opcode::Mullw => self.mullw(ins),
@@ -402,6 +404,8 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Sync => self.stub(ins), // NOTE: stubbed
             Opcode::Xor => self.xor(ins),
             Opcode::Xori => self.xori(ins),
+            Opcode::Crxor => self.crxor(ins),
+            Opcode::Stfd => self.stub(ins), // NOTE: stubbed
             Opcode::Illegal => {
                 return Err(BuilderError::Illegal(ins));
             }
