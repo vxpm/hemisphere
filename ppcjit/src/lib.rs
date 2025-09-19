@@ -18,14 +18,6 @@ use std::sync::Arc;
 pub use block::{Block, BlockFn};
 pub use sequence::Sequence;
 
-// fn is_terminal(ins: &Ins) -> bool {
-//     let is_jump = ins.is_unconditional_branch() || matches!(ins.op, Opcode::Rfi);
-//     let is_sync = matches!(ins.op, Opcode::Isync | Opcode::Sync | Opcode::Tlbsync);
-//     let is_exception = matches!(ins.op, Opcode::Sc);
-//
-//     is_jump(ins) || is_sync(ins) || is_exception(ins)
-// }
-
 /// A JIT compiler, producing [`Block`]s.
 pub struct Compiler {
     isa: Arc<dyn codegen::isa::TargetIsa>,
@@ -34,21 +26,34 @@ pub struct Compiler {
 
 impl Default for Compiler {
     fn default() -> Self {
-        let mut builder = codegen::settings::builder();
-        builder.set("use_colocated_libcalls", "false").unwrap();
-        builder.set("is_pic", "false").unwrap();
-        builder.set("stack_switch_model", "basic").unwrap();
-        builder.set("opt_level", "speed_and_size").unwrap();
-        builder.set("unwind_info", "true").unwrap();
-        builder.enable("enable_alias_analysis").unwrap();
-        builder.enable("enable_jump_tables").unwrap();
+        let opt_level = if cfg!(debug_assertions) {
+            "speed"
+        } else {
+            "speed_and_size"
+        };
+
+        let verifier = if cfg!(debug_assertions) {
+            "true"
+        } else {
+            "false"
+        };
+
+        let mut settings = codegen::settings::builder();
+        settings.set("use_colocated_libcalls", "false").unwrap();
+        settings.set("is_pic", "false").unwrap();
+        settings.set("stack_switch_model", "basic").unwrap();
+        settings.set("unwind_info", "true").unwrap();
+        settings.set("opt_level", opt_level).unwrap();
+        settings.set("enable_verifier", verifier).unwrap();
+        settings.enable("enable_alias_analysis").unwrap();
+        settings.enable("enable_jump_tables").unwrap();
 
         let isa_builder = native::builder().unwrap_or_else(|msg| {
             panic!("host machine is not supported: {}", msg);
         });
 
         let isa = isa_builder
-            .finish(codegen::settings::Flags::new(builder))
+            .finish(codegen::settings::Flags::new(settings))
             .unwrap();
 
         Self {
@@ -93,7 +98,11 @@ impl Compiler {
         }
 
         let mut ctx = codegen::Context::for_function(func);
-        let ir = ctx.func.display().to_string();
+        let ir = if cfg!(debug_assertions) {
+            Some(ctx.func.display().to_string())
+        } else {
+            None
+        };
 
         let compiled = ctx
             .compile(&*self.isa, &mut codegen::control::ControlPlane::default())

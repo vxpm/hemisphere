@@ -99,7 +99,7 @@ pub type BlockFn = extern "sysv64-unwind" fn(*mut Context, *const Hooks) -> Exec
 
 pub struct Meta {
     pub seq: Sequence,
-    pub clir: String,
+    pub clir: Option<String>,
     pub cycles: u32,
 }
 
