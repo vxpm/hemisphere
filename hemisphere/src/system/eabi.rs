@@ -40,7 +40,7 @@ impl System {
     pub fn call_stack(&self) -> CallStack {
         let mut call_stack = Vec::new();
         let mut current_frame = self.cpu.user.gpr[1];
-        let mut current_routine = self.cpu.user.lr;
+        let mut current_routine = self.cpu.pc.value();
 
         loop {
             if current_frame == 0 || current_routine == 0 {
