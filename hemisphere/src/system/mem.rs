@@ -17,11 +17,11 @@ pub struct Memory {
 impl Default for Memory {
     fn default() -> Self {
         Self {
-            ram: boxed_array(0xFA),
-            aram: boxed_array(0xFA),
-            efb: boxed_array(0xFA),
-            l2c: boxed_array(0xFA),
-            ipl: boxed_array(0xFA),
+            ram: boxed_array(0x00),
+            aram: boxed_array(0x00),
+            efb: boxed_array(0x00),
+            l2c: boxed_array(0x00),
+            ipl: boxed_array(0x00),
         }
     }
 }

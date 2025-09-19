@@ -107,11 +107,11 @@ impl Compiler {
         };
 
         let block = unsafe { Block::new(meta, &*self.isa, compiled) };
-        tracing::debug!(
-            "compiled block:\n{}\n{}",
-            block.meta().seq,
-            block.meta().clir
-        );
+        // tracing::debug!(
+        //     "compiled block:\n{}\n{}",
+        //     block.meta().seq,
+        //     block.meta().clir
+        // );
 
         Ok(block)
     }

@@ -130,10 +130,6 @@ impl BlockBuilder<'_> {
             self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
         };
 
-        if op.update {
-            self.set(ins.gpr_a(), addr);
-        }
-
         self.flush();
         let mut value = self.read::<P>(addr);
         if P::IR_TYPE != ir::types::I32 {
@@ -142,6 +138,10 @@ impl BlockBuilder<'_> {
             } else {
                 self.bd.ins().uextend(ir::types::I32, value)
             };
+        }
+
+        if op.update {
+            self.set(ins.gpr_a(), addr);
         }
 
         self.set(ins.gpr_d(), value);
@@ -158,10 +158,6 @@ impl BlockBuilder<'_> {
             self.bd.ins().iadd(ra, rb)
         };
 
-        if op.update {
-            self.set(ins.gpr_a(), addr);
-        }
-
         let mut value = self.read::<P>(addr);
         if P::IR_TYPE != ir::types::I32 {
             value = if op.signed {
@@ -169,6 +165,10 @@ impl BlockBuilder<'_> {
             } else {
                 self.bd.ins().uextend(ir::types::I32, value)
             };
+        }
+
+        if op.update {
+            self.set(ins.gpr_a(), addr);
         }
 
         self.set(ins.gpr_d(), value);
@@ -374,13 +374,13 @@ impl BlockBuilder<'_> {
             self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
         };
 
-        if update {
-            self.set(ins.gpr_a(), addr);
-        }
-
         let mut value = self.get(ins.gpr_s());
         if P::IR_TYPE != ir::types::I32 {
             value = self.bd.ins().ireduce(P::IR_TYPE, value);
+        }
+
+        if update {
+            self.set(ins.gpr_a(), addr);
         }
 
         self.write::<P>(addr, value);
@@ -397,13 +397,13 @@ impl BlockBuilder<'_> {
             self.bd.ins().iadd(ra, rb)
         };
 
-        if update {
-            self.set(ins.gpr_a(), addr);
-        }
-
         let mut value = self.get(ins.gpr_s());
         if P::IR_TYPE != ir::types::I32 {
             value = self.bd.ins().ireduce(P::IR_TYPE, value);
+        }
+
+        if update {
+            self.set(ins.gpr_a(), addr);
         }
 
         self.write::<P>(addr, value);

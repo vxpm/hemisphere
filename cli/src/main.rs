@@ -3,7 +3,7 @@ mod app;
 use clap::Parser;
 use eyre_pretty::eyre::Result;
 use hemisphere::{
-    Config, Hemisphere,
+    Config, Hemisphere, jit,
     runner::Runner,
     system::{self, executable::Executable},
 };
@@ -75,7 +75,9 @@ fn main() -> Result<()> {
         system: system::Config {
             executable: Some(executable),
         },
-        jit: Default::default(),
+        jit: jit::Config {
+            instr_per_block: args.instr_per_block,
+        },
     }));
 
     runner.set_run(args.run);

@@ -191,6 +191,11 @@ impl Hemisphere {
                 (remaining_instr, Address(0))
             };
 
+            let call_stack = self.system.call_stack();
+            if call_stack.0.len() > 0 {
+                tracing::debug!("call stack:\n{call_stack}");
+            }
+
             let e = self.exec(Limits {
                 cycles: cycles_to_run,
                 instructions,

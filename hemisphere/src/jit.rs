@@ -164,12 +164,12 @@ pub static CTX_HOOKS: Hooks = {
         addr: Address,
         value: &mut T,
     ) -> bool {
-        tracing::debug!(
-            "pc: {}, r3 is {:08X}, r8 is {:08X}",
-            ctx.system.cpu.pc,
-            ctx.system.cpu.user.gpr[3],
-            ctx.system.cpu.user.gpr[8],
-        );
+        // tracing::debug!(
+        //     "pc: {}, r3 is {:08X}, r8 is {:08X}",
+        //     ctx.system.cpu.pc,
+        //     ctx.system.cpu.user.gpr[3],
+        //     ctx.system.cpu.user.gpr[8],
+        // );
 
         if let Some(physical) = ctx.system.translate_data_addr(addr) {
             *value = ctx.system.bus.read(physical);

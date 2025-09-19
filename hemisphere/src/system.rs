@@ -2,6 +2,7 @@
 
 pub mod bus;
 pub mod dsp;
+pub mod eabi;
 pub mod executable;
 pub mod mem;
 pub mod mmu;
@@ -134,6 +135,7 @@ impl System {
         self.mmu.translate_instr_addr(addr)
     }
 
+    /// Processes the given event.
     pub fn process(&mut self, event: Event) {
         match event {
             Event::Decrementer => {
