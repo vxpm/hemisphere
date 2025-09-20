@@ -120,8 +120,6 @@ impl BlockBuilder<'_> {
             }
         }
 
-        debug!("mask control: {:08b} mask: {:032b}", mask_control, mask);
-
         let cr = self.get(Reg::CR);
         let mask = self.ir_value(mask);
         let value = self.bd.ins().bitselect(mask, rs, cr);

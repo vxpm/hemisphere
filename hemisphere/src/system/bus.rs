@@ -57,7 +57,7 @@ impl Bus {
 
     fn read_mmio<P: Primitive>(&mut self, offset: u16) -> P {
         let Some((reg, offset)) = Mmio::find(offset) else {
-            tracing::error!("reading from unknown mmio register ({offset:04X})");
+            tracing::warn!("reading from unknown mmio register ({offset:04X})");
             return P::default();
         };
 
@@ -83,7 +83,7 @@ impl Bus {
         }
 
         match reg {
-            // Video Interface
+            // === Video Interface ===
             Mmio::VideoVerticalTiming => ne!(self.video.regs.vertical_timing.as_bytes()),
             Mmio::VideoDisplayConfig => ne!(self.video.regs.display_config.as_bytes()),
             Mmio::VideoHorizontalTiming => ne!(self.video.regs.horizontal_timing.as_bytes()),
@@ -96,9 +96,19 @@ impl Bus {
             Mmio::VideoBottomBaseLeft => ne!(self.video.regs.bottom_base_left.as_bytes()),
             Mmio::VideoBottomBaseRight => ne!(self.video.regs.bottom_base_right.as_bytes()),
             Mmio::VideoHorizontalScaling => ne!(self.video.regs.horizontal_scaling.as_bytes()),
+
+            // Filter Coefficient Table
+            Mmio::VideoFilterCoeff0
+            | Mmio::VideoFilterCoeff1
+            | Mmio::VideoFilterCoeff2
+            | Mmio::VideoFilterCoeff3
+            | Mmio::VideoFilterCoeff4
+            | Mmio::VideoFilterCoeff5
+            | Mmio::VideoFilterCoeff6 => P::default(), // NOTE: stubbed
+
             Mmio::VideoClock => ne!(self.video.regs.clock.as_bytes()),
 
-            // DSP Interface
+            // === DSP Interface ===
             Mmio::DspDspMailbox => ne!(self.dsp.dsp_mailbox.as_bytes()),
             Mmio::DspCpuMailbox => {
                 let data = ne!(self.dsp.cpu_mailbox.as_bytes());
@@ -113,6 +123,10 @@ impl Bus {
             Mmio::DspAramDmaRamBase => ne!(self.dsp.aram_dma_ram.as_bytes()),
             Mmio::DspAramDmaAramBase => ne!(self.dsp.aram_dma_aram.as_bytes()),
             Mmio::DspAramDmaControl => ne!(self.dsp.aram_dma_control.as_bytes()),
+            _ => {
+                tracing::warn!("unimplemented read from known mmio register ({reg:?})");
+                P::default()
+            }
         }
     }
 
@@ -138,7 +152,7 @@ impl Bus {
 
     fn write_mmio<P: Primitive>(&mut self, offset: u16, value: P) {
         let Some((reg, offset)) = Mmio::find(offset) else {
-            tracing::error!("writing 0x{value:08X} to unknown mmio register ({offset:04X})");
+            tracing::warn!("writing 0x{value:08X} to unknown mmio register ({offset:04X})");
             return;
         };
 
@@ -165,7 +179,7 @@ impl Bus {
         }
 
         match reg {
-            // Video Interface
+            // === Video Interface ===
             Mmio::VideoVerticalTiming => ne!(self.video.regs.vertical_timing.as_mut_bytes()),
             Mmio::VideoDisplayConfig => ne!(self.video.regs.display_config.as_mut_bytes()),
             Mmio::VideoHorizontalTiming => ne!(self.video.regs.horizontal_timing.as_mut_bytes()),
@@ -180,18 +194,25 @@ impl Bus {
             Mmio::VideoBottomBaseLeft => ne!(self.video.regs.bottom_base_left.as_mut_bytes()),
             Mmio::VideoBottomBaseRight => ne!(self.video.regs.bottom_base_right.as_mut_bytes()),
             Mmio::VideoHorizontalScaling => ne!(self.video.regs.horizontal_scaling.as_mut_bytes()),
+
+            // Filter Coefficient Table
+            Mmio::VideoFilterCoeff0
+            | Mmio::VideoFilterCoeff1
+            | Mmio::VideoFilterCoeff2
+            | Mmio::VideoFilterCoeff3
+            | Mmio::VideoFilterCoeff4
+            | Mmio::VideoFilterCoeff5
+            | Mmio::VideoFilterCoeff6 => (), // NOTE: stubbed
+
             Mmio::VideoClock => ne!(self.video.regs.clock.as_mut_bytes()),
 
-            // DSP Interface
+            // === DSP Interface ===
             Mmio::DspDspMailbox => (),
             Mmio::DspCpuMailbox => (),
             Mmio::DspControl => {
                 let mut written = DspControl::from_bits(0);
                 ne!(written.as_mut_bytes());
-                debug!("written dspcr: {:?}", written);
-
                 self.dsp.write_control(written);
-                debug!("changed dspcr: {:?}", self.dsp.control);
             }
             Mmio::DspAramDmaRamBase => ne!(self.dsp.aram_dma_ram.as_mut_bytes()),
             Mmio::DspAramDmaAramBase => ne!(self.dsp.aram_dma_aram.as_mut_bytes()),
@@ -204,6 +225,7 @@ impl Bus {
                 // HACK: stub hack, set mailbox as having data
                 self.dsp.cpu_mailbox.set_status(true);
             }
+            _ => tracing::warn!("unimplemented write to known mmio register ({reg:?})"),
         }
     }
 

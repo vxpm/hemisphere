@@ -44,7 +44,7 @@ macro_rules! mmio {
 mmio! {
     // OFFSET, LENGTH, NAME;
 
-    // Video Interface
+    // === Video Interface ===
     0x2000, 2, VideoVerticalTiming;
     0x2002, 2, VideoDisplayConfig;
     0x2004, 8, VideoHorizontalTiming;
@@ -56,14 +56,69 @@ mmio! {
     0x2020, 4, VideoTopBaseRight;
     0x2024, 4, VideoBottomBaseLeft;
     0x2028, 4, VideoBottomBaseRight;
+    0x2030, 4, VideoDisplayInterrupt0;
+    0x2034, 4, VideoDisplayInterrupt1;
+    0x2038, 4, VideoDisplayInterrupt2;
+    0x203C, 4, VideoDisplayInterrupt3;
+    0x2048, 2, VideoScalingWidth;
     0x204A, 2, VideoHorizontalScaling;
-    0x206C, 2, VideoClock;
 
-    // DSP Interface
+    // Filter Coefficient Table
+    0x204C, 4, VideoFilterCoeff0;
+    0x2050, 4, VideoFilterCoeff1;
+    0x2054, 4, VideoFilterCoeff2;
+    0x2058, 4, VideoFilterCoeff3;
+    0x205C, 4, VideoFilterCoeff4;
+    0x2060, 4, VideoFilterCoeff5;
+    0x2064, 4, VideoFilterCoeff6;
+
+    0x206C, 2, VideoClock;
+    0x206E, 2, VideoDtvStatus;
+    0x2070, 2, VideoUnknown2070;
+
+    // === Processor Interface ===
+    0x3004, 4, ProcessorInterruptMask;
+    0x302C, 4, ProcessorConsoleType;
+
+    // === Memory Interface ===
+    0x4010, 2, MemoryProtection;
+    0x401C, 2, MemoryInterruptMask;
+    0x4020, 2, MemoryInterrupt;
+
+    // === DSP Interface ===
     0x5000, 4, DspDspMailbox;
     0x5004, 4, DspCpuMailbox;
     0x500A, 2, DspControl;
+    0x5012, 2, DspAramSize;
     0x5020, 4, DspAramDmaRamBase;
     0x5024, 4, DspAramDmaAramBase;
     0x5028, 2, DspAramDmaControl;
+
+    // === Serial Interface ===
+    0x6430, 4, SerialPoll;
+    0x6434, 4, SerialComControl;
+    0x6438, 4, SerialStatus;
+    0x643C, 4, SerialExiClock;
+
+    // === External Interface ===
+    0x6800, 4, ExiChannel0Param;
+    0x6804, 4, ExiChannel0DmaBase;
+    0x6808, 4, ExiChannel0DmaLength;
+    0x680C, 4, ExiChannel0Control;
+    0x6810, 4, ExiChannel0Immediate;
+
+    0x6814, 4, ExiChannel1Param;
+    0x6818, 4, ExiChannel1DmaBase;
+    0x681C, 4, ExiChannel1DmaLength;
+    0x6820, 4, ExiChannel1Control;
+    0x6824, 4, ExiChannel1Immediate;
+
+    0x6828, 4, ExiChannel2Param;
+    0x682C, 4, ExiChannel2DmaBase;
+    0x6830, 4, ExiChannel2DmaLength;
+    0x6834, 4, ExiChannel2Control;
+    0x6838, 4, ExiChannel2Immediate;
+
+    // === Audio Interface ===
+    0x6C00, 4, AudioControl;
 }
