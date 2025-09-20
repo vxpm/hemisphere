@@ -32,9 +32,9 @@ impl VideoInterface {
     /// How many halflines long an even field is.
     pub fn halflines_per_even_field(&self) -> u32 {
         3 * self.regs.vertical_timing.eq_pulse().value() as u32
-            + self.regs.even_field_vertical_timing.pre_blanking().value() as u32
+            + self.regs.even_vertical_timing.pre_blanking().value() as u32
             + 2 * self.regs.vertical_timing.lines_per_field().value() as u32
-            + self.regs.even_field_vertical_timing.post_blanking().value() as u32
+            + self.regs.even_vertical_timing.post_blanking().value() as u32
     }
 
     /// How many CPU cycles long an even field is.
@@ -45,9 +45,9 @@ impl VideoInterface {
     /// How many halflines long an odd field is.
     pub fn halflines_per_odd_field(&self) -> u32 {
         3 * self.regs.vertical_timing.eq_pulse().value() as u32
-            + self.regs.odd_field_vertical_timing.pre_blanking().value() as u32
+            + self.regs.odd_vertical_timing.pre_blanking().value() as u32
             + 2 * self.regs.vertical_timing.lines_per_field().value() as u32
-            + self.regs.odd_field_vertical_timing.post_blanking().value() as u32
+            + self.regs.odd_vertical_timing.post_blanking().value() as u32
     }
 
     /// How many CPU cycles long an odd field is.

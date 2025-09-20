@@ -5,13 +5,16 @@
 
 mod primitive;
 pub use primitive::Primitive;
+use zerocopy::{FromBytes, Immutable, IntoBytes};
 
 pub mod arch;
 pub mod util;
 
 /// A memory address. This is a thin wrapper around a [`u32`].
 #[repr(transparent)]
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Hash)]
+#[derive(
+    Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Hash, IntoBytes, FromBytes, Immutable,
+)]
 pub struct Address(pub u32);
 
 impl std::fmt::Display for Address {
