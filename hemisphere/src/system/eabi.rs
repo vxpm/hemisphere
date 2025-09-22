@@ -52,8 +52,8 @@ impl System {
 
             if let Some(prev_frame_addr) = self.translate_data_addr(prev_frame_addr)
                 && let Some(prev_routine_addr) = self.translate_data_addr(prev_routine_addr)
-                && let Some(prev_frame) = self.bus.read_pure(prev_frame_addr)
-                && let Some(prev_routine) = self.bus.read_pure(prev_routine_addr)
+                && let Some(prev_frame) = self.read_pure(prev_frame_addr)
+                && let Some(prev_routine) = self.read_pure(prev_routine_addr)
             {
                 let routine = self
                     .config

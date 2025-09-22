@@ -165,7 +165,7 @@ pub static CTX_HOOKS: Hooks = {
         value: &mut T,
     ) -> bool {
         if let Some(physical) = ctx.system.translate_data_addr(addr) {
-            *value = ctx.system.bus.read(physical);
+            *value = ctx.system.read(physical);
             true
         } else {
             tracing::error!("failed to translate address {addr}");
@@ -179,7 +179,7 @@ pub static CTX_HOOKS: Hooks = {
         value: T,
     ) -> bool {
         if let Some(physical) = ctx.system.translate_data_addr(addr) {
-            ctx.system.bus.write(physical, value);
+            ctx.system.write(physical, value);
             for i in 0..size_of::<T>() {
                 ctx.mapping.invalidate(addr + i as u32);
             }

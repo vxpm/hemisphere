@@ -65,7 +65,7 @@ impl DisasmPane {
 
             let instruction = if let Some(translated) = system.translate_instr_addr(current) {
                 Ins::new(
-                    system.bus.read_pure(translated).unwrap_or(0),
+                    system.read_pure(translated).unwrap_or(0),
                     Extensions::gekko_broadway(),
                 )
             } else {

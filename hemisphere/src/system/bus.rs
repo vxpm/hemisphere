@@ -1,7 +1,7 @@
 mod mmio;
 
 use crate::system::{
-    dsp,
+    Event, System, dsp,
     mem::{IPL_LEN, Memory, RAM_LEN},
     processor, video,
 };
@@ -46,15 +46,15 @@ macro_rules! map {
 // WARN: Do not change CPU state in the bus methods, specially if they change the PC! These are
 // called from within the JIT.
 
-impl Bus {
+impl System {
     /// Reads a primitive from the given physical address, but only if it can't possibly have a
     /// side effect.
     pub fn read_pure<P: Primitive>(&self, addr: Address) -> Option<P> {
         let offset: usize;
         map! {
             offset, addr;
-            0x0000_0000, RAM_LEN => Some(P::read_be_bytes(&self.mem.ram.as_slice()[offset..])),
-            0xFFF0_0000, IPL_LEN / 2 => Some(P::read_be_bytes(&self.mem.ipl.as_slice()[offset..])),
+            0x0000_0000, RAM_LEN => Some(P::read_be_bytes(&self.bus.mem.ram.as_slice()[offset..])),
+            0xFFF0_0000, IPL_LEN / 2 => Some(P::read_be_bytes(&self.bus.mem.ipl.as_slice()[offset..])),
             @default => None
         }
     }
@@ -88,24 +88,26 @@ impl Bus {
 
         match reg {
             // === Video Interface ===
-            Mmio::VideoVerticalTiming => ne!(self.video.regs.vertical_timing.as_bytes()),
-            Mmio::VideoDisplayConfig => ne!(self.video.regs.display_config.as_bytes()),
-            Mmio::VideoHorizontalTiming => ne!(self.video.regs.horizontal_timing.as_bytes()),
-            Mmio::VideoOddVerticalTiming => ne!(self.video.regs.odd_vertical_timing.as_bytes()),
-            Mmio::VideoEvenVerticalTiming => ne!(self.video.regs.even_vertical_timing.as_bytes()),
-            Mmio::VideoTopBaseLeft => ne!(self.video.regs.top_base_left.as_bytes()),
-            Mmio::VideoTopBaseRight => ne!(self.video.regs.top_base_right.as_bytes()),
-            Mmio::VideoBottomBaseLeft => ne!(self.video.regs.bottom_base_left.as_bytes()),
-            Mmio::VideoBottomBaseRight => ne!(self.video.regs.bottom_base_right.as_bytes()),
+            Mmio::VideoVerticalTiming => ne!(self.bus.video.regs.vertical_timing.as_bytes()),
+            Mmio::VideoDisplayConfig => ne!(self.bus.video.regs.display_config.as_bytes()),
+            Mmio::VideoHorizontalTiming => ne!(self.bus.video.regs.horizontal_timing.as_bytes()),
+            Mmio::VideoOddVerticalTiming => ne!(self.bus.video.regs.odd_vertical_timing.as_bytes()),
+            Mmio::VideoEvenVerticalTiming => {
+                ne!(self.bus.video.regs.even_vertical_timing.as_bytes())
+            }
+            Mmio::VideoTopBaseLeft => ne!(self.bus.video.regs.top_base_left.as_bytes()),
+            Mmio::VideoTopBaseRight => ne!(self.bus.video.regs.top_base_right.as_bytes()),
+            Mmio::VideoBottomBaseLeft => ne!(self.bus.video.regs.bottom_base_left.as_bytes()),
+            Mmio::VideoBottomBaseRight => ne!(self.bus.video.regs.bottom_base_right.as_bytes()),
 
             // Interrupts
-            Mmio::VideoDisplayInterrupt0 => ne!(self.video.regs.interrupts[0].as_bytes()),
-            Mmio::VideoDisplayInterrupt1 => ne!(self.video.regs.interrupts[1].as_bytes()),
-            Mmio::VideoDisplayInterrupt2 => ne!(self.video.regs.interrupts[2].as_bytes()),
-            Mmio::VideoDisplayInterrupt3 => ne!(self.video.regs.interrupts[3].as_bytes()),
+            Mmio::VideoDisplayInterrupt0 => ne!(self.bus.video.regs.interrupts[0].as_bytes()),
+            Mmio::VideoDisplayInterrupt1 => ne!(self.bus.video.regs.interrupts[1].as_bytes()),
+            Mmio::VideoDisplayInterrupt2 => ne!(self.bus.video.regs.interrupts[2].as_bytes()),
+            Mmio::VideoDisplayInterrupt3 => ne!(self.bus.video.regs.interrupts[3].as_bytes()),
 
-            Mmio::VideoExternalFramebufferWidth => ne!(self.video.regs.xfb_width.as_bytes()),
-            Mmio::VideoHorizontalScaling => ne!(self.video.regs.horizontal_scaling.as_bytes()),
+            Mmio::VideoExternalFramebufferWidth => ne!(self.bus.video.regs.xfb_width.as_bytes()),
+            Mmio::VideoHorizontalScaling => ne!(self.bus.video.regs.horizontal_scaling.as_bytes()),
 
             // Filter Coefficient Table
             Mmio::VideoFilterCoeff0
@@ -116,29 +118,29 @@ impl Bus {
             | Mmio::VideoFilterCoeff5
             | Mmio::VideoFilterCoeff6 => P::default(), // NOTE: stubbed
 
-            Mmio::VideoClock => ne!(self.video.regs.clock.as_bytes()),
+            Mmio::VideoClock => ne!(self.bus.video.regs.clock.as_bytes()),
 
             // === Processor Interface ===
-            Mmio::ProcessorInterruptCause => ne!(self.processor.cause.as_bytes()),
+            Mmio::ProcessorInterruptCause => ne!(self.bus.processor.cause.as_bytes()),
             Mmio::ProcessorInterruptMask => {
-                ne!(self.processor.mask.as_bytes())
+                ne!(self.bus.processor.mask.as_bytes())
             }
 
             // === DSP Interface ===
-            Mmio::DspDspMailbox => ne!(self.dsp.dsp_mailbox.as_bytes()),
+            Mmio::DspDspMailbox => ne!(self.bus.dsp.dsp_mailbox.as_bytes()),
             Mmio::DspCpuMailbox => {
-                let data = ne!(self.dsp.cpu_mailbox.as_bytes());
-                if (2..4).contains(&offset) && self.dsp.cpu_mailbox.status() {
+                let data = ne!(self.bus.dsp.cpu_mailbox.as_bytes());
+                if (2..4).contains(&offset) && self.bus.dsp.cpu_mailbox.status() {
                     debug!("clearing CPU mailbox");
-                    self.dsp.cpu_mailbox.set_status(false);
+                    self.bus.dsp.cpu_mailbox.set_status(false);
                 }
 
                 data
             }
-            Mmio::DspControl => ne!(self.dsp.control.as_bytes()),
-            Mmio::DspAramDmaRamBase => ne!(self.dsp.aram_dma_ram.as_bytes()),
-            Mmio::DspAramDmaAramBase => ne!(self.dsp.aram_dma_aram.as_bytes()),
-            Mmio::DspAramDmaControl => ne!(self.dsp.aram_dma_control.as_bytes()),
+            Mmio::DspControl => ne!(self.bus.dsp.control.as_bytes()),
+            Mmio::DspAramDmaRamBase => ne!(self.bus.dsp.aram_dma_ram.as_bytes()),
+            Mmio::DspAramDmaAramBase => ne!(self.bus.dsp.aram_dma_aram.as_bytes()),
+            Mmio::DspAramDmaControl => ne!(self.bus.dsp.aram_dma_control.as_bytes()),
             _ => {
                 tracing::warn!("unimplemented read from known mmio register ({reg:?})");
                 P::default()
@@ -151,8 +153,8 @@ impl Bus {
         let offset: usize;
         map! {
             offset, addr;
-            0x0000_0000, RAM_LEN => P::read_be_bytes(&self.mem.ram[offset..]),
-            0xFFF0_0000, IPL_LEN / 2 => P::read_be_bytes(&self.mem.ipl[offset..]),
+            0x0000_0000, RAM_LEN => P::read_be_bytes(&self.bus.mem.ram[offset..]),
+            0xFFF0_0000, IPL_LEN / 2 => P::read_be_bytes(&self.bus.mem.ipl[offset..]),
             @default => {
                 std::hint::cold_path();
                 if addr.value() & 0xFFFF_0000 != 0x0C00_0000 {
@@ -196,42 +198,50 @@ impl Bus {
 
         match reg {
             // === Video Interface ===
-            Mmio::VideoVerticalTiming => ne!(self.video.regs.vertical_timing.as_mut_bytes()),
-            Mmio::VideoDisplayConfig => ne!(self.video.regs.display_config.as_mut_bytes()),
-            Mmio::VideoHorizontalTiming => ne!(self.video.regs.horizontal_timing.as_mut_bytes()),
-            Mmio::VideoOddVerticalTiming => ne!(self.video.regs.odd_vertical_timing.as_mut_bytes()),
-            Mmio::VideoEvenVerticalTiming => {
-                ne!(self.video.regs.even_vertical_timing.as_mut_bytes())
+            Mmio::VideoVerticalTiming => ne!(self.bus.video.regs.vertical_timing.as_mut_bytes()),
+            Mmio::VideoDisplayConfig => ne!(self.bus.video.regs.display_config.as_mut_bytes()),
+            Mmio::VideoHorizontalTiming => {
+                ne!(self.bus.video.regs.horizontal_timing.as_mut_bytes())
             }
-            Mmio::VideoTopBaseLeft => ne!(self.video.regs.top_base_left.as_mut_bytes()),
-            Mmio::VideoTopBaseRight => ne!(self.video.regs.top_base_right.as_mut_bytes()),
-            Mmio::VideoBottomBaseLeft => ne!(self.video.regs.bottom_base_left.as_mut_bytes()),
-            Mmio::VideoBottomBaseRight => ne!(self.video.regs.bottom_base_right.as_mut_bytes()),
+            Mmio::VideoOddVerticalTiming => {
+                ne!(self.bus.video.regs.odd_vertical_timing.as_mut_bytes())
+            }
+            Mmio::VideoEvenVerticalTiming => {
+                ne!(self.bus.video.regs.even_vertical_timing.as_mut_bytes())
+            }
+            Mmio::VideoTopBaseLeft => ne!(self.bus.video.regs.top_base_left.as_mut_bytes()),
+            Mmio::VideoTopBaseRight => ne!(self.bus.video.regs.top_base_right.as_mut_bytes()),
+            Mmio::VideoBottomBaseLeft => ne!(self.bus.video.regs.bottom_base_left.as_mut_bytes()),
+            Mmio::VideoBottomBaseRight => ne!(self.bus.video.regs.bottom_base_right.as_mut_bytes()),
 
             // Interrupts
             Mmio::VideoDisplayInterrupt0 => {
-                let mut written = self.video.regs.interrupts[0];
+                let mut written = self.bus.video.regs.interrupts[0];
                 ne!(written.as_mut_bytes());
-                self.video.write_interrupt::<0>(written);
+                self.bus.video.write_interrupt::<0>(written);
             }
             Mmio::VideoDisplayInterrupt1 => {
-                let mut written = self.video.regs.interrupts[1];
+                let mut written = self.bus.video.regs.interrupts[1];
                 ne!(written.as_mut_bytes());
-                self.video.write_interrupt::<1>(written);
+                self.bus.video.write_interrupt::<1>(written);
             }
             Mmio::VideoDisplayInterrupt2 => {
-                let mut written = self.video.regs.interrupts[2];
+                let mut written = self.bus.video.regs.interrupts[2];
                 ne!(written.as_mut_bytes());
-                self.video.write_interrupt::<2>(written);
+                self.bus.video.write_interrupt::<2>(written);
             }
             Mmio::VideoDisplayInterrupt3 => {
-                let mut written = self.video.regs.interrupts[3];
+                let mut written = self.bus.video.regs.interrupts[3];
                 ne!(written.as_mut_bytes());
-                self.video.write_interrupt::<3>(written);
+                self.bus.video.write_interrupt::<3>(written);
             }
 
-            Mmio::VideoExternalFramebufferWidth => ne!(self.video.regs.xfb_width.as_mut_bytes()),
-            Mmio::VideoHorizontalScaling => ne!(self.video.regs.horizontal_scaling.as_mut_bytes()),
+            Mmio::VideoExternalFramebufferWidth => {
+                ne!(self.bus.video.regs.xfb_width.as_mut_bytes())
+            }
+            Mmio::VideoHorizontalScaling => {
+                ne!(self.bus.video.regs.horizontal_scaling.as_mut_bytes())
+            }
 
             // Filter Coefficient Table
             Mmio::VideoFilterCoeff0
@@ -242,34 +252,37 @@ impl Bus {
             | Mmio::VideoFilterCoeff5
             | Mmio::VideoFilterCoeff6 => (), // NOTE: stubbed
 
-            Mmio::VideoClock => ne!(self.video.regs.clock.as_mut_bytes()),
+            Mmio::VideoClock => ne!(self.bus.video.regs.clock.as_mut_bytes()),
 
             // === Processor Interface ===
             Mmio::ProcessorInterruptCause => {
-                let mut written = self.processor.cause;
+                let mut written = self.bus.processor.cause;
                 ne!(written.as_mut_bytes());
-                self.processor.write_cause(written);
+                self.bus.processor.write_cause(written);
             }
-            Mmio::ProcessorInterruptMask => ne!(self.processor.mask.as_mut_bytes()),
+            Mmio::ProcessorInterruptMask => {
+                self.scheduler.schedule(Event::CheckInterrupts, 0);
+                ne!(self.bus.processor.mask.as_mut_bytes())
+            }
 
             // === DSP Interface ===
             Mmio::DspDspMailbox => (),
             Mmio::DspCpuMailbox => (),
             Mmio::DspControl => {
-                let mut written = self.dsp.control;
+                let mut written = self.bus.dsp.control;
                 ne!(written.as_mut_bytes());
-                self.dsp.write_control(written);
+                self.bus.dsp.write_control(written);
             }
-            Mmio::DspAramDmaRamBase => ne!(self.dsp.aram_dma_ram.as_mut_bytes()),
-            Mmio::DspAramDmaAramBase => ne!(self.dsp.aram_dma_aram.as_mut_bytes()),
+            Mmio::DspAramDmaRamBase => ne!(self.bus.dsp.aram_dma_ram.as_mut_bytes()),
+            Mmio::DspAramDmaAramBase => ne!(self.bus.dsp.aram_dma_aram.as_mut_bytes()),
             Mmio::DspAramDmaControl => {
                 debug!("started DSP DMA, set CPU mailbox as having data");
 
                 // NOTE: stubbed, just set DMA as complete
-                self.dsp.control.set_aram_interrupt(true);
+                self.bus.dsp.control.set_aram_interrupt(true);
 
                 // HACK: stub hack, set mailbox as having data
-                self.dsp.cpu_mailbox.set_status(true);
+                self.bus.dsp.cpu_mailbox.set_status(true);
             }
             _ => tracing::warn!("unimplemented write to known mmio register ({reg:?})"),
         }
@@ -280,8 +293,8 @@ impl Bus {
         let offset: usize;
         map! {
             offset, addr;
-            0x0000_0000, RAM_LEN => value.write_be_bytes(&mut self.mem.ram[offset..]),
-            0xFFF0_0000, IPL_LEN / 2 => value.write_be_bytes(&mut self.mem.ipl[offset..]),
+            0x0000_0000, RAM_LEN => value.write_be_bytes(&mut self.bus.mem.ram[offset..]),
+            0xFFF0_0000, IPL_LEN / 2 => value.write_be_bytes(&mut self.bus.mem.ipl[offset..]),
             @default => {
                 std::hint::cold_path();
                 if addr.value() & 0xFFFF_0000 != 0x0C00_0000 {

@@ -31,6 +31,7 @@ pub struct Config {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Event {
     Decrementer,
+    CheckInterrupts,
 }
 
 /// System state.
@@ -51,7 +52,7 @@ pub struct System {
 
 impl System {
     fn load_executable(&mut self) {
-        let Some(exec) = &self.config.executable else {
+        let Some(exec) = self.config.executable.take() else {
             return;
         };
 
@@ -77,7 +78,7 @@ impl System {
                     let target = self
                         .translate_data_addr(Address(dol.header.bss_target + offset))
                         .unwrap();
-                    self.bus.write(target, 0u8);
+                    self.write(target, 0u8);
                 }
 
                 for section in dol.text_sections() {
@@ -85,7 +86,7 @@ impl System {
                         let target = self
                             .translate_instr_addr(Address(section.target) + offset as u32)
                             .unwrap();
-                        self.bus.write(target, byte);
+                        self.write(target, byte);
                     }
                 }
 
@@ -94,11 +95,13 @@ impl System {
                         let target = self
                             .translate_data_addr(Address(section.target) + offset as u32)
                             .unwrap();
-                        self.bus.write(target, byte);
+                        self.write(target, byte);
                     }
                 }
             }
         }
+
+        self.config.executable = Some(exec);
     }
 
     pub fn new(config: Config) -> Self {
@@ -144,6 +147,9 @@ impl System {
                 } else {
                     self.scheduler.schedule(Event::Decrementer, 32);
                 }
+            }
+            Event::CheckInterrupts => {
+                self.check_external_interrupts();
             }
         }
     }

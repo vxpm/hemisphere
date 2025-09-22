@@ -81,7 +81,7 @@ impl Hemisphere {
             let current = addr + 4 * count;
             let physical = self.system.translate_instr_addr(current)?;
 
-            let ins = Ins::new(self.system.bus.read(physical), Extensions::gekko_broadway());
+            let ins = Ins::new(self.system.read(physical), Extensions::gekko_broadway());
             count += 1;
 
             Some(ins)
