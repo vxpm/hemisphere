@@ -89,12 +89,11 @@ impl Bus {
             Mmio::VideoHorizontalTiming => ne!(self.video.regs.horizontal_timing.as_bytes()),
             Mmio::VideoOddVerticalTiming => ne!(self.video.regs.odd_vertical_timing.as_bytes()),
             Mmio::VideoEvenVerticalTiming => ne!(self.video.regs.even_vertical_timing.as_bytes()),
-            Mmio::VideoOddBbInterval => ne!(self.video.regs.odd_bb_interval.as_bytes()),
-            Mmio::VideoEvenBbInterval => ne!(self.video.regs.even_bb_interval.as_bytes()),
             Mmio::VideoTopBaseLeft => ne!(self.video.regs.top_base_left.as_bytes()),
             Mmio::VideoTopBaseRight => ne!(self.video.regs.top_base_right.as_bytes()),
             Mmio::VideoBottomBaseLeft => ne!(self.video.regs.bottom_base_left.as_bytes()),
             Mmio::VideoBottomBaseRight => ne!(self.video.regs.bottom_base_right.as_bytes()),
+            Mmio::VideoExternalFramebufferWidth => ne!(self.video.regs.xfb_width.as_bytes()),
             Mmio::VideoHorizontalScaling => ne!(self.video.regs.horizontal_scaling.as_bytes()),
 
             // Filter Coefficient Table
@@ -187,12 +186,13 @@ impl Bus {
             Mmio::VideoEvenVerticalTiming => {
                 ne!(self.video.regs.even_vertical_timing.as_mut_bytes())
             }
-            Mmio::VideoOddBbInterval => ne!(self.video.regs.odd_bb_interval.as_mut_bytes()),
-            Mmio::VideoEvenBbInterval => ne!(self.video.regs.even_bb_interval.as_mut_bytes()),
             Mmio::VideoTopBaseLeft => ne!(self.video.regs.top_base_left.as_mut_bytes()),
             Mmio::VideoTopBaseRight => ne!(self.video.regs.top_base_right.as_mut_bytes()),
             Mmio::VideoBottomBaseLeft => ne!(self.video.regs.bottom_base_left.as_mut_bytes()),
             Mmio::VideoBottomBaseRight => ne!(self.video.regs.bottom_base_right.as_mut_bytes()),
+            Mmio::VideoExternalFramebufferWidth => {
+                ne!(self.video.regs.xfb_width.as_mut_bytes())
+            }
             Mmio::VideoHorizontalScaling => ne!(self.video.regs.horizontal_scaling.as_mut_bytes()),
 
             // Filter Coefficient Table

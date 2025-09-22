@@ -1,6 +1,6 @@
 mod regs;
 
-use common::arch::FREQUENCY;
+use common::{Address, arch::FREQUENCY};
 
 pub use regs::*;
 
@@ -31,9 +31,9 @@ impl VideoInterface {
 
     /// How many halflines long an even field is.
     pub fn halflines_per_even_field(&self) -> u32 {
-        3 * self.regs.vertical_timing.eq_pulse().value() as u32
+        3 * self.regs.vertical_timing.equalization_pulse().value() as u32
             + self.regs.even_vertical_timing.pre_blanking().value() as u32
-            + 2 * self.regs.vertical_timing.lines_per_field().value() as u32
+            + 2 * self.regs.vertical_timing.active_video_lines().value() as u32
             + self.regs.even_vertical_timing.post_blanking().value() as u32
     }
 
@@ -44,9 +44,9 @@ impl VideoInterface {
 
     /// How many halflines long an odd field is.
     pub fn halflines_per_odd_field(&self) -> u32 {
-        3 * self.regs.vertical_timing.eq_pulse().value() as u32
+        3 * self.regs.vertical_timing.equalization_pulse().value() as u32
             + self.regs.odd_vertical_timing.pre_blanking().value() as u32
-            + 2 * self.regs.vertical_timing.lines_per_field().value() as u32
+            + 2 * self.regs.vertical_timing.active_video_lines().value() as u32
             + self.regs.odd_vertical_timing.post_blanking().value() as u32
     }
 
@@ -55,9 +55,27 @@ impl VideoInterface {
         self.cycles_per_halfline() * self.halflines_per_odd_field()
     }
 
-    /// The refresh rate of the video signal.
+    /// The refresh rate of the video output.
     pub fn refresh_rate(&self) -> f64 {
         let cycles_per_field_pair = self.cycles_per_even_field() + self.cycles_per_odd_field();
         2.0 * FREQUENCY as f64 / cycles_per_field_pair as f64
+    }
+
+    /// Address of the XFB for the top field.
+    pub fn top_xfb_address(&self) -> Address {
+        self.regs.top_base_left.xfb_address()
+    }
+
+    /// Address of the XFB for the bottom field.
+    pub fn bottom_xfb_address(&self) -> Address {
+        self.regs.bottom_base_left.xfb_address()
+    }
+
+    /// Resolution of the XFB.
+    pub fn xfb_resolution(&self) -> (u16, u16) {
+        (
+            self.regs.xfb_width.width(),
+            self.regs.vertical_timing.active_video_lines().value(),
+        )
     }
 }

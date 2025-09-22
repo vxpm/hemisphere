@@ -60,7 +60,7 @@ mmio! {
     0x2034, 4, VideoDisplayInterrupt1;
     0x2038, 4, VideoDisplayInterrupt2;
     0x203C, 4, VideoDisplayInterrupt3;
-    0x2048, 2, VideoScalingWidth;
+    0x2048, 2, VideoExternalFramebufferWidth;
     0x204A, 2, VideoHorizontalScaling;
 
     // Filter Coefficient Table
