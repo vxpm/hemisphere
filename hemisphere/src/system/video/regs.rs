@@ -50,7 +50,7 @@ pub struct DisplayConfig {
     /// Whether the 3D display mode is enabled. This is _not_ 3D rendering - it is a stereoscopic
     /// 3D effect.
     #[bits(3)]
-    pub display_mode_3d: bool,
+    pub stereoscopic_effect: bool,
     #[bits(4..6)]
     pub display_latch0_mode: DisplayLatchMode,
     #[bits(6..8)]
@@ -123,7 +123,7 @@ pub struct DisplayInterrupt {
     #[bits(28)]
     pub enable: bool,
     /// Whether this interrupt is asserted. Clear on write.
-    #[bits(28)]
+    #[bits(31)]
     pub status: bool,
 }
 
