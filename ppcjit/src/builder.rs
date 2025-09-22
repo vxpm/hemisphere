@@ -406,6 +406,8 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Xori => self.xori(ins),
             Opcode::Crxor => self.crxor(ins),
             Opcode::Stfd => self.stub(ins), // NOTE: stubbed
+            Opcode::Lfs => self.stub(ins),  // NOTE: stubbed
+            Opcode::Mcrf => self.mcrf(ins),
             Opcode::Illegal => {
                 return Err(BuilderError::Illegal(ins));
             }

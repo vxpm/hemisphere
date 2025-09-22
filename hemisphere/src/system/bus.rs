@@ -177,26 +177,21 @@ impl System {
             return;
         };
 
-        tracing::debug!(
-            "writing 0x{:08X} to {:?}[{}..{}]",
-            value,
-            reg,
-            offset,
-            offset + size_of::<P>()
-        );
+        // convert the range to native endian
+        let range = if cfg!(target_endian = "big") {
+            offset..offset + size_of::<P>()
+        } else {
+            let size = reg.size();
+            (size as usize - offset - size_of::<P>())..(size as usize - offset)
+        };
+
+        tracing::debug!("writing 0x{:08X} to {:?}[{:?}]", value, reg, range,);
 
         // write to native endian bytes
         macro_rules! ne {
-            ($bytes:expr) => {{
-                let range = if cfg!(target_endian = "big") {
-                    offset..offset + size_of::<P>()
-                } else {
-                    let size = reg.size();
-                    (size as usize - offset - size_of::<P>())..(size as usize - offset)
-                };
-
+            ($bytes:expr) => {
                 value.write_ne_bytes(&mut $bytes[range])
-            }};
+            };
         }
 
         match reg {

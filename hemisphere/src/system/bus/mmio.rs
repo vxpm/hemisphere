@@ -95,7 +95,7 @@ mmio! {
     0x5012, 2, DspAramSize;
     0x5020, 4, DspAramDmaRamBase;
     0x5024, 4, DspAramDmaAramBase;
-    0x5028, 2, DspAramDmaControl;
+    0x5028, 4, DspAramDmaControl;
 
     // === Serial Interface ===
     0x6430, 4, SerialPoll;

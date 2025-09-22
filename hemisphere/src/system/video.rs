@@ -109,6 +109,7 @@ impl System {
         for (index, interrupt) in self.bus.video.regs.interrupts.clone().iter().enumerate() {
             if interrupt.enable() {
                 if interrupt.vertical_count().value() == self.bus.video.regs.vertical_count {
+                    tracing::debug!("raised display interrupt {index}");
                     self.bus.video.regs.interrupts[index].set_status(true);
                     self.bus.processor.raise_interrupt(Interrupt::Video);
                     self.check_external_interrupts();
