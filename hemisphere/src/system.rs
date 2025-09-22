@@ -7,6 +7,7 @@ pub mod executable;
 pub mod lazy;
 pub mod mem;
 pub mod mmu;
+pub mod processor;
 pub mod scheduler;
 pub mod video;
 

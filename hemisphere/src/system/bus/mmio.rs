@@ -77,6 +77,7 @@ mmio! {
     0x2070, 2, VideoUnknown2070;
 
     // === Processor Interface ===
+    0x3000, 4, ProcessorInterruptCause;
     0x3004, 4, ProcessorInterruptMask;
     0x302C, 4, ProcessorConsoleType;
 

@@ -1,9 +1,9 @@
 mod mmio;
 
 use crate::system::{
-    dsp::DspInterface,
+    dsp,
     mem::{IPL_LEN, Memory, RAM_LEN},
-    video::VideoInterface,
+    processor, video,
 };
 use common::{Address, Primitive};
 use tracing::debug;
@@ -15,8 +15,9 @@ pub use mmio::Mmio;
 #[derive(Default)]
 pub struct Bus {
     pub mem: Memory,
-    pub dsp: DspInterface,
-    pub video: VideoInterface,
+    pub dsp: dsp::Interface,
+    pub video: video::Interface,
+    pub processor: processor::Interface,
 }
 
 /// Allows the usage of const values in patterns. It's a neat trick!
@@ -41,6 +42,9 @@ macro_rules! map {
         }
     };
 }
+
+// WARN: Do not change CPU state in the bus methods, specially if they change the PC! These are
+// called from within the JIT.
 
 impl Bus {
     /// Reads a primitive from the given physical address, but only if it can't possibly have a
@@ -113,6 +117,12 @@ impl Bus {
             | Mmio::VideoFilterCoeff6 => P::default(), // NOTE: stubbed
 
             Mmio::VideoClock => ne!(self.video.regs.clock.as_bytes()),
+
+            // === Processor Interface ===
+            Mmio::ProcessorInterruptCause => ne!(self.processor.cause.as_bytes()),
+            Mmio::ProcessorInterruptMask => {
+                ne!(self.processor.mask.as_bytes())
+            }
 
             // === DSP Interface ===
             Mmio::DspDspMailbox => ne!(self.dsp.dsp_mailbox.as_bytes()),
@@ -233,6 +243,14 @@ impl Bus {
             | Mmio::VideoFilterCoeff6 => (), // NOTE: stubbed
 
             Mmio::VideoClock => ne!(self.video.regs.clock.as_mut_bytes()),
+
+            // === Processor Interface ===
+            Mmio::ProcessorInterruptCause => {
+                let mut written = self.processor.cause;
+                ne!(written.as_mut_bytes());
+                self.processor.write_cause(written);
+            }
+            Mmio::ProcessorInterruptMask => ne!(self.processor.mask.as_mut_bytes()),
 
             // === DSP Interface ===
             Mmio::DspDspMailbox => (),

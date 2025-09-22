@@ -5,11 +5,11 @@ use common::{Address, arch::FREQUENCY};
 pub use regs::*;
 
 #[derive(Debug, Default)]
-pub struct VideoInterface {
+pub struct Interface {
     pub regs: Registers,
 }
 
-impl VideoInterface {
+impl Interface {
     /// The current video clock.
     pub fn video_clock(&self) -> u32 {
         if self.regs.clock.double() {
