@@ -14,7 +14,7 @@ pub struct Mailbox {
 }
 
 #[bitos(16)]
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct DspControl {
     #[bits(0)]
     pub reset: bool,

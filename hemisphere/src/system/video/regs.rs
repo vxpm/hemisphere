@@ -35,7 +35,7 @@ pub enum VideoFormat {
     Debug = 3,
 }
 
-#[bitos(32)]
+#[bitos(16)]
 #[derive(Debug, Clone, Copy, Default)]
 pub struct DisplayConfig {
     /// Enable video timing generation and data request.

@@ -1,9 +1,9 @@
 mod mmio;
 
 use crate::system::{
-    dsp::{DspControl, DspInterface},
+    dsp::DspInterface,
     mem::{IPL_LEN, Memory, RAM_LEN},
-    video::{DisplayInterrupt, VideoInterface},
+    video::VideoInterface,
 };
 use common::{Address, Primitive};
 use tracing::debug;
@@ -238,7 +238,7 @@ impl Bus {
             Mmio::DspDspMailbox => (),
             Mmio::DspCpuMailbox => (),
             Mmio::DspControl => {
-                let mut written = self.dsp.control.clone();
+                let mut written = self.dsp.control;
                 ne!(written.as_mut_bytes());
                 self.dsp.write_control(written);
             }
