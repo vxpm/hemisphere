@@ -186,6 +186,8 @@ pub struct Registers {
     pub top_base_right: u32,
     pub bottom_base_left: FieldBase,
     pub bottom_base_right: u32,
+    pub vertical_count: u16,
+    pub horizontal_count: u16,
     pub interrupts: [DisplayInterrupt; 4],
     pub xfb_width: ExternalFramebufferWidth,
     pub horizontal_scaling: HorizontalScaling,

@@ -65,13 +65,6 @@ impl System {
             return P::default();
         };
 
-        tracing::debug!(
-            "reading from {:?}[{}..{}]",
-            reg,
-            offset,
-            offset + size_of::<P>()
-        );
-
         // read from native endian bytes
         macro_rules! ne {
             ($bytes:expr) => {{
@@ -86,7 +79,7 @@ impl System {
             }};
         }
 
-        match reg {
+        let value = match reg {
             // === Video Interface ===
             Mmio::VideoVerticalTiming => ne!(self.bus.video.regs.vertical_timing.as_bytes()),
             Mmio::VideoDisplayConfig => ne!(self.bus.video.regs.display_config.as_bytes()),
@@ -145,7 +138,17 @@ impl System {
                 tracing::warn!("unimplemented read from known mmio register ({reg:?})");
                 P::default()
             }
-        }
+        };
+
+        tracing::debug!(
+            "reading from {:?}[{}..{}]: {:08X}",
+            reg,
+            offset,
+            offset + size_of::<P>(),
+            value
+        );
+
+        value
     }
 
     /// Reads a primitive from the given physical address.
@@ -199,7 +202,10 @@ impl System {
         match reg {
             // === Video Interface ===
             Mmio::VideoVerticalTiming => ne!(self.bus.video.regs.vertical_timing.as_mut_bytes()),
-            Mmio::VideoDisplayConfig => ne!(self.bus.video.regs.display_config.as_mut_bytes()),
+            Mmio::VideoDisplayConfig => {
+                ne!(self.bus.video.regs.display_config.as_mut_bytes());
+                self.update_video_interface();
+            }
             Mmio::VideoHorizontalTiming => {
                 ne!(self.bus.video.regs.horizontal_timing.as_mut_bytes())
             }

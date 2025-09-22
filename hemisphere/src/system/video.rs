@@ -1,8 +1,16 @@
 mod regs;
 
+use super::{Event as SystemEvent, processor::Interrupt};
+use crate::system::System;
 use common::{Address, arch::FREQUENCY};
 
 pub use regs::*;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Event {
+    HSync,
+    VSync,
+}
 
 #[derive(Debug, Default)]
 pub struct Interface {
@@ -83,5 +91,29 @@ impl Interface {
         const { assert!(N < 4) };
         self.regs.interrupts[N] =
             new.with_status(self.regs.interrupts[N].status() && !new.status());
+    }
+}
+
+impl System {
+    pub fn update_video_interface(&mut self) {
+        self.scheduler
+            .retain(|e| !matches!(e.event, SystemEvent::Video(_)));
+
+        if self.bus.video.regs.display_config.enable() {
+            self.process(SystemEvent::Video(Event::HSync));
+            self.process(SystemEvent::Video(Event::VSync));
+        }
+    }
+
+    pub fn check_display_interrupts(&mut self) {
+        for (index, interrupt) in self.bus.video.regs.interrupts.clone().iter().enumerate() {
+            if interrupt.enable() {
+                if interrupt.vertical_count().value() == self.bus.video.regs.vertical_count {
+                    self.bus.video.regs.interrupts[index].set_status(true);
+                    self.bus.processor.raise_interrupt(Interrupt::Video);
+                    self.check_external_interrupts();
+                }
+            }
+        }
     }
 }

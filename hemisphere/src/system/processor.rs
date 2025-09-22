@@ -1,8 +1,26 @@
 //! Processor interface.
 
 use crate::system::System;
-use bitos::bitos;
+use bitos::{bitos, integer::u14};
 use common::arch::Exception;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Interrupt {
+    GpError,
+    Reset,
+    DVD,
+    Serial,
+    External,
+    Audio,
+    DSP,
+    Memory,
+    Video,
+    PeToken,
+    PeFinish,
+    CommandProcessor,
+    Debug,
+    HighSpeedPort,
+}
 
 #[bitos(14)]
 #[derive(Default, Debug, Clone, Copy)]
@@ -68,12 +86,15 @@ impl Interface {
         self.cause = InterruptCause::from_bits(self.cause.to_bits() & !new.to_bits())
             .with_reset_state(self.cause.reset_state());
     }
+
+    pub fn raise_interrupt(&mut self, interrupt: Interrupt) {
+        let sources = self.cause.sources().to_bits().value() | (1 << interrupt as usize);
+        self.cause
+            .set_sources(Sources::from_bits(u14::new(sources)));
+    }
 }
 
 impl System {
-    // call when:
-    // - raised external interrupt
-    // - mask changes
     pub fn check_external_interrupts(&mut self) {
         if !self.cpu.supervisor.config.msr.interrupts() {
             return;

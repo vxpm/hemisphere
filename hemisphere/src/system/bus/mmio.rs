@@ -56,6 +56,8 @@ mmio! {
     0x2020, 4, VideoTopBaseRight;
     0x2024, 4, VideoBottomBaseLeft;
     0x2028, 4, VideoBottomBaseRight;
+    0x202C, 2, VideoVerticalCount;
+    0x202E, 2, VideoHorizontalCount;
     0x2030, 4, VideoDisplayInterrupt0;
     0x2034, 4, VideoDisplayInterrupt1;
     0x2038, 4, VideoDisplayInterrupt2;

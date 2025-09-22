@@ -5,7 +5,6 @@ use cranelift::{
     codegen::ir,
     prelude::{InstBuilder, isa},
 };
-use tracing::info;
 
 const RFI_INFO: Info = Info {
     cycles: 2,

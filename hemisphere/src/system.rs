@@ -32,6 +32,7 @@ pub struct Config {
 pub enum Event {
     Decrementer,
     CheckInterrupts,
+    Video(video::Event),
 }
 
 /// System state.
@@ -150,6 +151,29 @@ impl System {
             }
             Event::CheckInterrupts => {
                 self.check_external_interrupts();
+            }
+            Event::Video(video::Event::HSync) => {
+                // check display interrupts
+                self.check_display_interrupts();
+
+                // tracing::debug!("HSync {}", self.bus.video.regs.vertical_count);
+                self.bus.video.regs.vertical_count += 1;
+                self.scheduler.schedule(
+                    Event::Video(video::Event::HSync),
+                    2 * self.bus.video.cycles_per_halfline() as u64, // NOTE: likely wrong
+                );
+            }
+            Event::Video(video::Event::VSync) => {
+                // check display interrupts
+                self.check_display_interrupts();
+
+                // tracing::debug!("VSync {}", self.bus.video.regs.vertical_count);
+                self.bus.video.regs.vertical_count = 1; // counts from 1
+                self.scheduler.schedule(
+                    Event::Video(video::Event::VSync),
+                    (2 * self.bus.video.cycles_per_halfline()
+                        * self.bus.video.halflines_per_even_field()) as u64, // NOTE: likely wrong
+                );
             }
         }
     }

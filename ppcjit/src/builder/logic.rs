@@ -299,6 +299,10 @@ impl BlockBuilder<'_> {
         let rotated = self.bd.ins().rotl_imm(rs, ins.field_sh() as u64 as i64);
         let masked = self.bd.ins().band_imm(rotated, mask as i64);
 
+        if ins.field_rc() {
+            self.update_cr0_cmpz(masked);
+        }
+
         self.set(ins.gpr_a(), masked);
 
         LOGIC_INFO
@@ -313,6 +317,10 @@ impl BlockBuilder<'_> {
         let rotated = self.bd.ins().rotl(rs, shift_amount);
         let masked = self.bd.ins().band_imm(rotated, mask as i64);
 
+        if ins.field_rc() {
+            self.update_cr0_cmpz(masked);
+        }
+
         self.set(ins.gpr_a(), masked);
 
         LOGIC_INFO
@@ -325,6 +333,10 @@ impl BlockBuilder<'_> {
 
         let rotated = self.bd.ins().rotl_imm(rs, ins.field_sh() as u64 as i64);
         let inserted = self.bd.ins().bitselect(mask, rotated, ra);
+
+        if ins.field_rc() {
+            self.update_cr0_cmpz(inserted);
+        }
 
         self.set(ins.gpr_a(), inserted);
 
