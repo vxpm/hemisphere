@@ -110,6 +110,23 @@ pub struct FieldBase {
     pub shift_xfb_addr: bool,
 }
 
+#[bitos(32)]
+#[derive(Debug, Clone, Copy, Default)]
+pub struct DisplayInterrupt {
+    /// Sample count for the interrupt.
+    #[bits(0..9)]
+    pub horizontal_count: u9,
+    /// Line count for the interrupt.
+    #[bits(16..26)]
+    pub vertical_count: u10,
+    /// Whether this interrupt is enabled.
+    #[bits(28)]
+    pub enable: bool,
+    /// Whether this interrupt is asserted. Clear on write.
+    #[bits(28)]
+    pub status: bool,
+}
+
 #[bitos(16)]
 #[derive(Debug, Clone, Copy, Default)]
 pub struct HorizontalScaling {
@@ -169,6 +186,7 @@ pub struct Registers {
     pub top_base_right: u32,
     pub bottom_base_left: FieldBase,
     pub bottom_base_right: u32,
+    pub interrupts: [DisplayInterrupt; 4],
     pub xfb_width: ExternalFramebufferWidth,
     pub horizontal_scaling: HorizontalScaling,
     pub clock: ClockMode,

@@ -3,7 +3,7 @@ mod mmio;
 use crate::system::{
     dsp::{DspControl, DspInterface},
     mem::{IPL_LEN, Memory, RAM_LEN},
-    video::VideoInterface,
+    video::{DisplayInterrupt, VideoInterface},
 };
 use common::{Address, Primitive};
 use tracing::debug;
@@ -93,6 +93,13 @@ impl Bus {
             Mmio::VideoTopBaseRight => ne!(self.video.regs.top_base_right.as_bytes()),
             Mmio::VideoBottomBaseLeft => ne!(self.video.regs.bottom_base_left.as_bytes()),
             Mmio::VideoBottomBaseRight => ne!(self.video.regs.bottom_base_right.as_bytes()),
+
+            // Interrupts
+            Mmio::VideoDisplayInterrupt0 => ne!(self.video.regs.interrupts[0].as_bytes()),
+            Mmio::VideoDisplayInterrupt1 => ne!(self.video.regs.interrupts[1].as_bytes()),
+            Mmio::VideoDisplayInterrupt2 => ne!(self.video.regs.interrupts[2].as_bytes()),
+            Mmio::VideoDisplayInterrupt3 => ne!(self.video.regs.interrupts[3].as_bytes()),
+
             Mmio::VideoExternalFramebufferWidth => ne!(self.video.regs.xfb_width.as_bytes()),
             Mmio::VideoHorizontalScaling => ne!(self.video.regs.horizontal_scaling.as_bytes()),
 
@@ -190,9 +197,30 @@ impl Bus {
             Mmio::VideoTopBaseRight => ne!(self.video.regs.top_base_right.as_mut_bytes()),
             Mmio::VideoBottomBaseLeft => ne!(self.video.regs.bottom_base_left.as_mut_bytes()),
             Mmio::VideoBottomBaseRight => ne!(self.video.regs.bottom_base_right.as_mut_bytes()),
-            Mmio::VideoExternalFramebufferWidth => {
-                ne!(self.video.regs.xfb_width.as_mut_bytes())
+
+            // Interrupts
+            Mmio::VideoDisplayInterrupt0 => {
+                let mut written = self.video.regs.interrupts[0];
+                ne!(written.as_mut_bytes());
+                self.video.write_interrupt::<0>(written);
             }
+            Mmio::VideoDisplayInterrupt1 => {
+                let mut written = self.video.regs.interrupts[1];
+                ne!(written.as_mut_bytes());
+                self.video.write_interrupt::<1>(written);
+            }
+            Mmio::VideoDisplayInterrupt2 => {
+                let mut written = self.video.regs.interrupts[2];
+                ne!(written.as_mut_bytes());
+                self.video.write_interrupt::<2>(written);
+            }
+            Mmio::VideoDisplayInterrupt3 => {
+                let mut written = self.video.regs.interrupts[3];
+                ne!(written.as_mut_bytes());
+                self.video.write_interrupt::<3>(written);
+            }
+
+            Mmio::VideoExternalFramebufferWidth => ne!(self.video.regs.xfb_width.as_mut_bytes()),
             Mmio::VideoHorizontalScaling => ne!(self.video.regs.horizontal_scaling.as_mut_bytes()),
 
             // Filter Coefficient Table
@@ -210,7 +238,7 @@ impl Bus {
             Mmio::DspDspMailbox => (),
             Mmio::DspCpuMailbox => (),
             Mmio::DspControl => {
-                let mut written = DspControl::from_bits(0);
+                let mut written = self.dsp.control.clone();
                 ne!(written.as_mut_bytes());
                 self.dsp.write_control(written);
             }

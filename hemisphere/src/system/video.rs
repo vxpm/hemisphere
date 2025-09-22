@@ -78,4 +78,10 @@ impl VideoInterface {
             self.regs.vertical_timing.active_video_lines().value(),
         )
     }
+
+    pub fn write_interrupt<const N: usize>(&mut self, new: DisplayInterrupt) {
+        const { assert!(N < 4) };
+        self.regs.interrupts[N] =
+            new.with_status(self.regs.interrupts[N].status() && !new.status());
+    }
 }
