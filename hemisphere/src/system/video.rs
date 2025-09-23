@@ -9,7 +9,6 @@ pub use regs::*;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Event {
     HSync,
-    VSync,
 }
 
 #[derive(Debug, Default)]
@@ -69,6 +68,18 @@ impl Interface {
         2.0 * FREQUENCY as f64 / cycles_per_field_pair as f64
     }
 
+    pub fn cycles_until_hsync(&self) -> u32 {
+        let halfline_to_blank_start = (self
+            .regs
+            .horizontal_timing
+            .halfline_to_blank_start()
+            .value() as u32
+            + self.regs.horizontal_timing.sync_width().value() as u32)
+            * self.cycles_per_sample();
+
+        self.cycles_per_halfline() + halfline_to_blank_start
+    }
+
     /// Address of the XFB for the top field.
     pub fn top_xfb_address(&self) -> Address {
         self.regs.top_base_left.xfb_address()
@@ -118,32 +129,38 @@ impl Interface {
 
     pub fn write_interrupt<const N: usize>(&mut self, new: DisplayInterrupt) {
         const { assert!(N < 4) };
-        self.regs.interrupts[N] =
-            new.with_status(self.regs.interrupts[N].status() && !new.status());
+        self.regs.interrupts[N] = new.with_status(self.regs.interrupts[N].status() && new.status());
     }
 }
 
 impl System {
     pub fn update_video_interface(&mut self) {
+        self.bus.video.regs.horizontal_count = 1;
+        self.bus.video.regs.vertical_count = 1;
+
         self.scheduler
             .retain(|e| !matches!(e.event, SystemEvent::Video(_)));
 
         if self.bus.video.regs.display_config.enable() {
             self.process(SystemEvent::Video(Event::HSync));
-            self.process(SystemEvent::Video(Event::VSync));
         }
     }
 
     pub fn check_display_interrupts(&mut self) {
-        for (index, interrupt) in self.bus.video.regs.interrupts.clone().iter().enumerate() {
-            if interrupt.enable() {
-                if interrupt.vertical_count().value() == self.bus.video.regs.vertical_count {
-                    tracing::debug!("raised display interrupt {index}");
-                    self.bus.video.regs.interrupts[index].set_status(true);
-                    self.bus.processor.raise_interrupt(Interrupt::Video);
-                    self.check_external_interrupts();
-                }
+        let mut raised = false;
+        for (index, interrupt) in self.bus.video.regs.interrupts.iter_mut().enumerate() {
+            if interrupt.enable()
+                && interrupt.vertical_count().value() == self.bus.video.regs.vertical_count
+            {
+                raised = true;
+                interrupt.set_status(true);
+                self.bus.processor.raise_interrupt(Interrupt::Video);
+                tracing::debug!("raised display interrupt {index} ({interrupt:?})");
             }
+        }
+
+        if raised {
+            self.check_external_interrupts();
         }
     }
 }

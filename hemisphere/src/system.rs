@@ -156,23 +156,24 @@ impl System {
                 // check display interrupts
                 self.check_display_interrupts();
 
-                // tracing::debug!("HSync {}", self.bus.video.regs.vertical_count);
+                self.bus.video.regs.horizontal_count = 1;
+
                 self.bus.video.regs.vertical_count += 1;
+                if self.bus.video.regs.vertical_count
+                    > self
+                        .bus
+                        .video
+                        .regs
+                        .vertical_timing
+                        .active_video_lines()
+                        .value()
+                {
+                    self.bus.video.regs.vertical_count = 1;
+                }
+
                 self.scheduler.schedule(
                     Event::Video(video::Event::HSync),
-                    2 * self.bus.video.cycles_per_halfline() as u64, // NOTE: likely wrong
-                );
-            }
-            Event::Video(video::Event::VSync) => {
-                // check display interrupts
-                self.check_display_interrupts();
-
-                // tracing::debug!("VSync {}", self.bus.video.regs.vertical_count);
-                self.bus.video.regs.vertical_count = 1; // counts from 1
-                self.scheduler.schedule(
-                    Event::Video(video::Event::VSync),
-                    (2 * self.bus.video.cycles_per_halfline()
-                        * self.bus.video.halflines_per_even_field()) as u64, // NOTE: likely wrong
+                    self.bus.video.cycles_until_hsync() as u64,
                 );
             }
         }
