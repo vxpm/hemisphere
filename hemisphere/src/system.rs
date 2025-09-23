@@ -177,4 +177,57 @@ impl System {
             }
         }
     }
+
+    pub fn dump_xfb(&mut self) {
+        fn conv(y: u8, cb: u8, cr: u8) -> [u8; 3] {
+            let (y, cb, cr) = (y as f32, cb as f32 - 128.0, cr as f32 - 128.0);
+            let r = y + 1.371 * cr;
+            let g = y - 0.698 * cr - 0.336 * cb;
+            let b = y + 1.732 * cb;
+
+            [
+                r.clamp(0.0, 255.0) as u8,
+                g.clamp(0.0, 255.0) as u8,
+                b.clamp(0.0, 255.0) as u8,
+            ]
+        }
+
+        let xfb = self.bus.video.top_xfb_address().value();
+
+        let (width, height) = self.bus.video.xfb_resolution();
+        let (width, height) = (width as u32, height as u32);
+
+        let pixels = width as u32 * height as u32;
+        if pixels == 0 {
+            return;
+        }
+
+        let length = pixels * 2; // in bytes
+
+        let data = (xfb..xfb + length)
+            .step_by(4)
+            .map(|i| self.read::<u32>(Address(i)))
+            .collect::<Vec<_>>();
+
+        tracing::debug!("{width}x{height}");
+        let mut img = image::RgbImage::new(width, height);
+        for (index, data) in data.into_iter().enumerate() {
+            let [y0, cb, y1, cr] = data.to_be_bytes();
+
+            let mut pixel_index = index as u32 * 2;
+            let pixel = img.get_pixel_mut(pixel_index % width, pixel_index / width);
+            *pixel = image::Rgb(conv(y0, cb, cr));
+
+            pixel_index += 1;
+            let pixel = img.get_pixel_mut(pixel_index % width, pixel_index / width);
+            *pixel = image::Rgb(conv(y1, cb, cr));
+        }
+
+        img.save("out.png").unwrap();
+        panic!(
+            "addr: {} {width}x{height}\n{:?}",
+            Address(xfb),
+            self.bus.video.regs.top_base_left,
+        );
+    }
 }

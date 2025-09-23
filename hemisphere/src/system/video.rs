@@ -79,12 +79,41 @@ impl Interface {
         self.regs.bottom_base_left.xfb_address()
     }
 
+    /// Height of the XFB.
+    pub fn xfb_height(&self) -> u16 {
+        let acv = self.regs.vertical_timing.active_video_lines().value();
+        let height_multiplier = if self.regs.display_config.progressive() {
+            1
+        } else {
+            2
+        };
+
+        height_multiplier * acv
+    }
+
+    /// Width of the XFB.
+    pub fn xfb_width(&self) -> u16 {
+        let width = self.regs.xfb_width.width();
+        if width != 0 {
+            width
+        } else {
+            self.regs.horizontal_timing.halfline_width().value()
+                + self
+                    .regs
+                    .horizontal_timing
+                    .halfline_to_blank_start()
+                    .value()
+                - self
+                    .regs
+                    .horizontal_timing
+                    .sync_start_to_blank_end()
+                    .value()
+        }
+    }
+
     /// Resolution of the XFB.
     pub fn xfb_resolution(&self) -> (u16, u16) {
-        (
-            self.regs.xfb_width.width(),
-            self.regs.vertical_timing.active_video_lines().value(),
-        )
+        (self.xfb_width(), self.xfb_height())
     }
 
     pub fn write_interrupt<const N: usize>(&mut self, new: DisplayInterrupt) {

@@ -72,7 +72,7 @@ pub struct HorizontalTiming {
     pub sync_start_to_blank_end: u10,
     /// Amount of samples between the half of the line and HBlank start.
     #[bits(17..27)]
-    pub halflline_to_blank_start: u10,
+    pub halfline_to_blank_start: u10,
 
     // HTR0
     /// Width of a halfline, in samples.
