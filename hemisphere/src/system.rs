@@ -159,15 +159,7 @@ impl System {
                 self.bus.video.regs.horizontal_count = 1;
 
                 self.bus.video.regs.vertical_count += 1;
-                if self.bus.video.regs.vertical_count
-                    > self
-                        .bus
-                        .video
-                        .regs
-                        .vertical_timing
-                        .active_video_lines()
-                        .value()
-                {
+                if self.bus.video.regs.vertical_count > self.bus.video.xfb_height() {
                     self.bus.video.regs.vertical_count = 1;
                 }
 
@@ -191,18 +183,29 @@ impl System {
             let g = y - 0.698 * cr - 0.336 * cb;
             let b = y + 1.732 * cb;
 
-            let clamp = |x: f32| x.clamp(0.0, 1.0);
-            let transform = |x| clamp(x);
-
-            let r = transform(r);
-            let g = transform(g);
-            let b = transform(b);
-
-            [r, g, b].map(|x| (x * 255.0) as u8)
+            [r, g, b].map(|x| (x.clamp(0.0, 1.0) * 255.0) as u8)
         }
 
-        let xfb = self.bus.video.top_xfb_address().value();
+        // let acv = self
+        //     .bus
+        //     .video
+        //     .regs
+        //     .vertical_timing
+        //     .active_video_lines()
+        //     .value();
+        //
+        // dbg!(self.bus.video.regs.vertical_count);
+        // let xfb = if !self.bus.video.regs.display_config.progressive()
+        //     && self.bus.video.regs.vertical_count > acv
+        // {
+        //     println!("bottom");
+        //     self.bus.video.bottom_xfb_address().value()
+        // } else {
+        //     println!("top");
+        //     self.bus.video.top_xfb_address().value()
+        // };
 
+        let xfb = self.bus.video.top_xfb_address().value();
         let (width, height) = self.bus.video.xfb_resolution();
         let (width, height) = (width as u32, height as u32);
 
@@ -213,15 +216,20 @@ impl System {
 
         let length = pixels * 2; // in bytes
 
-        let data = (xfb..xfb + length)
-            .step_by(4)
-            .map(|i| self.read_pure::<u32>(Address(i)).unwrap_or(0))
-            .collect::<Vec<_>>();
+        // HACK: assume reading from ram
+        let data = &self.bus.mem.ram[xfb as usize..xfb as usize + length as usize];
+        // let data = (xfb..xfb + length)
+        //     .step_by(4)
+        //     .map(|i| self.read_pure::<u32>(Address(i)).unwrap_or(0))
+        //     .collect::<Vec<_>>();
 
-        for data in data.into_iter() {
-            let [y0, cb, y1, cr] = data.to_be_bytes();
-            buffer.extend(conv(y0, cb, cr));
-            buffer.extend(conv(y1, cb, cr));
+        for data in data.chunks_exact(4) {
+            let [y0, cb, y1, cr] = *data else {
+                unreachable!()
+            };
+
+            buffer.extend_from_slice(&conv(y0, cb, cr));
+            buffer.extend_from_slice(&conv(y1, cb, cr));
         }
     }
 }

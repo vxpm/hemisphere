@@ -1,6 +1,8 @@
 mod cli;
 mod xfb;
 
+use std::time::Duration;
+
 use clap::Parser;
 use eframe::{
     egui,
@@ -51,6 +53,8 @@ impl App {
 
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        let start = std::time::Instant::now();
+
         egui::TopBottomPanel::top("menu_bar").show(ctx, |ui| {
             egui::MenuBar::new().ui(ui, |ui| {
                 ui.label("Hemisphere");
@@ -69,7 +73,9 @@ impl eframe::App for App {
             });
         });
 
-        ctx.request_repaint_after_secs(1.0 / 60.0);
+        ctx.request_repaint(
+            // Duration::from_secs_f64(1.0 / 60.0).saturating_sub(start.elapsed()),
+        );
     }
 }
 
