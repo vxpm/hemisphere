@@ -81,26 +81,26 @@ impl System {
 
         let value = match reg {
             // === Video Interface ===
-            Mmio::VideoVerticalTiming => ne!(self.bus.video.regs.vertical_timing.as_bytes()),
-            Mmio::VideoDisplayConfig => ne!(self.bus.video.regs.display_config.as_bytes()),
-            Mmio::VideoHorizontalTiming => ne!(self.bus.video.regs.horizontal_timing.as_bytes()),
-            Mmio::VideoOddVerticalTiming => ne!(self.bus.video.regs.odd_vertical_timing.as_bytes()),
+            Mmio::VideoVerticalTiming => ne!(self.bus.video.vertical_timing.as_bytes()),
+            Mmio::VideoDisplayConfig => ne!(self.bus.video.display_config.as_bytes()),
+            Mmio::VideoHorizontalTiming => ne!(self.bus.video.horizontal_timing.as_bytes()),
+            Mmio::VideoOddVerticalTiming => ne!(self.bus.video.odd_vertical_timing.as_bytes()),
             Mmio::VideoEvenVerticalTiming => {
-                ne!(self.bus.video.regs.even_vertical_timing.as_bytes())
+                ne!(self.bus.video.even_vertical_timing.as_bytes())
             }
-            Mmio::VideoTopBaseLeft => ne!(self.bus.video.regs.top_base_left.as_bytes()),
-            Mmio::VideoTopBaseRight => ne!(self.bus.video.regs.top_base_right.as_bytes()),
-            Mmio::VideoBottomBaseLeft => ne!(self.bus.video.regs.bottom_base_left.as_bytes()),
-            Mmio::VideoBottomBaseRight => ne!(self.bus.video.regs.bottom_base_right.as_bytes()),
+            Mmio::VideoTopBaseLeft => ne!(self.bus.video.top_base_left.as_bytes()),
+            Mmio::VideoTopBaseRight => ne!(self.bus.video.top_base_right.as_bytes()),
+            Mmio::VideoBottomBaseLeft => ne!(self.bus.video.bottom_base_left.as_bytes()),
+            Mmio::VideoBottomBaseRight => ne!(self.bus.video.bottom_base_right.as_bytes()),
 
             // Interrupts
-            Mmio::VideoDisplayInterrupt0 => ne!(self.bus.video.regs.interrupts[0].as_bytes()),
-            Mmio::VideoDisplayInterrupt1 => ne!(self.bus.video.regs.interrupts[1].as_bytes()),
-            Mmio::VideoDisplayInterrupt2 => ne!(self.bus.video.regs.interrupts[2].as_bytes()),
-            Mmio::VideoDisplayInterrupt3 => ne!(self.bus.video.regs.interrupts[3].as_bytes()),
+            Mmio::VideoDisplayInterrupt0 => ne!(self.bus.video.interrupts[0].as_bytes()),
+            Mmio::VideoDisplayInterrupt1 => ne!(self.bus.video.interrupts[1].as_bytes()),
+            Mmio::VideoDisplayInterrupt2 => ne!(self.bus.video.interrupts[2].as_bytes()),
+            Mmio::VideoDisplayInterrupt3 => ne!(self.bus.video.interrupts[3].as_bytes()),
 
-            Mmio::VideoExternalFramebufferWidth => ne!(self.bus.video.regs.xfb_width.as_bytes()),
-            Mmio::VideoHorizontalScaling => ne!(self.bus.video.regs.horizontal_scaling.as_bytes()),
+            Mmio::VideoExternalFramebufferWidth => ne!(self.bus.video.xfb_width.as_bytes()),
+            Mmio::VideoHorizontalScaling => ne!(self.bus.video.horizontal_scaling.as_bytes()),
 
             // Filter Coefficient Table
             Mmio::VideoFilterCoeff0
@@ -111,7 +111,7 @@ impl System {
             | Mmio::VideoFilterCoeff5
             | Mmio::VideoFilterCoeff6 => P::default(), // NOTE: stubbed
 
-            Mmio::VideoClock => ne!(self.bus.video.regs.clock.as_bytes()),
+            Mmio::VideoClock => ne!(self.bus.video.clock.as_bytes()),
 
             // === Processor Interface ===
             Mmio::ProcessorInterruptCause => ne!(self.bus.processor.cause.as_bytes()),
@@ -196,52 +196,52 @@ impl System {
 
         match reg {
             // === Video Interface ===
-            Mmio::VideoVerticalTiming => ne!(self.bus.video.regs.vertical_timing.as_mut_bytes()),
+            Mmio::VideoVerticalTiming => ne!(self.bus.video.vertical_timing.as_mut_bytes()),
             Mmio::VideoDisplayConfig => {
-                ne!(self.bus.video.regs.display_config.as_mut_bytes());
+                ne!(self.bus.video.display_config.as_mut_bytes());
                 self.update_video_interface();
             }
             Mmio::VideoHorizontalTiming => {
-                ne!(self.bus.video.regs.horizontal_timing.as_mut_bytes())
+                ne!(self.bus.video.horizontal_timing.as_mut_bytes())
             }
             Mmio::VideoOddVerticalTiming => {
-                ne!(self.bus.video.regs.odd_vertical_timing.as_mut_bytes())
+                ne!(self.bus.video.odd_vertical_timing.as_mut_bytes())
             }
             Mmio::VideoEvenVerticalTiming => {
-                ne!(self.bus.video.regs.even_vertical_timing.as_mut_bytes())
+                ne!(self.bus.video.even_vertical_timing.as_mut_bytes())
             }
-            Mmio::VideoTopBaseLeft => ne!(self.bus.video.regs.top_base_left.as_mut_bytes()),
-            Mmio::VideoTopBaseRight => ne!(self.bus.video.regs.top_base_right.as_mut_bytes()),
-            Mmio::VideoBottomBaseLeft => ne!(self.bus.video.regs.bottom_base_left.as_mut_bytes()),
-            Mmio::VideoBottomBaseRight => ne!(self.bus.video.regs.bottom_base_right.as_mut_bytes()),
+            Mmio::VideoTopBaseLeft => ne!(self.bus.video.top_base_left.as_mut_bytes()),
+            Mmio::VideoTopBaseRight => ne!(self.bus.video.top_base_right.as_mut_bytes()),
+            Mmio::VideoBottomBaseLeft => ne!(self.bus.video.bottom_base_left.as_mut_bytes()),
+            Mmio::VideoBottomBaseRight => ne!(self.bus.video.bottom_base_right.as_mut_bytes()),
 
             // Interrupts
             Mmio::VideoDisplayInterrupt0 => {
-                let mut written = self.bus.video.regs.interrupts[0];
+                let mut written = self.bus.video.interrupts[0];
                 ne!(written.as_mut_bytes());
                 self.bus.video.write_interrupt::<0>(written);
             }
             Mmio::VideoDisplayInterrupt1 => {
-                let mut written = self.bus.video.regs.interrupts[1];
+                let mut written = self.bus.video.interrupts[1];
                 ne!(written.as_mut_bytes());
                 self.bus.video.write_interrupt::<1>(written);
             }
             Mmio::VideoDisplayInterrupt2 => {
-                let mut written = self.bus.video.regs.interrupts[2];
+                let mut written = self.bus.video.interrupts[2];
                 ne!(written.as_mut_bytes());
                 self.bus.video.write_interrupt::<2>(written);
             }
             Mmio::VideoDisplayInterrupt3 => {
-                let mut written = self.bus.video.regs.interrupts[3];
+                let mut written = self.bus.video.interrupts[3];
                 ne!(written.as_mut_bytes());
                 self.bus.video.write_interrupt::<3>(written);
             }
 
             Mmio::VideoExternalFramebufferWidth => {
-                ne!(self.bus.video.regs.xfb_width.as_mut_bytes())
+                ne!(self.bus.video.xfb_width.as_mut_bytes())
             }
             Mmio::VideoHorizontalScaling => {
-                ne!(self.bus.video.regs.horizontal_scaling.as_mut_bytes())
+                ne!(self.bus.video.horizontal_scaling.as_mut_bytes())
             }
 
             // Filter Coefficient Table
@@ -253,7 +253,7 @@ impl System {
             | Mmio::VideoFilterCoeff5
             | Mmio::VideoFilterCoeff6 => (), // NOTE: stubbed
 
-            Mmio::VideoClock => ne!(self.bus.video.regs.clock.as_mut_bytes()),
+            Mmio::VideoClock => ne!(self.bus.video.clock.as_mut_bytes()),
 
             // === Processor Interface ===
             Mmio::ProcessorInterruptCause => {

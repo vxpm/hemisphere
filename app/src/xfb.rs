@@ -28,7 +28,7 @@ impl WindowUi for Window {
         };
 
         let hemisphere = state.hemisphere();
-        if !hemisphere.system.bus.video.regs.display_config.enable() {
+        if !hemisphere.system.bus.video.display_config.enable() {
             ui.label("VI disabled");
             return;
         }

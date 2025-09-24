@@ -156,11 +156,11 @@ impl System {
                 // check display interrupts
                 self.check_display_interrupts();
 
-                self.bus.video.regs.horizontal_count = 1;
+                self.bus.video.horizontal_count = 1;
 
-                self.bus.video.regs.vertical_count += 1;
-                if self.bus.video.regs.vertical_count > self.bus.video.xfb_height() {
-                    self.bus.video.regs.vertical_count = 1;
+                self.bus.video.vertical_count += 1;
+                if self.bus.video.vertical_count > self.bus.video.xfb_height() {
+                    self.bus.video.vertical_count = 1;
                 }
 
                 self.scheduler.schedule(
