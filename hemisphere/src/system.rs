@@ -181,16 +181,24 @@ impl System {
 
     pub fn dump_xfb(&mut self) {
         fn conv(y: u8, cb: u8, cr: u8) -> [u8; 3] {
-            let (y, cb, cr) = (y as f32, cb as f32 - 128.0, cr as f32 - 128.0);
+            let (y, cb, cr) = (
+                y as f32 / 255.0,
+                cb as f32 / 255.0 - 0.5,
+                cr as f32 / 255.0 - 0.5,
+            );
+
             let r = y + 1.371 * cr;
             let g = y - 0.698 * cr - 0.336 * cb;
             let b = y + 1.732 * cb;
 
-            [
-                r.clamp(0.0, 255.0) as u8,
-                g.clamp(0.0, 255.0) as u8,
-                b.clamp(0.0, 255.0) as u8,
-            ]
+            let clamp = |x: f32| x.clamp(0.0, 1.0);
+            let transform = |x| clamp(x);
+
+            let r = transform(r);
+            let g = transform(g);
+            let b = transform(b);
+
+            [r, g, b].map(|x| (x * 255.0) as u8)
         }
 
         let xfb = self.bus.video.top_xfb_address().value();

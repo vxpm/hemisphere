@@ -1,6 +1,6 @@
 use bitos::{
     bitos,
-    integer::{u4, u7, u9, u10, u15},
+    integer::{u4, u7, u9, u10, u15, u24},
 };
 use common::Address;
 
@@ -101,8 +101,8 @@ pub struct FieldVerticalTiming {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct FieldBase {
     /// Bits 9..24 of the XFB address for this field.
-    #[bits(9..24)]
-    pub xfb_address_base: u15,
+    #[bits(0..24)]
+    pub xfb_address_base: u24,
     #[bits(24..28)]
     pub horizontal_offset: u4,
     /// If set, shifts XFB address right by 5.
@@ -169,9 +169,7 @@ pub struct ClockMode {
 impl FieldBase {
     /// Physical address of the XFB for this field.
     pub fn xfb_address(&self) -> Address {
-        Address(
-            ((self.xfb_address_base().value() as u32) << 9) >> (5 * self.shift_xfb_addr() as usize),
-        )
+        Address((self.xfb_address_base().value() as u32) << (5 * self.shift_xfb_addr() as usize))
     }
 }
 
