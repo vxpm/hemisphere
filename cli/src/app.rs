@@ -197,7 +197,6 @@ impl App {
                         self.runner.with_state(|s| {
                             debug!("stepping at {}", s.hemisphere().system.cpu.pc);
                             s.hemisphere_mut().step();
-                            s.hemisphere_mut().system.dump_xfb();
                         });
                     }
                 }

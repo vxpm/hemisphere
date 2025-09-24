@@ -179,7 +179,7 @@ impl System {
         }
     }
 
-    pub fn dump_xfb(&mut self) {
+    pub fn dump_xfb(&self, buffer: &mut Vec<u8>) {
         fn conv(y: u8, cb: u8, cr: u8) -> [u8; 3] {
             let (y, cb, cr) = (
                 y as f32 / 255.0,
@@ -215,28 +215,13 @@ impl System {
 
         let data = (xfb..xfb + length)
             .step_by(4)
-            .map(|i| self.read::<u32>(Address(i)))
+            .map(|i| self.read_pure::<u32>(Address(i)).unwrap_or(0))
             .collect::<Vec<_>>();
 
-        tracing::debug!("{width}x{height}");
-        let mut img = image::RgbImage::new(width, height);
-        for (index, data) in data.into_iter().enumerate() {
+        for data in data.into_iter() {
             let [y0, cb, y1, cr] = data.to_be_bytes();
-
-            let mut pixel_index = index as u32 * 2;
-            let pixel = img.get_pixel_mut(pixel_index % width, pixel_index / width);
-            *pixel = image::Rgb(conv(y0, cb, cr));
-
-            pixel_index += 1;
-            let pixel = img.get_pixel_mut(pixel_index % width, pixel_index / width);
-            *pixel = image::Rgb(conv(y1, cb, cr));
+            buffer.extend(conv(y0, cb, cr));
+            buffer.extend(conv(y1, cb, cr));
         }
-
-        img.save("out.png").unwrap();
-        panic!(
-            "addr: {} {width}x{height}\n{:?}",
-            Address(xfb),
-            self.bus.video.regs.top_base_left,
-        );
     }
 }
