@@ -336,32 +336,28 @@ impl System {
         }
     }
 
-    /// Returns the data of the top XFB in YCbCr format.
-    pub fn top_xfb(&self) -> Option<&[u8]> {
-        // fn conv(y: u8, cb: u8, cr: u8) -> [u8; 3] {
-        //     let (y, cb, cr) = (
-        //         y as f32 / 255.0,
-        //         cb as f32 / 255.0 - 0.5,
-        //         cr as f32 / 255.0 - 0.5,
-        //     );
-        //
-        //     let r = y + 1.371 * cr;
-        //     let g = y - 0.698 * cr - 0.336 * cb;
-        //     let b = y + 1.732 * cb;
-        //
-        //     [r, g, b].map(|x| (x.clamp(0.0, 1.0) * 255.0) as u8)
-        // }
-
-        let xfb = self.bus.video.top_xfb_address().value();
+    fn xfb_inner(&self, base: Address) -> Option<&[u8]> {
+        let xfb = base.value();
         let (width, height) = self.bus.video.xfb_resolution();
-        let (width, height) = (width as u32, height as u32);
 
         let pixels = width as u32 * height as u32;
         if pixels == 0 {
             return None;
         }
 
-        let length = pixels * 2;
+        let length = 2 * pixels;
         Some(&self.bus.mem.ram[xfb as usize..xfb as usize + length as usize])
+    }
+
+    /// Returns the data of the top XFB in YCbCr format (y0, cb, y1, cr).
+    pub fn top_xfb(&self) -> Option<&[u8]> {
+        let base = self.bus.video.top_xfb_address();
+        self.xfb_inner(base)
+    }
+
+    /// Returns the data of the bottom XFB in YCbCr format (y0, cb, y1, cr).
+    pub fn bottom_xfb(&self) -> Option<&[u8]> {
+        let base = self.bus.video.bottom_xfb_address();
+        self.xfb_inner(base)
     }
 }

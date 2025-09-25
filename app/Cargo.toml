@@ -14,9 +14,13 @@ tracing.workspace = true
 wgpu.workspace = true
 
 eframe = { version = "0.32", features = [
-    "default_fonts",
     "wayland",
-    "wgpu",
     "x11",
+
+    "wgpu",
+
+    "persistence",
+    "default_fonts",
+
 ], default-features = false }
 tracing-appender = "0.2"

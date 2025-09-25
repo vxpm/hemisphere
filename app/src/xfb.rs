@@ -2,14 +2,45 @@ use crate::WindowUi;
 use eframe::egui;
 use hemisphere::runner::State;
 
-#[derive(Default)]
+#[inline]
+fn ycbcr_to_rgb(y: u8, cb: u8, cr: u8) -> [u8; 3] {
+    let (y, cb, cr) = (y as f32, cb as f32 - 128.0, cr as f32 - 128.0);
+
+    let r = y + 1.371 * cr;
+    let g = y - 0.698 * cr - 0.336 * cb;
+    let b = y + 1.732 * cb;
+
+    [r, g, b].map(|x| x.clamp(0.0, 255.0) as u8)
+}
+
 pub struct Window {
+    bottom: bool,
     texture: Option<egui::TextureHandle>,
 }
 
+impl Window {
+    pub fn top() -> Self {
+        Self {
+            bottom: false,
+            texture: None,
+        }
+    }
+
+    pub fn bottom() -> Self {
+        Self {
+            bottom: true,
+            texture: None,
+        }
+    }
+}
+
 impl WindowUi for Window {
-    fn build<'open>(&mut self, open: &'open mut bool) -> egui::Window<'open> {
-        egui::Window::new("XFB").open(open)
+    fn title(&self) -> &str {
+        if self.bottom {
+            "🖵 Bottom XFB"
+        } else {
+            "🖵 Top XFB"
+        }
     }
 
     fn show(&mut self, ui: &mut eframe::egui::Ui, state: &mut State) {
@@ -39,12 +70,22 @@ impl WindowUi for Window {
             return;
         }
 
-        let mut rgb = Vec::new();
-        hemisphere.system.dump_xfb(&mut rgb);
+        let Some(xfb) = (if self.bottom {
+            hemisphere.system.bottom_xfb()
+        } else {
+            hemisphere.system.top_xfb()
+        }) else {
+            ui.label("XFB data error");
+            return;
+        };
 
-        let mut rgba = Vec::with_capacity(rgb.len() / 3);
-        for rgb in rgb.chunks_exact(3) {
-            rgba.push(egui::Color32::from_rgb(rgb[0], rgb[1], rgb[2]));
+        let mut pixels = Vec::with_capacity(xfb.len() / 2);
+        for ycbcr in xfb.chunks_exact(4) {
+            let [r, g, b] = ycbcr_to_rgb(ycbcr[0], ycbcr[1], ycbcr[3]);
+            pixels.push(egui::Color32::from_rgb(r, g, b));
+
+            let [r, g, b] = ycbcr_to_rgb(ycbcr[2], ycbcr[1], ycbcr[3]);
+            pixels.push(egui::Color32::from_rgb(r, g, b));
         }
 
         let size = [resolution.0 as usize, resolution.1 as usize];
@@ -53,7 +94,7 @@ impl WindowUi for Window {
             egui::ColorImage {
                 size,
                 source_size,
-                pixels: rgba,
+                pixels,
             },
             egui::TextureOptions::LINEAR,
         );
