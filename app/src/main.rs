@@ -1,7 +1,6 @@
 mod cli;
+mod disasm;
 mod xfb;
-
-use std::{collections::HashMap, time::Duration};
 
 use clap::Parser;
 use eframe::{
@@ -14,6 +13,7 @@ use hemisphere::{
     runner::{Runner, State},
     system::{self, executable::Executable},
 };
+use std::time::Duration;
 use tracing::info;
 
 trait WindowUi {
@@ -45,7 +45,7 @@ impl Window {
 
 struct App {
     runner: Runner,
-    windows: HashMap<&'static str, Window>,
+    windows: Vec<Window>,
 }
 
 impl App {
@@ -55,18 +55,14 @@ impl App {
         cc.egui_ctx.set_zoom_factor(1.0);
         Self {
             runner,
-            windows: [
-                ("top_xfb", Window::open(xfb::Window::top())),
-                ("bottom_xfb", Window::closed(xfb::Window::bottom())),
-            ]
-            .into(),
+            windows: vec![
+                // xfb
+                Window::open(xfb::Window::top()),
+                Window::closed(xfb::Window::bottom()),
+                // cpu
+                Window::open(disasm::Window::default()),
+            ],
         }
-    }
-
-    pub fn window(&mut self, window: &str) -> Option<&mut Window> {
-        self.windows
-            .iter_mut()
-            .find_map(|w| (*w.0 == window).then_some(w.1))
     }
 }
 
@@ -78,29 +74,24 @@ impl eframe::App for App {
             egui::MenuBar::new().ui(ui, |ui| {
                 ui.label("Hemisphere");
                 ui.menu_button("🗖 View", |ui| {
-                    let mut toggle = |window| {
-                        let Some(window) = self.window(window) else {
-                            return;
-                        };
-
+                    for window in &mut self.windows {
                         let button = egui::Button::new(window.ui.title()).selected(window.open);
                         if ui.add(button).clicked() {
                             window.open = !window.open;
                         }
-                    };
-
-                    toggle("top_xfb");
-                    toggle("bottom_xfb");
+                    }
                 });
             });
         });
 
         self.runner.with_state(|state| {
             egui::CentralPanel::default().show(ctx, |ui| {
-                for (id, win) in &mut self.windows {
+                for (i, win) in self.windows.iter_mut().enumerate() {
                     let widget = egui::Window::new(win.ui.title())
                         .open(&mut win.open)
-                        .id(egui::Id::new(id));
+                        .id(egui::Id::new(i))
+                        .resizable(true)
+                        .min_size(egui::Vec2::ZERO);
 
                     widget
                         .constrain_to(ui.max_rect())
