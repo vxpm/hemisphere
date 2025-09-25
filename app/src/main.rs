@@ -1,3 +1,5 @@
+#![feature(trim_prefix_suffix)]
+
 mod cli;
 mod disasm;
 mod xfb;

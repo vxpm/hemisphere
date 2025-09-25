@@ -9,14 +9,18 @@ use hemisphere::{
 
 pub struct Window {
     target: Address,
+    target_text: String,
     follow_pc: bool,
+    simplified: bool,
 }
 
 impl Default for Window {
     fn default() -> Self {
         Self {
             target: Default::default(),
+            target_text: String::new(),
             follow_pc: true,
+            simplified: true,
         }
     }
 }
@@ -29,6 +33,23 @@ impl WindowUi for Window {
     }
 
     fn show(&mut self, ui: &mut eframe::egui::Ui, state: &mut State) {
+        ui.horizontal(|ui| {
+            ui.checkbox(&mut self.follow_pc, "Follow PC");
+            ui.checkbox(&mut self.simplified, "Simplified");
+        });
+
+        if !self.follow_pc {
+            ui.horizontal(|ui| {
+                ui.label("Target: ");
+                if ui.text_edit_singleline(&mut self.target_text).lost_focus() {
+                    let clean = self.target_text.trim_prefix("0x").replace("_", "");
+                    if let Ok(addr) = u32::from_str_radix(&clean, 16) {
+                        self.target = Address(addr);
+                    }
+                }
+            });
+        }
+
         let builder = TableBuilder::new(ui)
             .auto_shrink(true)
             .striped(true)
@@ -64,6 +85,8 @@ impl WindowUi for Window {
                     row.col(|ui| {
                         let color = if current == hemi.system.cpu.pc {
                             Color32::LIGHT_BLUE
+                        } else if current == self.target {
+                            Color32::LIGHT_GREEN
                         } else {
                             Color32::GRAY
                         };
@@ -84,7 +107,11 @@ impl WindowUi for Window {
                         let ins = Ins::new(code, Extensions::gekko_broadway());
 
                         let mut parsed = ParsedIns::new();
-                        ins.parse_simplified(&mut parsed);
+                        if self.simplified {
+                            ins.parse_simplified(&mut parsed);
+                        } else {
+                            ins.parse_basic(&mut parsed);
+                        }
 
                         ui.label(parsed.to_string());
                     });
