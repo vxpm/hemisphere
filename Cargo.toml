@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["common", "ppcjit", "dol", "dolinfo", "hemisphere", "cli", "app"]
+members = ["common", "ppcjit", "dol", "dolinfo", "hemisphere", "app"]
 default-members = ["common", "ppcjit", "dol", "hemisphere", "app"]
 
 [profile.dev.package."iced-x86"]
@@ -40,5 +40,11 @@ slotmap = "1.0"
 strum = { version = "0.27", features = ["derive"] }
 tracing = { version = "0.1", default-features = false, features = ["std"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-wgpu = { version = "25.0", features = ["dx12", "gles", "metal", "vulkan", "wgsl"], default-features = false }
+wgpu = { version = "25.0", features = [
+    "dx12",
+    "gles",
+    "metal",
+    "vulkan",
+    "wgsl",
+], default-features = false }
 zerocopy = { version = "0.8", features = ["derive"] }
