@@ -2,6 +2,7 @@
 
 mod cli;
 mod control;
+mod debug;
 mod disasm;
 mod xfb;
 
@@ -70,6 +71,8 @@ impl App {
                 // cpu
                 Window::open(control::Window::default()),
                 Window::open(disasm::Window::default()),
+                // debug
+                Window::open(debug::Window::default()),
             ],
         }
     }

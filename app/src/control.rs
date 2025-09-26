@@ -1,11 +1,6 @@
 use crate::{Ctx, WindowUi};
 use eframe::egui;
-use egui_extras::{Column, TableBuilder};
-use hemisphere::{
-    Address,
-    arch::disasm::{Extensions, Ins, ParsedIns},
-    runner::State,
-};
+use hemisphere::{Address, runner::State};
 
 #[derive(Default)]
 pub struct Window {
