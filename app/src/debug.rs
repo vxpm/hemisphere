@@ -13,7 +13,7 @@ impl WindowUi for Window {
         "🐞 Debug Info"
     }
 
-    fn show(&mut self, ui: &mut egui::Ui, ctx: &mut Ctx, state: &mut State) {
+    fn show(&mut self, ui: &mut egui::Ui, _: &mut Ctx, state: &mut State) {
         let call_stack = state.hemisphere().system.call_stack();
         egui::ScrollArea::both().auto_shrink(false).show(ui, |ui| {
             let builder = TableBuilder::new(ui)

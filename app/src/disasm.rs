@@ -32,7 +32,7 @@ impl WindowUi for Window {
         "📼 Disassembly"
     }
 
-    fn show(&mut self, ui: &mut egui::Ui, ctx: &mut Ctx, state: &mut State) {
+    fn show(&mut self, ui: &mut egui::Ui, _: &mut Ctx, state: &mut State) {
         ui.horizontal(|ui| {
             ui.checkbox(&mut self.follow_pc, "Follow PC");
             ui.checkbox(&mut self.simplified, "Simplified");
