@@ -182,6 +182,12 @@ impl Runner {
         }
     }
 
+    pub fn step(&mut self) {
+        if !self.running() {
+            self.with_state(|s| s.hemisphere.step());
+        }
+    }
+
     pub fn with_state<F, R>(&mut self, f: F) -> R
     where
         F: FnOnce(&mut State) -> R,

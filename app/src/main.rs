@@ -1,6 +1,7 @@
 #![feature(trim_prefix_suffix)]
 
 mod cli;
+mod control;
 mod disasm;
 mod xfb;
 
@@ -18,9 +19,14 @@ use hemisphere::{
 use std::time::Duration;
 use tracing::info;
 
+struct Ctx {
+    step: bool,
+    running: bool,
+}
+
 trait WindowUi {
     fn title(&self) -> &str;
-    fn show(&mut self, ui: &mut egui::Ui, state: &mut State);
+    fn show(&mut self, ui: &mut egui::Ui, ctx: &mut Ctx, state: &mut State);
 }
 
 struct Window {
@@ -62,6 +68,7 @@ impl App {
                 Window::open(xfb::Window::top()),
                 Window::closed(xfb::Window::bottom()),
                 // cpu
+                Window::open(control::Window::default()),
                 Window::open(disasm::Window::default()),
             ],
         }
@@ -86,6 +93,12 @@ impl eframe::App for App {
             });
         });
 
+        let running = self.runner.running();
+        let mut context = Ctx {
+            step: false,
+            running,
+        };
+
         self.runner.with_state(|state| {
             egui::CentralPanel::default().show(ctx, |ui| {
                 for (i, win) in self.windows.iter_mut().enumerate() {
@@ -97,10 +110,18 @@ impl eframe::App for App {
 
                     widget
                         .constrain_to(ui.max_rect())
-                        .show(ctx, |ui| win.ui.show(ui, state));
+                        .show(ctx, |ui| win.ui.show(ui, &mut context, state));
                 }
             });
         });
+
+        if context.running != running {
+            self.runner.set_run(context.running);
+        }
+
+        if context.step {
+            self.runner.step();
+        }
 
         std::thread::sleep(Duration::from_secs_f64(1.0 / 60.0).saturating_sub(start.elapsed()));
         ctx.request_repaint();

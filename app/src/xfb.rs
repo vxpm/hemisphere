@@ -1,4 +1,4 @@
-use crate::WindowUi;
+use crate::{Ctx, WindowUi};
 use eframe::egui;
 use hemisphere::runner::State;
 
@@ -43,7 +43,7 @@ impl WindowUi for Window {
         }
     }
 
-    fn show(&mut self, ui: &mut eframe::egui::Ui, state: &mut State) {
+    fn show(&mut self, ui: &mut egui::Ui, _: &mut Ctx, state: &mut State) {
         let texture = match &mut self.texture {
             Some(tex) => tex,
             None => {
