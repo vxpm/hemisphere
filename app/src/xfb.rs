@@ -58,22 +58,22 @@ impl WindowUi for Window {
             }
         };
 
-        let hemisphere = state.hemisphere();
-        if !hemisphere.system.bus.video.display_config.enable() {
+        let hemi = state.hemisphere();
+        if !hemi.system.bus.video.display_config.enable() {
             ui.label("VI disabled");
             return;
         }
 
-        let resolution = hemisphere.system.bus.video.xfb_resolution();
+        let resolution = hemi.system.bus.video.xfb_resolution();
         if resolution.0 == 0 || resolution.1 == 0 {
             ui.label("VI bad resolution");
             return;
         }
 
         let Some(xfb) = (if self.bottom {
-            hemisphere.system.bottom_xfb()
+            hemi.system.bottom_xfb()
         } else {
-            hemisphere.system.top_xfb()
+            hemi.system.top_xfb()
         }) else {
             ui.label("XFB data error");
             return;

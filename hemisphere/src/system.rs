@@ -23,9 +23,12 @@ use common::{
     arch::{Cpu, Exception},
 };
 
+pub type Callback = Box<dyn FnMut() + Send + Sync + 'static>;
+
 /// System configuration.
 pub struct Config {
     pub executable: Option<Executable>,
+    pub vsync_callback: Option<Callback>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -161,6 +164,9 @@ impl System {
                 self.bus.video.vertical_count += 1;
                 if self.bus.video.vertical_count > self.bus.video.xfb_height() {
                     self.bus.video.vertical_count = 1;
+                    if let Some(callback) = &mut self.config.vsync_callback {
+                        callback();
+                    }
                 }
 
                 self.scheduler.schedule(

@@ -305,6 +305,7 @@ impl Interface {
     }
 }
 
+/// Video Interface
 impl System {
     pub fn update_video_interface(&mut self) {
         self.bus.video.horizontal_count = 1;

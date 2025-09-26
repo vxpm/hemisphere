@@ -17,8 +17,10 @@ use hemisphere::{
     runner::{Runner, State},
     system::{self, executable::Executable},
 };
-use std::time::Duration;
-use tracing::info;
+use std::{
+    sync::{Arc, atomic::AtomicBool},
+    time::Duration,
+};
 
 struct Ctx {
     step: bool,
@@ -52,17 +54,49 @@ impl Window {
     }
 }
 
+struct Shared {
+    vsync: AtomicBool,
+}
+
 struct App {
+    shared: Arc<Shared>,
     runner: Runner,
     windows: Vec<Window>,
 }
 
 impl App {
-    fn new(cc: &eframe::CreationContext<'_>, runner: Runner) -> Self {
-        // TODO: setup renderer with WGPU (cc.wgpu_render_state)
+    fn new(cc: &eframe::CreationContext<'_>, args: cli::Args) -> Result<Self> {
+        tracing::info!("loading executable");
+        let dwarf = match args.dwarf {
+            Some(debug) => Some(debug),
+            None => {
+                let mut elf = args.input.clone();
+                elf.set_extension("elf");
+                elf.exists().then_some(elf)
+            }
+        };
+        let executable = Executable::open(&args.input, dwarf.as_deref())?;
+
+        let shared = Arc::new(Shared {
+            vsync: AtomicBool::new(false),
+        });
+
+        let mut runner = Runner::new(Hemisphere::new(Config {
+            system: system::Config {
+                executable: Some(executable),
+                vsync_callback: Some(Box::new(|| {
+                    dbg!(true);
+                })),
+            },
+            jit: jit::Config {
+                instr_per_block: args.instr_per_block,
+            },
+        }));
+        runner.set_run(args.run);
 
         cc.egui_ctx.set_zoom_factor(1.0);
-        Self {
+        Ok(Self {
+            shared,
             runner,
             windows: vec![
                 // xfb
@@ -74,7 +108,7 @@ impl App {
                 // debug
                 Window::open(debug::Window::default()),
             ],
-        }
+        })
     }
 }
 
@@ -126,7 +160,13 @@ impl eframe::App for App {
             self.runner.step();
         }
 
-        std::thread::sleep(Duration::from_secs_f64(1.0 / 60.0).saturating_sub(start.elapsed()));
+        let target = Duration::from_secs_f64(1.0 / 120.0);
+        loop {
+            if start.elapsed() >= target {
+                break;
+            }
+        }
+
         ctx.request_repaint();
     }
 }
@@ -158,31 +198,9 @@ fn setup_tracing() -> tracing_appender::non_blocking::WorkerGuard {
 
 fn main() -> Result<()> {
     eyre_pretty::install()?;
-    let args = cli::Args::parse();
     let _tracing_guard = setup_tracing();
 
-    tracing::info!("loading executable");
-    let dwarf = match args.dwarf {
-        Some(debug) => Some(debug),
-        None => {
-            let mut elf = args.input.clone();
-            elf.set_extension("elf");
-            elf.exists().then_some(elf)
-        }
-    };
-
-    let executable = Executable::open(&args.input, dwarf.as_deref())?;
-    let mut runner = Runner::new(Hemisphere::new(Config {
-        system: system::Config {
-            executable: Some(executable),
-        },
-        jit: jit::Config {
-            instr_per_block: args.instr_per_block,
-        },
-    }));
-
-    runner.set_run(args.run);
-
+    let args = cli::Args::parse();
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default().with_maximized(true),
         wgpu_options: WgpuConfiguration {
@@ -200,11 +218,13 @@ fn main() -> Result<()> {
         ..Default::default()
     };
 
-    info!("starting interface");
     eframe::run_native(
         "Hemisphere",
         options,
-        Box::new(|cc| Ok(Box::new(App::new(cc, runner)))),
+        Box::new(|cc| {
+            let app = App::new(cc, args)?;
+            Ok(Box::new(app))
+        }),
     )?;
 
     Ok(())
