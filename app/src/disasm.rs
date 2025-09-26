@@ -1,5 +1,5 @@
 use crate::WindowUi;
-use eframe::egui::{self, Color32};
+use eframe::egui;
 use egui_extras::{Column, TableBuilder};
 use hemisphere::{
     Address,
@@ -45,80 +45,124 @@ impl WindowUi for Window {
                     let clean = self.target_text.trim_prefix("0x").replace("_", "");
                     if let Ok(addr) = u32::from_str_radix(&clean, 16) {
                         self.target = Address(addr);
+                        self.target_text = format!("{:08X}", self.target.0);
                     }
                 }
             });
         }
 
-        let builder = TableBuilder::new(ui)
-            .auto_shrink(true)
-            .striped(true)
-            .resizable(false)
-            .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
-            .column(Column::auto())
-            .column(Column::remainder());
+        let response = ui.scope(|ui| {
+            let builder = TableBuilder::new(ui)
+                .auto_shrink(true)
+                .striped(true)
+                .resizable(false)
+                .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+                .column(Column::auto())
+                .column(Column::remainder());
 
-        let table = builder.header(20.0, |mut header| {
-            header.col(|ui| {
-                ui.label("Address");
-            });
-            header.col(|ui| {
-                ui.label("Instruction");
-            });
-        });
-
-        table.body(|mut body| {
-            let hemi = state.hemisphere();
-            if self.follow_pc {
-                self.target = hemi.system.cpu.pc;
-            }
-
-            let ui = body.ui_mut();
-            ui.spacing_mut().item_spacing = egui::Vec2::new(5.0, 0.0);
-            ui.set_max_width(ui.available_width());
-
-            let rows = (body.ui_mut().available_height() / 20.0) as u32;
-
-            let mut current = self.target - 4 * (rows / 2);
-            for _ in 0..rows {
-                body.row(20.0, |mut row| {
-                    row.col(|ui| {
-                        let color = if current == hemi.system.cpu.pc {
-                            Color32::LIGHT_BLUE
-                        } else if current == self.target {
-                            Color32::LIGHT_GREEN
-                        } else {
-                            Color32::GRAY
-                        };
-
-                        let text = egui::RichText::new(current.to_string())
-                            .family(egui::FontFamily::Monospace)
-                            .color(color);
-
-                        ui.label(text);
-                    });
-
-                    row.col(|ui| {
-                        let translated = hemi
-                            .system
-                            .translate_instr_addr(current)
-                            .unwrap_or_default();
-                        let code = hemi.system.read_pure(translated).unwrap_or(0);
-                        let ins = Ins::new(code, Extensions::gekko_broadway());
-
-                        let mut parsed = ParsedIns::new();
-                        if self.simplified {
-                            ins.parse_simplified(&mut parsed);
-                        } else {
-                            ins.parse_basic(&mut parsed);
-                        }
-
-                        ui.label(parsed.to_string());
-                    });
+            let table = builder.header(20.0, |mut header| {
+                header.col(|ui| {
+                    ui.label("Address");
                 });
+                header.col(|ui| {
+                    ui.label("Instruction");
+                });
+            });
 
-                current += 4;
+            let mut toggled_breakpoints = Vec::new();
+            table.body(|mut body| {
+                let hemi = state.hemisphere();
+                if self.follow_pc {
+                    self.target = hemi.system.cpu.pc;
+                }
+
+                let ui = body.ui_mut();
+                ui.spacing_mut().item_spacing = egui::Vec2::new(5.0, 0.0);
+                ui.set_max_width(ui.available_width());
+
+                let rows = (body.ui_mut().available_height() / 20.0) as u32;
+
+                let mut current = self.target - 4 * (rows / 2);
+                for _ in 0..rows {
+                    body.row(20.0, |mut row| {
+                        row.col(|ui| {
+                            let color = if current == hemi.system.cpu.pc {
+                                egui::Color32::LIGHT_RED
+                            } else if current == self.target {
+                                egui::Color32::LIGHT_GREEN
+                            } else {
+                                egui::Color32::LIGHT_BLUE
+                            };
+
+                            let is_breakpoint = state.breakpoints().contains(&current);
+                            let breakpoint_symbol = egui::RichText::new("⏺");
+                            let breakpoint_toggle = if is_breakpoint {
+                                egui::Label::new(breakpoint_symbol.color(egui::Color32::LIGHT_RED))
+                                    .selectable(false)
+                                    .sense(egui::Sense::click())
+                            } else {
+                                egui::Label::new(breakpoint_symbol.color(egui::Color32::GRAY))
+                                    .selectable(false)
+                                    .sense(egui::Sense::click())
+                            };
+
+                            let text = egui::RichText::new(current.to_string())
+                                .family(egui::FontFamily::Monospace)
+                                .color(color);
+
+                            ui.horizontal(|ui| {
+                                if ui.add(breakpoint_toggle).clicked() {
+                                    toggled_breakpoints.push(current);
+                                }
+
+                                ui.label(text);
+                            });
+                        });
+
+                        row.col(|ui| {
+                            let translated = hemi
+                                .system
+                                .translate_instr_addr(current)
+                                .unwrap_or_default();
+                            let code = hemi.system.read_pure(translated).unwrap_or(0);
+                            let ins = Ins::new(code, Extensions::gekko_broadway());
+
+                            let mut parsed = ParsedIns::new();
+                            if self.simplified {
+                                ins.parse_simplified(&mut parsed);
+                            } else {
+                                ins.parse_basic(&mut parsed);
+                            }
+
+                            let text = egui::RichText::new(parsed.to_string())
+                                .color(egui::Color32::LIGHT_GRAY)
+                                .family(egui::FontFamily::Monospace);
+
+                            ui.add_space(2.5);
+                            ui.label(text);
+                        });
+                    });
+
+                    current += 4;
+                }
+            });
+
+            let breakpoints = state.breakpoints_mut();
+            for breakpoint in toggled_breakpoints {
+                if let Some(pos) = breakpoints.iter().position(|bp| *bp == breakpoint) {
+                    breakpoints.remove(pos);
+                } else {
+                    breakpoints.push(breakpoint);
+                }
             }
         });
+
+        let rect = response.response.rect;
+        let response = ui.interact(rect, egui::Id::new("disasm_scroll"), egui::Sense::hover());
+
+        if response.hovered() {
+            let delta = ui.input(|i| i.smooth_scroll_delta);
+            self.target += -4 * ((delta.y / 10.0) as i32);
+        }
     }
 }
