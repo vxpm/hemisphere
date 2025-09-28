@@ -1,3 +1,5 @@
+//! [`Runner`] abstracts over the emulator and lets you easily control it.
+
 use crate::{Hemisphere, Limits};
 use color_backtrace::BacktracePrinter;
 use common::{Address, arch::FREQUENCY};
@@ -25,6 +27,7 @@ pub struct Stats {
     pub cps: VecDeque<f32>,
 }
 
+/// Emulation state.
 pub struct State {
     hemisphere: Hemisphere,
     breakpoints: Vec<Address>,
@@ -65,7 +68,7 @@ struct Control {
     should_run: AtomicBool,
 }
 
-fn run(state: Arc<FairMutex<State>>, control: Arc<Control>) {
+fn setup_panic_hook() {
     crate::panic::set_hook(
         Box::new(move |info| {
             let backtrace = backtrace::Backtrace::new();
@@ -83,9 +86,14 @@ fn run(state: Arc<FairMutex<State>>, control: Arc<Control>) {
         }),
         false,
     );
+}
+
+fn run(state: Arc<FairMutex<State>>, control: Arc<Control>) {
+    setup_panic_hook();
 
     let mut next = Instant::now();
     'outer: loop {
+        // sleep while shouldnt run
         if !control.should_run.load(Ordering::Relaxed) {
             while !control.should_run.load(Ordering::Relaxed) {
                 std::thread::park();
@@ -100,7 +108,6 @@ fn run(state: Arc<FairMutex<State>>, control: Arc<Control>) {
                 continue 'outer;
             }
 
-            std::hint::spin_loop();
             std::thread::yield_now();
         }
 
@@ -140,7 +147,7 @@ fn run(state: Arc<FairMutex<State>>, control: Arc<Control>) {
     }
 }
 
-/// A simple runner for the Hemisphere emulator.
+/// A runner for the Hemisphere emulator.
 pub struct Runner {
     state: Arc<FairMutex<State>>,
     control: Arc<Control>,
@@ -148,7 +155,9 @@ pub struct Runner {
 }
 
 impl Runner {
-    pub fn new(hemisphere: Hemisphere) -> Self {
+    /// Creates a runner with a new emulator instance using the given config.
+    pub fn new(config: crate::Config) -> Self {
+        let hemisphere = Hemisphere::new(config);
         let state = Arc::new(FairMutex::new(State::new(hemisphere)));
         let control = Arc::new(Control {
             should_run: AtomicBool::new(false),
@@ -171,10 +180,12 @@ impl Runner {
         }
     }
 
+    /// Whether the emulation thread is running.
     pub fn running(&self) -> bool {
         self.control.should_run.load(Ordering::Relaxed)
     }
 
+    /// Continue or pause the emulation thread.
     pub fn set_run(&mut self, run: bool) {
         self.control.should_run.store(run, Ordering::Relaxed);
         if run {
@@ -182,12 +193,14 @@ impl Runner {
         }
     }
 
+    /// Single-step the emulator if it isn't running.
     pub fn step(&mut self) {
         if !self.running() {
             self.with_state(|s| s.hemisphere.step());
         }
     }
 
+    /// Pauses the emulation thread and executes a closure with the emulation state.
     pub fn with_state<F, R>(&mut self, f: F) -> R
     where
         F: FnOnce(&mut State) -> R,

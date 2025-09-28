@@ -81,17 +81,15 @@ impl App {
             vsync: AtomicBool::new(false),
         });
 
-        let mut runner = Runner::new(Hemisphere::new(Config {
+        let mut runner = Runner::new(Config {
             system: system::Config {
                 executable: Some(executable),
-                vsync_callback: Some(Box::new(|| {
-                    dbg!(true);
-                })),
+                vsync_callback: None,
             },
             jit: jit::Config {
                 instr_per_block: args.instr_per_block,
             },
-        }));
+        });
         runner.set_run(args.run);
 
         cc.egui_ctx.set_zoom_factor(1.0);
