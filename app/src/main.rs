@@ -13,14 +13,11 @@ use eframe::{
 };
 use eyre_pretty::eyre::Result;
 use hemisphere::{
-    Config, Hemisphere, jit,
+    Config, jit,
     runner::{Runner, State},
     system::{self, executable::Executable},
 };
-use std::{
-    sync::{Arc, atomic::AtomicBool},
-    time::Duration,
-};
+use std::time::Duration;
 
 struct Ctx {
     step: bool,
@@ -54,12 +51,7 @@ impl Window {
     }
 }
 
-struct Shared {
-    vsync: AtomicBool,
-}
-
 struct App {
-    shared: Arc<Shared>,
     runner: Runner,
     windows: Vec<Window>,
 }
@@ -77,10 +69,6 @@ impl App {
         };
         let executable = Executable::open(&args.input, dwarf.as_deref())?;
 
-        let shared = Arc::new(Shared {
-            vsync: AtomicBool::new(false),
-        });
-
         let mut runner = Runner::new(Config {
             system: system::Config {
                 executable: Some(executable),
@@ -94,7 +82,6 @@ impl App {
 
         cc.egui_ctx.set_zoom_factor(1.0);
         Ok(Self {
-            shared,
             runner,
             windows: vec![
                 // xfb

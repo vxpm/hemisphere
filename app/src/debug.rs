@@ -14,7 +14,7 @@ impl WindowUi for Window {
     }
 
     fn show(&mut self, ui: &mut egui::Ui, _: &mut Ctx, state: &mut State) {
-        let call_stack = state.hemisphere().system.call_stack();
+        let call_stack = state.core().system.call_stack();
         egui::ScrollArea::both().auto_shrink(false).show(ui, |ui| {
             let builder = TableBuilder::new(ui)
                 .auto_shrink(egui::Vec2b::new(false, true))

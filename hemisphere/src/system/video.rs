@@ -176,7 +176,7 @@ pub struct ClockMode {
 impl FieldBase {
     /// Physical address of the XFB for this field.
     pub fn xfb_address(&self) -> Address {
-        Address((self.xfb_address_base().value() as u32) >> (5 * self.shift_xfb_addr() as usize))
+        Address((self.xfb_address_base().value()) >> (5 * self.shift_xfb_addr() as usize))
     }
 }
 

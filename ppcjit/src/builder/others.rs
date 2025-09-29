@@ -166,7 +166,7 @@ impl BlockBuilder<'_> {
         // get src
         let cr = self.get(Reg::CR);
         let src = self.bd.ins().ushr_imm(cr, 4 * src_field as u64 as i64);
-        let src = self.bd.ins().band_imm(src, 0b1111 as u64 as i64);
+        let src = self.bd.ins().band_imm(src, 0b1111u64 as i64);
 
         // place src in dst
         let new = self.bd.ins().ishl_imm(src, 4 * dst_field as u64 as i64);

@@ -27,7 +27,6 @@ impl WindowUi for Window {
 
         ui.separator();
         ui.label("Breakpoints");
-        let breakpoints = state.breakpoints_mut();
 
         ui.horizontal(|ui| {
             ui.scope(|ui| {
@@ -39,9 +38,7 @@ impl WindowUi for Window {
                 let clean = self.breakpoint_text.trim_prefix("0x").replace("_", "");
                 if let Ok(addr) = u32::from_str_radix(&clean, 16) {
                     let addr = Address(addr);
-                    if !breakpoints.contains(&addr) {
-                        breakpoints.push(addr);
-                    }
+                    state.add_breakpoint(addr);
                 }
             }
         });
@@ -50,7 +47,7 @@ impl WindowUi for Window {
             .auto_shrink(false)
             .show(ui, |ui| {
                 let mut remove = None;
-                for breakpoint in breakpoints.iter() {
+                for breakpoint in state.breakpoints() {
                     ui.horizontal(|ui| {
                         if ui.button("🗑").clicked() {
                             remove = Some(*breakpoint);
@@ -61,7 +58,7 @@ impl WindowUi for Window {
                 }
 
                 if let Some(remove) = remove {
-                    breakpoints.retain(|bp| *bp != remove);
+                    state.remove_breakpoint(remove);
                 }
             });
     }

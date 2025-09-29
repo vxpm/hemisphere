@@ -69,11 +69,11 @@ impl WindowUi for Window {
                 });
             });
 
-            let mut toggled_breakpoints = Vec::new();
+            let mut toggled_breakpoint = None;
             table.body(|mut body| {
-                let hemi = state.hemisphere();
+                let core = state.core();
                 if self.follow_pc {
-                    self.target = hemi.system.cpu.pc;
+                    self.target = core.system.cpu.pc;
                 }
 
                 let ui = body.ui_mut();
@@ -86,7 +86,7 @@ impl WindowUi for Window {
                 for _ in 0..rows {
                     body.row(20.0, |mut row| {
                         row.col(|ui| {
-                            let color = if current == hemi.system.cpu.pc {
+                            let color = if current == core.system.cpu.pc {
                                 egui::Color32::LIGHT_RED
                             } else if current == self.target {
                                 egui::Color32::LIGHT_GREEN
@@ -112,7 +112,7 @@ impl WindowUi for Window {
 
                             ui.horizontal(|ui| {
                                 if ui.add(breakpoint_toggle).clicked() {
-                                    toggled_breakpoints.push(current);
+                                    toggled_breakpoint = Some(current);
                                 }
 
                                 ui.label(text);
@@ -120,11 +120,11 @@ impl WindowUi for Window {
                         });
 
                         row.col(|ui| {
-                            let translated = hemi
+                            let translated = core
                                 .system
                                 .translate_instr_addr(current)
                                 .unwrap_or_default();
-                            let code = hemi.system.read_pure(translated).unwrap_or(0);
+                            let code = core.system.read_pure(translated).unwrap_or(0);
                             let ins = Ins::new(code, Extensions::gekko_broadway());
 
                             let mut parsed = ParsedIns::new();
@@ -147,13 +147,8 @@ impl WindowUi for Window {
                 }
             });
 
-            let breakpoints = state.breakpoints_mut();
-            for breakpoint in toggled_breakpoints {
-                if let Some(pos) = breakpoints.iter().position(|bp| *bp == breakpoint) {
-                    breakpoints.remove(pos);
-                } else {
-                    breakpoints.push(breakpoint);
-                }
+            if let Some(breakpoint) = toggled_breakpoint {
+                state.toggle_breakpoint(breakpoint);
             }
         });
 
