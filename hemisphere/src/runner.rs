@@ -13,12 +13,6 @@ use std::{
     thread::JoinHandle,
 };
 
-// #[derive(Default)]
-// pub struct Stats {
-//     /// Cycles per second, for the last 1024 slices.
-//     pub cps: VecDeque<f32>,
-// }
-
 pub struct State {
     core: Hemisphere,
     breakpoints: Vec<Address>,
