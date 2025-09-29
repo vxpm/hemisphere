@@ -17,7 +17,13 @@ use hemisphere::{
     runner::{Runner, State},
     system::{self, executable::Executable},
 };
-use std::time::Duration;
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::{Duration, Instant},
+};
 
 struct Ctx {
     step: bool,
@@ -52,15 +58,17 @@ impl Window {
 }
 
 struct App {
+    last: Instant,
     runner: Runner,
+    vsync_count: Arc<AtomicU64>,
     windows: Vec<Window>,
 }
 
 impl App {
-    fn new(cc: &eframe::CreationContext<'_>, args: cli::Args) -> Result<Self> {
+    fn new(cc: &eframe::CreationContext<'_>, args: &cli::Args) -> Result<Self> {
         tracing::info!("loading executable");
-        let dwarf = match args.dwarf {
-            Some(debug) => Some(debug),
+        let dwarf = match args.dwarf.as_deref() {
+            Some(debug) => Some(debug.to_path_buf()),
             None => {
                 let mut elf = args.input.clone();
                 elf.set_extension("elf");
@@ -69,10 +77,18 @@ impl App {
         };
         let executable = Executable::open(&args.input, dwarf.as_deref())?;
 
+        let vsync_count = Arc::new(AtomicU64::new(0));
+        let vsync_callback = {
+            let vsync_count = vsync_count.clone();
+            Box::new(move || {
+                vsync_count.fetch_add(1, Ordering::Relaxed);
+            })
+        };
+
         let mut runner = Runner::new(Config {
             system: system::Config {
                 executable: Some(executable),
-                vsync_callback: None,
+                vsync_callback: Some(vsync_callback),
             },
             jit: jit::Config {
                 instr_per_block: args.instr_per_block,
@@ -82,7 +98,9 @@ impl App {
 
         cc.egui_ctx.set_zoom_factor(1.0);
         Ok(Self {
+            last: Instant::now(),
             runner,
+            vsync_count,
             windows: vec![
                 // xfb
                 Window::open(xfb::Window::top()),
@@ -99,8 +117,6 @@ impl App {
 
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        let start = std::time::Instant::now();
-
         egui::TopBottomPanel::top("menu_bar").show(ctx, |ui| {
             egui::MenuBar::new().ui(ui, |ui| {
                 ui.label("Hemisphere");
@@ -146,12 +162,16 @@ impl eframe::App for App {
         }
 
         let target = Duration::from_secs_f64(1.0 / 120.0);
+        let vsyncs = self.vsync_count.load(Ordering::Relaxed);
         loop {
-            if start.elapsed() >= target {
+            std::hint::spin_loop();
+            if self.last.elapsed() >= target || vsyncs < self.vsync_count.load(Ordering::Relaxed) {
                 break;
             }
         }
 
+        dbg!(self.last.elapsed());
+        self.last = Instant::now();
         ctx.request_repaint();
     }
 }
@@ -207,7 +227,7 @@ fn main() -> Result<()> {
         "Hemisphere",
         options,
         Box::new(|cc| {
-            let app = App::new(cc, args)?;
+            let app = App::new(cc, &args)?;
             Ok(Box::new(app))
         }),
     )?;

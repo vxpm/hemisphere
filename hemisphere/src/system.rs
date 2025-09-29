@@ -162,6 +162,13 @@ impl System {
                 self.bus.video.horizontal_count = 1;
 
                 self.bus.video.vertical_count += 1;
+                if !self.bus.video.display_config.progressive()
+                    && self.bus.video.vertical_count == self.bus.video.xfb_height() / 2
+                {
+                    if let Some(callback) = &mut self.config.vsync_callback {
+                        callback();
+                    }
+                }
                 if self.bus.video.vertical_count > self.bus.video.xfb_height() {
                     self.bus.video.vertical_count = 1;
                     if let Some(callback) = &mut self.config.vsync_callback {

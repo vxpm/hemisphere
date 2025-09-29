@@ -252,12 +252,7 @@ impl Interface {
     }
 
     pub fn cycles_until_hsync(&self) -> u32 {
-        let halfline_to_blank_start = (self.horizontal_timing.halfline_to_blank_start().value()
-            as u32
-            + self.horizontal_timing.sync_width().value() as u32)
-            * self.cycles_per_sample();
-
-        self.cycles_per_halfline() + halfline_to_blank_start
+        2 * self.cycles_per_halfline()
     }
 
     /// Address of the XFB for the top field.
