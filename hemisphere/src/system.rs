@@ -20,7 +20,7 @@ use crate::system::{
 };
 use common::{
     Address,
-    arch::{Cpu, Exception},
+    arch::{Cpu, Exception, FREQUENCY},
 };
 
 pub type Callback = Box<dyn FnMut() + Send + Sync + 'static>;
@@ -155,30 +155,23 @@ impl System {
             Event::CheckInterrupts => {
                 self.check_external_interrupts();
             }
-            Event::Video(video::Event::HSync) => {
+            Event::Video(video::Event::VSync) => {
                 // check display interrupts
                 self.check_display_interrupts();
 
-                self.bus.video.horizontal_count = 1;
+                if let Some(callback) = &mut self.config.vsync_callback {
+                    callback();
+                }
 
-                self.bus.video.vertical_count += 1;
-                if !self.bus.video.display_config.progressive()
-                    && self.bus.video.vertical_count == self.bus.video.xfb_height() / 2
-                {
-                    if let Some(callback) = &mut self.config.vsync_callback {
-                        callback();
-                    }
-                }
-                if self.bus.video.vertical_count > self.bus.video.xfb_height() {
-                    self.bus.video.vertical_count = 1;
-                    if let Some(callback) = &mut self.config.vsync_callback {
-                        callback();
-                    }
-                }
+                let divisor = if self.bus.video.display_config.progressive() {
+                    1
+                } else {
+                    2
+                };
 
                 self.scheduler.schedule(
-                    Event::Video(video::Event::HSync),
-                    self.bus.video.cycles_until_hsync() as u64,
+                    Event::Video(video::Event::VSync),
+                    (FREQUENCY as f64 / self.bus.video.refresh_rate()) as u64 / divisor,
                 );
             }
         }

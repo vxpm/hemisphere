@@ -8,7 +8,7 @@ use common::{Address, arch::FREQUENCY};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Event {
-    HSync,
+    VSync,
 }
 
 #[bitos(16)]
@@ -310,16 +310,14 @@ impl System {
             .retain(|e| !matches!(e.event, SystemEvent::Video(_)));
 
         if self.bus.video.display_config.enable() {
-            self.process(SystemEvent::Video(Event::HSync));
+            self.process(SystemEvent::Video(Event::VSync));
         }
     }
 
     pub fn check_display_interrupts(&mut self) {
         let mut raised = false;
         for (index, interrupt) in self.bus.video.interrupts.iter_mut().enumerate() {
-            if interrupt.enable()
-                && interrupt.vertical_count().value() == self.bus.video.vertical_count
-            {
+            if interrupt.enable() {
                 raised = true;
                 interrupt.set_status(true);
                 self.bus.processor.raise_interrupt(Interrupt::Video);

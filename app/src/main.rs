@@ -58,7 +58,7 @@ impl Window {
 }
 
 struct App {
-    last: Instant,
+    last_update: Instant,
     runner: Runner,
     vsync_count: Arc<AtomicU64>,
     windows: Vec<Window>,
@@ -98,7 +98,7 @@ impl App {
 
         cc.egui_ctx.set_zoom_factor(1.0);
         Ok(Self {
-            last: Instant::now(),
+            last_update: Instant::now(),
             runner,
             vsync_count,
             windows: vec![
@@ -161,17 +161,19 @@ impl eframe::App for App {
             self.runner.step();
         }
 
-        let target = Duration::from_secs_f64(1.0 / 120.0);
+        const FRAMETIME: Duration = Duration::new(0, (1_000_000_000.0 / 60.0) as u32);
         let vsyncs = self.vsync_count.load(Ordering::Relaxed);
         loop {
-            std::hint::spin_loop();
-            if self.last.elapsed() >= target || vsyncs < self.vsync_count.load(Ordering::Relaxed) {
+            if self.last_update.elapsed() >= FRAMETIME
+                || vsyncs < self.vsync_count.load(Ordering::Relaxed)
+            {
                 break;
             }
+
+            std::thread::yield_now();
         }
 
-        dbg!(self.last.elapsed());
-        self.last = Instant::now();
+        self.last_update = Instant::now();
         ctx.request_repaint();
     }
 }
