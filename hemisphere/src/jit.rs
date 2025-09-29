@@ -231,7 +231,7 @@ pub static CTX_HOOKS: Hooks = {
     }
 
     extern "sysv64-unwind" fn dec_changed(ctx: &mut Context) {
-        ctx.system.lazy.last_updated_dec = ctx.system.scheduler.elapsed();
+        ctx.system.lazy.last_updated_dec = ctx.system.scheduler.elapsed_time_base();
         ctx.system
             .scheduler
             .retain(|e| e.event != Event::Decrementer);
@@ -249,7 +249,7 @@ pub static CTX_HOOKS: Hooks = {
     }
 
     extern "sysv64-unwind" fn tb_changed(ctx: &mut Context) {
-        ctx.system.lazy.last_updated_tb = ctx.system.scheduler.elapsed();
+        ctx.system.lazy.last_updated_tb = ctx.system.scheduler.elapsed_time_base();
         info!("time base changed to {}", ctx.system.cpu.supervisor.misc.tb);
     }
 

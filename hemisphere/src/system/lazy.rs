@@ -9,7 +9,7 @@ pub struct Lazy {
 impl System {
     pub fn update_time_base(&mut self) {
         let last_updated = self.lazy.last_updated_tb;
-        let now = self.scheduler.elapsed();
+        let now = self.scheduler.elapsed_time_base();
         let delta = now - last_updated;
 
         let prev = self.cpu.supervisor.misc.tb;

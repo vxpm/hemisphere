@@ -64,4 +64,10 @@ impl Scheduler {
     pub fn elapsed(&self) -> u64 {
         self.elapsed
     }
+
+    /// How many time base cycles have elapsed.
+    #[inline(always)]
+    pub fn elapsed_time_base(&self) -> u64 {
+        self.elapsed / 12
+    }
 }
