@@ -2,18 +2,18 @@ use crate::system::System;
 use common::Address;
 
 #[derive(Debug)]
-pub struct StackFrame {
-    /// Name of the routine that owns this frame.
-    pub routine: Option<String>,
-    /// Address of this stack frame.
+pub struct CallFrame {
+    /// Address of this call.
     pub address: Address,
-    /// Address of the previous stack frame.
-    pub previous: Address,
+    /// Symbol name of the call.
+    pub symbol: Option<String>,
+    /// Address of the stack frame of this call.
+    pub stack: Address,
     /// Return address.
-    pub link: Address,
+    pub returns: Address,
 }
 
-pub struct CallStack(pub Vec<StackFrame>);
+pub struct CallStack(pub Vec<CallFrame>);
 
 impl std::fmt::Display for CallStack {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -22,11 +22,11 @@ impl std::fmt::Display for CallStack {
                 f,
                 "{}: {}",
                 frame.address,
-                frame.routine.as_deref().unwrap_or("<unknown>"),
+                frame.symbol.as_deref().unwrap_or("<unknown>"),
             )?;
 
-            if frame.link != 0 {
-                writeln!(f, " (return to {})", frame.link)?;
+            if frame.returns != 0 {
+                writeln!(f, " (return to {})", frame.returns)?;
             } else {
                 writeln!(f, " (link unsaved)")?;
             }
@@ -52,21 +52,21 @@ impl System {
 
             if let Some(prev_frame_addr) = self.translate_data_addr(prev_frame_addr)
                 && let Some(prev_routine_addr) = self.translate_data_addr(prev_routine_addr)
-                && let Some(prev_frame) = self.bus.read_pure(prev_frame_addr)
-                && let Some(prev_routine) = self.bus.read_pure(prev_routine_addr)
+                && let Some(prev_frame) = self.read_pure(prev_frame_addr)
+                && let Some(prev_routine) = self.read_pure(prev_routine_addr)
             {
-                let routine = self
+                let name = self
                     .config
                     .executable
                     .as_ref()
                     .and_then(|e| e.find_symbol(Address(current_routine)))
                     .map(|s| s.into_owned());
 
-                call_stack.push(StackFrame {
-                    routine,
-                    address: Address(current_frame),
-                    previous: Address(prev_frame),
-                    link: Address(prev_routine),
+                call_stack.push(CallFrame {
+                    address: Address(current_routine),
+                    symbol: name,
+                    stack: Address(current_frame),
+                    returns: Address(prev_routine),
                 });
 
                 current_frame = prev_frame;

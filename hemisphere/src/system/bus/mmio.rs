@@ -56,6 +56,8 @@ mmio! {
     0x2020, 4, VideoTopBaseRight;
     0x2024, 4, VideoBottomBaseLeft;
     0x2028, 4, VideoBottomBaseRight;
+    0x202C, 2, VideoVerticalCount;
+    0x202E, 2, VideoHorizontalCount;
     0x2030, 4, VideoDisplayInterrupt0;
     0x2034, 4, VideoDisplayInterrupt1;
     0x2038, 4, VideoDisplayInterrupt2;
@@ -77,6 +79,7 @@ mmio! {
     0x2070, 2, VideoUnknown2070;
 
     // === Processor Interface ===
+    0x3000, 4, ProcessorInterruptCause;
     0x3004, 4, ProcessorInterruptMask;
     0x302C, 4, ProcessorConsoleType;
 
@@ -92,7 +95,7 @@ mmio! {
     0x5012, 2, DspAramSize;
     0x5020, 4, DspAramDmaRamBase;
     0x5024, 4, DspAramDmaAramBase;
-    0x5028, 2, DspAramDmaControl;
+    0x5028, 4, DspAramDmaControl;
 
     // === Serial Interface ===
     0x6430, 4, SerialPoll;

@@ -1,22 +1,23 @@
 [workspace]
 resolver = "3"
-members = ["common", "ppcjit", "dol", "dolinfo", "hemisphere", "cli"]
-default-members = ["common", "ppcjit", "dol", "hemisphere", "cli"]
+members = ["common", "ppcjit", "dol", "dolinfo", "hemisphere", "app"]
+default-members = ["common", "ppcjit", "dol", "hemisphere", "app"]
 
 [profile.dev.package."iced-x86"]
 opt-level = 0
 
 [profile.dev.package."cranelift-codegen"]
-opt-level = 3
+opt-level = 2
 
 [profile.dev.package."binrw"]
-opt-level = 3
+opt-level = 2
 
 [profile.dev.package."dol"]
-opt-level = 3
+opt-level = 2
 
 [profile.dev]
 panic = "unwind"
+codegen-units = 384
 
 [profile.release]
 panic = "abort"
@@ -39,5 +40,11 @@ slotmap = "1.0"
 strum = { version = "0.27", features = ["derive"] }
 tracing = { version = "0.1", default-features = false, features = ["std"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-wgpu = "26.0"
+wgpu = { version = "25.0", features = [
+    "dx12",
+    "gles",
+    "metal",
+    "vulkan",
+    "wgsl",
+], default-features = false }
 zerocopy = { version = "0.8", features = ["derive"] }

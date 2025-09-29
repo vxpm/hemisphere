@@ -159,13 +159,23 @@ pub static CTX_HOOKS: Hooks = {
         &mut ctx.system.cpu
     }
 
-    extern "sysv64-unwind" fn read<T: Primitive>(
+    extern "sysv64-unwind" fn read<P: Primitive>(
         ctx: &mut Context,
         addr: Address,
-        value: &mut T,
+        value: &mut P,
     ) -> bool {
         if let Some(physical) = ctx.system.translate_data_addr(addr) {
-            *value = ctx.system.bus.read(physical);
+            *value = ctx.system.read(physical);
+            let regs = 0x800D_27C0;
+            if (regs..(regs + 60)).contains(&addr.value()) {
+                tracing::debug!("reading from video registers ({addr}): {value:08X}");
+            }
+
+            let shadow = 0x800D_2748;
+            if (shadow..(shadow + 60)).contains(&addr.value()) {
+                tracing::debug!("reading from shadow registers ({addr}): {value:08X}");
+            }
+
             true
         } else {
             tracing::error!("failed to translate address {addr}");
@@ -173,14 +183,24 @@ pub static CTX_HOOKS: Hooks = {
         }
     }
 
-    extern "sysv64-unwind" fn write<T: Primitive>(
+    extern "sysv64-unwind" fn write<P: Primitive>(
         ctx: &mut Context,
         addr: Address,
-        value: T,
+        value: P,
     ) -> bool {
+        let regs = 0x800D_27C0;
+        if (regs..(regs + 60)).contains(&addr.value()) {
+            tracing::debug!("writing to video registers ({addr}): {value:08X}");
+        }
+
+        let shadow = 0x800D_2748;
+        if (shadow..(shadow + 60)).contains(&addr.value()) {
+            tracing::debug!("writing to shadow registers ({addr}): {value:08X}");
+        }
+
         if let Some(physical) = ctx.system.translate_data_addr(addr) {
-            ctx.system.bus.write(physical, value);
-            for i in 0..size_of::<T>() {
+            ctx.system.write(physical, value);
+            for i in 0..size_of::<P>() {
                 ctx.mapping.invalidate(addr + i as u32);
             }
 
@@ -211,7 +231,7 @@ pub static CTX_HOOKS: Hooks = {
     }
 
     extern "sysv64-unwind" fn dec_changed(ctx: &mut Context) {
-        ctx.system.lazy.last_updated_dec = ctx.system.scheduler.elapsed();
+        ctx.system.lazy.last_updated_dec = ctx.system.scheduler.elapsed_time_base();
         ctx.system
             .scheduler
             .retain(|e| e.event != Event::Decrementer);
@@ -229,7 +249,7 @@ pub static CTX_HOOKS: Hooks = {
     }
 
     extern "sysv64-unwind" fn tb_changed(ctx: &mut Context) {
-        ctx.system.lazy.last_updated_tb = ctx.system.scheduler.elapsed();
+        ctx.system.lazy.last_updated_tb = ctx.system.scheduler.elapsed_time_base();
         info!("time base changed to {}", ctx.system.cpu.supervisor.misc.tb);
     }
 

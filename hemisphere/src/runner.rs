@@ -1,187 +1,104 @@
-use crate::{Hemisphere, Limits};
-use color_backtrace::BacktracePrinter;
-use common::{Address, arch::FREQUENCY};
-use parking_lot::FairMutex;
+//! [`Runner`] abstracts over the emulator and lets you easily control it.
+
+mod worker;
+
+use crate::Hemisphere;
+use common::Address;
+use parking_lot::Mutex;
 use std::{
-    collections::VecDeque,
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
     },
     thread::JoinHandle,
-    time::{Duration, Instant},
 };
 
-const STEP_SIZE: u32 = 8 * 1024;
-
-#[inline(always)]
-fn to_duration(cycles: u32) -> Duration {
-    Duration::from_secs_f64(cycles as f64 / FREQUENCY as f64)
-}
-
-#[derive(Default)]
-pub struct Stats {
-    /// Cycles per second, for the last 1024 slices.
-    pub cps: VecDeque<f32>,
-}
-
 pub struct State {
-    hemisphere: Hemisphere,
+    core: Hemisphere,
     breakpoints: Vec<Address>,
-    stats: Stats,
 }
 
 impl State {
-    pub fn new(hemisphere: Hemisphere) -> Self {
-        Self {
-            hemisphere,
-            breakpoints: Vec::new(),
-            stats: Stats::default(),
-        }
+    pub fn core(&self) -> &Hemisphere {
+        &self.core
     }
 
-    pub fn hemisphere(&self) -> &Hemisphere {
-        &self.hemisphere
-    }
-
-    pub fn hemisphere_mut(&mut self) -> &mut Hemisphere {
-        &mut self.hemisphere
-    }
-
-    pub fn stats(&self) -> &Stats {
-        &self.stats
+    pub fn core_mut(&mut self) -> &mut Hemisphere {
+        &mut self.core
     }
 
     pub fn breakpoints(&self) -> &[Address] {
         &self.breakpoints
     }
 
-    pub fn breakpoints_mut(&mut self) -> &mut Vec<Address> {
-        &mut self.breakpoints
+    pub fn add_breakpoint(&mut self, addr: Address) {
+        if !self.breakpoints.contains(&addr) {
+            self.breakpoints.push(addr);
+        }
     }
-}
 
-struct Control {
-    should_run: AtomicBool,
-}
+    pub fn remove_breakpoint(&mut self, addr: Address) {
+        self.breakpoints.retain(|b| *b != addr);
+    }
 
-fn run(state: Arc<FairMutex<State>>, control: Arc<Control>) {
-    crate::panic::set_hook(
-        Box::new(move |info| {
-            let backtrace = backtrace::Backtrace::new();
-            let message = info.payload_as_str().unwrap_or("(unknown)");
-
-            let mut buffer = color_backtrace::termcolor::Buffer::no_color();
-            _ = BacktracePrinter::new()
-                .message(message)
-                .print_trace(&backtrace, &mut buffer);
-
-            tracing::error!(
-                "runner panicked: {message}\n{}",
-                String::from_utf8_lossy(buffer.as_slice())
-            );
-        }),
-        false,
-    );
-
-    let mut next = Instant::now();
-    'outer: loop {
-        if !control.should_run.load(Ordering::Relaxed) {
-            while !control.should_run.load(Ordering::Relaxed) {
-                std::thread::park();
-            }
-
-            next = next.max(Instant::now());
-        }
-
-        // wait until the next slice should run
-        while next > Instant::now() {
-            if !control.should_run.load(Ordering::Relaxed) {
-                continue 'outer;
-            }
-
-            std::hint::spin_loop();
-            std::thread::yield_now();
-        }
-
-        // emulate
-        let mut guard = state.lock();
-        let state = &mut *guard;
-
-        let emulated = if state.breakpoints.is_empty() {
-            let executed = state.hemisphere.run(Limits::cycles(STEP_SIZE));
-            executed.cycles
+    pub fn toggle_breakpoint(&mut self, addr: Address) {
+        if self.breakpoints.contains(&addr) {
+            self.remove_breakpoint(addr);
         } else {
-            std::hint::cold_path();
-
-            let (executed, hit) = state
-                .hemisphere
-                .run_breakpoints(Limits::cycles(STEP_SIZE), &state.breakpoints);
-
-            if hit {
-                control.should_run.store(false, Ordering::Relaxed);
-            }
-
-            executed.cycles
-        };
-
-        if guard.stats.cps.len() >= 1024 {
-            guard.stats.cps.pop_back();
+            self.add_breakpoint(addr);
         }
-
-        let cps = emulated as f32 / next.elapsed().as_secs_f32();
-        guard.stats.cps.push_front(cps);
-
-        // calculate when the next slice should run
-        next += to_duration(emulated);
-
-        // avoid acumulating slowdowns
-        next = next.max(Instant::now());
     }
 }
 
-/// A simple runner for the Hemisphere emulator.
+/// Runner state shared with the worker thread.
+struct Shared {
+    state: Mutex<State>,
+    advance: AtomicBool,
+}
+
+/// A runner for the Hemisphere emulator.
 pub struct Runner {
-    state: Arc<FairMutex<State>>,
-    control: Arc<Control>,
+    state: Arc<Shared>,
     handle: JoinHandle<()>,
 }
 
 impl Runner {
-    pub fn new(hemisphere: Hemisphere) -> Self {
-        let state = Arc::new(FairMutex::new(State::new(hemisphere)));
-        let control = Arc::new(Control {
-            should_run: AtomicBool::new(false),
+    /// Creates a runner with a new emulator instance using the given config.
+    pub fn new(config: crate::Config) -> Self {
+        let core = Hemisphere::new(config);
+        let state = Arc::new(Shared {
+            state: Mutex::new(State {
+                core,
+                breakpoints: vec![],
+            }),
+            advance: AtomicBool::new(false),
         });
 
+        let worker = worker::WorkerThread::new(state.clone());
         let handle = std::thread::Builder::new()
             .name("hemi-runner".to_owned())
-            .spawn({
-                let state = state.clone();
-                let control = control.clone();
-
-                || run(state, control)
-            })
+            .spawn(move || worker.run())
             .unwrap();
 
-        Self {
-            state,
-            control,
-            handle,
-        }
+        Self { state, handle }
     }
 
+    /// Whether the emulation thread is running.
     pub fn running(&self) -> bool {
-        self.control.should_run.load(Ordering::Relaxed)
+        self.state.advance.load(Ordering::Relaxed)
     }
 
+    /// Continue or pause the emulation thread.
     pub fn set_run(&mut self, run: bool) {
-        self.control.should_run.store(run, Ordering::Relaxed);
-        if run {
-            self.handle.thread().unpark();
-        }
+        self.state.advance.store(run, Ordering::Relaxed);
     }
 
+    /// Single-step the emulator core.
+    pub fn step(&mut self) {
+        self.with_state(|e| e.core.step());
+    }
+
+    /// Pauses the emulation thread and executes a closure with the emulator core.
     pub fn with_state<F, R>(&mut self, f: F) -> R
     where
         F: FnOnce(&mut State) -> R,
@@ -190,7 +107,16 @@ impl Runner {
             panic!("runner thread died");
         }
 
-        let mut state = self.state.lock();
-        f(&mut state)
+        let current = self.state.advance.load(Ordering::Relaxed);
+        self.state.advance.store(false, Ordering::Relaxed);
+
+        let mut state = self.state.state.lock();
+        let result = f(&mut state);
+
+        if current {
+            self.state.advance.store(true, Ordering::Relaxed);
+        }
+
+        result
     }
 }

@@ -16,8 +16,10 @@ rustc-hash.workspace = true
 slotmap.workspace = true
 tracing.workspace = true
 zerocopy.workspace = true
-
-addr2line = "0.25"
+addr2line = { version = "0.25", features = [
+    "cpp_demangle",
+    "loader",
+], default-features = false }
 backtrace = "0.3"
 color-backtrace = "0.7"
 interavl = "0.3.0"

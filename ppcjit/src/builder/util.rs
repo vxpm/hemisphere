@@ -157,7 +157,7 @@ impl BlockBuilder<'_> {
         let lt = self.bd.ins().ishl_imm(lt, base + 3);
         let gt = self.bd.ins().ishl_imm(gt, base + 2);
         let eq = self.bd.ins().ishl_imm(eq, base + 1);
-        let ov = self.bd.ins().ishl_imm(ov, base + 0);
+        let ov = self.bd.ins().ishl_imm(ov, base);
 
         let value = self.bd.ins().bor(lt, gt);
         let value = self.bd.ins().bor(value, eq);

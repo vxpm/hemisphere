@@ -8,7 +8,6 @@ use crate::{
 use bitos::BitUtils;
 use common::arch::{InsExt, Reg, SPR, disasm::Ins};
 use cranelift::prelude::InstBuilder;
-use tracing::debug;
 
 const SPR_INFO: Info = Info {
     cycles: 1,
@@ -155,6 +154,25 @@ impl BlockBuilder<'_> {
         let xored = self.bd.ins().bxor(bit_a, bit_b);
 
         let value = self.set_bit(cr, bit_dest, xored);
+        self.set(Reg::CR, value);
+
+        CR_INFO
+    }
+
+    pub fn mcrf(&mut self, ins: Ins) -> Info {
+        let src_field = 7 - ins.field_crfs();
+        let dst_field = 7 - ins.field_crfd();
+
+        // get src
+        let cr = self.get(Reg::CR);
+        let src = self.bd.ins().ushr_imm(cr, 4 * src_field as u64 as i64);
+        let src = self.bd.ins().band_imm(src, 0b1111u64 as i64);
+
+        // place src in dst
+        let new = self.bd.ins().ishl_imm(src, 4 * dst_field as u64 as i64);
+        let dst_mask = self.ir_value(0b1111 << (4 * dst_field));
+        let value = self.bd.ins().bitselect(dst_mask, new, cr);
+
         self.set(Reg::CR, value);
 
         CR_INFO

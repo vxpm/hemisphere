@@ -81,7 +81,7 @@ impl Hemisphere {
             let current = addr + 4 * count;
             let physical = self.system.translate_instr_addr(current)?;
 
-            let ins = Ins::new(self.system.bus.read(physical), Extensions::gekko_broadway());
+            let ins = Ins::new(self.system.read(physical), Extensions::gekko_broadway());
             count += 1;
 
             Some(ins)
@@ -196,6 +196,14 @@ impl Hemisphere {
             //     tracing::debug!("({}) call stack:\n{call_stack}", self.system.cpu.pc);
             // }
 
+            // tracing::debug!("xfb: {}", self.system.bus.video.top_xfb_address());
+            // tracing::debug!(
+            //     "refresh rate: {} resolution: {:?}",
+            //     self.system.bus.video.refresh_rate(),
+            //     self.system.bus.video.xfb_resolution(),
+            // );
+
+            // tracing::debug!("interrupts: {:?}", self.system.bus.video.regs.interrupts);
             let e = self.exec(Limits {
                 cycles: cycles_to_run,
                 instructions,

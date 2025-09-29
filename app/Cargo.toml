@@ -1,0 +1,29 @@
+[package]
+name = "app"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+eyre-pretty = { path = "/home/vxpm/dev/eyre-pretty" }
+hemisphere = { path = "../hemisphere" }
+binrw.workspace = true
+bytesize.workspace = true
+clap.workspace = true
+tracing-subscriber.workspace = true
+tracing.workspace = true
+wgpu.workspace = true
+
+eframe = { version = "0.32", features = [
+    # platforms
+    "wayland",
+    "x11",
+
+    # renderer backend
+    "wgpu",
+
+    # eframe features
+    "persistence",
+    "default_fonts",
+], default-features = false }
+egui_extras = "0.32"
+tracing-appender = "0.2"

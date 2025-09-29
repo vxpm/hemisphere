@@ -228,7 +228,7 @@ impl BlockBuilder<'_> {
     }
 
     pub fn lhzx(&mut self, ins: Ins) -> Info {
-        self.load_indexed::<i32>(
+        self.load_indexed::<i16>(
             ins,
             LoadOp {
                 update: false,
@@ -238,7 +238,7 @@ impl BlockBuilder<'_> {
     }
 
     pub fn lhzu(&mut self, ins: Ins) -> Info {
-        self.load::<i32>(
+        self.load::<i16>(
             ins,
             LoadOp {
                 update: true,
@@ -248,7 +248,7 @@ impl BlockBuilder<'_> {
     }
 
     pub fn lhzux(&mut self, ins: Ins) -> Info {
-        self.load_indexed::<i32>(
+        self.load_indexed::<i16>(
             ins,
             LoadOp {
                 update: true,
