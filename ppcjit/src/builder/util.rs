@@ -1,6 +1,9 @@
 use super::{Action, BlockBuilder};
 use crate::builder::Info;
-use common::arch::{Reg, SPR, disasm::Ins};
+use common::arch::{
+    Reg, SPR,
+    disasm::{Ins, ParsedIns},
+};
 use cranelift::{
     codegen::ir,
     prelude::{FunctionBuilder, InstBuilder, IntCC},
@@ -61,7 +64,12 @@ impl IntoIrValue for u32 {
 
 impl BlockBuilder<'_> {
     /// Stub instruction - does absolutely nothing.
-    pub fn stub(&mut self, _: Ins) -> Info {
+    pub fn stub(&mut self, ins: Ins) -> Info {
+        let mut parsed = ParsedIns::new();
+        ins.parse_basic(&mut parsed);
+
+        tracing::warn!("emitting stubbed instruction ({parsed})");
+
         self.bd.ins().nop();
         Info {
             cycles: 2,
@@ -191,4 +199,17 @@ impl BlockBuilder<'_> {
 
         self.update_cr(0, lt, gt, eq, ov);
     }
+
+    ///// Updates CR0 by signed comparison of the given value with 0 and by copying the overflow flag
+    ///// from XER SO. Value must be an I32.
+    //pub fn update_cr1_cmpz(&mut self, value: ir::Value) {
+    //    let lt = self.bd.ins().icmp_imm(IntCC::SignedLessThan, value, 0);
+    //    let gt = self.bd.ins().icmp_imm(IntCC::SignedGreaterThan, value, 0);
+    //    let eq = self.bd.ins().icmp_imm(IntCC::Equal, value, 0);
+    //
+    //    let xer = self.get(SPR::XER);
+    //    let ov = self.get_bit(xer, 30);
+    //
+    //    self.update_cr(0, lt, gt, eq, ov);
+    //}
 }

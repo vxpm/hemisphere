@@ -3,7 +3,7 @@ use crate::builder::{Action, Info};
 use common::arch::{Cpu, Exception, Reg, SPR, disasm::Ins};
 use cranelift::{
     codegen::ir,
-    prelude::{InstBuilder, isa},
+    prelude::{InstBuilder, IntCC, isa},
 };
 
 const RFI_INFO: Info = Info {
@@ -57,6 +57,36 @@ impl BlockBuilder<'_> {
         self.bd
             .ins()
             .call_indirect(sig, ptr, &[self.consts.regs_ptr, exception]);
+    }
+
+    pub fn check_floats(&mut self) {
+        if self.floats_checked {
+            return;
+        }
+        self.floats_checked = true;
+
+        let msr = self.get(Reg::MSR);
+        let fp_enabled = self.get_bit(msr, 13);
+        let branch = self.bd.ins().icmp_imm(IntCC::Equal, fp_enabled, 0);
+
+        let exit_block = self.bd.create_block();
+        let continue_block = self.bd.create_block();
+
+        self.bd.set_cold_block(exit_block);
+
+        self.bd
+            .ins()
+            .brif(branch, exit_block, &[], continue_block, &[]);
+
+        self.bd.seal_block(exit_block);
+        self.bd.seal_block(continue_block);
+
+        self.switch_to_bb(exit_block);
+        self.raise_exception(Exception::Syscall);
+        self.prologue_with(EXCEPTION_INFO);
+
+        self.switch_to_bb(continue_block);
+        self.current_bb = continue_block;
     }
 
     pub fn sc(&mut self, _: Ins) -> Info {

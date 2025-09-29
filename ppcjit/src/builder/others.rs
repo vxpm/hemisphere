@@ -1,5 +1,3 @@
-use std::mem::offset_of;
-
 use super::BlockBuilder;
 use crate::{
     block::Hooks,
@@ -8,6 +6,7 @@ use crate::{
 use bitos::BitUtils;
 use common::arch::{InsExt, Reg, SPR, disasm::Ins};
 use cranelift::prelude::InstBuilder;
+use std::mem::offset_of;
 
 const SPR_INFO: Info = Info {
     cycles: 1,

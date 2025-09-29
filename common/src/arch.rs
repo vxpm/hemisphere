@@ -37,6 +37,14 @@ pub trait InsExt {
     fn gpr_s(&self) -> GPR;
     /// GPR indicated by field rD.
     fn gpr_d(&self) -> GPR;
+    /// FPR indicated by field frA.
+    fn fpr_a(&self) -> FPR;
+    /// FPR indicated by field frB.
+    fn fpr_b(&self) -> FPR;
+    /// FPR indicated by field frS.
+    fn fpr_s(&self) -> FPR;
+    /// FPR indicated by field frD.
+    fn fpr_d(&self) -> FPR;
     /// SPR indicated by field SPR.
     fn spr(&self) -> SPR;
 }
@@ -60,6 +68,26 @@ impl InsExt for disasm::Ins {
     #[inline(always)]
     fn gpr_d(&self) -> GPR {
         GPR::new(self.field_rd())
+    }
+
+    #[inline(always)]
+    fn fpr_a(&self) -> FPR {
+        FPR::new(self.field_fra())
+    }
+
+    #[inline(always)]
+    fn fpr_b(&self) -> FPR {
+        FPR::new(self.field_frb())
+    }
+
+    #[inline(always)]
+    fn fpr_s(&self) -> FPR {
+        FPR::new(self.field_frs())
+    }
+
+    #[inline(always)]
+    fn fpr_d(&self) -> FPR {
+        FPR::new(self.field_frd())
     }
 
     #[inline(always)]
@@ -230,6 +258,120 @@ pub struct XerReg {
     pub overflow_fuse: bool,
 }
 
+#[bitos(4)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum FloatCond {
+    UnordedOrNaN = 0b0001,
+    Equal = 0b0010,
+    GreaterThan = 0b0100,
+    LessThan = 0b1000,
+}
+
+#[bitos(2)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum FloatRounding {
+    Nearest = 0b00,
+    TowardsZero = 0b01,
+    TowardsPosInf = 0b10,
+    TowardsNegInf = 0b11,
+}
+
+#[bitos(5)]
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct FloatResultFlags {
+    #[bits(0..4)]
+    pub cond: Option<FloatCond>,
+    #[bits(4)]
+    pub class: bool,
+}
+
+#[bitos(32)]
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct FloatControlReg {
+    /// Floating-point rounding mode.
+    #[bits(0..2)]
+    pub rounding: FloatRounding,
+    /// Whether IEEE conformance is disabled.
+    #[bits(2)]
+    pub ieee_disabled: bool,
+    /// Whether inexact exceptions are enabled.
+    #[bits(3)]
+    pub inexact_exception_enabled: bool,
+    /// Whether zero divide exceptions are enabled.
+    #[bits(4)]
+    pub zero_divide_exception_enabled: bool,
+    /// Whether underflow exceptions are enabled.
+    #[bits(5)]
+    pub underflow_exception_enabled: bool,
+    /// Whether overflow exceptions are enabled.
+    #[bits(6)]
+    pub overflow_exception_enabled: bool,
+    /// Whether invalid operation exceptions are enabled.
+    #[bits(7)]
+    pub invalid_exception_enabled: bool,
+    /// Invalid operation exception for invalid integer conversion.
+    #[bits(8)]
+    pub invalid_conversion_exception: bool,
+    /// Invalid operation exception for invalid square root.
+    #[bits(9)]
+    pub invalid_sqrt_exception: bool,
+    /// Invalid operation exception for software request.
+    #[bits(10)]
+    pub invalid_soft_exception: bool,
+    /// Result flags.
+    #[bits(12..17)]
+    pub result_flags: FloatResultFlags,
+    /// Whether the last arithmethic or rounding and conversion instruction rounded an intermediate
+    /// result or caused a disabled overflow exception.
+    #[bits(17)]
+    pub fraction_inexact: bool,
+    /// Whether the last arithmethic or rounding and conversion instruction that rounded an
+    /// intermediate result incremented the fraction.
+    #[bits(18)]
+    pub fraction_rounded: bool,
+    /// Invalid operation exception for invalid comparison.
+    #[bits(19)]
+    pub invalid_compare_exception: bool,
+    /// Invalid operation exception for `inf * zero`.
+    #[bits(20)]
+    pub invalid_inf_mul_zero_exception: bool,
+    /// Invalid operation exception for `zero / zero`.
+    #[bits(21)]
+    pub invalid_zero_div_zero_exception: bool,
+    /// Invalid operation exception for `inf / inf`.
+    #[bits(22)]
+    pub invalid_inf_div_inf_exception: bool,
+    /// Invalid operation exception for `inf - inf`.
+    #[bits(23)]
+    pub invalid_inf_sub_inf_exception: bool,
+    /// Invalid operation exception for signaling NaN.
+    #[bits(24)]
+    pub invalid_snan_exception: bool,
+    /// Inexact exception.
+    #[bits(25)]
+    pub inexact_exception: bool,
+    /// Zero divide exception.
+    #[bits(26)]
+    pub zero_divide_exception: bool,
+    /// Underflow exception.
+    #[bits(27)]
+    pub underflow_exception: bool,
+    /// Overflow exception.
+    #[bits(28)]
+    pub overflow_exception: bool,
+    /// Floating-point exception summary, i.e. whether any of the invalid operation exception bits
+    /// have been set. This bit cannot be changed by software.
+    #[bits(29)]
+    pub invalid_op_exception_summary: bool,
+    /// Same as the floating-point exception summary, except it only considers enabled exceptions.
+    /// This bit cannot be changed by software.
+    #[bits(30)]
+    pub enabled_exception_summary: bool,
+    /// Floating-point exception summary, i.e. whether any of the exception bits have been set.
+    #[bits(31)]
+    pub exception_summary: bool,
+}
+
 /// A pair of double precision floating point numbers, used by the paired singles extension.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 #[repr(transparent)]
@@ -260,7 +402,7 @@ pub struct User {
     /// Condition Register
     pub cr: CondReg,
     /// Floating Point Status and Condition Register
-    pub fpscr: u32,
+    pub fpscr: FloatControlReg,
 
     /// XER Register
     pub xer: XerReg,

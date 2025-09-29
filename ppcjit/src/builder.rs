@@ -2,6 +2,7 @@ mod arithmetic;
 mod branch;
 mod compare;
 mod exception;
+mod floating;
 mod logic;
 mod memory;
 mod others;
@@ -90,6 +91,7 @@ pub struct BlockBuilder<'ctx> {
     executed: u32,
     ibat_changed: bool,
     dbat_changed: bool,
+    floats_checked: bool,
 }
 
 impl<'ctx> BlockBuilder<'ctx> {
@@ -143,6 +145,7 @@ impl<'ctx> BlockBuilder<'ctx> {
             executed: 0,
             ibat_changed: false,
             dbat_changed: false,
+            floats_checked: false,
         }
     }
 
@@ -322,6 +325,7 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Cmpl => self.cmpl(ins),
             Opcode::Cmpli => self.cmpli(ins),
             Opcode::Cntlzw => self.cntlzw(ins),
+            Opcode::Crxor => self.crxor(ins),
             Opcode::Dcbf => self.stub(ins), // NOTE: stubbed
             Opcode::Dcbi => self.stub(ins), // NOTE: stubbed
             Opcode::Divw => self.divw(ins),
@@ -329,14 +333,15 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Eqv => self.eqv(ins),
             Opcode::Extsb => self.extsb(ins),
             Opcode::Extsh => self.extsh(ins),
-            Opcode::Fmr => self.stub(ins),   // NOTE: stubbed
-            Opcode::Icbi => self.stub(ins),  // NOTE: stubbed
+            Opcode::Fmr => self.fmr(ins), // NOTE: stubbed, floating point
+            Opcode::Icbi => self.stub(ins), // NOTE: stubbed
             Opcode::Isync => self.stub(ins), // NOTE: stubbed
             Opcode::Lbz => self.lbz(ins),
             Opcode::Lbzu => self.lbzu(ins),
             Opcode::Lbzux => self.lbzux(ins),
             Opcode::Lbzx => self.lbzx(ins),
-            Opcode::Lfd => self.stub(ins), // NOTE: stubbed
+            Opcode::Lfd => self.stub(ins), // NOTE: stubbed, floating point
+            Opcode::Lfs => self.stub(ins), // NOTE: stubbed, floating point
             Opcode::Lha => self.lha(ins),
             Opcode::Lhau => self.lhau(ins),
             Opcode::Lhaux => self.lhaux(ins),
@@ -350,13 +355,14 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Lwzu => self.lwzu(ins),
             Opcode::Lwzux => self.lwzux(ins),
             Opcode::Lwzx => self.lwzx(ins),
+            Opcode::Mcrf => self.mcrf(ins),
             Opcode::Mfcr => self.mfcr(ins),
             Opcode::Mfmsr => self.mfmsr(ins),
             Opcode::Mfspr => self.mfspr(ins),
-            Opcode::Mftb => self.mftb(ins), // NOTE: stubbed
+            Opcode::Mftb => self.mftb(ins),
             Opcode::Mtcrf => self.mtcrf(ins),
             Opcode::Mtfsb1 => self.stub(ins),
-            Opcode::Mtfsf => self.stub(ins), // NOTE: stubbed
+            Opcode::Mtfsf => self.stub(ins), // NOTE: stubbed, floating point
             Opcode::Mtmsr => self.mtmsr(ins),
             Opcode::Mtspr => self.mtspr(ins),
             Opcode::Mtsr => self.mtsr(ins),
@@ -371,8 +377,8 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Orc => self.orc(ins),
             Opcode::Ori => self.ori(ins),
             Opcode::Oris => self.oris(ins),
-            Opcode::PsMr => self.stub(ins), // NOTE: stubbed
-            Opcode::PsqL => self.stub(ins), // NOTE: stubbed
+            Opcode::PsMr => self.stub(ins), // NOTE: stubbed, paired singles
+            Opcode::PsqL => self.stub(ins), // NOTE: stubbed, paired singles
             Opcode::Rfi => self.rfi(ins),
             Opcode::Rlwimi => self.rlwimi(ins),
             Opcode::Rlwinm => self.rlwinm(ins),
@@ -386,6 +392,7 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Stbu => self.stbu(ins),
             Opcode::Stbux => self.stbux(ins),
             Opcode::Stbx => self.stbx(ins),
+            Opcode::Stfd => self.stub(ins), // NOTE: stubbed, floating point
             Opcode::Sth => self.sth(ins),
             Opcode::Sthu => self.sthu(ins),
             Opcode::Sthux => self.sthux(ins),
@@ -404,10 +411,6 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Sync => self.stub(ins), // NOTE: stubbed
             Opcode::Xor => self.xor(ins),
             Opcode::Xori => self.xori(ins),
-            Opcode::Crxor => self.crxor(ins),
-            Opcode::Stfd => self.stub(ins), // NOTE: stubbed
-            Opcode::Lfs => self.stub(ins),  // NOTE: stubbed
-            Opcode::Mcrf => self.mcrf(ins),
             Opcode::Illegal => {
                 return Err(BuilderError::Illegal(ins));
             }
