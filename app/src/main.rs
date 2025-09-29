@@ -173,8 +173,8 @@ impl eframe::App for App {
             std::thread::yield_now();
         }
 
-        self.last_update = Instant::now();
         ctx.request_repaint();
+        self.last_update = Instant::now();
     }
 }
 

@@ -155,23 +155,34 @@ impl System {
             Event::CheckInterrupts => {
                 self.check_external_interrupts();
             }
-            Event::Video(video::Event::VSync) => {
+            Event::Video(video::Event::VerticalCount) => {
                 // check display interrupts
                 self.check_display_interrupts();
 
-                if let Some(callback) = &mut self.config.vsync_callback {
-                    callback();
+                self.bus.video.vertical_count += 1;
+                if self.bus.video.vertical_count > self.bus.video.xfb_height() {
+                    self.bus.video.vertical_count = 1;
+                    if let Some(callback) = &mut self.config.vsync_callback {
+                        callback();
+                    }
                 }
 
-                let divisor = if self.bus.video.display_config.progressive() {
-                    1
-                } else {
-                    2
-                };
+                if self.bus.video.vertical_count
+                    == self.bus.video.vertical_timing.active_video_lines().value()
+                {
+                    if let Some(callback) = &mut self.config.vsync_callback {
+                        callback();
+                    }
+                }
+
+                let cycles_per_frame = (FREQUENCY as f64 / self.bus.video.refresh_rate()) as u32;
+                let cycles_per_line = cycles_per_frame
+                    .checked_div(self.bus.video.xfb_height() as u32)
+                    .unwrap_or(cycles_per_frame);
 
                 self.scheduler.schedule(
-                    Event::Video(video::Event::VSync),
-                    (FREQUENCY as f64 / self.bus.video.refresh_rate()) as u64 / divisor,
+                    Event::Video(video::Event::VerticalCount),
+                    cycles_per_line as u64,
                 );
             }
         }

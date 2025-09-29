@@ -8,7 +8,7 @@ use common::{Address, arch::FREQUENCY};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Event {
-    VSync,
+    VerticalCount,
 }
 
 #[bitos(16)]
@@ -247,12 +247,8 @@ impl Interface {
 
     /// The refresh rate of the video output.
     pub fn refresh_rate(&self) -> f64 {
-        let cycles_per_field_pair = self.cycles_per_even_field() + self.cycles_per_odd_field();
-        2.0 * FREQUENCY as f64 / cycles_per_field_pair as f64
-    }
-
-    pub fn cycles_until_hsync(&self) -> u32 {
-        2 * self.cycles_per_halfline()
+        let cycles_per_frame = self.cycles_per_even_field() + self.cycles_per_odd_field();
+        2.0 * FREQUENCY as f64 / cycles_per_frame as f64
     }
 
     /// Address of the XFB for the top field.
@@ -310,14 +306,16 @@ impl System {
             .retain(|e| !matches!(e.event, SystemEvent::Video(_)));
 
         if self.bus.video.display_config.enable() {
-            self.process(SystemEvent::Video(Event::VSync));
+            self.process(SystemEvent::Video(Event::VerticalCount));
         }
     }
 
     pub fn check_display_interrupts(&mut self) {
         let mut raised = false;
         for (index, interrupt) in self.bus.video.interrupts.iter_mut().enumerate() {
-            if interrupt.enable() {
+            if interrupt.enable()
+                && interrupt.vertical_count().value() == self.bus.video.vertical_count
+            {
                 raised = true;
                 interrupt.set_status(true);
                 self.bus.processor.raise_interrupt(Interrupt::Video);
