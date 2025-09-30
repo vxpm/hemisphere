@@ -31,6 +31,18 @@ impl ReadWriteAble for i32 {
     const WRITE_OFFSET: i32 = offset_of!(Hooks, write_i32) as i32;
 }
 
+impl ReadWriteAble for f32 {
+    const IR_TYPE: ir::Type = ir::types::F32;
+    const READ_OFFSET: i32 = offset_of!(Hooks, read_i32) as i32;
+    const WRITE_OFFSET: i32 = offset_of!(Hooks, write_i32) as i32;
+}
+
+impl ReadWriteAble for f64 {
+    const IR_TYPE: ir::Type = ir::types::F64;
+    const READ_OFFSET: i32 = offset_of!(Hooks, read_i64) as i32;
+    const WRITE_OFFSET: i32 = offset_of!(Hooks, write_i64) as i32;
+}
+
 /// Helpers
 impl BlockBuilder<'_> {
     fn read<P: ReadWriteAble>(&mut self, addr: ir::Value) -> ir::Value {
@@ -121,7 +133,7 @@ struct LoadOp {
     signed: bool,
 }
 
-/// Load operations
+/// GPR load operations
 impl BlockBuilder<'_> {
     fn load<P: ReadWriteAble>(&mut self, ins: Ins, op: LoadOp) -> Info {
         let addr = if !op.update && ins.field_ra() == 0 {
@@ -131,7 +143,6 @@ impl BlockBuilder<'_> {
             self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
         };
 
-        self.flush();
         let mut value = self.read::<P>(addr);
         if P::IR_TYPE != ir::types::I32 {
             value = if op.signed {
@@ -356,6 +367,44 @@ impl BlockBuilder<'_> {
             cycles: 10, // random, chosen by fair dice roll
             ..LOAD_INFO
         }
+    }
+}
+
+/// FPR load operations
+impl BlockBuilder<'_> {
+    pub fn lfd(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let addr = if ins.field_ra() == 0 {
+            self.ir_value(ins.field_offset() as i32)
+        } else {
+            let ra = self.get(ins.gpr_a());
+            self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
+        };
+
+        let value = self.read::<f64>(addr);
+        let paired = self.bd.ins().splat(ir::types::F64X2, value);
+        self.set_ps(ins.fpr_d(), paired);
+
+        LOAD_INFO
+    }
+
+    pub fn lfs(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let addr = if ins.field_ra() == 0 {
+            self.ir_value(ins.field_offset() as i32)
+        } else {
+            let ra = self.get(ins.gpr_a());
+            self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
+        };
+
+        let value = self.read::<f32>(addr);
+        let double = self.bd.ins().fpromote(ir::types::F64, value);
+        let paired = self.bd.ins().splat(ir::types::F64X2, double);
+        self.set_ps(ins.fpr_d(), paired);
+
+        LOAD_INFO
     }
 }
 

@@ -82,7 +82,7 @@ impl BlockBuilder<'_> {
         self.bd.seal_block(continue_block);
 
         self.switch_to_bb(exit_block);
-        self.raise_exception(Exception::Syscall);
+        self.raise_exception(Exception::FloatUnavailable);
         self.prologue_with(EXCEPTION_INFO);
 
         self.switch_to_bb(continue_block);

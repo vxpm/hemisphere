@@ -26,12 +26,7 @@ pub struct Compiler {
 
 impl Default for Compiler {
     fn default() -> Self {
-        let opt_level = if cfg!(debug_assertions) {
-            "speed"
-        } else {
-            "speed_and_size"
-        };
-
+        let opt_level = "speed_and_size";
         let verifier = if cfg!(debug_assertions) {
             "true"
         } else {
@@ -77,7 +72,7 @@ impl Compiler {
     fn block_signature(&self) -> ir::Signature {
         let ptr = self.isa.pointer_type();
         ir::Signature {
-            params: vec![ir::AbiParam::new(ptr); 4],
+            params: vec![ir::AbiParam::new(ptr); 2],
             returns: vec![ir::AbiParam::new(ir::types::I64)],
             call_conv: codegen::isa::CallConv::SystemV,
         }
@@ -116,11 +111,12 @@ impl Compiler {
         };
 
         let block = unsafe { Block::new(meta, &*self.isa, compiled) };
-        // tracing::debug!(
-        //     "compiled block:\n{}\n{}",
-        //     block.meta().seq,
-        //     block.meta().clir
-        // );
+        tracing::debug!(
+            "compiled block:\n{}\n{}\n{}",
+            block.meta().seq,
+            block.meta().clir.as_deref().unwrap_or("<none>"),
+            block,
+        );
 
         Ok(block)
     }

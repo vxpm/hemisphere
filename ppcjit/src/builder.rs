@@ -10,7 +10,7 @@ mod util;
 
 use crate::{Sequence, block::Hooks, builder::util::IntoIrValue};
 use common::arch::{
-    Reg, SPR,
+    FPR, Reg, SPR,
     disasm::{Ins, Opcode},
 };
 use cranelift::{
@@ -20,12 +20,12 @@ use cranelift::{
 };
 use easyerr::Error;
 use rustc_hash::FxHashMap;
-use std::{collections::hash_map::Entry, mem::offset_of};
+use std::mem::offset_of;
 
 // NOTE: make sure to keep this up to date if anything else is not just 32 bits
 fn reg_ir_ty(reg: Reg) -> ir::Type {
     match reg {
-        Reg::FPR(_) => ir::types::F64,
+        Reg::FPR(_) | Reg::PS1(_) => ir::types::F64,
         _ => ir::types::I32,
     }
 }
@@ -74,16 +74,17 @@ struct Consts {
     raise_exception_sig: Option<SigRef>,
 }
 
-/// A cached register.
-struct CachedReg {
-    var: frontend::Variable,
+/// A cached value.
+struct CachedValue {
+    value: ir::Value,
     modified: bool,
 }
 
 /// Structure to build JIT blocks.
 pub struct BlockBuilder<'ctx> {
     bd: frontend::FunctionBuilder<'ctx>,
-    cache: FxHashMap<Reg, CachedReg>,
+    cache: FxHashMap<Reg, CachedValue>,
+    ps_cache: FxHashMap<FPR, CachedValue>,
     consts: Consts,
     current_bb: ir::Block,
 
@@ -138,6 +139,7 @@ impl<'ctx> BlockBuilder<'ctx> {
         Self {
             bd: builder,
             cache: FxHashMap::default(),
+            ps_cache: FxHashMap::default(),
             consts,
             current_bb: entry_bb,
 
@@ -155,78 +157,146 @@ impl<'ctx> BlockBuilder<'ctx> {
         self.current_bb = bb;
     }
 
+    fn load_reg(&mut self, reg: Reg) -> ir::Value {
+        let reg_ty = reg_ir_ty(reg);
+        self.bd.ins().load(
+            reg_ty,
+            ir::MemFlags::trusted(),
+            self.consts.regs_ptr,
+            reg.offset() as i32,
+        )
+    }
+
+    fn store_reg(&mut self, reg: Reg, value: ir::Value) {
+        self.bd.ins().store(
+            ir::MemFlags::trusted(),
+            value,
+            self.consts.regs_ptr,
+            reg.offset() as i32,
+        );
+    }
+
     /// Gets the current value of the given register.
     fn get(&mut self, reg: impl Into<Reg>) -> ir::Value {
         let reg = reg.into();
 
-        if is_cacheable(reg) {
-            let var = match self.cache.entry(reg) {
-                Entry::Occupied(o) => o.into_mut(),
-                Entry::Vacant(v) => {
-                    let reg_ty = reg_ir_ty(reg);
-                    let dumped = self.bd.ins().load(
-                        reg_ty,
-                        ir::MemFlags::trusted(),
-                        self.consts.regs_ptr,
-                        reg.offset() as i32,
-                    );
-
-                    let var = self.bd.declare_var(reg_ty);
-                    self.bd.def_var(var, dumped);
-                    v.insert(CachedReg {
-                        var,
-                        modified: false,
-                    })
-                }
-            }
-            .var;
-
-            self.bd.use_var(var)
-        } else {
-            let reg_ty = reg_ir_ty(reg);
-            self.bd.ins().load(
-                reg_ty,
-                ir::MemFlags::trusted(),
-                self.consts.regs_ptr,
-                reg.offset() as i32,
-            )
+        if let Reg::FPR(fpr) | Reg::PS1(fpr) = reg {
+            self.flush_ps(fpr);
         }
+
+        if let Some(reg) = self.cache.get(&reg) {
+            return reg.value;
+        }
+
+        let dumped = self.load_reg(reg);
+        if is_cacheable(reg) {
+            self.cache.insert(
+                reg,
+                CachedValue {
+                    value: dumped,
+                    modified: false,
+                },
+            );
+        }
+
+        dumped
     }
 
     /// Sets the value of the given register.
     fn set(&mut self, reg: impl Into<Reg>, value: impl IntoIrValue) {
         let reg = reg.into();
+        let value = self.ir_value(value);
+
+        if let Reg::FPR(fpr) | Reg::PS1(fpr) = reg {
+            self.invalidate_ps(fpr);
+        }
+
+        if let Some(reg) = self.cache.get_mut(&reg) {
+            reg.value = value;
+            reg.modified = true;
+            return;
+        }
 
         if is_cacheable(reg) {
-            let var = match self.cache.entry(reg) {
-                Entry::Occupied(o) => {
-                    let var = o.into_mut();
-                    var.modified = true;
-
-                    var.var
-                }
-                Entry::Vacant(v) => {
-                    let var = self.bd.declare_var(reg_ir_ty(reg));
-                    v.insert(CachedReg {
-                        var,
-                        modified: true,
-                    });
-
-                    var
-                }
-            };
-
-            let value = self.ir_value(value);
-            self.bd.def_var(var, value);
+            self.cache.insert(
+                reg,
+                CachedValue {
+                    value,
+                    modified: true,
+                },
+            );
         } else {
-            let value = self.ir_value(value);
-            self.bd.ins().store(
-                ir::MemFlags::trusted(),
+            self.store_reg(reg, value);
+        }
+    }
+
+    fn get_ps(&mut self, fpr: FPR) -> ir::Value {
+        if let Some(val) = self.ps_cache.get(&fpr) {
+            return val.value;
+        }
+
+        let ps0 = self.get(fpr);
+        let ps1 = self.get(Reg::PS1(fpr));
+
+        let paired = self.bd.ins().splat(ir::types::F64X2, ps0);
+        let paired = self.bd.ins().insertlane(paired, ps1, 1);
+
+        self.ps_cache.insert(
+            fpr,
+            CachedValue {
+                value: paired,
+                modified: false,
+            },
+        );
+
+        paired
+    }
+
+    fn set_ps(&mut self, fpr: FPR, value: ir::Value) {
+        if let Some(val) = self.ps_cache.get_mut(&fpr) {
+            val.modified = true;
+            val.value = value;
+            return;
+        }
+
+        self.ps_cache.insert(
+            fpr,
+            CachedValue {
                 value,
-                self.consts.regs_ptr,
-                reg.offset() as i32,
+                modified: true,
+            },
+        );
+    }
+
+    fn flush_ps(&mut self, fpr: FPR) {
+        let Some(val) = self.ps_cache.get(&fpr) else {
+            return;
+        };
+
+        if val.modified {
+            let ps0 = self.bd.ins().extractlane(val.value, 0);
+            let ps1 = self.bd.ins().extractlane(val.value, 1);
+
+            self.cache.insert(
+                Reg::FPR(fpr),
+                CachedValue {
+                    value: ps0,
+                    modified: true,
+                },
+            );
+            self.cache.insert(
+                Reg::PS1(fpr),
+                CachedValue {
+                    value: ps1,
+                    modified: true,
+                },
             );
         }
+    }
+
+    fn invalidate_ps(&mut self, fpr: FPR) {
+        self.flush_ps(fpr);
+        self.ps_cache.remove(&fpr);
     }
 
     /// Calls a generic context hook.
@@ -250,15 +320,18 @@ impl<'ctx> BlockBuilder<'ctx> {
 
     /// Flushes the register cache to the registers struct.
     fn flush(&mut self) {
+        for i in 0..32 {
+            self.flush_ps(FPR::from_repr(i).unwrap());
+        }
+
         for (reg, var) in &self.cache {
             if !var.modified {
                 continue;
             }
 
-            let value = self.bd.use_var(var.var);
             self.bd.ins().store(
                 ir::MemFlags::trusted(),
-                value,
+                var.value,
                 self.consts.regs_ptr,
                 reg.offset() as i32,
             );
@@ -301,6 +374,8 @@ impl<'ctx> BlockBuilder<'ctx> {
 
     /// Emits the given instruction into the block.
     fn emit(&mut self, ins: Ins) -> Result<Action, BuilderError> {
+        tracing::debug!("emitting: {:?}", ins);
+
         self.bd.set_srcloc(ir::SourceLoc::new(self.executed));
         let info: Info = match ins.op {
             Opcode::Add => self.add(ins),
@@ -333,15 +408,15 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Eqv => self.eqv(ins),
             Opcode::Extsb => self.extsb(ins),
             Opcode::Extsh => self.extsh(ins),
-            Opcode::Fmr => self.fmr(ins), // NOTE: stubbed, floating point
-            Opcode::Icbi => self.stub(ins), // NOTE: stubbed
+            Opcode::Fmr => self.fmr(ins),
+            Opcode::Icbi => self.stub(ins),  // NOTE: stubbed
             Opcode::Isync => self.stub(ins), // NOTE: stubbed
             Opcode::Lbz => self.lbz(ins),
             Opcode::Lbzu => self.lbzu(ins),
             Opcode::Lbzux => self.lbzux(ins),
             Opcode::Lbzx => self.lbzx(ins),
-            Opcode::Lfd => self.stub(ins), // NOTE: stubbed, floating point
-            Opcode::Lfs => self.stub(ins), // NOTE: stubbed, floating point
+            Opcode::Lfd => self.lfd(ins),
+            Opcode::Lfs => self.lfs(ins),
             Opcode::Lha => self.lha(ins),
             Opcode::Lhau => self.lhau(ins),
             Opcode::Lhaux => self.lhaux(ins),
@@ -377,8 +452,8 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Orc => self.orc(ins),
             Opcode::Ori => self.ori(ins),
             Opcode::Oris => self.oris(ins),
-            Opcode::PsMr => self.stub(ins), // NOTE: stubbed, paired singles
-            Opcode::PsqL => self.stub(ins), // NOTE: stubbed, paired singles
+            Opcode::PsMr => self.ps_mr(ins), // NOTE: stubbed, paired singles
+            Opcode::PsqL => self.stub(ins),  // NOTE: stubbed, paired singles
             Opcode::Rfi => self.rfi(ins),
             Opcode::Rlwimi => self.rlwimi(ins),
             Opcode::Rlwinm => self.rlwinm(ins),

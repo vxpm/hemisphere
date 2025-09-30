@@ -2,8 +2,8 @@ use zerocopy::{FromBytes, Immutable, IntoBytes};
 
 /// Trait for memory primitives.
 ///
-/// A primitive is either a byte, half-word or word.
-/// That is, [`u8`], [`i8`], [`u16`], [`i16`], [`u32`] or [`i32`].
+/// A primitive is either a byte, half-word, word or double word.
+/// That is, [`u8`], [`i8`], [`u16`], [`i16`], [`u32`], [`i32`], [`u64`] or [`i64`].
 pub trait Primitive:
     std::fmt::Debug
     + std::fmt::UpperHex
@@ -209,7 +209,10 @@ impl_primitive! {
     u8,
     u16,
     u32,
+    u64,
+
     i8,
     i16,
-    i32
+    i32,
+    i64
 }

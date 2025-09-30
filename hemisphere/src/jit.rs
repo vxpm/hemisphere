@@ -275,6 +275,10 @@ pub static CTX_HOOKS: Hooks = {
             transmute::<_, ReadHook<i32>>(read::<i32> as extern "sysv64-unwind" fn(_, _, _) -> _);
         let write_i32 =
             transmute::<_, WriteHook<i32>>(write::<i32> as extern "sysv64-unwind" fn(_, _, _) -> _);
+        let read_i64 =
+            transmute::<_, ReadHook<i64>>(read::<i64> as extern "sysv64-unwind" fn(_, _, _) -> _);
+        let write_i64 =
+            transmute::<_, WriteHook<i64>>(write::<i64> as extern "sysv64-unwind" fn(_, _, _) -> _);
 
         let ibat_changed =
             transmute::<_, GenericHook>(ibat_changed as extern "sysv64-unwind" fn(_));
@@ -296,6 +300,8 @@ pub static CTX_HOOKS: Hooks = {
             write_i16,
             read_i32,
             write_i32,
+            read_i64,
+            write_i64,
 
             ibat_changed,
             dbat_changed,

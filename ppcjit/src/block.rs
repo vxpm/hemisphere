@@ -28,6 +28,8 @@ pub struct Hooks {
     pub write_i16: WriteHook<i16>,
     pub read_i32: ReadHook<i32>,
     pub write_i32: WriteHook<i32>,
+    pub read_i64: ReadHook<i64>,
+    pub write_i64: WriteHook<i64>,
 
     // bats
     pub ibat_changed: GenericHook,

@@ -200,16 +200,21 @@ impl BlockBuilder<'_> {
         self.update_cr(0, lt, gt, eq, ov);
     }
 
-    ///// Updates CR0 by signed comparison of the given value with 0 and by copying the overflow flag
-    ///// from XER SO. Value must be an I32.
-    //pub fn update_cr1_cmpz(&mut self, value: ir::Value) {
-    //    let lt = self.bd.ins().icmp_imm(IntCC::SignedLessThan, value, 0);
-    //    let gt = self.bd.ins().icmp_imm(IntCC::SignedGreaterThan, value, 0);
-    //    let eq = self.bd.ins().icmp_imm(IntCC::Equal, value, 0);
-    //
-    //    let xer = self.get(SPR::XER);
-    //    let ov = self.get_bit(xer, 30);
-    //
-    //    self.update_cr(0, lt, gt, eq, ov);
-    //}
+    pub fn update_fpscr(&mut self) {
+        todo!("update FEX and VX")
+    }
+
+    /// Updates CR1 by copying bits 28..32 of FPSCR.
+    pub fn update_cr1_float(&mut self) {
+        self.update_fpscr();
+
+        let fpscr = self.get(Reg::FPSCR);
+        let cr = self.get(Reg::CR);
+
+        let bits = self.bd.ins().ushr_imm(fpscr, 4);
+        let mask = self.ir_value(0b1111 << 24);
+        let updated = self.bd.ins().bitselect(mask, bits, cr);
+
+        self.set(Reg::CR, updated);
+    }
 }
