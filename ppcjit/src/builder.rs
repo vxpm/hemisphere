@@ -269,29 +269,33 @@ impl<'ctx> BlockBuilder<'ctx> {
     }
 
     fn flush_ps(&mut self, fpr: FPR) {
-        let Some(val) = self.ps_cache.get(&fpr) else {
+        let Some(val) = self.ps_cache.get_mut(&fpr) else {
             return;
         };
 
-        if val.modified {
-            let ps0 = self.bd.ins().extractlane(val.value, 0);
-            let ps1 = self.bd.ins().extractlane(val.value, 1);
-
-            self.cache.insert(
-                Reg::FPR(fpr),
-                CachedValue {
-                    value: ps0,
-                    modified: true,
-                },
-            );
-            self.cache.insert(
-                Reg::PS1(fpr),
-                CachedValue {
-                    value: ps1,
-                    modified: true,
-                },
-            );
+        if !val.modified {
+            return;
         }
+
+        val.modified = false;
+
+        let ps0 = self.bd.ins().extractlane(val.value, 0);
+        let ps1 = self.bd.ins().extractlane(val.value, 1);
+
+        self.cache.insert(
+            Reg::FPR(fpr),
+            CachedValue {
+                value: ps0,
+                modified: true,
+            },
+        );
+        self.cache.insert(
+            Reg::PS1(fpr),
+            CachedValue {
+                value: ps1,
+                modified: true,
+            },
+        );
     }
 
     fn invalidate_ps(&mut self, fpr: FPR) {
@@ -320,18 +324,35 @@ impl<'ctx> BlockBuilder<'ctx> {
 
     /// Flushes the register cache to the registers struct.
     fn flush(&mut self) {
-        for i in 0..32 {
-            self.flush_ps(FPR::from_repr(i).unwrap());
-        }
-
-        for (reg, var) in &self.cache {
-            if !var.modified {
+        for (&fpr, val) in &self.ps_cache {
+            if !val.modified {
                 continue;
             }
 
             self.bd.ins().store(
                 ir::MemFlags::trusted(),
-                var.value,
+                val.value,
+                self.consts.regs_ptr,
+                fpr.offset() as i32,
+            );
+        }
+
+        for (reg, val) in &self.cache {
+            // check whether this reg is a FPR/PS1 that has already been flushed
+            if let Reg::FPR(fpr) | Reg::PS1(fpr) = reg
+                && let Some(val) = self.ps_cache.get(fpr)
+                && val.modified
+            {
+                continue;
+            }
+
+            if !val.modified {
+                continue;
+            }
+
+            self.bd.ins().store(
+                ir::MemFlags::trusted(),
+                val.value,
                 self.consts.regs_ptr,
                 reg.offset() as i32,
             );
