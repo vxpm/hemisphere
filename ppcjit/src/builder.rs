@@ -342,7 +342,6 @@ impl<'ctx> BlockBuilder<'ctx> {
     /// - Call BAT hooks if they were changed
     /// - Returns
     fn prologue(&mut self) {
-        self.bd.set_srcloc(ir::SourceLoc::new(u32::MAX));
         let instructions = self.ir_value(self.executed);
         let instructions = self.bd.ins().uextend(ir::types::I64, instructions);
         let cycles = self.ir_value(self.cycles);
@@ -513,6 +512,7 @@ impl<'ctx> BlockBuilder<'ctx> {
         let mut sequence = Sequence::default();
         loop {
             let Some(ins) = instructions.next() else {
+                self.bd.set_srcloc(ir::SourceLoc::new(u32::MAX));
                 self.flush();
                 self.prologue();
                 self.bd.finalize();
@@ -524,12 +524,14 @@ impl<'ctx> BlockBuilder<'ctx> {
             match self.emit(ins)? {
                 Action::Continue => (),
                 Action::FlushAndPrologue => {
+                    self.bd.set_srcloc(ir::SourceLoc::new(u32::MAX));
                     self.flush();
                     self.prologue();
                     self.bd.finalize();
                     break;
                 }
                 Action::Prologue => {
+                    self.bd.set_srcloc(ir::SourceLoc::new(u32::MAX));
                     self.prologue();
                     self.bd.finalize();
                     break;
