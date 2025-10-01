@@ -6,7 +6,7 @@
 use crate::Address;
 use bitos::{
     BitUtils, bitos,
-    integer::{u2, u4, u6, u7, u11, u15},
+    integer::{i6, u2, u4, u7, u11, u15},
 };
 use std::fmt::Debug;
 use strum::{FromRepr, VariantArray};
@@ -577,13 +577,13 @@ pub struct QuantReg {
     pub store_type: QuantizedType,
     /// Scale used by a store instruction
     #[bits(8..14)]
-    pub store_scale: u6,
+    pub store_scale: i6,
     /// Type of operand resulting from a conversion by a load instruction
     #[bits(16..19)]
     pub load_type: QuantizedType,
     /// Scale used by a load instruction
     #[bits(24..30)]
-    pub load_scale: u6,
+    pub load_scale: i6,
 }
 
 /// Miscellaneous registers.

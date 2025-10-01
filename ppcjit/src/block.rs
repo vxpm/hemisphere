@@ -14,6 +14,7 @@ pub type Context = std::ffi::c_void;
 pub type GetRegistersHook = fn(*mut Context) -> *mut Cpu;
 pub type ReadHook<T> = fn(*mut Context, Address, *mut T) -> bool;
 pub type WriteHook<T> = fn(*mut Context, Address, T) -> bool;
+pub type ReadQuantizedHook = fn(*mut Context, Address, u8, *mut [f64; 2]) -> bool;
 pub type GenericHook = fn(*mut Context);
 
 /// External functions that JITed code calls.
@@ -30,6 +31,7 @@ pub struct Hooks {
     pub write_i32: WriteHook<i32>,
     pub read_i64: ReadHook<i64>,
     pub write_i64: WriteHook<i64>,
+    pub read_quantized: ReadQuantizedHook,
 
     // bats
     pub ibat_changed: GenericHook,
@@ -76,6 +78,20 @@ impl Hooks {
                 ir::AbiParam::new(ptr_type),       // ctx
                 ir::AbiParam::new(ir::types::I32), // address
                 ir::AbiParam::new(write_type),     // value
+            ],
+            returns: vec![ir::AbiParam::new(ir::types::I8)], // success
+            call_conv: isa::CallConv::SystemV,
+        }
+    }
+
+    /// Returns the function signature for a quantized memory read hook.
+    pub(crate) fn read_quantized_sig(ptr_type: ir::Type) -> ir::Signature {
+        ir::Signature {
+            params: vec![
+                ir::AbiParam::new(ptr_type),       // ctx
+                ir::AbiParam::new(ir::types::I32), // address
+                ir::AbiParam::new(ir::types::I8),  // gqr
+                ir::AbiParam::new(ptr_type),       // value ptr
             ],
             returns: vec![ir::AbiParam::new(ir::types::I8)], // success
             call_conv: isa::CallConv::SystemV,

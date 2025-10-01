@@ -472,8 +472,8 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Orc => self.orc(ins),
             Opcode::Ori => self.ori(ins),
             Opcode::Oris => self.oris(ins),
-            Opcode::PsMr => self.ps_mr(ins), // NOTE: stubbed, paired singles
-            Opcode::PsqL => self.stub(ins),  // NOTE: stubbed, paired singles
+            Opcode::PsMr => self.ps_mr(ins),
+            Opcode::PsqL => self.psq_l(ins),
             Opcode::Rfi => self.rfi(ins),
             Opcode::Rlwimi => self.rlwimi(ins),
             Opcode::Rlwinm => self.rlwinm(ins),

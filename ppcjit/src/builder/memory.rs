@@ -3,7 +3,7 @@ use crate::{
     block::Hooks,
     builder::{Action, Info},
 };
-use common::arch::{Exception, GPR, InsExt, disasm::Ins};
+use common::arch::{Exception, GPR, InsExt, Reg, disasm::Ins};
 use cranelift::{codegen::ir, prelude::InstBuilder};
 use std::mem::offset_of;
 
@@ -119,6 +119,61 @@ impl BlockBuilder<'_> {
         self.bd
             .ins()
             .call_indirect(sig, write_fn, &[self.consts.ctx_ptr, addr, value]);
+    }
+
+    fn read_quantized(&mut self, addr: ir::Value, gqr: ir::Value) -> ir::Value {
+        let read_quantized_offset = offset_of!(Hooks, read_quantized) as i32;
+        let read_fn = self.bd.ins().load(
+            self.consts.ptr_type,
+            ir::MemFlags::trusted(),
+            self.consts.hooks_ptr,
+            read_quantized_offset,
+        );
+
+        let sig = *self
+            .consts
+            .hooks_sig
+            .entry(read_quantized_offset)
+            .or_insert_with(|| {
+                self.bd
+                    .import_signature(Hooks::read_quantized_sig(self.consts.ptr_type))
+            });
+
+        let stack_slot = self.bd.create_sized_stack_slot(ir::StackSlotData::new(
+            ir::StackSlotKind::ExplicitSlot,
+            size_of::<f64>() as u32,
+            align_of::<f64>().ilog2() as u8,
+        ));
+
+        let stack_slot_addr = self
+            .bd
+            .ins()
+            .stack_addr(self.consts.ptr_type, stack_slot, 0);
+
+        let inst = self.bd.ins().call_indirect(
+            sig,
+            read_fn,
+            &[self.consts.ctx_ptr, addr, gqr, stack_slot_addr],
+        );
+
+        let success = self.bd.inst_results(inst)[0];
+        let exit_block = self.bd.create_block();
+        let continue_block = self.bd.create_block();
+
+        self.bd.set_cold_block(exit_block);
+        self.bd
+            .ins()
+            .brif(success, continue_block, &[], exit_block, &[]);
+
+        self.bd.seal_block(exit_block);
+        self.bd.seal_block(continue_block);
+
+        self.switch_to_bb(exit_block);
+        self.raise_exception(Exception::DSI);
+        self.prologue_with(LOAD_INFO);
+
+        self.switch_to_bb(continue_block);
+        self.bd.ins().stack_load(ir::types::F64, stack_slot, 0)
     }
 }
 
@@ -403,6 +458,32 @@ impl BlockBuilder<'_> {
         let double = self.bd.ins().fpromote(ir::types::F64, value);
         let paired = self.bd.ins().splat(ir::types::F64X2, double);
         self.set_ps(ins.fpr_d(), paired);
+
+        LOAD_INFO
+    }
+
+    pub fn psq_l(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let addr = if ins.field_ra() == 0 {
+            self.ir_value(ins.field_offset() as i32)
+        } else {
+            let ra = self.get(ins.gpr_a());
+            self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
+        };
+
+        let index = self.ir_value(ins.field_ps_i());
+        let ps0 = self.read_quantized(addr, index);
+        let ps1 = if ins.field_ps_w() == 0 {
+            let addr = self.bd.ins().iadd_imm(addr, 8);
+            self.read_quantized(addr, index)
+        } else {
+            self.ir_value(1.0f64)
+        };
+
+        let fpr_d = ins.fpr_d();
+        self.set(fpr_d, ps0);
+        self.set(Reg::PS1(fpr_d), ps1);
 
         LOAD_INFO
     }

@@ -62,6 +62,18 @@ impl IntoIrValue for u32 {
     }
 }
 
+impl IntoIrValue for f32 {
+    fn into_value(self, bd: &mut FunctionBuilder<'_>) -> ir::Value {
+        bd.ins().iconst(ir::types::F32, self as u64 as i64)
+    }
+}
+
+impl IntoIrValue for f64 {
+    fn into_value(self, bd: &mut FunctionBuilder<'_>) -> ir::Value {
+        bd.ins().iconst(ir::types::F64, self as u64 as i64)
+    }
+}
+
 impl BlockBuilder<'_> {
     /// Stub instruction - does absolutely nothing.
     pub fn stub(&mut self, ins: Ins) -> Info {

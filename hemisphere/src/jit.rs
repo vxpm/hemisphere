@@ -1,9 +1,13 @@
 use crate::{System, system::Event};
-use common::{Address, Primitive, arch::Cpu, util::boxed_array};
+use common::{
+    Address, Primitive,
+    arch::{Cpu, QuantizedType},
+    util::boxed_array,
+};
 use interavl::IntervalTree;
 use ppcjit::{
     Block,
-    block::{GenericHook, GetRegistersHook, Hooks, ReadHook, WriteHook},
+    block::{GenericHook, GetRegistersHook, Hooks, ReadHook, ReadQuantizedHook, WriteHook},
 };
 use slotmap::{SlotMap, new_key_type};
 use std::{collections::BTreeMap, ops::Range};
@@ -166,16 +170,6 @@ pub static CTX_HOOKS: Hooks = {
     ) -> bool {
         if let Some(physical) = ctx.system.translate_data_addr(addr) {
             *value = ctx.system.read(physical);
-            let regs = 0x800D_27C0;
-            if (regs..(regs + 60)).contains(&addr.value()) {
-                tracing::debug!("reading from video registers ({addr}): {value:08X}");
-            }
-
-            let shadow = 0x800D_2748;
-            if (shadow..(shadow + 60)).contains(&addr.value()) {
-                tracing::debug!("reading from shadow registers ({addr}): {value:08X}");
-            }
-
             true
         } else {
             tracing::error!("failed to translate address {addr}");
@@ -188,21 +182,51 @@ pub static CTX_HOOKS: Hooks = {
         addr: Address,
         value: P,
     ) -> bool {
-        let regs = 0x800D_27C0;
-        if (regs..(regs + 60)).contains(&addr.value()) {
-            tracing::debug!("writing to video registers ({addr}): {value:08X}");
-        }
-
-        let shadow = 0x800D_2748;
-        if (shadow..(shadow + 60)).contains(&addr.value()) {
-            tracing::debug!("writing to shadow registers ({addr}): {value:08X}");
-        }
-
         if let Some(physical) = ctx.system.translate_data_addr(addr) {
             ctx.system.write(physical, value);
             for i in 0..size_of::<P>() {
                 ctx.mapping.invalidate(addr + i as u32);
             }
+
+            true
+        } else {
+            tracing::error!("failed to translate address {addr}");
+            false
+        }
+    }
+
+    extern "sysv64-unwind" fn read_quantized(
+        ctx: &mut Context,
+        addr: Address,
+        gqr: u8,
+        value: &mut f64,
+    ) -> bool {
+        let _span = tracing::debug_span!("read quantized").entered();
+
+        tracing::debug!("reading quantized at {addr}");
+        if let Some(physical) = ctx.system.translate_data_addr(addr) {
+            let gqr = ctx.system.cpu.supervisor.gq[gqr as usize].clone();
+
+            let (mut read, scale) = match gqr.load_type() {
+                QuantizedType::U8 => (ctx.system.read::<u8>(physical) as f64, true),
+                QuantizedType::U16 => (ctx.system.read::<u16>(physical) as f64, true),
+                QuantizedType::I8 => (ctx.system.read::<i8>(physical) as f64, true),
+                QuantizedType::I16 => (ctx.system.read::<i16>(physical) as f64, true),
+                _ => (
+                    f32::from_bits(ctx.system.read::<u32>(physical)) as f64,
+                    false,
+                ),
+            };
+
+            tracing::debug!("read {read}");
+
+            if scale {
+                let scale = gqr.load_scale().value();
+                read *= 2.0f64.powi(-scale as i32);
+                tracing::debug!("scalign with {scale}, new value {read}");
+            }
+
+            *value = read;
 
             true
         } else {
@@ -279,6 +303,9 @@ pub static CTX_HOOKS: Hooks = {
             transmute::<_, ReadHook<i64>>(read::<i64> as extern "sysv64-unwind" fn(_, _, _) -> _);
         let write_i64 =
             transmute::<_, WriteHook<i64>>(write::<i64> as extern "sysv64-unwind" fn(_, _, _) -> _);
+        let read_quantized = transmute::<_, ReadQuantizedHook>(
+            read_quantized as extern "sysv64-unwind" fn(_, _, _, _) -> _,
+        );
 
         let ibat_changed =
             transmute::<_, GenericHook>(ibat_changed as extern "sysv64-unwind" fn(_));
@@ -302,6 +329,7 @@ pub static CTX_HOOKS: Hooks = {
             write_i32,
             read_i64,
             write_i64,
+            read_quantized,
 
             ibat_changed,
             dbat_changed,
