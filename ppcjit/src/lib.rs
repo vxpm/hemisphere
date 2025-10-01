@@ -111,12 +111,12 @@ impl Compiler {
         };
 
         let block = unsafe { Block::new(meta, &*self.isa, compiled) };
-        tracing::debug!(
-            "compiled block:\n{}\n{}\n{}",
-            block.meta().seq,
-            block.meta().clir.as_deref().unwrap_or("<none>"),
-            block,
-        );
+        // tracing::debug!(
+        //     "compiled block:\n{}\n{}\n{}",
+        //     block.meta().seq,
+        //     block.meta().clir.as_deref().unwrap_or("<none>"),
+        //     block,
+        // );
 
         Ok(block)
     }

@@ -394,8 +394,6 @@ impl<'ctx> BlockBuilder<'ctx> {
 
     /// Emits the given instruction into the block.
     fn emit(&mut self, ins: Ins) -> Result<Action, BuilderError> {
-        tracing::debug!("emitting: {:?}", ins);
-
         self.bd.set_srcloc(ir::SourceLoc::new(self.executed));
         let info: Info = match ins.op {
             Opcode::Add => self.add(ins),
@@ -456,8 +454,8 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Mfspr => self.mfspr(ins),
             Opcode::Mftb => self.mftb(ins),
             Opcode::Mtcrf => self.mtcrf(ins),
-            Opcode::Mtfsb1 => self.stub(ins),
-            Opcode::Mtfsf => self.stub(ins), // NOTE: stubbed, floating point
+            Opcode::Mtfsb1 => self.mtfsb1(ins),
+            Opcode::Mtfsf => self.mtfsf(ins),
             Opcode::Mtmsr => self.mtmsr(ins),
             Opcode::Mtspr => self.mtspr(ins),
             Opcode::Mtsr => self.mtsr(ins),

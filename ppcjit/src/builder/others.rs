@@ -5,7 +5,7 @@ use crate::{
 };
 use bitos::BitUtils;
 use common::arch::{InsExt, Reg, SPR, disasm::Ins};
-use cranelift::prelude::InstBuilder;
+use cranelift::{codegen::ir, prelude::InstBuilder};
 use std::mem::offset_of;
 
 const SPR_INFO: Info = Info {
@@ -37,6 +37,18 @@ const TB_INFO: Info = Info {
     auto_pc: true,
     action: Action::Continue,
 };
+
+fn generate_mask(control: u8) -> u32 {
+    let mut mask = 0;
+    for i in 0..8 {
+        // 0 is the higher one
+        if control.bit(7 - i) {
+            mask |= (0xF) << (4 * i);
+        }
+    }
+
+    mask
+}
 
 impl BlockBuilder<'_> {
     pub fn mfspr(&mut self, ins: Ins) -> Info {
@@ -108,21 +120,36 @@ impl BlockBuilder<'_> {
 
     pub fn mtcrf(&mut self, ins: Ins) -> Info {
         let rs = self.get(ins.gpr_s());
-        let mask_control = ins.field_crm();
-
-        let mut mask = 0;
-        for i in 0..8 {
-            // CR0 is the higher one
-            if mask_control.bit(7 - i) {
-                mask |= (0xF) << (4 * i);
-            }
-        }
+        let mask = self.ir_value(generate_mask(ins.field_crm()));
 
         let cr = self.get(Reg::CR);
-        let mask = self.ir_value(mask);
         let value = self.bd.ins().bitselect(mask, rs, cr);
 
         self.set(Reg::CR, value);
+
+        CR_INFO
+    }
+
+    pub fn mtfsf(&mut self, ins: Ins) -> Info {
+        let fpr_b = self.get(ins.fpr_b());
+        let mask = self.ir_value(generate_mask(ins.field_mtfsf_fm()));
+
+        let fpscr = self.get(Reg::FPSCR);
+        let bits = self.bd.ins().bitcast(
+            ir::types::I64,
+            ir::MemFlags::new().with_endianness(ir::Endianness::Little),
+            fpr_b,
+        );
+        let low = self.bd.ins().ireduce(ir::types::I32, bits);
+
+        let value = self.bd.ins().bitselect(mask, low, fpscr);
+        self.set(Reg::FPSCR, value);
+
+        self.update_fpscr();
+
+        if ins.field_rc() {
+            self.update_cr1_float();
+        }
 
         CR_INFO
     }
@@ -173,6 +200,22 @@ impl BlockBuilder<'_> {
         let value = self.bd.ins().bitselect(dst_mask, new, cr);
 
         self.set(Reg::CR, value);
+
+        CR_INFO
+    }
+
+    pub fn mtfsb1(&mut self, ins: Ins) -> Info {
+        let bit = 31 - ins.field_crbd();
+        let fpscr = self.get(Reg::FPSCR);
+
+        let value = self.set_bit(fpscr, bit, 1);
+        self.set(Reg::FPSCR, value);
+
+        self.update_fpscr();
+
+        if ins.field_rc() {
+            self.update_cr1_float();
+        }
 
         CR_INFO
     }

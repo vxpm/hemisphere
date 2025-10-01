@@ -150,6 +150,7 @@ impl BlockBuilder<'_> {
             .ins()
             .stack_addr(self.consts.ptr_type, stack_slot, 0);
 
+        // NOTE: maybe flush to ensure GQRs are up to date?
         let inst = self.bd.ins().call_indirect(
             sig,
             read_fn,

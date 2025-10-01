@@ -1,5 +1,5 @@
 use super::BlockBuilder;
-use crate::builder::{Action, Info, util::IntoIrValue};
+use crate::builder::{Action, Info};
 use bitos::BitUtils;
 use common::arch::{InsExt, disasm::Ins};
 use cranelift::{
@@ -274,27 +274,27 @@ struct ShiftOp {
     rhs: ShiftRhs,
 }
 
+fn generate_mask(me: u8, mb: u8) -> u32 {
+    if mb <= me {
+        let start = 31 - me;
+        let end = 31 - mb;
+        0.with_bits(start, end + 1, !0)
+    } else {
+        let start = 31 - mb;
+        let end = 31 - me;
+
+        let mask = (!0).with_bits(start, end, 0);
+
+        // make start exclusive too!
+        mask | (1 << start)
+    }
+}
+
 /// Rotate and Shift operations
 impl BlockBuilder<'_> {
-    fn generate_mask(&mut self, ins: Ins) -> i32 {
-        if ins.field_mb() <= ins.field_me() {
-            let start = 31 - ins.field_me();
-            let end = 31 - ins.field_mb();
-            0.with_bits(start, end + 1, !0)
-        } else {
-            let start = 31 - ins.field_mb();
-            let end = 31 - ins.field_me();
-
-            let mask = (!0).with_bits(start, end, 0);
-
-            // make start exclusive too!
-            mask | (1 << start)
-        }
-    }
-
     pub fn rlwinm(&mut self, ins: Ins) -> Info {
         let rs = self.get(ins.gpr_s());
-        let mask = self.generate_mask(ins);
+        let mask = generate_mask(ins.field_me(), ins.field_mb());
 
         let rotated = self.bd.ins().rotl_imm(rs, ins.field_sh() as u64 as i64);
         let masked = self.bd.ins().band_imm(rotated, mask as i64);
@@ -311,7 +311,7 @@ impl BlockBuilder<'_> {
     pub fn rlwnm(&mut self, ins: Ins) -> Info {
         let rs = self.get(ins.gpr_s());
         let rb = self.get(ins.gpr_b());
-        let mask = self.generate_mask(ins);
+        let mask = generate_mask(ins.field_me(), ins.field_mb());
         let shift_amount = self.bd.ins().band_imm(rb, 0x1F);
 
         let rotated = self.bd.ins().rotl(rs, shift_amount);
@@ -329,7 +329,7 @@ impl BlockBuilder<'_> {
     pub fn rlwimi(&mut self, ins: Ins) -> Info {
         let rs = self.get(ins.gpr_s());
         let ra = self.get(ins.gpr_a());
-        let mask = self.generate_mask(ins).into_value(&mut self.bd);
+        let mask = self.ir_value(generate_mask(ins.field_me(), ins.field_mb()));
 
         let rotated = self.bd.ins().rotl_imm(rs, ins.field_sh() as u64 as i64);
         let inserted = self.bd.ins().bitselect(mask, rotated, ra);

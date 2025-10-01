@@ -213,7 +213,7 @@ impl BlockBuilder<'_> {
     }
 
     pub fn update_fpscr(&mut self) {
-        todo!("update FEX and VX")
+        tracing::warn!("update FEX and VX")
     }
 
     /// Updates CR1 by copying bits 28..32 of FPSCR.
