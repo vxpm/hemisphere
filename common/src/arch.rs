@@ -6,7 +6,7 @@
 use crate::Address;
 use bitos::{
     BitUtils, bitos,
-    integer::{i6, u2, u4, u7, u11, u15},
+    integer::{i6, u2, u4, u7, u11, u15, u27},
 };
 use std::fmt::Debug;
 use strum::{FromRepr, VariantArray};
@@ -544,6 +544,23 @@ pub struct ExceptionHandling {
     pub srr: [u32; 2],
 }
 
+#[bitos(32)]
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct WriteGatherPipe {
+    /// Whether the write gather buffer has any data
+    #[bits(0)]
+    pub buffer_not_empty: bool,
+    /// Top 27 bits of the address
+    #[bits(5..32)]
+    pub address_base: u27,
+}
+
+impl WriteGatherPipe {
+    pub fn address(&self) -> Address {
+        Address(self.address_base().value() << 5)
+    }
+}
+
 /// Configuration registers.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Configuration {
@@ -551,6 +568,8 @@ pub struct Configuration {
     pub msr: MachineState,
     /// Hardware Implementation Dependent registers
     pub hid: [u32; 3],
+    /// Write Gather Pipe configuration
+    pub wpar: WriteGatherPipe,
 }
 
 /// A quantized type.
@@ -826,6 +845,7 @@ pub enum SPR {
     GQR6 = 918,
     GQR7 = 919,
     HID2 = 920,
+    WPAR = 921,
     MMCR0 = 952,
     PMC1 = 953,
     PMC2 = 954,
@@ -892,6 +912,7 @@ impl SPR {
             Self::GQR6 => offset_of!(Cpu, supervisor.gq[6]),
             Self::GQR7 => offset_of!(Cpu, supervisor.gq[7]),
             Self::HID2 => offset_of!(Cpu, supervisor.config.hid[2]),
+            Self::WPAR => offset_of!(Cpu, supervisor.config.wpar),
             Self::MMCR0 => offset_of!(Cpu, supervisor.performance.control[0]),
             Self::PMC1 => offset_of!(Cpu, supervisor.performance.counters[0]),
             Self::PMC2 => offset_of!(Cpu, supervisor.performance.counters[1]),

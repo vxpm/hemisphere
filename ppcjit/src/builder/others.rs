@@ -56,6 +56,7 @@ impl BlockBuilder<'_> {
         match spr {
             SPR::DEC => self.call_generic_hook(offset_of!(Hooks, dec_read) as i32),
             SPR::TBL | SPR::TBU => self.call_generic_hook(offset_of!(Hooks, tb_read) as i32),
+            SPR::WPAR => tracing::warn!("read from WPAR"),
             _ => (),
         }
 
@@ -70,17 +71,12 @@ impl BlockBuilder<'_> {
         let spr = ins.spr();
         self.set(spr, value);
 
-        if spr.is_data_bat() {
-            self.dbat_changed = true;
-        }
-
-        if spr.is_instr_bat() {
-            self.ibat_changed = true;
-        }
-
         match spr {
             SPR::DEC => self.call_generic_hook(offset_of!(Hooks, dec_changed) as i32),
             SPR::TBL | SPR::TBU => self.call_generic_hook(offset_of!(Hooks, tb_changed) as i32),
+            SPR::WPAR => tracing::warn!("write to WPAR"),
+            spr if spr.is_data_bat() => self.dbat_changed = true,
+            spr if spr.is_instr_bat() => self.ibat_changed = true,
             _ => (),
         }
 
