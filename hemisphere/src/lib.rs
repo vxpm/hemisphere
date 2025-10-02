@@ -134,7 +134,14 @@ impl Hemisphere {
             .and_then(|id| self.jit.blocks.storage.get(id));
 
         if block.is_none() {
-            let block = self.compile(self.system.cpu.pc, self.jit.config.instr_per_block);
+            // avoid trying to compile unimplemented instructions in debug mode
+            let instructions = if cfg!(debug_assertions) {
+                self.jit.config.instr_per_block.min(limits.instructions)
+            } else {
+                self.jit.config.instr_per_block
+            };
+
+            let block = self.compile(self.system.cpu.pc, instructions);
             self.jit.blocks.insert(self.system.cpu.pc, block);
         }
 
@@ -181,14 +188,14 @@ impl Hemisphere {
                 .min(remaining_cycles as u64)
                 .min(u32::MAX as u64) as u32;
 
-            let (instructions, closest_breakpoint) = if BREAKPOINTS {
+            let instructions = if BREAKPOINTS {
                 let closest_breakpoint = self.closest_breakpoint(breakpoints);
                 let breakpoint_distance =
                     (closest_breakpoint.value() - self.system.cpu.pc.value()) / 4;
 
-                (remaining_instr.min(breakpoint_distance), closest_breakpoint)
+                remaining_instr.min(breakpoint_distance)
             } else {
-                (remaining_instr, Address(0))
+                remaining_instr
             };
 
             // let call_stack = self.system.call_stack();
@@ -221,7 +228,7 @@ impl Hemisphere {
                 self.system.process(event);
             }
 
-            if BREAKPOINTS && self.system.cpu.pc == closest_breakpoint {
+            if BREAKPOINTS && breakpoints.contains(&self.system.cpu.pc) {
                 return (executed, true);
             }
         }
