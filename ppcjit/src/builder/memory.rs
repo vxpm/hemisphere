@@ -176,6 +176,49 @@ impl BlockBuilder<'_> {
         self.switch_to_bb(continue_block);
         self.bd.ins().stack_load(ir::types::F64, stack_slot, 0)
     }
+
+    fn write_quantized(&mut self, addr: ir::Value, gqr: ir::Value, value: ir::Value) {
+        let write_quantized_offset = offset_of!(Hooks, write_quantized) as i32;
+        let write_fn = self.bd.ins().load(
+            self.consts.ptr_type,
+            ir::MemFlags::trusted(),
+            self.consts.hooks_ptr,
+            write_quantized_offset,
+        );
+
+        let sig = *self
+            .consts
+            .hooks_sig
+            .entry(write_quantized_offset)
+            .or_insert_with(|| {
+                self.bd
+                    .import_signature(Hooks::write_quantized_sig(self.consts.ptr_type))
+            });
+
+        // NOTE: maybe flush to ensure GQRs are up to date?
+        let inst =
+            self.bd
+                .ins()
+                .call_indirect(sig, write_fn, &[self.consts.ctx_ptr, addr, gqr, value]);
+
+        let success = self.bd.inst_results(inst)[0];
+        let exit_block = self.bd.create_block();
+        let continue_block = self.bd.create_block();
+
+        self.bd.set_cold_block(exit_block);
+        self.bd
+            .ins()
+            .brif(success, continue_block, &[], exit_block, &[]);
+
+        self.bd.seal_block(exit_block);
+        self.bd.seal_block(continue_block);
+
+        self.switch_to_bb(exit_block);
+        self.raise_exception(Exception::DSI);
+        self.prologue_with(STORE_INFO);
+
+        self.switch_to_bb(continue_block);
+    }
 }
 
 const LOAD_INFO: Info = Info {
@@ -487,6 +530,29 @@ impl BlockBuilder<'_> {
         self.set(Reg::PS1(fpr_d), ps1);
 
         LOAD_INFO
+    }
+
+    pub fn psq_st(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let addr = if ins.field_ra() == 0 {
+            self.ir_value(ins.field_offset() as i32)
+        } else {
+            let ra = self.get(ins.gpr_a());
+            self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
+        };
+
+        let ps0 = self.get(ins.fpr_s());
+        let ps1 = self.get(Reg::PS1(ins.fpr_s()));
+        let index = self.ir_value(ins.field_ps_i());
+
+        self.write_quantized(addr, index, ps0);
+        if ins.field_ps_w() == 0 {
+            let addr = self.bd.ins().iadd_imm(addr, 8);
+            self.write_quantized(addr, index, ps1);
+        }
+
+        STORE_INFO
     }
 }
 

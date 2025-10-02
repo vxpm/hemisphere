@@ -7,7 +7,10 @@ use common::{
 use interavl::IntervalTree;
 use ppcjit::{
     Block,
-    block::{GenericHook, GetRegistersHook, Hooks, ReadHook, ReadQuantizedHook, WriteHook},
+    block::{
+        GenericHook, GetRegistersHook, Hooks, ReadHook, ReadQuantizedHook, WriteHook,
+        WriteQuantizedHook,
+    },
 };
 use slotmap::{SlotMap, new_key_type};
 use std::{collections::BTreeMap, ops::Range};
@@ -182,17 +185,17 @@ pub static CTX_HOOKS: Hooks = {
         addr: Address,
         value: P,
     ) -> bool {
-        if let Some(physical) = ctx.system.translate_data_addr(addr) {
-            ctx.system.write(physical, value);
-            for i in 0..size_of::<P>() {
-                ctx.mapping.invalidate(addr + i as u32);
-            }
-
-            true
-        } else {
+        let Some(physical) = ctx.system.translate_data_addr(addr) else {
             tracing::error!("failed to translate address {addr}");
-            false
+            return false;
+        };
+
+        ctx.system.write(physical, value);
+        for i in 0..size_of::<P>() {
+            ctx.mapping.invalidate(addr + i as u32);
         }
+
+        true
     }
 
     extern "sysv64-unwind" fn read_quantized(
@@ -202,37 +205,66 @@ pub static CTX_HOOKS: Hooks = {
         value: &mut f64,
     ) -> bool {
         let _span = tracing::debug_span!("read quantized").entered();
-
         tracing::debug!("reading quantized at {addr}");
-        if let Some(physical) = ctx.system.translate_data_addr(addr) {
-            let gqr = ctx.system.cpu.supervisor.gq[gqr as usize].clone();
 
-            let (mut read, scale) = match gqr.load_type() {
-                QuantizedType::U8 => (ctx.system.read::<u8>(physical) as f64, true),
-                QuantizedType::U16 => (ctx.system.read::<u16>(physical) as f64, true),
-                QuantizedType::I8 => (ctx.system.read::<i8>(physical) as f64, true),
-                QuantizedType::I16 => (ctx.system.read::<i16>(physical) as f64, true),
-                _ => (
-                    f32::from_bits(ctx.system.read::<u32>(physical)) as f64,
-                    false,
-                ),
-            };
-
-            tracing::debug!("read {read}");
-
-            if scale {
-                let scale = gqr.load_scale().value();
-                read *= 2.0f64.powi(-scale as i32);
-                tracing::debug!("scalign with {scale}, new value {read}");
-            }
-
-            *value = read;
-
-            true
-        } else {
+        let Some(physical) = ctx.system.translate_data_addr(addr) else {
             tracing::error!("failed to translate address {addr}");
-            false
+            return false;
+        };
+
+        let gqr = ctx.system.cpu.supervisor.gq[gqr as usize].clone();
+        let (mut read, scale) = match gqr.load_type() {
+            QuantizedType::U8 => (ctx.system.read::<u8>(physical) as f64, true),
+            QuantizedType::U16 => (ctx.system.read::<u16>(physical) as f64, true),
+            QuantizedType::I8 => (ctx.system.read::<i8>(physical) as f64, true),
+            QuantizedType::I16 => (ctx.system.read::<i16>(physical) as f64, true),
+            _ => (
+                f32::from_bits(ctx.system.read::<u32>(physical)) as f64,
+                false,
+            ),
+        };
+
+        tracing::debug!("read {read}");
+        if scale {
+            let scale = gqr.load_scale().value();
+            read *= 2.0f64.powi(-scale as i32);
+            tracing::debug!("scalign with {scale}, new value {read}");
         }
+
+        *value = read;
+        true
+    }
+
+    extern "sysv64-unwind" fn write_quantized(
+        ctx: &mut Context,
+        addr: Address,
+        gqr: u8,
+        value: f64,
+    ) -> bool {
+        let _span = tracing::debug_span!("write quantized").entered();
+        tracing::debug!("writing quantized at {addr}");
+
+        let Some(physical) = ctx.system.translate_data_addr(addr) else {
+            tracing::error!("failed to translate address {addr}");
+            return false;
+        };
+
+        let gqr = ctx.system.cpu.supervisor.gq[gqr as usize].clone();
+        let scale = (gqr.store_type() != QuantizedType::Float)
+            .then_some(gqr.store_scale().value())
+            .unwrap_or(0);
+        let scaled = value * 2.0f64.powi(-scale as i32);
+
+        tracing::debug!("scalign with {scale}, new value {scaled}");
+        match gqr.store_type() {
+            QuantizedType::U8 => ctx.system.write(physical, scaled as u8),
+            QuantizedType::U16 => ctx.system.write(physical, scaled as u16),
+            QuantizedType::I8 => ctx.system.write(physical, scaled as i8),
+            QuantizedType::I16 => ctx.system.write(physical, scaled as i16),
+            _ => ctx.system.write(physical, (scaled as f32).to_bits()),
+        }
+
+        true
     }
 
     extern "sysv64-unwind" fn ibat_changed(ctx: &mut Context) {
@@ -306,6 +338,9 @@ pub static CTX_HOOKS: Hooks = {
         let read_quantized = transmute::<_, ReadQuantizedHook>(
             read_quantized as extern "sysv64-unwind" fn(_, _, _, _) -> _,
         );
+        let write_quantized = transmute::<_, WriteQuantizedHook>(
+            write_quantized as extern "sysv64-unwind" fn(_, _, _, _) -> _,
+        );
 
         let ibat_changed =
             transmute::<_, GenericHook>(ibat_changed as extern "sysv64-unwind" fn(_));
@@ -330,6 +365,7 @@ pub static CTX_HOOKS: Hooks = {
             read_i64,
             write_i64,
             read_quantized,
+            write_quantized,
 
             ibat_changed,
             dbat_changed,

@@ -504,6 +504,7 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Sync => self.nop(Action::FlushAndPrologue),
             Opcode::Xor => self.xor(ins),
             Opcode::Xori => self.xori(ins),
+            Opcode::PsqSt => self.psq_st(ins),
             Opcode::Illegal => {
                 return Err(BuilderError::Illegal(ins));
             }
