@@ -6,7 +6,7 @@ use common::arch::{
 };
 use cranelift::{
     codegen::ir,
-    prelude::{FunctionBuilder, InstBuilder, IntCC},
+    prelude::{FloatCC, FunctionBuilder, InstBuilder, IntCC},
 };
 
 /// Trait for transforming values into an IR value in a function.
@@ -64,13 +64,13 @@ impl IntoIrValue for u32 {
 
 impl IntoIrValue for f32 {
     fn into_value(self, bd: &mut FunctionBuilder<'_>) -> ir::Value {
-        bd.ins().iconst(ir::types::F32, self as u64 as i64)
+        bd.ins().f32const(self)
     }
 }
 
 impl IntoIrValue for f64 {
     fn into_value(self, bd: &mut FunctionBuilder<'_>) -> ir::Value {
-        bd.ins().iconst(ir::types::F64, self as u64 as i64)
+        bd.ins().f64const(self)
     }
 }
 
@@ -221,6 +221,41 @@ impl BlockBuilder<'_> {
         let eq = self.bd.ins().icmp_imm(IntCC::Equal, value, 0);
 
         self.update_cr(0, lt, gt, eq, ov);
+    }
+
+    /// All IR values must be booleans (i.e. I8).
+    pub fn update_fprf(&mut self, lt: ir::Value, gt: ir::Value, eq: ir::Value, un: ir::Value) {
+        let fpscr = self.get(Reg::FPSCR);
+
+        let lt = self.bd.ins().uextend(ir::types::I32, lt);
+        let gt = self.bd.ins().uextend(ir::types::I32, gt);
+        let eq = self.bd.ins().uextend(ir::types::I32, eq);
+        let un = self.bd.ins().uextend(ir::types::I32, un);
+
+        let cc = self.ir_value(0);
+        let lt = self.bd.ins().ishl_imm(lt, 15);
+        let gt = self.bd.ins().ishl_imm(gt, 14);
+        let eq = self.bd.ins().ishl_imm(eq, 13);
+        let un = self.bd.ins().ishl_imm(un, 12);
+
+        let value = self.bd.ins().bor(lt, gt);
+        let value = self.bd.ins().bor(value, eq);
+        let value = self.bd.ins().bor(value, un);
+        let value = self.bd.ins().bor(value, cc);
+
+        let mask = self.ir_value(0b11111u32 << 12);
+        let updated = self.bd.ins().bitselect(mask, value, fpscr);
+
+        self.set(Reg::FPSCR, updated);
+    }
+
+    pub fn update_fprf_cmpz(&mut self, value: ir::Value) {
+        let zero = self.ir_value(0.0f64);
+        let lt = self.bd.ins().fcmp(FloatCC::LessThan, value, zero);
+        let gt = self.bd.ins().fcmp(FloatCC::GreaterThan, value, zero);
+        let eq = self.bd.ins().fcmp(FloatCC::Equal, value, zero);
+        let un = self.bd.ins().fcmp(FloatCC::Unordered, value, zero);
+        self.update_fprf(lt, gt, eq, un);
     }
 
     pub fn update_fpscr(&mut self) {

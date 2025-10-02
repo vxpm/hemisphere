@@ -12,6 +12,12 @@ const INT_INFO: Info = Info {
     action: Action::Continue,
 };
 
+const FLOAT_INFO: Info = Info {
+    cycles: 1,
+    auto_pc: true,
+    action: Action::Continue,
+};
+
 enum AddLhs {
     RA,
     ZeroOrRA,
@@ -34,7 +40,7 @@ struct AddOp {
     overflow: bool,
 }
 
-/// Add operations
+/// Integer addition operations
 impl BlockBuilder<'_> {
     fn addition_get_lhs(&mut self, ins: Ins, lhs: AddLhs) -> ir::Value {
         match lhs {
@@ -255,7 +261,7 @@ struct SubOp {
     overflow: bool,
 }
 
-/// Sub from operations
+/// Integer sub from operations
 impl BlockBuilder<'_> {
     fn subtraction_get_lhs(&mut self, ins: Ins, lhs: SubLhs) -> ir::Value {
         match lhs {
@@ -408,7 +414,7 @@ const DIV_INFO: Info = Info {
     action: Action::Continue,
 };
 
-/// Multiplication and division operations
+/// Integer multiplication and division operations
 impl BlockBuilder<'_> {
     pub fn neg(&mut self, ins: Ins) -> Info {
         let ra = self.get(ins.gpr_a());
@@ -539,5 +545,24 @@ impl BlockBuilder<'_> {
         self.set(ins.gpr_d(), result);
 
         MUL_INFO
+    }
+}
+
+/// Floating point sub operations
+impl BlockBuilder<'_> {
+    pub fn fsub(&mut self, ins: Ins) -> Info {
+        let fpr_a = self.get(ins.fpr_a());
+        let fpr_b = self.get(ins.fpr_b());
+
+        let value = self.bd.ins().fsub(fpr_a, fpr_b);
+        self.set(ins.fpr_d(), value);
+
+        self.update_fprf_cmpz(value);
+
+        if ins.field_rc() {
+            self.update_cr1_float();
+        }
+
+        FLOAT_INFO
     }
 }

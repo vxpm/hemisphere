@@ -506,6 +506,8 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Xori => self.xori(ins),
             Opcode::PsqSt => self.psq_st(ins),
             Opcode::Stfs => self.stfs(ins),
+            Opcode::Fsub => self.fsub(ins),
+            Opcode::Frsp => self.frsp(ins),
             Opcode::Illegal => {
                 return Err(BuilderError::Illegal(ins));
             }
