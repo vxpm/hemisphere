@@ -18,6 +18,7 @@ use crate::system::{
     mmu::Mmu,
     scheduler::Scheduler,
 };
+use bitos::integer::UnsignedInt;
 use common::{
     Address,
     arch::{Cpu, Exception, FREQUENCY},
@@ -159,15 +160,24 @@ impl System {
                 self.check_display_interrupts();
 
                 self.bus.video.vertical_count += 1;
-                if self.bus.video.vertical_count > self.bus.video.xfb_height() {
+                if self.bus.video.vertical_count as u32 > self.bus.video.lines_per_frame() {
                     self.bus.video.vertical_count = 1;
                     if let Some(callback) = &mut self.config.vsync_callback {
                         callback();
                     }
                 }
 
-                if self.bus.video.vertical_count
-                    == self.bus.video.vertical_timing.active_video_lines().value()
+                // println!(
+                //     "{}/{} ({}) ({}hz)",
+                //     self.bus.video.vertical_count,
+                //     self.bus.video.lines_per_frame(),
+                //     self.bus.video.xfb_height(),
+                //     self.bus.video.refresh_rate(),
+                // );
+
+                if !self.bus.video.display_config.progressive()
+                    && self.bus.video.vertical_count as u32
+                        == self.bus.video.lines_per_even_field() + 1
                 {
                     if let Some(callback) = &mut self.config.vsync_callback {
                         callback();
@@ -176,7 +186,7 @@ impl System {
 
                 let cycles_per_frame = (FREQUENCY as f64 / self.bus.video.refresh_rate()) as u32;
                 let cycles_per_line = cycles_per_frame
-                    .checked_div(self.bus.video.xfb_height() as u32)
+                    .checked_div(self.bus.video.lines_per_frame())
                     .unwrap_or(cycles_per_frame);
 
                 self.scheduler.schedule(

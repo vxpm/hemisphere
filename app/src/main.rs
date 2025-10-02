@@ -51,10 +51,6 @@ impl Window {
     pub fn open(ui: impl WindowUi + 'static) -> Self {
         Self::new(ui, true)
     }
-
-    pub fn closed(ui: impl WindowUi + 'static) -> Self {
-        Self::new(ui, false)
-    }
 }
 
 struct App {
@@ -103,8 +99,7 @@ impl App {
             vsync_count,
             windows: vec![
                 // xfb
-                Window::open(xfb::Window::top()),
-                Window::closed(xfb::Window::bottom()),
+                Window::open(xfb::Window::new()),
                 // cpu
                 Window::open(control::Window::default()),
                 Window::open(disasm::Window::default()),

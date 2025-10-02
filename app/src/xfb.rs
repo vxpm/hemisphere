@@ -19,16 +19,9 @@ pub struct Window {
 }
 
 impl Window {
-    pub fn top() -> Self {
+    pub fn new() -> Self {
         Self {
             bottom: false,
-            texture: None,
-        }
-    }
-
-    pub fn bottom() -> Self {
-        Self {
-            bottom: true,
             texture: None,
         }
     }
@@ -36,11 +29,7 @@ impl Window {
 
 impl WindowUi for Window {
     fn title(&self) -> &str {
-        if self.bottom {
-            "🖵 Bottom XFB"
-        } else {
-            "🖵 Top XFB"
-        }
+        "🖵 XFB"
     }
 
     fn show(&mut self, ui: &mut egui::Ui, _: &mut Ctx, state: &mut State) {

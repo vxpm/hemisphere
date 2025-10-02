@@ -240,6 +240,31 @@ impl Interface {
             + self.odd_vertical_timing.post_blanking().value() as u32
     }
 
+    /// How many halflines long a frame is.
+    pub fn halflines_per_frame(&self) -> u32 {
+        self.halflines_per_even_field()
+            + self
+                .display_config
+                .progressive()
+                .then_some(0)
+                .unwrap_or(self.halflines_per_odd_field())
+    }
+
+    /// How many lines long an even field is.
+    pub fn lines_per_even_field(&self) -> u32 {
+        self.halflines_per_even_field() / 2
+    }
+
+    /// How many lines long an even field is.
+    pub fn lines_per_odd_field(&self) -> u32 {
+        self.halflines_per_odd_field() / 2
+    }
+
+    /// How many halflines long a frame is.
+    pub fn lines_per_frame(&self) -> u32 {
+        self.halflines_per_frame() / 2
+    }
+
     /// How many CPU cycles long an odd field is.
     pub fn cycles_per_odd_field(&self) -> u32 {
         self.cycles_per_halfline() * self.halflines_per_odd_field()
