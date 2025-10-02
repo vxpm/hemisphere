@@ -156,7 +156,6 @@ impl System {
                 self.check_external_interrupts();
             }
             Event::Video(video::Event::VerticalCount) => {
-                // check display interrupts
                 self.check_display_interrupts();
 
                 self.bus.video.vertical_count += 1;

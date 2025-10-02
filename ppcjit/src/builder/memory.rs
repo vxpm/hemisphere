@@ -611,4 +611,18 @@ impl BlockBuilder<'_> {
             ..STORE_INFO
         }
     }
+
+    pub fn stfd(&mut self, ins: Ins) -> Info {
+        let addr = if ins.field_ra() == 0 {
+            self.ir_value(ins.field_offset() as i32)
+        } else {
+            let ra = self.get(ins.gpr_a());
+            self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
+        };
+
+        let value = self.get(ins.fpr_s());
+        self.write::<f64>(addr, value);
+
+        STORE_INFO
+    }
 }

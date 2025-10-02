@@ -75,7 +75,18 @@ impl IntoIrValue for f64 {
 }
 
 impl BlockBuilder<'_> {
-    /// Stub instruction - does absolutely nothing.
+    /// NOP instruction - does absolutely nothing on purpose.
+    pub fn nop(&mut self, action: Action) -> Info {
+        self.bd.ins().nop();
+        Info {
+            cycles: 2,
+            auto_pc: true,
+            action,
+        }
+    }
+
+    /// Stub instruction - does absolutely nothing as a temporary implementation.
+    #[allow(dead_code)]
     pub fn stub(&mut self, ins: Ins) -> Info {
         let mut parsed = ParsedIns::new();
         ins.parse_basic(&mut parsed);

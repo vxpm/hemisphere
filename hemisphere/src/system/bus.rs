@@ -61,7 +61,7 @@ impl System {
 
     fn read_mmio<P: Primitive>(&mut self, offset: u16) -> P {
         let Some((reg, offset)) = Mmio::find(offset) else {
-            tracing::warn!("reading from unknown mmio register ({offset:04X})");
+            tracing::error!("reading from unknown mmio register ({offset:04X})");
             return P::default();
         };
 
@@ -173,7 +173,7 @@ impl System {
 
     fn write_mmio<P: Primitive>(&mut self, offset: u16, value: P) {
         let Some((reg, offset)) = Mmio::find(offset) else {
-            tracing::warn!("writing 0x{value:08X} to unknown mmio register ({offset:04X})");
+            tracing::error!("writing 0x{value:08X} to unknown mmio register ({offset:04X})");
             return;
         };
 
