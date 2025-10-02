@@ -13,6 +13,28 @@ use std::{
     thread::JoinHandle,
 };
 
+struct RelaxedBool {
+    value: AtomicBool,
+}
+
+impl RelaxedBool {
+    fn new(value: bool) -> Self {
+        Self {
+            value: AtomicBool::new(value),
+        }
+    }
+
+    #[inline(always)]
+    fn get(&self) -> bool {
+        self.value.load(Ordering::Relaxed)
+    }
+
+    #[inline(always)]
+    fn set(&self, value: bool) {
+        self.value.store(value, Ordering::Relaxed);
+    }
+}
+
 pub struct State {
     core: Hemisphere,
     breakpoints: Vec<Address>,
@@ -53,7 +75,8 @@ impl State {
 /// Runner state shared with the worker thread.
 struct Shared {
     state: Mutex<State>,
-    advance: AtomicBool,
+    advance: RelaxedBool,
+    breakpoint: RelaxedBool,
 }
 
 /// A runner for the Hemisphere emulator.
@@ -71,7 +94,8 @@ impl Runner {
                 core,
                 breakpoints: vec![],
             }),
-            advance: AtomicBool::new(false),
+            advance: RelaxedBool::new(false),
+            breakpoint: RelaxedBool::new(false),
         });
 
         let worker = worker::WorkerThread::new(state.clone());
@@ -85,12 +109,12 @@ impl Runner {
 
     /// Whether the emulation thread is running.
     pub fn running(&self) -> bool {
-        self.state.advance.load(Ordering::Relaxed)
+        self.state.advance.get()
     }
 
     /// Continue or pause the emulation thread.
     pub fn set_run(&mut self, run: bool) {
-        self.state.advance.store(run, Ordering::Relaxed);
+        self.state.advance.set(run)
     }
 
     /// Single-step the emulator core.
@@ -107,14 +131,19 @@ impl Runner {
             panic!("runner thread died");
         }
 
-        let current = self.state.advance.load(Ordering::Relaxed);
-        self.state.advance.store(false, Ordering::Relaxed);
+        let current = self.state.advance.get();
+        self.state.advance.set(false);
 
         let mut state = self.state.state.lock();
         let result = f(&mut state);
 
-        if current {
-            self.state.advance.store(true, Ordering::Relaxed);
+        let breakpoint = self.state.breakpoint.get();
+        if breakpoint {
+            self.state.breakpoint.set(false);
+        }
+
+        if current && !breakpoint {
+            self.state.advance.set(true);
         }
 
         result

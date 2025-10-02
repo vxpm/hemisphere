@@ -16,7 +16,6 @@ use crate::{
 };
 use common::arch::disasm::{Extensions, Ins};
 use ppcjit::block::Executed;
-use tracing::{trace, trace_span};
 
 pub use common::{self, Address, Primitive, arch};
 pub use dol;
@@ -70,7 +69,8 @@ impl Hemisphere {
 
     /// Compiles a sequence of at most `limit` instructions starting at `addr` into a JIT block.
     fn compile(&mut self, addr: Address, limit: u32) -> ppcjit::Block {
-        let _span = trace_span!("compiling new block", addr = ?self.system.cpu.pc).entered();
+        let _span =
+            tracing::trace_span!("compiling new block", addr = ?self.system.cpu.pc).entered();
 
         let mut count = 0;
         let instructions = std::iter::from_fn(|| {
@@ -88,7 +88,7 @@ impl Hemisphere {
         });
 
         let block = self.jit.compiler.compile(instructions).unwrap();
-        trace!(
+        tracing::trace!(
             instructions = block.meta().seq.len(),
             "block sequence built"
         );

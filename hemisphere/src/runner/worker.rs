@@ -2,7 +2,7 @@ use crate::{Limits, runner::Shared};
 use color_backtrace::BacktracePrinter;
 use common::arch::FREQUENCY;
 use std::{
-    sync::{Arc, atomic::Ordering},
+    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -48,20 +48,20 @@ impl WorkerThread {
         let mut next = Instant::now();
         'outer: loop {
             // wait until its ok to run
-            while !self.state.advance.load(Ordering::Relaxed) {
+            while !self.state.advance.get() {
                 std::thread::yield_now();
                 next = next.max(Instant::now());
             }
 
             // emulate
             let mut guard = self.state.state.lock();
-            while self.state.advance.load(Ordering::Relaxed) {
+            while self.state.advance.get() {
                 // wait until the next slice should run
                 while next > Instant::now() {
                     std::thread::yield_now();
 
                     // if we should stop, go to outer
-                    if !self.state.advance.load(Ordering::Relaxed) {
+                    if !self.state.advance.get() {
                         continue 'outer;
                     }
                 }
@@ -79,8 +79,8 @@ impl WorkerThread {
                         .run_breakpoints(Limits::cycles(STEP_SIZE), &locked.breakpoints);
 
                     if hit {
-                        self.state.advance.store(false, Ordering::Relaxed);
-                        continue 'outer;
+                        self.state.advance.set(false);
+                        self.state.breakpoint.set(true);
                     }
 
                     executed.cycles
