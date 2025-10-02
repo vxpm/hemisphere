@@ -44,6 +44,30 @@ macro_rules! mmio {
 mmio! {
     // OFFSET, LENGTH, NAME;
 
+    // === Command Processor ===
+    0x0000, 2, CpStatus;
+    0x0002, 2, CpControl;
+    0x0004, 2, CpClear;
+    0x0020, 2, CpFifoStartLow;
+    0x0022, 2, CpFifoStartHigh;
+    0x0024, 2, CpFifoEndLow;
+    0x0026, 2, CpFifoEndHigh;
+    0x0028, 2, CpHighWatermarkLow;
+    0x002A, 2, CpHighWatermarkHigh;
+    0x002C, 2, CpLowWatermarkLow;
+    0x002E, 2, CpLowWatermarkHigh;
+    0x0030, 2, CpFifoCountLow;
+    0x0032, 2, CpFifoCountHigh;
+    0x0034, 2, CpFifoWritePtrLow;
+    0x0036, 2, CpFifoWritePtrHigh;
+    0x0038, 2, CpFifoReadPtrLow;
+    0x003A, 2, CpFifoReadPtrHigh;
+    0x003C, 2, CpFifoBreakpointLow;
+    0x003E, 2, CpFifoBreakpointHigh;
+
+    // === Pixel Engine ===
+    0x100A, 2, PixelInterruptStatus;
+
     // === Video Interface ===
     0x2000, 2, VideoVerticalTiming;
     0x2002, 2, VideoDisplayConfig;
@@ -81,6 +105,9 @@ mmio! {
     // === Processor Interface ===
     0x3000, 4, ProcessorInterruptCause;
     0x3004, 4, ProcessorInterruptMask;
+    0x300C, 4, ProcessorFifoStart;
+    0x3010, 4, ProcessorFifoEnd;
+    0x3014, 4, ProcessorFifoCurrent;
     0x302C, 4, ProcessorConsoleType;
 
     // === Memory Interface ===
@@ -102,6 +129,7 @@ mmio! {
     0x6434, 4, SerialComControl;
     0x6438, 4, SerialStatus;
     0x643C, 4, SerialExiClock;
+    0x6480, 4, SerialBuffer;
 
     // === External Interface ===
     0x6800, 4, ExiChannel0Param;
@@ -124,4 +152,7 @@ mmio! {
 
     // === Audio Interface ===
     0x6C00, 4, AudioControl;
+
+    // === PI FIFO===
+    0x8000, 4, ProcessorFifo;
 }

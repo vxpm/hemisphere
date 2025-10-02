@@ -18,7 +18,6 @@ use crate::system::{
     mmu::Mmu,
     scheduler::Scheduler,
 };
-use bitos::integer::UnsignedInt;
 use common::{
     Address,
     arch::{Cpu, Exception, FREQUENCY},
