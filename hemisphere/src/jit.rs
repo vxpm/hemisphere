@@ -242,7 +242,7 @@ pub static CTX_HOOKS: Hooks = {
         value: f64,
     ) -> bool {
         let _span = tracing::debug_span!("write quantized").entered();
-        tracing::debug!("writing quantized at {addr}");
+        tracing::debug!("writing {value} quantized at {addr}");
 
         let Some(physical) = ctx.system.translate_data_addr(addr) else {
             tracing::error!("failed to translate address {addr}");
