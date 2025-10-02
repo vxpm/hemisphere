@@ -6,7 +6,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-const STEP_SIZE: u32 = 8 * 1024;
+const STEP_SIZE: u32 = FREQUENCY / 4000; // 1/4 ms
 
 #[inline(always)]
 fn to_duration(cycles: u32) -> Duration {
@@ -49,7 +49,9 @@ impl WorkerThread {
         'outer: loop {
             // wait until its ok to run
             while !self.state.advance.get() {
+                std::hint::spin_loop();
                 std::thread::yield_now();
+
                 next = next.max(Instant::now());
             }
 
@@ -58,6 +60,7 @@ impl WorkerThread {
             while self.state.advance.get() {
                 // wait until the next slice should run
                 while next > Instant::now() {
+                    std::hint::spin_loop();
                     std::thread::yield_now();
 
                     // if we should stop, go to outer
@@ -79,6 +82,7 @@ impl WorkerThread {
                         .run_breakpoints(Limits::cycles(STEP_SIZE), &locked.breakpoints);
 
                     if hit {
+                        tracing::debug!("hit {}", locked.core.system.cpu.pc);
                         self.state.advance.set(false);
                         self.state.breakpoint.set(true);
                     }
