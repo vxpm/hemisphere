@@ -674,6 +674,53 @@ impl BlockBuilder<'_> {
         FLOAT_INFO
     }
 
+    pub fn fnmadds(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let fpr_a = self.get(ins.fpr_a());
+        let fpr_b = self.get(ins.fpr_b());
+        let fpr_c = self.get(ins.fpr_c());
+
+        let value = self.bd.ins().fma(fpr_a, fpr_c, fpr_b);
+        let value = self.bd.ins().fneg(value);
+        let value = self.round_to_single(value);
+
+        self.set(ins.fpr_d(), value);
+        self.set(Reg::PS1(ins.fpr_d()), value);
+
+        self.update_fprf_cmpz(value);
+
+        if ins.field_rc() {
+            self.update_cr1_float();
+        }
+
+        FLOAT_INFO
+    }
+
+    pub fn fnmsubs(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let fpr_a = self.get(ins.fpr_a());
+        let fpr_b = self.get(ins.fpr_b());
+        let fpr_c = self.get(ins.fpr_c());
+
+        let neg_fpr_b = self.bd.ins().fneg(fpr_b);
+        let value = self.bd.ins().fma(fpr_a, fpr_c, neg_fpr_b);
+        let value = self.bd.ins().fneg(value);
+        let value = self.round_to_single(value);
+
+        self.set(ins.fpr_d(), value);
+        self.set(Reg::PS1(ins.fpr_d()), value);
+
+        self.update_fprf_cmpz(value);
+
+        if ins.field_rc() {
+            self.update_cr1_float();
+        }
+
+        FLOAT_INFO
+    }
+
     pub fn fdivs(&mut self, ins: Ins) -> Info {
         self.check_floats();
 
@@ -687,6 +734,165 @@ impl BlockBuilder<'_> {
         self.set(Reg::PS1(ins.fpr_d()), value);
 
         self.update_fprf_cmpz(value);
+
+        if ins.field_rc() {
+            self.update_cr1_float();
+        }
+
+        FLOAT_INFO
+    }
+
+    pub fn ps_neg(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let ps_b = self.get_ps(ins.fpr_a());
+
+        let value = self.bd.ins().fneg(ps_b);
+        self.set_ps(ins.fpr_d(), value);
+
+        if ins.field_rc() {
+            self.update_cr1_float();
+        }
+
+        FLOAT_INFO
+    }
+
+    pub fn ps_mul(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let ps_a = self.get_ps(ins.fpr_a());
+        let ps_c = self.get_ps(ins.fpr_c());
+
+        let value = self.bd.ins().fmul(ps_a, ps_c);
+        self.set_ps(ins.fpr_d(), value);
+
+        let ps0 = self.get(ins.fpr_d());
+        self.update_fprf_cmpz(ps0);
+
+        if ins.field_rc() {
+            self.update_cr1_float();
+        }
+
+        FLOAT_INFO
+    }
+
+    pub fn ps_madd(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let ps_a = self.get_ps(ins.fpr_a());
+        let ps_b = self.get_ps(ins.fpr_b());
+        let ps_c = self.get_ps(ins.fpr_c());
+
+        let value = self.bd.ins().fma(ps_a, ps_c, ps_b);
+        self.set_ps(ins.fpr_d(), value);
+
+        let ps0 = self.get(ins.fpr_d());
+        self.update_fprf_cmpz(ps0);
+
+        if ins.field_rc() {
+            self.update_cr1_float();
+        }
+
+        FLOAT_INFO
+    }
+
+    pub fn ps_madds0(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let ps_a = self.get_ps(ins.fpr_a());
+        let ps_b = self.get_ps(ins.fpr_b());
+
+        let ps0_c = self.get(ins.fpr_c());
+        let ps0_c = self.bd.ins().splat(ir::types::F64X2, ps0_c);
+
+        let value = self.bd.ins().fma(ps_a, ps0_c, ps_b);
+        self.set_ps(ins.fpr_d(), value);
+
+        let ps0 = self.get(ins.fpr_d());
+        self.update_fprf_cmpz(ps0);
+
+        if ins.field_rc() {
+            self.update_cr1_float();
+        }
+
+        FLOAT_INFO
+    }
+
+    pub fn ps_madds1(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let ps_a = self.get_ps(ins.fpr_a());
+        let ps_b = self.get_ps(ins.fpr_b());
+
+        let ps1_c = self.get(Reg::PS1(ins.fpr_c()));
+        let ps1_c = self.bd.ins().splat(ir::types::F64X2, ps1_c);
+
+        let value = self.bd.ins().fma(ps_a, ps1_c, ps_b);
+        self.set_ps(ins.fpr_d(), value);
+
+        let ps0 = self.get(ins.fpr_d());
+        self.update_fprf_cmpz(ps0);
+
+        if ins.field_rc() {
+            self.update_cr1_float();
+        }
+
+        FLOAT_INFO
+    }
+
+    pub fn ps_msub(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let ps_a = self.get_ps(ins.fpr_a());
+        let ps_b = self.get_ps(ins.fpr_b());
+        let ps_c = self.get_ps(ins.fpr_c());
+
+        let neg_ps_b = self.bd.ins().fneg(ps_b);
+        let value = self.bd.ins().fma(ps_a, ps_c, neg_ps_b);
+        self.set_ps(ins.fpr_d(), value);
+
+        let ps0 = self.get(ins.fpr_d());
+        self.update_fprf_cmpz(ps0);
+
+        if ins.field_rc() {
+            self.update_cr1_float();
+        }
+
+        FLOAT_INFO
+    }
+
+    pub fn ps_muls0(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let ps_a = self.get_ps(ins.fpr_a());
+        let ps0_c = self.get(ins.fpr_c());
+
+        let ps0_c = self.bd.ins().splat(ir::types::F64X2, ps0_c);
+        let value = self.bd.ins().fmul(ps_a, ps0_c);
+        self.set_ps(ins.fpr_d(), value);
+
+        let ps0 = self.get(ins.fpr_d());
+        self.update_fprf_cmpz(ps0);
+
+        if ins.field_rc() {
+            self.update_cr1_float();
+        }
+
+        FLOAT_INFO
+    }
+
+    pub fn ps_muls1(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let ps_a = self.get_ps(ins.fpr_a());
+        let ps1_c = self.get(Reg::PS1(ins.fpr_c()));
+
+        let ps1_c = self.bd.ins().splat(ir::types::F64X2, ps1_c);
+        let value = self.bd.ins().fmul(ps_a, ps1_c);
+        self.set_ps(ins.fpr_d(), value);
+
+        let ps0 = self.get(ins.fpr_d());
+        self.update_fprf_cmpz(ps0);
 
         if ins.field_rc() {
             self.update_cr1_float();

@@ -198,10 +198,10 @@ impl Hemisphere {
                 remaining_instr
             };
 
-            let call_stack = self.system.call_stack();
-            if call_stack.0.len() > 0 {
-                tracing::debug!("({}) call stack:\n{call_stack}", self.system.cpu.pc);
-            }
+            // let call_stack = self.system.call_stack();
+            // if call_stack.0.len() > 0 {
+            //     tracing::debug!("({}) call stack:\n{call_stack}", self.system.cpu.pc);
+            // }
 
             // tracing::debug!("xfb: {}", self.system.bus.video.top_xfb_address());
             // tracing::debug!(
