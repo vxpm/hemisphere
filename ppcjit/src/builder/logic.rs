@@ -165,6 +165,17 @@ impl BlockBuilder<'_> {
         )
     }
 
+    pub fn xoris(&mut self, ins: Ins) -> Info {
+        self.basic_bitop(
+            ins,
+            BasicBitOp {
+                kind: BasicBitOpKind::Xor,
+                rhs: BasicBitOpRhs::ShiftedImm,
+                record: false,
+            },
+        )
+    }
+
     pub fn and(&mut self, ins: Ins) -> Info {
         self.basic_bitop(
             ins,

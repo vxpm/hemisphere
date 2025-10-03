@@ -551,6 +551,8 @@ impl BlockBuilder<'_> {
 /// Floating point addition operations
 impl BlockBuilder<'_> {
     pub fn fadds(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
         let fpr_a = self.get(ins.fpr_a());
         let fpr_b = self.get(ins.fpr_b());
 
@@ -573,6 +575,8 @@ impl BlockBuilder<'_> {
 /// Floating point subtraction operations
 impl BlockBuilder<'_> {
     pub fn fsub(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
         let fpr_a = self.get(ins.fpr_a());
         let fpr_b = self.get(ins.fpr_b());
 
@@ -589,6 +593,8 @@ impl BlockBuilder<'_> {
     }
 
     pub fn fsubs(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
         let fpr_a = self.get(ins.fpr_a());
         let fpr_b = self.get(ins.fpr_b());
 
@@ -611,6 +617,8 @@ impl BlockBuilder<'_> {
 /// Floating point multiply and divide operations
 impl BlockBuilder<'_> {
     pub fn fneg(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
         let fpr_b = self.get(ins.fpr_b());
 
         let value = self.bd.ins().fneg(fpr_b);
@@ -624,10 +632,33 @@ impl BlockBuilder<'_> {
     }
 
     pub fn fmuls(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
         let fpr_a = self.get(ins.fpr_a());
         let fpr_c = self.get(ins.fpr_c());
 
         let value = self.bd.ins().fmul(fpr_a, fpr_c);
+        let value = self.round_to_single(value);
+
+        self.set(ins.fpr_d(), value);
+        self.set(Reg::PS1(ins.fpr_d()), value);
+
+        self.update_fprf_cmpz(value);
+
+        if ins.field_rc() {
+            self.update_cr1_float();
+        }
+
+        FLOAT_INFO
+    }
+
+    pub fn fdivs(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let fpr_a = self.get(ins.fpr_a());
+        let fpr_b = self.get(ins.fpr_b());
+
+        let value = self.bd.ins().fdiv(fpr_a, fpr_b);
         let value = self.round_to_single(value);
 
         self.set(ins.fpr_d(), value);

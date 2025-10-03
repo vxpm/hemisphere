@@ -702,6 +702,8 @@ impl BlockBuilder<'_> {
     }
 
     pub fn stfs(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
         let addr = if ins.field_ra() == 0 {
             self.ir_value(ins.field_offset() as i32)
         } else {

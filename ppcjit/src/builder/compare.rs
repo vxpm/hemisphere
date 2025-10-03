@@ -3,7 +3,7 @@ use crate::builder::{Action, Info};
 use common::arch::{InsExt, SPR, disasm::Ins};
 use cranelift::{
     codegen::ir,
-    prelude::{InstBuilder, IntCC},
+    prelude::{FloatCC, InstBuilder, IntCC},
 };
 
 const CMP_INFO: Info = Info {
@@ -12,6 +12,7 @@ const CMP_INFO: Info = Info {
     action: Action::Continue,
 };
 
+/// Integer comparison operations
 impl BlockBuilder<'_> {
     fn compare_signed(&mut self, a: ir::Value, b: ir::Value, index: u8) {
         let xer = self.get(SPR::XER);
@@ -73,6 +74,26 @@ impl BlockBuilder<'_> {
         let imm = self.ir_value(ins.field_uimm() as u32);
 
         self.compare_unsigned(ra, imm, ins.field_crfd());
+
+        CMP_INFO
+    }
+}
+
+/// Floating point comparison operations
+impl BlockBuilder<'_> {
+    pub fn fcmpu(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let fpr_a = self.get(ins.fpr_a());
+        let fpr_b = self.get(ins.fpr_b());
+
+        let lt = self.bd.ins().fcmp(FloatCC::LessThan, fpr_a, fpr_b);
+        let gt = self.bd.ins().fcmp(FloatCC::GreaterThan, fpr_a, fpr_b);
+        let eq = self.bd.ins().fcmp(FloatCC::Equal, fpr_a, fpr_b);
+        let un = self.bd.ins().fcmp(FloatCC::Unordered, fpr_a, fpr_b);
+
+        self.update_fprf(lt, gt, eq, un);
+        self.update_cr(ins.field_crfd(), lt, gt, eq, un);
 
         CMP_INFO
     }

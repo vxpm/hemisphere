@@ -504,6 +504,7 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Sync => self.nop(Action::FlushAndPrologue),
             Opcode::Xor => self.xor(ins),
             Opcode::Xori => self.xori(ins),
+            Opcode::Xoris => self.xoris(ins),
             Opcode::PsqSt => self.psq_st(ins),
             Opcode::Stfs => self.stfs(ins),
             Opcode::Fsub => self.fsub(ins),
@@ -512,6 +513,10 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Fneg => self.fneg(ins),
             Opcode::Fadds => self.fadds(ins),
             Opcode::Fsubs => self.fsubs(ins),
+            Opcode::Fcmpu => self.fcmpu(ins),
+            Opcode::Fdivs => self.fdivs(ins),
+            Opcode::Cror => self.cror(ins),
+            Opcode::Fctiwz => self.fctiwz(ins),
             Opcode::Illegal => {
                 return Err(BuilderError::Illegal(ins));
             }
