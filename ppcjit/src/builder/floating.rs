@@ -1,7 +1,6 @@
 use super::BlockBuilder;
 use crate::builder::{Action, Info};
 use common::arch::{InsExt, disasm::Ins};
-use cranelift::{codegen::ir, prelude::InstBuilder};
 
 const FLOAT_INFO: Info = Info {
     cycles: 1,
@@ -28,11 +27,10 @@ impl BlockBuilder<'_> {
 
         let fpr_b = self.get(ins.fpr_b());
 
-        let single = self.bd.ins().fdemote(ir::types::F32, fpr_b);
-        let double = self.bd.ins().fpromote(ir::types::F64, single);
-        self.set(ins.fpr_d(), double);
+        let value = self.round_to_single(fpr_b);
+        self.set(ins.fpr_d(), value);
 
-        self.update_fprf_cmpz(double);
+        self.update_fprf_cmpz(value);
 
         if ins.field_rc() {
             self.update_cr1_float();

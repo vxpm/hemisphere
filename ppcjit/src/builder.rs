@@ -508,6 +508,10 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Stfs => self.stfs(ins),
             Opcode::Fsub => self.fsub(ins),
             Opcode::Frsp => self.frsp(ins),
+            Opcode::Fmuls => self.fmuls(ins),
+            Opcode::Fneg => self.fneg(ins),
+            Opcode::Fadds => self.fadds(ins),
+            Opcode::Fsubs => self.fsubs(ins),
             Opcode::Illegal => {
                 return Err(BuilderError::Illegal(ins));
             }

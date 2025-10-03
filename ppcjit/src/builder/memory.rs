@@ -31,14 +31,8 @@ impl ReadWriteAble for i32 {
     const WRITE_OFFSET: i32 = offset_of!(Hooks, write_i32) as i32;
 }
 
-impl ReadWriteAble for f32 {
-    const IR_TYPE: ir::Type = ir::types::F32;
-    const READ_OFFSET: i32 = offset_of!(Hooks, read_i32) as i32;
-    const WRITE_OFFSET: i32 = offset_of!(Hooks, write_i32) as i32;
-}
-
-impl ReadWriteAble for f64 {
-    const IR_TYPE: ir::Type = ir::types::F64;
+impl ReadWriteAble for i64 {
+    const IR_TYPE: ir::Type = ir::types::I64;
     const READ_OFFSET: i32 = offset_of!(Hooks, read_i64) as i32;
     const WRITE_OFFSET: i32 = offset_of!(Hooks, write_i64) as i32;
 }
@@ -481,7 +475,12 @@ impl BlockBuilder<'_> {
             self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
         };
 
-        let value = self.read::<f64>(addr);
+        let value = self.read::<i64>(addr);
+        let value = self
+            .bd
+            .ins()
+            .bitcast(ir::types::F64, ir::MemFlags::new(), value);
+
         let paired = self.bd.ins().splat(ir::types::F64X2, value);
         self.set_ps(ins.fpr_d(), paired);
 
@@ -498,7 +497,12 @@ impl BlockBuilder<'_> {
             self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
         };
 
-        let value = self.read::<f32>(addr);
+        let value = self.read::<i32>(addr);
+        let value = self
+            .bd
+            .ins()
+            .bitcast(ir::types::F32, ir::MemFlags::new(), value);
+
         let double = self.bd.ins().fpromote(ir::types::F64, value);
         let paired = self.bd.ins().splat(ir::types::F64X2, double);
         self.set_ps(ins.fpr_d(), paired);
@@ -687,7 +691,12 @@ impl BlockBuilder<'_> {
         };
 
         let value = self.get(ins.fpr_s());
-        self.write::<f64>(addr, value);
+        let value = self
+            .bd
+            .ins()
+            .bitcast(ir::types::I64, ir::MemFlags::new(), value);
+
+        self.write::<i64>(addr, value);
 
         STORE_INFO
     }
@@ -701,8 +710,13 @@ impl BlockBuilder<'_> {
         };
 
         let value = self.get(ins.fpr_s());
-        let single = self.bd.ins().fdemote(ir::types::F32, value);
-        self.write::<f32>(addr, single);
+        let value = self.bd.ins().fdemote(ir::types::F32, value);
+        let value = self
+            .bd
+            .ins()
+            .bitcast(ir::types::I32, ir::MemFlags::new(), value);
+
+        self.write::<i32>(addr, value);
 
         STORE_INFO
     }

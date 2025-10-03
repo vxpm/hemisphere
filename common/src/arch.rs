@@ -41,6 +41,8 @@ pub trait InsExt {
     fn fpr_a(&self) -> FPR;
     /// FPR indicated by field frB.
     fn fpr_b(&self) -> FPR;
+    /// FPR indicated by field frC.
+    fn fpr_c(&self) -> FPR;
     /// FPR indicated by field frS.
     fn fpr_s(&self) -> FPR;
     /// FPR indicated by field frD.
@@ -78,6 +80,11 @@ impl InsExt for disasm::Ins {
     #[inline(always)]
     fn fpr_b(&self) -> FPR {
         FPR::new(self.field_frb())
+    }
+
+    #[inline(always)]
+    fn fpr_c(&self) -> FPR {
+        FPR::new(self.field_frc())
     }
 
     #[inline(always)]
