@@ -23,5 +23,4 @@ addr2line = { version = "0.25", features = [
 ], default-features = false }
 backtrace = "0.3"
 color-backtrace = "0.7"
-interavl = "0.3.0"
 parking_lot = "0.12"

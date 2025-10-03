@@ -4,7 +4,6 @@ use common::{
     arch::{Cpu, QuantizedType},
     util::boxed_array,
 };
-use interavl::IntervalTree;
 use ppcjit::{
     Block,
     block::{
@@ -14,29 +13,30 @@ use ppcjit::{
 };
 use slotmap::{SlotMap, new_key_type};
 use std::{collections::BTreeMap, ops::Range};
-use tracing::{info, trace};
 
+/// A page is 4096 (1^12) bytes. Therefore, there are 2^20 pages.
 const PAGE_COUNT: usize = 1 << 20;
 type PageLUT = Box<[u16; PAGE_COUNT]>;
 
 new_key_type! {
+    /// Identifier for a block in a [`Blocks`] storage.
     pub struct BlockId;
 }
 
+/// Mapping of addresses to JIT blocks.
 pub struct BlockMapping {
-    address: BTreeMap<Address, BlockId>,
-    intervals: IntervalTree<Address, BlockId>,
+    address: BTreeMap<Address, (BlockId, u32)>,
     page_lut: PageLUT,
 
     // caching stuff
-    buffer: Vec<Range<Address>>,
+    invalidation_buffer: Vec<Range<Address>>,
     last_query: Option<(Address, BlockId)>,
 }
 
 impl BlockMapping {
     fn insert(&mut self, range: Range<Address>, id: BlockId) {
-        self.address.insert(range.start, id);
-        self.intervals.insert(range.clone(), id);
+        self.address
+            .insert(range.start, (id, range.end.value() - range.start.value()));
 
         // update LUT
         let start_page = range.start.value() >> 12;
@@ -55,13 +55,13 @@ impl BlockMapping {
             std::hint::cold_path();
             Some(id)
         } else {
-            let id = *self.address.get(&addr)?;
+            let (id, _) = *self.address.get(&addr)?;
             self.last_query = Some((addr, id));
             Some(id)
         }
     }
 
-    /// Invalidates all blocks that contain `addr`.
+    /// Invalidates all block mappings that contain `addr`.
     #[inline(always)]
     pub fn invalidate(&mut self, addr: Address) {
         // check LUT first
@@ -72,14 +72,15 @@ impl BlockMapping {
             std::hint::cold_path();
         }
 
-        let range = addr..addr + 1;
-        for (range, _) in self.intervals.iter_overlaps(&range) {
-            self.buffer.push(range.clone());
-        }
+        self.invalidation_buffer.extend(
+            self.address
+                .range(addr..)
+                .map(|(addr, (_, len))| *addr..*addr + *len)
+                .filter(|r| r.contains(&addr)),
+        );
 
-        for range in self.buffer.drain(..) {
+        for range in self.invalidation_buffer.drain(..) {
             self.address.remove(&range.start);
-            self.intervals.remove(&range);
 
             // update LUT
             let start_page = range.start.value() >> 12;
@@ -98,12 +99,12 @@ impl BlockMapping {
         }
     }
 
+    /// Invalidates all mappings.
     pub fn clear(&mut self) {
         self.address.clear();
-        self.intervals = IntervalTree::default();
         self.page_lut.fill(0);
 
-        self.buffer.clear();
+        self.invalidation_buffer.clear();
         self.last_query = None;
     }
 }
@@ -112,10 +113,9 @@ impl Default for BlockMapping {
     fn default() -> Self {
         Self {
             address: BTreeMap::default(),
-            intervals: IntervalTree::default(),
             page_lut: boxed_array(0),
 
-            buffer: Vec::with_capacity(64),
+            invalidation_buffer: Vec::with_capacity(64),
             last_query: None,
         }
     }
@@ -157,7 +157,9 @@ impl Blocks {
 
 /// Context to be passed in for execution of JIT blocks.
 pub struct Context<'a> {
+    /// The system state, so that the JIT block can operate on it.
     pub system: &'a mut System,
+    /// The block mapping, so that write operations can invalidate blocks.
     pub mapping: &'a mut BlockMapping,
 }
 
@@ -204,9 +206,6 @@ pub static CTX_HOOKS: Hooks = {
         gqr: u8,
         value: &mut f64,
     ) -> bool {
-        let _span = tracing::debug_span!("read quantized").entered();
-        tracing::debug!("reading quantized at {addr}");
-
         let Some(physical) = ctx.system.translate_data_addr(addr) else {
             tracing::error!("failed to translate address {addr}");
             return false;
@@ -224,11 +223,9 @@ pub static CTX_HOOKS: Hooks = {
             ),
         };
 
-        tracing::debug!("read {read}");
         if scale {
             let scale = gqr.load_scale().value();
             read *= 2.0f64.powi(-scale as i32);
-            tracing::debug!("scalign with {scale}, new value {read}");
         }
 
         *value = read;
@@ -241,9 +238,6 @@ pub static CTX_HOOKS: Hooks = {
         gqr: u8,
         value: f64,
     ) -> bool {
-        let _span = tracing::debug_span!("write quantized").entered();
-        tracing::debug!("writing {value} quantized at {addr}");
-
         let Some(physical) = ctx.system.translate_data_addr(addr) else {
             tracing::error!("failed to translate address {addr}");
             return false;
@@ -255,7 +249,6 @@ pub static CTX_HOOKS: Hooks = {
             .unwrap_or(0);
         let scaled = value * 2.0f64.powi(-scale as i32);
 
-        tracing::debug!("scalign with {scale}, new value {scaled}");
         match gqr.store_type() {
             QuantizedType::U8 => ctx.system.write(physical, scaled as u8),
             QuantizedType::U16 => ctx.system.write(physical, scaled as u16),
@@ -268,7 +261,7 @@ pub static CTX_HOOKS: Hooks = {
     }
 
     extern "sysv64-unwind" fn ibat_changed(ctx: &mut Context) {
-        info!("ibats changed - clearing blocks mapping and rebuilding ibat lut");
+        tracing::info!("ibats changed - clearing blocks mapping and rebuilding ibat lut");
         ctx.mapping.clear();
         ctx.system
             .mmu
@@ -276,7 +269,7 @@ pub static CTX_HOOKS: Hooks = {
     }
 
     extern "sysv64-unwind" fn dbat_changed(ctx: &mut Context) {
-        info!("dbats changed - rebuilding dbat lut");
+        tracing::info!("dbats changed - rebuilding dbat lut");
         ctx.system
             .mmu
             .build_data_bat_lut(&ctx.system.cpu.supervisor.memory.dbat);
@@ -293,7 +286,7 @@ pub static CTX_HOOKS: Hooks = {
             .retain(|e| e.event != Event::Decrementer);
 
         let dec = ctx.system.cpu.supervisor.misc.dec;
-        trace!("decrementer changed to {dec}");
+        tracing::trace!("decrementer changed to {dec}");
 
         ctx.system
             .scheduler
@@ -306,7 +299,7 @@ pub static CTX_HOOKS: Hooks = {
 
     extern "sysv64-unwind" fn tb_changed(ctx: &mut Context) {
         ctx.system.lazy.last_updated_tb = ctx.system.scheduler.elapsed_time_base();
-        info!("time base changed to {}", ctx.system.cpu.supervisor.misc.tb);
+        tracing::info!("time base changed to {}", ctx.system.cpu.supervisor.misc.tb);
     }
 
     #[expect(

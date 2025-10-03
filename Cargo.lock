@@ -1543,7 +1543,6 @@ dependencies = [
  "common",
  "dol",
  "easyerr",
- "interavl",
  "parking_lot",
  "ppcjit",
  "rustc-hash 2.1.1",
@@ -1718,12 +1717,6 @@ dependencies = [
  "equivalent",
  "hashbrown 0.16.0",
 ]
-
-[[package]]
-name = "interavl"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ce597ef4ab19d5b19d8eac262205ca23606e45f01c25315c8d9169ffdbaa92f5"
 
 [[package]]
 name = "is_ci"

@@ -31,10 +31,14 @@ pub struct Config {
     pub vsync_callback: Option<Callback>,
 }
 
+/// An event which can be scheduled to happen at a specific time.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Event {
+    /// Decrementer has underflowed.
     Decrementer,
+    /// Check external interrupts.
     CheckInterrupts,
+    /// A video interface event.
     Video(video::Event),
 }
 
