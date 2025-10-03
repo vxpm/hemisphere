@@ -509,55 +509,6 @@ impl BlockBuilder<'_> {
 
         LOAD_INFO
     }
-
-    pub fn psq_l(&mut self, ins: Ins) -> Info {
-        self.check_floats();
-
-        let addr = if ins.field_ra() == 0 {
-            self.ir_value(ins.field_offset() as i32)
-        } else {
-            let ra = self.get(ins.gpr_a());
-            self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
-        };
-
-        let index = self.ir_value(ins.field_ps_i());
-        let ps0 = self.read_quantized(addr, index);
-        let ps1 = if ins.field_ps_w() == 0 {
-            let addr = self.bd.ins().iadd_imm(addr, 8);
-            self.read_quantized(addr, index)
-        } else {
-            self.ir_value(1.0f64)
-        };
-
-        let fpr_d = ins.fpr_d();
-        self.set(fpr_d, ps0);
-        self.set(Reg::PS1(fpr_d), ps1);
-
-        LOAD_INFO
-    }
-
-    pub fn psq_st(&mut self, ins: Ins) -> Info {
-        self.check_floats();
-
-        let addr = if ins.field_ra() == 0 {
-            self.ir_value(ins.field_offset() as i32)
-        } else {
-            let ra = self.get(ins.gpr_a());
-            self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
-        };
-
-        let ps0 = self.get(ins.fpr_s());
-        let ps1 = self.get(Reg::PS1(ins.fpr_s()));
-        let index = self.ir_value(ins.field_ps_i());
-
-        self.write_quantized(addr, index, ps0);
-        if ins.field_ps_w() == 0 {
-            let addr = self.bd.ins().iadd_imm(addr, 8);
-            self.write_quantized(addr, index, ps1);
-        }
-
-        STORE_INFO
-    }
 }
 
 const STORE_INFO: Info = Info {
@@ -719,6 +670,81 @@ impl BlockBuilder<'_> {
             .bitcast(ir::types::I32, ir::MemFlags::new(), value);
 
         self.write::<i32>(addr, value);
+
+        STORE_INFO
+    }
+}
+
+/// FPR store operations
+impl BlockBuilder<'_> {
+    pub fn stfiwx(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let rb = self.get(ins.gpr_b());
+        let addr = if ins.field_ra() == 0 {
+            rb
+        } else {
+            let ra = self.get(ins.gpr_a());
+            self.bd.ins().iadd(ra, rb)
+        };
+
+        let fpr_s = self.get(ins.fpr_s());
+        let int64 = self
+            .bd
+            .ins()
+            .bitcast(ir::types::I64, ir::MemFlags::new(), fpr_s);
+        let int32 = self.bd.ins().ireduce(ir::types::I32, int64);
+
+        self.write::<i32>(addr, int32);
+
+        STORE_INFO
+    }
+
+    pub fn psq_l(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let addr = if ins.field_ra() == 0 {
+            self.ir_value(ins.field_offset() as i32)
+        } else {
+            let ra = self.get(ins.gpr_a());
+            self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
+        };
+
+        let index = self.ir_value(ins.field_ps_i());
+        let ps0 = self.read_quantized(addr, index);
+        let ps1 = if ins.field_ps_w() == 0 {
+            let addr = self.bd.ins().iadd_imm(addr, 8);
+            self.read_quantized(addr, index)
+        } else {
+            self.ir_value(1.0f64)
+        };
+
+        let fpr_d = ins.fpr_d();
+        self.set(fpr_d, ps0);
+        self.set(Reg::PS1(fpr_d), ps1);
+
+        LOAD_INFO
+    }
+
+    pub fn psq_st(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let addr = if ins.field_ra() == 0 {
+            self.ir_value(ins.field_offset() as i32)
+        } else {
+            let ra = self.get(ins.gpr_a());
+            self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
+        };
+
+        let ps0 = self.get(ins.fpr_s());
+        let ps1 = self.get(Reg::PS1(ins.fpr_s()));
+        let index = self.ir_value(ins.field_ps_i());
+
+        self.write_quantized(addr, index, ps0);
+        if ins.field_ps_w() == 0 {
+            let addr = self.bd.ins().iadd_imm(addr, 8);
+            self.write_quantized(addr, index, ps1);
+        }
 
         STORE_INFO
     }

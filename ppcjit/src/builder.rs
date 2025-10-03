@@ -517,6 +517,8 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Fdivs => self.fdivs(ins),
             Opcode::Cror => self.cror(ins),
             Opcode::Fctiwz => self.fctiwz(ins),
+            Opcode::Stfiwx => self.stfiwx(ins),
+            Opcode::Fmadds => self.fmadds(ins),
             Opcode::Illegal => {
                 return Err(BuilderError::Illegal(ins));
             }

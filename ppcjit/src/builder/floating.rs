@@ -43,7 +43,7 @@ impl BlockBuilder<'_> {
     pub fn fctiwz(&mut self, ins: Ins) -> Info {
         self.check_floats();
 
-        let fpr_b = self.get_ps(ins.fpr_b());
+        let fpr_b = self.get(ins.fpr_b());
         let int32 = self.bd.ins().fcvt_to_sint_sat(ir::types::I32, fpr_b);
         let int64 = self.bd.ins().sextend(ir::types::I64, int32);
         let float = self
