@@ -1,7 +1,7 @@
 mod mmio;
 
 use crate::system::{
-    Event, System, dsp,
+    Event, System, dsp, gpu,
     mem::{IPL_LEN, Memory, RAM_LEN},
     processor, video,
 };
@@ -18,6 +18,7 @@ pub struct Bus {
     pub dsp: dsp::Interface,
     pub video: video::Interface,
     pub processor: processor::Interface,
+    pub gpu: gpu::Interface,
 }
 
 /// Allows the usage of const values in patterns. It's a neat trick!
@@ -80,6 +81,25 @@ impl System {
         }
 
         let value = match reg {
+            // === Command Processor ===
+            Mmio::CpStatus => ne!(self.bus.gpu.command.status.as_bytes()),
+            Mmio::CpControl => ne!(self.bus.gpu.command.control.as_bytes()),
+            Mmio::CpClear => ne!(&[0, 0]),
+            Mmio::CpFifoStartLow => ne!(self.bus.gpu.command.fifo_start.as_bytes()[0..2]),
+            Mmio::CpFifoStartHigh => ne!(self.bus.gpu.command.fifo_start.as_bytes()[2..4]),
+            Mmio::CpFifoEndLow => ne!(self.bus.gpu.command.fifo_end.as_bytes()[0..2]),
+            Mmio::CpFifoEndHigh => ne!(self.bus.gpu.command.fifo_end.as_bytes()[2..4]),
+            Mmio::CpHighWatermarkLow => ne!(self.bus.gpu.command.fifo_high_mark.as_bytes()[0..2]),
+            Mmio::CpHighWatermarkHigh => ne!(self.bus.gpu.command.fifo_high_mark.as_bytes()[2..4]),
+            Mmio::CpLowWatermarkLow => ne!(self.bus.gpu.command.fifo_low_mark.as_bytes()[0..2]),
+            Mmio::CpLowWatermarkHigh => ne!(self.bus.gpu.command.fifo_low_mark.as_bytes()[2..4]),
+            Mmio::CpFifoCountLow => ne!(self.bus.gpu.command.fifo_count.as_bytes()[0..2]),
+            Mmio::CpFifoCountHigh => ne!(self.bus.gpu.command.fifo_count.as_bytes()[2..4]),
+            Mmio::CpFifoWritePtrLow => ne!(self.bus.gpu.command.fifo_write_ptr.as_bytes()[0..2]),
+            Mmio::CpFifoWritePtrHigh => ne!(self.bus.gpu.command.fifo_write_ptr.as_bytes()[2..4]),
+            Mmio::CpFifoReadPtrLow => ne!(self.bus.gpu.command.fifo_read_ptr.as_bytes()[0..2]),
+            Mmio::CpFifoReadPtrHigh => ne!(self.bus.gpu.command.fifo_read_ptr.as_bytes()[2..4]),
+
             // === Video Interface ===
             Mmio::VideoVerticalTiming => ne!(self.bus.video.vertical_timing.as_bytes()),
             Mmio::VideoDisplayConfig => ne!(self.bus.video.display_config.as_bytes()),
@@ -195,6 +215,41 @@ impl System {
         }
 
         match reg {
+            // === Command Processor ===
+            Mmio::CpStatus => ne!(self.bus.gpu.command.status.as_mut_bytes()),
+            Mmio::CpControl => ne!(self.bus.gpu.command.control.as_mut_bytes()),
+            Mmio::CpClear => {
+                let mut written = 0;
+                ne!(written.as_mut_bytes());
+                self.bus.gpu.command.write_clear(written);
+            }
+            Mmio::CpFifoStartLow => ne!(self.bus.gpu.command.fifo_start.as_mut_bytes()[0..2]),
+            Mmio::CpFifoStartHigh => ne!(self.bus.gpu.command.fifo_start.as_mut_bytes()[2..4]),
+            Mmio::CpFifoEndLow => ne!(self.bus.gpu.command.fifo_end.as_mut_bytes()[0..2]),
+            Mmio::CpFifoEndHigh => ne!(self.bus.gpu.command.fifo_end.as_mut_bytes()[2..4]),
+            Mmio::CpHighWatermarkLow => {
+                ne!(self.bus.gpu.command.fifo_high_mark.as_mut_bytes()[0..2])
+            }
+            Mmio::CpHighWatermarkHigh => {
+                ne!(self.bus.gpu.command.fifo_high_mark.as_mut_bytes()[2..4])
+            }
+            Mmio::CpLowWatermarkLow => {
+                ne!(self.bus.gpu.command.fifo_low_mark.as_mut_bytes()[0..2])
+            }
+            Mmio::CpLowWatermarkHigh => {
+                ne!(self.bus.gpu.command.fifo_low_mark.as_mut_bytes()[2..4])
+            }
+            Mmio::CpFifoCountLow => ne!(self.bus.gpu.command.fifo_count.as_mut_bytes()[0..2]),
+            Mmio::CpFifoCountHigh => ne!(self.bus.gpu.command.fifo_count.as_mut_bytes()[2..4]),
+            Mmio::CpFifoWritePtrLow => {
+                ne!(self.bus.gpu.command.fifo_write_ptr.as_mut_bytes()[0..2])
+            }
+            Mmio::CpFifoWritePtrHigh => {
+                ne!(self.bus.gpu.command.fifo_write_ptr.as_mut_bytes()[2..4])
+            }
+            Mmio::CpFifoReadPtrLow => ne!(self.bus.gpu.command.fifo_read_ptr.as_mut_bytes()[0..2]),
+            Mmio::CpFifoReadPtrHigh => ne!(self.bus.gpu.command.fifo_read_ptr.as_mut_bytes()[2..4]),
+
             // === Video Interface ===
             Mmio::VideoVerticalTiming => ne!(self.bus.video.vertical_timing.as_mut_bytes()),
             Mmio::VideoDisplayConfig => {

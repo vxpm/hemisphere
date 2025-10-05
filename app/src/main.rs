@@ -4,6 +4,7 @@ mod cli;
 mod control;
 mod debug;
 mod disasm;
+mod subsystem;
 mod xfb;
 
 use clap::Parser;
@@ -41,23 +42,25 @@ struct Window {
 }
 
 impl Window {
-    pub fn new(ui: impl WindowUi + 'static, open: bool) -> Self {
+    pub fn new(ui: impl WindowUi + 'static) -> Self {
         Self {
-            open,
+            open: true,
             ui: Box::new(ui),
         }
     }
+}
 
-    pub fn open(ui: impl WindowUi + 'static) -> Self {
-        Self::new(ui, true)
-    }
+struct WindowGroup {
+    name: &'static str,
+    windows: Vec<Window>,
+    groups: Vec<WindowGroup>,
 }
 
 struct App {
     last_update: Instant,
     runner: Runner,
     vsync_count: Arc<AtomicU64>,
-    windows: Vec<Window>,
+    root: WindowGroup,
 }
 
 impl App {
@@ -92,21 +95,75 @@ impl App {
         });
         runner.set_run(args.run);
 
+        let subsystem = WindowGroup {
+            name: "Subsystems",
+            windows: vec![Window::new(subsystem::cp::Window::default())],
+            groups: vec![],
+        };
+
+        let root = WindowGroup {
+            name: "root",
+            windows: vec![
+                // xfb
+                Window::new(xfb::Window::new()),
+                // cpu
+                Window::new(control::Window::default()),
+                Window::new(disasm::Window::default()),
+                // debug
+                Window::new(debug::Window::default()),
+            ],
+            groups: vec![subsystem],
+        };
+
         cc.egui_ctx.set_zoom_factor(1.0);
         Ok(Self {
             last_update: Instant::now(),
             runner,
             vsync_count,
-            windows: vec![
-                // xfb
-                Window::open(xfb::Window::new()),
-                // cpu
-                Window::open(control::Window::default()),
-                Window::open(disasm::Window::default()),
-                // debug
-                Window::open(debug::Window::default()),
-            ],
+            root,
         })
+    }
+}
+
+fn display_group(ui: &mut egui::Ui, group: &mut WindowGroup) {
+    for window in &mut group.windows {
+        let button = egui::Button::new(window.ui.title()).selected(window.open);
+        if ui.add(button).clicked() {
+            window.open = !window.open;
+        }
+    }
+
+    for group in &mut group.groups {
+        ui.menu_button(group.name, |ui| {
+            display_group(ui, group);
+        });
+    }
+}
+
+fn display_windows(
+    egui_ctx: &egui::Context,
+    max_rect: egui::Rect,
+    current_id: &mut u32,
+    context: &mut Ctx,
+    state: &mut State,
+    group: &mut WindowGroup,
+) {
+    for win in &mut group.windows {
+        let widget = egui::Window::new(win.ui.title())
+            .open(&mut win.open)
+            .id(egui::Id::new(*current_id))
+            .resizable(true)
+            .min_size(egui::Vec2::ZERO);
+
+        *current_id += 1;
+
+        widget
+            .constrain_to(max_rect)
+            .show(egui_ctx, |ui| win.ui.show(ui, context, state));
+    }
+
+    for group in &mut group.groups {
+        display_windows(egui_ctx, max_rect, current_id, context, state, group);
     }
 }
 
@@ -116,12 +173,7 @@ impl eframe::App for App {
             egui::MenuBar::new().ui(ui, |ui| {
                 ui.label("Hemisphere");
                 ui.menu_button("🗖 View", |ui| {
-                    for window in &mut self.windows {
-                        let button = egui::Button::new(window.ui.title()).selected(window.open);
-                        if ui.add(button).clicked() {
-                            window.open = !window.open;
-                        }
-                    }
+                    display_group(ui, &mut self.root);
                 });
             });
         });
@@ -134,17 +186,15 @@ impl eframe::App for App {
 
         self.runner.with_state(|state| {
             egui::CentralPanel::default().show(ctx, |ui| {
-                for (i, win) in self.windows.iter_mut().enumerate() {
-                    let widget = egui::Window::new(win.ui.title())
-                        .open(&mut win.open)
-                        .id(egui::Id::new(i))
-                        .resizable(true)
-                        .min_size(egui::Vec2::ZERO);
-
-                    widget
-                        .constrain_to(ui.max_rect())
-                        .show(ctx, |ui| win.ui.show(ui, &mut context, state));
-                }
+                let mut id = 0;
+                display_windows(
+                    ctx,
+                    ui.max_rect(),
+                    &mut id,
+                    &mut context,
+                    state,
+                    &mut self.root,
+                );
             });
         });
 

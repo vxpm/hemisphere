@@ -4,6 +4,7 @@ pub mod bus;
 pub mod dsp;
 pub mod eabi;
 pub mod executable;
+pub mod gpu;
 pub mod lazy;
 pub mod mem;
 pub mod mmu;
