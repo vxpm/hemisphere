@@ -1,7 +1,7 @@
 use bitos::{BitUtils, bitos, integer::u3};
 use common::{Address, util::DataStream};
 
-use crate::system::gpu::BypassReg;
+use crate::system::gpu::{BypassReg, CpReg};
 
 #[bitos(5)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -39,7 +39,7 @@ pub enum Command {
     Nop,
     InvalidateVertexCache,
     SetCP {
-        register: u8,
+        register: CpReg,
         value: u32,
     },
     SetBP {
@@ -68,6 +68,10 @@ impl Command {
             Operation::SetCP => {
                 let register = reader.read_be::<u8>()?;
                 let value = reader.read_be::<u32>()?;
+
+                let Some(register) = CpReg::from_repr(register) else {
+                    panic!("unknown cp register {register:02X}");
+                };
 
                 Command::SetCP { register, value }
             }
