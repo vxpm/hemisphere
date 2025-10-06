@@ -39,6 +39,8 @@ pub enum Event {
     Decrementer,
     /// Check external interrupts.
     CheckInterrupts,
+    /// Process commands in the CP FIFO.
+    CommandProcessor,
     /// A video interface event.
     Video(video::Event),
 }
@@ -157,9 +159,8 @@ impl System {
                     self.scheduler.schedule(Event::Decrementer, 32);
                 }
             }
-            Event::CheckInterrupts => {
-                self.check_external_interrupts();
-            }
+            Event::CheckInterrupts => self.check_external_interrupts(),
+            Event::CommandProcessor => self.cp_update(),
             Event::Video(video::Event::VerticalCount) => {
                 self.check_display_interrupts();
 
@@ -170,14 +171,6 @@ impl System {
                         callback();
                     }
                 }
-
-                // println!(
-                //     "{}/{} ({}) ({}hz)",
-                //     self.bus.video.vertical_count,
-                //     self.bus.video.lines_per_frame(),
-                //     self.bus.video.xfb_height(),
-                //     self.bus.video.refresh_rate(),
-                // );
 
                 if !self.bus.video.display_config.progressive()
                     && self.bus.video.vertical_count as u32

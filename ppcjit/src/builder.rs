@@ -33,7 +33,7 @@ fn reg_ir_ty(reg: Reg) -> ir::Type {
 fn is_cacheable(reg: Reg) -> bool {
     match reg {
         Reg::SPR(spr) => match spr {
-            SPR::DEC | SPR::TBL | SPR::TBU => false,
+            SPR::DEC | SPR::TBL | SPR::TBU | SPR::WPAR => false,
             spr if spr.is_bat() => false,
             _ => true,
         },

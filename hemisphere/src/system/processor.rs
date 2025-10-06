@@ -1,8 +1,8 @@
 //! Processor interface.
 
-use crate::system::System;
+use crate::system::{Event, System};
 use bitos::{bitos, integer::u14};
-use common::arch::Exception;
+use common::{Address, arch::Exception};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Interrupt {
@@ -73,8 +73,15 @@ pub struct InterruptCause {
 
 #[derive(Default)]
 pub struct Interface {
+    // interrupts
     pub mask: InterruptMask,
     pub cause: InterruptCause,
+
+    // fifo
+    pub fifo_start: Address,
+    pub fifo_end: Address,
+    pub fifo_current: Address,
+    pub fifo_buffer: Vec<u8>,
 }
 
 impl Interface {
@@ -103,6 +110,37 @@ impl System {
         let allowed = self.bus.processor.allowed();
         if allowed.to_bits().value() != 0 {
             self.cpu.raise_exception(Exception::Interrupt);
+        }
+    }
+
+    /// Pushes a value into the PI FIFO. Values are queued up until 32 bytes are available, then
+    /// written all at once.
+    ///
+    /// If the CP FIFO is linked wth the PI FIFO, this will also schedule a CP update.
+    pub fn pi_fifo_push(&mut self, value: u8) {
+        self.bus.processor.fifo_buffer.push(value);
+        if self.bus.processor.fifo_buffer.len() < 32 {
+            return;
+        }
+
+        tracing::debug!("flushing PI fifo");
+
+        let data = std::mem::replace(&mut self.bus.processor.fifo_buffer, Vec::with_capacity(32));
+        for byte in data {
+            self.write(self.bus.processor.fifo_current, byte);
+            self.bus.processor.fifo_current += 1;
+
+            if self.bus.gpu.command.control.linked_mode() {
+                self.bus.gpu.command.fifo_push();
+            }
+
+            if self.bus.processor.fifo_current > self.bus.processor.fifo_end {
+                self.bus.processor.fifo_current = self.bus.processor.fifo_start;
+            }
+        }
+
+        if self.bus.gpu.command.control.linked_mode() {
+            self.scheduler.schedule(Event::CommandProcessor, 0);
         }
     }
 }

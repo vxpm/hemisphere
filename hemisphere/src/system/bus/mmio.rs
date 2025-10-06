@@ -154,5 +154,5 @@ mmio! {
     0x6C00, 4, AudioControl;
 
     // === PI FIFO===
-    0x8000, 4, ProcessorFifo;
+    0x8000, 32, ProcessorFifo;
 }

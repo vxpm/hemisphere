@@ -1547,6 +1547,7 @@ dependencies = [
  "ppcjit",
  "rustc-hash 2.1.1",
  "slotmap",
+ "strum 0.27.2",
  "tracing",
  "zerocopy",
 ]

@@ -98,6 +98,15 @@ impl std::ops::Sub<i32> for Address {
     }
 }
 
+impl std::ops::Sub<Address> for Address {
+    type Output = i64;
+
+    #[inline(always)]
+    fn sub(self, rhs: Address) -> Self::Output {
+        self.0 as i64 - rhs.0 as i64
+    }
+}
+
 impl std::ops::SubAssign<u32> for Address {
     #[inline(always)]
     fn sub_assign(&mut self, rhs: u32) {

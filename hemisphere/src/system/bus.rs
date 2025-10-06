@@ -134,10 +134,16 @@ impl System {
             Mmio::VideoClock => ne!(self.bus.video.clock.as_bytes()),
 
             // === Processor Interface ===
+            // Interrupts
             Mmio::ProcessorInterruptCause => ne!(self.bus.processor.cause.as_bytes()),
             Mmio::ProcessorInterruptMask => {
                 ne!(self.bus.processor.mask.as_bytes())
             }
+
+            // FIFO
+            Mmio::ProcessorFifoStart => ne!(self.bus.processor.fifo_start.as_bytes()),
+            Mmio::ProcessorFifoEnd => ne!(self.bus.processor.fifo_end.as_bytes()),
+            Mmio::ProcessorFifoCurrent => ne!(self.bus.processor.fifo_current.as_bytes()),
 
             // === DSP Interface ===
             Mmio::DspDspMailbox => ne!(self.bus.dsp.dsp_mailbox.as_bytes()),
@@ -205,7 +211,9 @@ impl System {
             (size as usize - offset - size_of::<P>())..(size as usize - offset)
         };
 
-        tracing::debug!("writing 0x{:08X} to {:?}[{:?}]", value, reg, range,);
+        if reg != Mmio::ProcessorFifo {
+            tracing::debug!("writing 0x{:08X} to {:?}[{:?}]", value, reg, range,);
+        }
 
         // write to native endian bytes
         macro_rules! ne {
@@ -311,6 +319,7 @@ impl System {
             Mmio::VideoClock => ne!(self.bus.video.clock.as_mut_bytes()),
 
             // === Processor Interface ===
+            // Interrupts
             Mmio::ProcessorInterruptCause => {
                 let mut written = self.bus.processor.cause;
                 ne!(written.as_mut_bytes());
@@ -320,6 +329,11 @@ impl System {
                 self.scheduler.schedule(Event::CheckInterrupts, 0);
                 ne!(self.bus.processor.mask.as_mut_bytes())
             }
+
+            // FIFO
+            Mmio::ProcessorFifoStart => ne!(self.bus.processor.fifo_start.as_mut_bytes()),
+            Mmio::ProcessorFifoEnd => ne!(self.bus.processor.fifo_end.as_mut_bytes()),
+            Mmio::ProcessorFifoCurrent => ne!(self.bus.processor.fifo_current.as_mut_bytes()),
 
             // === DSP Interface ===
             Mmio::DspDspMailbox => (),
@@ -339,6 +353,17 @@ impl System {
 
                 // HACK: stub hack, set mailbox as having data
                 self.bus.dsp.cpu_mailbox.set_status(true);
+            }
+
+            // === PI FIFO ===
+            Mmio::ProcessorFifo => {
+                let mut buf = [0; 4];
+                value.write_be_bytes(&mut buf);
+
+                let bytes = &buf[0..size_of::<P>()];
+                for byte in bytes {
+                    self.pi_fifo_push(*byte);
+                }
             }
             _ => tracing::warn!("unimplemented write to known mmio register ({reg:?})"),
         }
