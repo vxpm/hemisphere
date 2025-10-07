@@ -338,8 +338,7 @@ impl System {
     pub fn check_display_interrupts(&mut self) {
         let mut raised = false;
         for (index, interrupt) in self.video.interrupts.iter_mut().enumerate() {
-            if interrupt.enable()
-                && interrupt.vertical_count().value() == self.video.vertical_count
+            if interrupt.enable() && interrupt.vertical_count().value() == self.video.vertical_count
             {
                 raised = true;
                 interrupt.set_status(true);

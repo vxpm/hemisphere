@@ -48,4 +48,3 @@ pub fn set_hook(hook: PanicHook, print_backtrace: bool) {
         print_backtrace,
     });
 }
-
