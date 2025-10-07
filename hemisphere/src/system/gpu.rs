@@ -1,87 +1,11 @@
 pub mod command;
+pub mod transform;
 
 use crate::system::System;
+use bitos::bitos;
 use command::Command;
 use common::util::DataStream;
 use strum::FromRepr;
-
-/// A command processor register.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, FromRepr)]
-#[repr(u8)]
-pub enum CpReg {
-    Unknown = 0x20,
-
-    TexMatIndexA = 0x30,
-    TexMatIndexB = 0x40,
-
-    // VCD
-    VcdLow = 0x50,
-    VcdHigh = 0x60,
-
-    // VAT
-    Vat0Format0 = 0x70,
-    Vat0Format1 = 0x71,
-    Vat0Format2 = 0x72,
-    Vat0Format3 = 0x73,
-    Vat0Format4 = 0x74,
-    Vat0Format5 = 0x75,
-    Vat0Format6 = 0x76,
-    Vat0Format7 = 0x77,
-
-    Vat1Format0 = 0x80,
-    Vat1Format1 = 0x81,
-    Vat1Format2 = 0x82,
-    Vat1Format3 = 0x83,
-    Vat1Format4 = 0x84,
-    Vat1Format5 = 0x85,
-    Vat1Format6 = 0x86,
-    Vat1Format7 = 0x87,
-
-    Vat2Format0 = 0x90,
-    Vat2Format1 = 0x91,
-    Vat2Format2 = 0x92,
-    Vat2Format3 = 0x93,
-    Vat2Format4 = 0x94,
-    Vat2Format5 = 0x95,
-    Vat2Format6 = 0x96,
-    Vat2Format7 = 0x97,
-
-    // Array Base
-    VerticesPtr = 0xA0,
-    NormalsPtr = 0xA1,
-    Color0Ptr = 0xA2,
-    Color1Ptr = 0xA3,
-    Tex0CoordPtr = 0xA4,
-    Tex1CoordPtr = 0xA5,
-    Tex2CoordPtr = 0xA6,
-    Tex3CoordPtr = 0xA7,
-    Tex4CoordPtr = 0xA8,
-    Tex5CoordPtr = 0xA9,
-    Tex6CoordPtr = 0xAA,
-    Tex7CoordPtr = 0xAB,
-    GpArr0Ptr = 0xAC,
-    GpArr1Ptr = 0xAD,
-    GpArr2Ptr = 0xAE,
-    GpArr3Ptr = 0xAF,
-
-    // Array Stride
-    VerticesStride = 0xB0,
-    NormalsStride = 0xB1,
-    Color0Stride = 0xB2,
-    Color1Stride = 0xB3,
-    Tex0CoordStride = 0xB4,
-    Tex1CoordStride = 0xB5,
-    Tex2CoordStride = 0xB6,
-    Tex3CoordStride = 0xB7,
-    Tex4CoordStride = 0xB8,
-    Tex5CoordStride = 0xB9,
-    Tex6CoordStride = 0xBA,
-    Tex7CoordStride = 0xBB,
-    GpArr0Stride = 0xBC,
-    GpArr1Stride = 0xBD,
-    GpArr2Stride = 0xBE,
-    GpArr3Stride = 0xBF,
-}
 
 /// A bypass register.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, FromRepr)]
@@ -257,19 +181,35 @@ pub enum BypassReg {
     BypassMask = 0xFE,
 }
 
+#[bitos[2]]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum AttributeKind {
+    /// Not present
+    #[default]
+    None = 0b00,
+    /// Directly in the vertex attribute stream
+    Direct = 0b01,
+    /// Indirectly through a 8 bit index in the vertex attribute stream
+    Index8 = 0b10,
+    /// Indirectly through a 16 bit index in the vertex attribute stream
+    Index16 = 0b11,
+}
+
+/// GX subsystem
 #[derive(Debug, Default)]
 pub struct Interface {
     pub command: command::Interface,
     pub command_queue: DataStream,
+    pub transform: transform::Interface,
 }
 
 /// GX subsystem
 impl System {
     /// Pops a value from the CP FIFO in memory.
     fn cp_fifo_pop(&mut self) -> u8 {
-        assert!(self.bus.gpu.command.fifo_count > 0);
+        assert!(self.bus.gpu.command.fifo.count > 0);
 
-        let data = self.read::<u8>(self.bus.gpu.command.fifo_read_ptr);
+        let data = self.read::<u8>(self.bus.gpu.command.fifo.read_ptr);
         self.bus.gpu.command.fifo_pop();
 
         data
@@ -286,12 +226,28 @@ impl System {
             };
 
             tracing::debug!("{:02X?}", cmd);
+
+            match cmd {
+                Command::Nop => (),
+                Command::InvalidateVertexCache => (),
+                Command::SetCP { register, value } => (),
+                Command::SetBP { register, value } => (),
+                Command::SetXF { start, values, .. } => {
+                    for (offset, value) in values.into_iter().enumerate() {
+                        self.bus.gpu.transform.write(start + offset as u16, value);
+                    }
+                }
+                Command::DrawTriangles {
+                    vat_index,
+                    vertex_count,
+                } => todo!(),
+            }
         }
     }
 
     /// Consumes commands available in the CP FIFO and processes them.
     pub fn cp_update(&mut self) {
-        while self.bus.gpu.command.fifo_count > 0 {
+        while self.bus.gpu.command.fifo.count > 0 {
             let data = self.cp_fifo_pop();
             self.bus.gpu.command_queue.push_be(data);
         }

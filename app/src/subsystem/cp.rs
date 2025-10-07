@@ -22,13 +22,13 @@ impl WindowUi for Window {
             ui.separator();
 
             ui.label("FIFO");
-            mmio_dbg(ui, "FIFO start", &cp.fifo_start);
-            mmio_dbg(ui, "FIFO end", &cp.fifo_end);
-            mmio_dbg(ui, "FIFO high watermark", &cp.fifo_high_mark);
-            mmio_dbg(ui, "FIFO low mark", &cp.fifo_low_mark);
-            mmio_dbg(ui, "FIFO count", &cp.fifo_count);
-            mmio_dbg(ui, "FIFO write ptr", &cp.fifo_write_ptr);
-            mmio_dbg(ui, "FIFO read ptr", &cp.fifo_read_ptr);
+            mmio_dbg(ui, "FIFO start", &cp.fifo.start);
+            mmio_dbg(ui, "FIFO end", &cp.fifo.end);
+            mmio_dbg(ui, "FIFO high watermark", &cp.fifo.high_mark);
+            mmio_dbg(ui, "FIFO low mark", &cp.fifo.low_mark);
+            mmio_dbg(ui, "FIFO count", &cp.fifo.count);
+            mmio_dbg(ui, "FIFO write ptr", &cp.fifo.write_ptr);
+            mmio_dbg(ui, "FIFO read ptr", &cp.fifo.read_ptr);
         });
     }
 }
