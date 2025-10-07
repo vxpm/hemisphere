@@ -418,8 +418,11 @@ impl Gpu {
             }
             Operation::SetXF => {
                 let length = reader.read_be::<u16>()? as u32 + 1;
-                let start = reader.read_be::<u16>()?;
+                if reader.remaining() < 4 * length as usize {
+                    return None;
+                }
 
+                let start = reader.read_be::<u16>()?;
                 let mut values = Vec::with_capacity(length as usize);
                 for _ in 0..length {
                     values.push(reader.read_be::<u32>()?);
@@ -460,13 +463,12 @@ impl Gpu {
                     .internal
                     .vertex_size(opcode.vat_index().value());
 
-                let mut vertex_attributes = vec![];
-                for _ in 0..vertex_count {
-                    for _ in 0..vertex_size {
-                        vertex_attributes.push(reader.read_be::<u8>()?);
-                    }
+                let attribute_stream_size = vertex_count as usize * vertex_size as usize;
+                if reader.remaining() < attribute_stream_size {
+                    return None;
                 }
 
+                let vertex_attributes = reader.read_bytes(attribute_stream_size)?;
                 Command::DrawTriangles {
                     vertex_count,
                     vertex_attributes,

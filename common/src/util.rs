@@ -67,6 +67,21 @@ impl ReadOp<'_> {
         })
     }
 
+    pub fn read_bytes(&mut self, length: usize) -> Option<Vec<u8>> {
+        let (data, _) = self.data.as_slices();
+        let slice = &data[self.read..];
+
+        (slice.len() >= length).then(|| {
+            self.read += length;
+            slice[..length].to_vec()
+        })
+    }
+
+    /// Returns how many bytes of data are remaining in the stream.
+    pub fn remaining(&mut self) -> usize {
+        self.data.len() - self.read
+    }
+
     /// Consumes the read bytes.
     pub fn consume(self) {
         self.data.consume(self.read);
