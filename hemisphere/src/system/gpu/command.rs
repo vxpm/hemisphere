@@ -1,7 +1,11 @@
-use crate::system::gpu::{AttributeKind, BypassReg};
+mod vat;
+
+use crate::system::gpu::BypassReg;
 use bitos::{BitUtils, bitos, integer::u3};
-use common::{Address, util::DataStream};
+use common::{Address, Primitive, util::DataStream};
 use strum::FromRepr;
+use vat::VertexAttributeTable;
+use zerocopy::IntoBytes;
 
 /// A command processor register.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, FromRepr)]
@@ -17,32 +21,32 @@ pub enum Reg {
     VcdHigh = 0x60,
 
     // VAT
-    Vat0Format0 = 0x70,
-    Vat0Format1 = 0x71,
-    Vat0Format2 = 0x72,
-    Vat0Format3 = 0x73,
-    Vat0Format4 = 0x74,
-    Vat0Format5 = 0x75,
-    Vat0Format6 = 0x76,
-    Vat0Format7 = 0x77,
+    Vat0A = 0x70,
+    Vat1A = 0x71,
+    Vat2A = 0x72,
+    Vat3A = 0x73,
+    Vat4A = 0x74,
+    Vat5A = 0x75,
+    Vat6A = 0x76,
+    Vat7A = 0x77,
 
-    Vat1Format0 = 0x80,
-    Vat1Format1 = 0x81,
-    Vat1Format2 = 0x82,
-    Vat1Format3 = 0x83,
-    Vat1Format4 = 0x84,
-    Vat1Format5 = 0x85,
-    Vat1Format6 = 0x86,
-    Vat1Format7 = 0x87,
+    Vat0B = 0x80,
+    Vat1B = 0x81,
+    Vat2B = 0x82,
+    Vat3B = 0x83,
+    Vat4B = 0x84,
+    Vat5B = 0x85,
+    Vat6B = 0x86,
+    Vat7B = 0x87,
 
-    Vat2Format0 = 0x90,
-    Vat2Format1 = 0x91,
-    Vat2Format2 = 0x92,
-    Vat2Format3 = 0x93,
-    Vat2Format4 = 0x94,
-    Vat2Format5 = 0x95,
-    Vat2Format6 = 0x96,
-    Vat2Format7 = 0x97,
+    Vat0C = 0x90,
+    Vat1C = 0x91,
+    Vat2C = 0x92,
+    Vat3C = 0x93,
+    Vat4C = 0x94,
+    Vat5C = 0x95,
+    Vat6C = 0x96,
+    Vat7C = 0x97,
 
     // Array Base
     VerticesPtr = 0xA0,
@@ -260,6 +264,21 @@ pub struct Fifo {
     pub read_ptr: Address,
 }
 
+#[bitos[2]]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum AttributeKind {
+    /// Not present
+    #[default]
+    None = 0b00,
+    /// Directly in the vertex attribute stream
+    Direct = 0b01,
+    /// Indirectly through a 8 bit index in the vertex attribute stream
+    Index8 = 0b10,
+    /// Indirectly through a 16 bit index in the vertex attribute stream
+    Index16 = 0b11,
+}
+
+/// Describes which attributes are present in the vertices of primitives and how they are present.
 #[bitos(64)]
 #[derive(Debug, Clone, Default)]
 pub struct VertexDescriptor {
@@ -275,12 +294,62 @@ pub struct VertexDescriptor {
     /// Whether the normal attribute is present.
     #[bits(11..13)]
     pub normal: AttributeKind,
-    /// Whether the color N attribute is present.
-    #[bits(13..17)]
-    pub color: [AttributeKind; 2],
+    /// Whether the diffuse color attribute is present.
+    #[bits(13..15)]
+    pub diffuse_color: AttributeKind,
+    /// Whether the specular color attribute is present.
+    #[bits(15..17)]
+    pub specular_color: AttributeKind,
     /// Whether the texture coordinate N attribute is present.
-    #[bits(17..33)]
+    #[bits(32..48)]
     pub tex_coord: [AttributeKind; 8],
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct Internal {
+    pub vertex_descriptor: VertexDescriptor,
+    pub vertex_attr_tables: [VertexAttributeTable; 8],
+}
+
+impl Internal {
+    pub fn set(&mut self, reg: Reg, value: u32) {
+        match reg {
+            Reg::VcdLow => value.write_ne_bytes(&mut self.vertex_descriptor.as_mut_bytes()[0..4]),
+            Reg::VcdHigh => value.write_ne_bytes(&mut self.vertex_descriptor.as_mut_bytes()[4..8]),
+
+            Reg::Vat0A => value.write_ne_bytes(&mut self.vertex_attr_tables[0].a.as_mut_bytes()),
+            Reg::Vat1A => value.write_ne_bytes(&mut self.vertex_attr_tables[1].a.as_mut_bytes()),
+            Reg::Vat2A => value.write_ne_bytes(&mut self.vertex_attr_tables[2].a.as_mut_bytes()),
+            Reg::Vat3A => value.write_ne_bytes(&mut self.vertex_attr_tables[3].a.as_mut_bytes()),
+            Reg::Vat4A => value.write_ne_bytes(&mut self.vertex_attr_tables[4].a.as_mut_bytes()),
+            Reg::Vat5A => value.write_ne_bytes(&mut self.vertex_attr_tables[5].a.as_mut_bytes()),
+            Reg::Vat6A => value.write_ne_bytes(&mut self.vertex_attr_tables[6].a.as_mut_bytes()),
+            Reg::Vat7A => value.write_ne_bytes(&mut self.vertex_attr_tables[7].a.as_mut_bytes()),
+
+            Reg::Vat0B => value.write_ne_bytes(&mut self.vertex_attr_tables[0].b.as_mut_bytes()),
+            Reg::Vat1B => value.write_ne_bytes(&mut self.vertex_attr_tables[1].b.as_mut_bytes()),
+            Reg::Vat2B => value.write_ne_bytes(&mut self.vertex_attr_tables[2].b.as_mut_bytes()),
+            Reg::Vat3B => value.write_ne_bytes(&mut self.vertex_attr_tables[3].b.as_mut_bytes()),
+            Reg::Vat4B => value.write_ne_bytes(&mut self.vertex_attr_tables[4].b.as_mut_bytes()),
+            Reg::Vat5B => value.write_ne_bytes(&mut self.vertex_attr_tables[5].b.as_mut_bytes()),
+            Reg::Vat6B => value.write_ne_bytes(&mut self.vertex_attr_tables[6].b.as_mut_bytes()),
+            Reg::Vat7B => value.write_ne_bytes(&mut self.vertex_attr_tables[7].b.as_mut_bytes()),
+
+            Reg::Vat0C => value.write_ne_bytes(&mut self.vertex_attr_tables[0].c.as_mut_bytes()),
+            Reg::Vat1C => value.write_ne_bytes(&mut self.vertex_attr_tables[1].c.as_mut_bytes()),
+            Reg::Vat2C => value.write_ne_bytes(&mut self.vertex_attr_tables[2].c.as_mut_bytes()),
+            Reg::Vat3C => value.write_ne_bytes(&mut self.vertex_attr_tables[3].c.as_mut_bytes()),
+            Reg::Vat4C => value.write_ne_bytes(&mut self.vertex_attr_tables[4].c.as_mut_bytes()),
+            Reg::Vat5C => value.write_ne_bytes(&mut self.vertex_attr_tables[5].c.as_mut_bytes()),
+            Reg::Vat6C => value.write_ne_bytes(&mut self.vertex_attr_tables[6].c.as_mut_bytes()),
+            Reg::Vat7C => value.write_ne_bytes(&mut self.vertex_attr_tables[7].c.as_mut_bytes()),
+
+            _ => tracing::warn!("unimplemented write to internal CP register {reg:?}"),
+        }
+
+        tracing::debug!("{:?}", self.vertex_descriptor);
+        tracing::debug!("{:#?}", self.vertex_attr_tables[0]);
+    }
 }
 
 /// CP interface
@@ -289,7 +358,7 @@ pub struct Interface {
     pub status: Status,
     pub control: Control,
     pub fifo: Fifo,
-    pub vertex_descriptor: VertexDescriptor,
+    pub internal: Internal,
 }
 
 impl Interface {

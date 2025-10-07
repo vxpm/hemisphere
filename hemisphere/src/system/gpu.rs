@@ -181,20 +181,6 @@ pub enum BypassReg {
     BypassMask = 0xFE,
 }
 
-#[bitos[2]]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum AttributeKind {
-    /// Not present
-    #[default]
-    None = 0b00,
-    /// Directly in the vertex attribute stream
-    Direct = 0b01,
-    /// Indirectly through a 8 bit index in the vertex attribute stream
-    Index8 = 0b10,
-    /// Indirectly through a 16 bit index in the vertex attribute stream
-    Index16 = 0b11,
-}
-
 /// GX subsystem
 #[derive(Debug, Default)]
 pub struct Gpu {
@@ -230,7 +216,9 @@ impl System {
             match cmd {
                 Command::Nop => (),
                 Command::InvalidateVertexCache => (),
-                Command::SetCP { register, value } => (),
+                Command::SetCP { register, value } => {
+                    self.gpu.command.internal.set(register, value)
+                }
                 Command::SetBP { register, value } => (),
                 Command::SetXF { start, values, .. } => {
                     for (offset, value) in values.into_iter().enumerate() {
@@ -240,7 +228,7 @@ impl System {
                 Command::DrawTriangles {
                     vat_index,
                     vertex_count,
-                } => todo!(),
+                } => {}
             }
         }
     }
