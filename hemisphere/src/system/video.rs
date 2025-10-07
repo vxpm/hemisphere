@@ -324,26 +324,26 @@ impl Interface {
 /// Video Interface
 impl System {
     pub fn update_video_interface(&mut self) {
-        self.bus.video.horizontal_count = 1;
-        self.bus.video.vertical_count = 1;
+        self.video.horizontal_count = 1;
+        self.video.vertical_count = 1;
 
         self.scheduler
             .retain(|e| !matches!(e.event, SystemEvent::Video(_)));
 
-        if self.bus.video.display_config.enable() {
+        if self.video.display_config.enable() {
             self.process(SystemEvent::Video(Event::VerticalCount));
         }
     }
 
     pub fn check_display_interrupts(&mut self) {
         let mut raised = false;
-        for (index, interrupt) in self.bus.video.interrupts.iter_mut().enumerate() {
+        for (index, interrupt) in self.video.interrupts.iter_mut().enumerate() {
             if interrupt.enable()
-                && interrupt.vertical_count().value() == self.bus.video.vertical_count
+                && interrupt.vertical_count().value() == self.video.vertical_count
             {
                 raised = true;
                 interrupt.set_status(true);
-                self.bus.processor.raise_interrupt(Interrupt::Video);
+                self.processor.raise_interrupt(Interrupt::Video);
                 tracing::debug!("raised display interrupt {index} ({interrupt:?})");
             }
         }
@@ -355,7 +355,7 @@ impl System {
 
     fn xfb_inner(&self, base: Address) -> Option<&[u8]> {
         let xfb = base.value();
-        let (width, height) = self.bus.video.xfb_resolution();
+        let (width, height) = self.video.xfb_resolution();
 
         let pixels = width as u32 * height as u32;
         if pixels == 0 {
@@ -363,18 +363,18 @@ impl System {
         }
 
         let length = 2 * pixels;
-        Some(&self.bus.mem.ram[xfb as usize..xfb as usize + length as usize])
+        Some(&self.mem.ram[xfb as usize..xfb as usize + length as usize])
     }
 
     /// Returns the data of the top XFB in YCbCr format (y0, cb, y1, cr).
     pub fn top_xfb(&self) -> Option<&[u8]> {
-        let base = self.bus.video.top_xfb_address();
+        let base = self.video.top_xfb_address();
         self.xfb_inner(base)
     }
 
     /// Returns the data of the bottom XFB in YCbCr format (y0, cb, y1, cr).
     pub fn bottom_xfb(&self) -> Option<&[u8]> {
-        let base = self.bus.video.bottom_xfb_address();
+        let base = self.video.bottom_xfb_address();
         self.xfb_inner(base)
     }
 }

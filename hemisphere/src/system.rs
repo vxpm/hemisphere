@@ -13,9 +13,9 @@ pub mod scheduler;
 pub mod video;
 
 use crate::system::{
-    bus::Bus,
     executable::{Code, Executable},
     lazy::Lazy,
+    mem::Memory,
     mmu::Mmu,
     scheduler::Scheduler,
 };
@@ -53,12 +53,20 @@ pub struct System {
     pub scheduler: Scheduler,
     /// The CPU state.
     pub cpu: Cpu,
-    /// The system bus. Contains all other peripherals.
-    pub bus: Bus,
     /// State of memory mapping.
     pub mmu: Mmu,
     /// State of mechanisms that update lazily (e.g. time related registers).
     pub lazy: Lazy,
+    /// System memory.
+    pub mem: Memory,
+    /// The DSP state.
+    pub dsp: dsp::Interface,
+    /// The video interface.
+    pub video: video::Interface,
+    /// The processor interface.
+    pub processor: processor::Interface,
+    /// The GPU state.
+    pub gpu: gpu::Interface,
 }
 
 impl System {
@@ -120,9 +128,13 @@ impl System {
             config,
             scheduler: Scheduler::default(),
             cpu: Cpu::default(),
-            bus: Bus::default(),
             mmu: Mmu::default(),
             lazy: Lazy::default(),
+            mem: Memory::default(),
+            dsp: dsp::Interface::default(),
+            video: video::Interface::default(),
+            processor: processor::Interface::default(),
+            gpu: gpu::Interface::default(),
         };
 
         system.load_executable();
@@ -164,26 +176,25 @@ impl System {
             Event::Video(video::Event::VerticalCount) => {
                 self.check_display_interrupts();
 
-                self.bus.video.vertical_count += 1;
-                if self.bus.video.vertical_count as u32 > self.bus.video.lines_per_frame() {
-                    self.bus.video.vertical_count = 1;
+                self.video.vertical_count += 1;
+                if self.video.vertical_count as u32 > self.video.lines_per_frame() {
+                    self.video.vertical_count = 1;
                     if let Some(callback) = &mut self.config.vsync_callback {
                         callback();
                     }
                 }
 
-                if !self.bus.video.display_config.progressive()
-                    && self.bus.video.vertical_count as u32
-                        == self.bus.video.lines_per_even_field() + 1
+                if !self.video.display_config.progressive()
+                    && self.video.vertical_count as u32 == self.video.lines_per_even_field() + 1
                 {
                     if let Some(callback) = &mut self.config.vsync_callback {
                         callback();
                     }
                 }
 
-                let cycles_per_frame = (FREQUENCY as f64 / self.bus.video.refresh_rate()) as u32;
+                let cycles_per_frame = (FREQUENCY as f64 / self.video.refresh_rate()) as u32;
                 let cycles_per_line = cycles_per_frame
-                    .checked_div(self.bus.video.lines_per_frame())
+                    .checked_div(self.video.lines_per_frame())
                     .unwrap_or(cycles_per_frame);
 
                 self.scheduler.schedule(

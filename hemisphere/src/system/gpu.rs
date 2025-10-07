@@ -207,21 +207,21 @@ pub struct Interface {
 impl System {
     /// Pops a value from the CP FIFO in memory.
     fn cp_fifo_pop(&mut self) -> u8 {
-        assert!(self.bus.gpu.command.fifo.count > 0);
+        assert!(self.gpu.command.fifo.count > 0);
 
-        let data = self.read::<u8>(self.bus.gpu.command.fifo.read_ptr);
-        self.bus.gpu.command.fifo_pop();
+        let data = self.read::<u8>(self.gpu.command.fifo.read_ptr);
+        self.gpu.command.fifo_pop();
 
         data
     }
 
     pub fn cp_process(&mut self) {
         loop {
-            if self.bus.gpu.command_queue.is_empty() {
+            if self.gpu.command_queue.is_empty() {
                 return;
             }
 
-            let Some(cmd) = Command::read(&mut self.bus.gpu.command_queue) else {
+            let Some(cmd) = Command::read(&mut self.gpu.command_queue) else {
                 return;
             };
 
@@ -234,7 +234,7 @@ impl System {
                 Command::SetBP { register, value } => (),
                 Command::SetXF { start, values, .. } => {
                     for (offset, value) in values.into_iter().enumerate() {
-                        self.bus.gpu.transform.write(start + offset as u16, value);
+                        self.gpu.transform.write(start + offset as u16, value);
                     }
                 }
                 Command::DrawTriangles {
@@ -247,9 +247,9 @@ impl System {
 
     /// Consumes commands available in the CP FIFO and processes them.
     pub fn cp_update(&mut self) {
-        while self.bus.gpu.command.fifo.count > 0 {
+        while self.gpu.command.fifo.count > 0 {
             let data = self.cp_fifo_pop();
-            self.bus.gpu.command_queue.push_be(data);
+            self.gpu.command_queue.push_be(data);
         }
 
         self.cp_process();

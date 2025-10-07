@@ -14,7 +14,7 @@ impl WindowUi for Window {
 
     fn show(&mut self, ui: &mut egui::Ui, _: &mut Ctx, state: &mut State) {
         let core = state.core();
-        let cp = &core.system.bus.gpu.command;
+        let cp = &core.system.gpu.command;
 
         egui::ScrollArea::both().auto_shrink(false).show(ui, |ui| {
             mmio_dbg(ui, "Status", &cp.status);

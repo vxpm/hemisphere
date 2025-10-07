@@ -107,7 +107,7 @@ impl System {
             return;
         }
 
-        let allowed = self.bus.processor.allowed();
+        let allowed = self.processor.allowed();
         if allowed.to_bits().value() != 0 {
             self.cpu.raise_exception(Exception::Interrupt);
         }
@@ -118,28 +118,28 @@ impl System {
     ///
     /// If the CP FIFO is linked wth the PI FIFO, this will also schedule a CP update.
     pub fn pi_fifo_push(&mut self, value: u8) {
-        self.bus.processor.fifo_buffer.push(value);
-        if self.bus.processor.fifo_buffer.len() < 32 {
+        self.processor.fifo_buffer.push(value);
+        if self.processor.fifo_buffer.len() < 32 {
             return;
         }
 
         tracing::debug!("flushing PI fifo");
 
-        let data = std::mem::replace(&mut self.bus.processor.fifo_buffer, Vec::with_capacity(32));
+        let data = std::mem::replace(&mut self.processor.fifo_buffer, Vec::with_capacity(32));
         for byte in data {
-            self.write(self.bus.processor.fifo_current, byte);
-            self.bus.processor.fifo_current += 1;
+            self.write(self.processor.fifo_current, byte);
+            self.processor.fifo_current += 1;
 
-            if self.bus.gpu.command.control.linked_mode() {
-                self.bus.gpu.command.fifo_push();
+            if self.gpu.command.control.linked_mode() {
+                self.gpu.command.fifo_push();
             }
 
-            if self.bus.processor.fifo_current > self.bus.processor.fifo_end {
-                self.bus.processor.fifo_current = self.bus.processor.fifo_start;
+            if self.processor.fifo_current > self.processor.fifo_end {
+                self.processor.fifo_current = self.processor.fifo_start;
             }
         }
 
-        if self.bus.gpu.command.control.linked_mode() {
+        if self.gpu.command.control.linked_mode() {
             self.scheduler.schedule(Event::CommandProcessor, 0);
         }
     }

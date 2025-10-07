@@ -48,12 +48,12 @@ impl WindowUi for Window {
         };
 
         let core = state.core();
-        if !core.system.bus.video.display_config.enable() {
+        if !core.system.video.display_config.enable() {
             ui.label("VI disabled");
             return;
         }
 
-        let resolution = core.system.bus.video.xfb_resolution();
+        let resolution = core.system.video.xfb_resolution();
         if resolution.0 == 0 || resolution.1 == 0 {
             ui.label("VI bad resolution");
             return;
