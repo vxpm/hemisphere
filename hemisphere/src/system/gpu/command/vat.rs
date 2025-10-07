@@ -19,6 +19,20 @@ pub enum CoordsFormat {
     U16 = 0b010,
     I16 = 0b011,
     F32 = 0b100,
+    Reserved0 = 0b101,
+    Reserved1 = 0b110,
+    Reserved2 = 0b111,
+}
+
+impl CoordsFormat {
+    pub fn size(self) -> u32 {
+        match self {
+            Self::U8 | Self::I8 => 1,
+            Self::U16 | Self::I16 => 2,
+            Self::F32 => 4,
+            _ => panic!("reserved format"),
+        }
+    }
 }
 
 #[bitos(9)]
@@ -27,9 +41,18 @@ pub struct PositionAttribute {
     #[bits(0)]
     pub kind: PositionKind,
     #[bits(1..4)]
-    pub format: Option<CoordsFormat>,
+    pub format: CoordsFormat,
     #[bits(4..9)]
     pub shift: u5,
+}
+
+impl PositionAttribute {
+    pub fn size(self) -> u32 {
+        match self.kind() {
+            PositionKind::Vec2 => 2 * self.format().size(),
+            PositionKind::Vec3 => 3 * self.format().size(),
+        }
+    }
 }
 
 #[bitos(1)]
@@ -45,10 +68,26 @@ pub enum NormalKind {
 #[bitos(3)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum NormalFormat {
+    Reserved0 = 0b000,
     #[default]
     I8 = 0b001,
+    Reserved1 = 0b010,
     I16 = 0b011,
     F32 = 0b100,
+    Reserved2 = 0b101,
+    Reserved3 = 0b110,
+    Reserved4 = 0b111,
+}
+
+impl NormalFormat {
+    pub fn size(self) -> u32 {
+        match self {
+            Self::I8 => 1,
+            Self::I16 => 2,
+            Self::F32 => 4,
+            _ => panic!("reserved format"),
+        }
+    }
 }
 
 #[bitos(4)]
@@ -57,7 +96,16 @@ pub struct NormalAttribute {
     #[bits(0)]
     pub kind: NormalKind,
     #[bits(1..4)]
-    pub format: Option<NormalFormat>,
+    pub format: NormalFormat,
+}
+
+impl NormalAttribute {
+    pub fn size(self) -> u32 {
+        match self.kind() {
+            NormalKind::N3 => 3 * self.format().size(),
+            NormalKind::N9 => 9 * self.format().size(),
+        }
+    }
 }
 
 #[bitos(1)]
@@ -80,6 +128,19 @@ pub enum ColorFormat {
     Rgba4444 = 0b011,
     Rgba6666 = 0b100,
     Rgba8888 = 0b101,
+    Reserved0 = 0b110,
+    Reserved1 = 0b111,
+}
+
+impl ColorFormat {
+    pub fn size(self) -> u32 {
+        match self {
+            Self::Rgb565 | Self::Rgba4444 => 2,
+            Self::Rgb888 | Self::Rgba6666 => 3,
+            Self::Rgb888x | Self::Rgba8888 => 4,
+            _ => panic!("reserved format"),
+        }
+    }
 }
 
 #[bitos(4)]
@@ -88,7 +149,13 @@ pub struct ColorAttribute {
     #[bits(0)]
     pub kind: ColorKind,
     #[bits(1..4)]
-    pub format: Option<ColorFormat>,
+    pub format: ColorFormat,
+}
+
+impl ColorAttribute {
+    pub fn size(self) -> u32 {
+        self.format().size()
+    }
 }
 
 #[bitos(1)]
@@ -107,9 +174,18 @@ pub struct TexCoordsAttribute {
     #[bits(0)]
     pub kind: TexCoordsKind,
     #[bits(1..4)]
-    pub format: Option<CoordsFormat>,
+    pub format: CoordsFormat,
     #[bits(4..9)]
     pub shift: u5,
+}
+
+impl TexCoordsAttribute {
+    pub fn size(self) -> u32 {
+        match self.kind() {
+            TexCoordsKind::Vec1 => 1 * self.format().size(),
+            TexCoordsKind::Vec2 => 2 * self.format().size(),
+        }
+    }
 }
 
 #[bitos(32)]
@@ -140,7 +216,7 @@ pub struct VertexAttributeTableB {
     #[bits(27)]
     pub tex4_kind: TexCoordsKind,
     #[bits(28..31)]
-    pub tex4_format: Option<CoordsFormat>,
+    pub tex4_format: CoordsFormat,
 
     #[bits(31)]
     pub vcache_enhance: bool,
@@ -160,4 +236,19 @@ pub struct VertexAttributeTable {
     pub a: VertexAttributeTableA,
     pub b: VertexAttributeTableB,
     pub c: VertexAttributeTableC,
+}
+
+impl VertexAttributeTable {
+    pub fn tex(&self, index: usize) -> Option<TexCoordsAttribute> {
+        Some(match index {
+            0 => self.a.tex0(),
+            1..4 => self.b.tex1to3_at(index - 1).unwrap(),
+            4 => TexCoordsAttribute::default()
+                .with_kind(self.b.tex4_kind())
+                .with_format(self.b.tex4_format())
+                .with_shift(self.c.tex4_shift()),
+            5..8 => self.c.tex5to7_at(index - 5).unwrap(),
+            _ => return None,
+        })
+    }
 }

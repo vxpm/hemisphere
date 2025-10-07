@@ -2,7 +2,6 @@ pub mod command;
 pub mod transform;
 
 use crate::system::System;
-use bitos::bitos;
 use command::Command;
 use common::util::DataStream;
 use strum::FromRepr;
@@ -207,7 +206,7 @@ impl System {
                 return;
             }
 
-            let Some(cmd) = Command::read(&mut self.gpu.command_queue) else {
+            let Some(cmd) = self.gpu.read_command() else {
                 return;
             };
 
@@ -226,8 +225,8 @@ impl System {
                     }
                 }
                 Command::DrawTriangles {
-                    vat_index,
                     vertex_count,
+                    vertex_attributes,
                 } => {}
             }
         }

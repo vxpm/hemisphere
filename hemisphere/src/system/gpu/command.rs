@@ -1,8 +1,8 @@
 mod vat;
 
-use crate::system::gpu::BypassReg;
+use crate::system::gpu::{BypassReg, Gpu};
 use bitos::{BitUtils, bitos, integer::u3};
-use common::{Address, Primitive, util::DataStream};
+use common::{Address, Primitive};
 use strum::FromRepr;
 use vat::VertexAttributeTable;
 use zerocopy::IntoBytes;
@@ -134,83 +134,9 @@ pub enum Command {
         values: Vec<u32>,
     },
     DrawTriangles {
-        vat_index: u8,
         vertex_count: u16,
+        vertex_attributes: Vec<u8>,
     },
-}
-
-impl Command {
-    /// Reads a command from the given data stream.
-    pub fn read(stream: &mut DataStream) -> Option<Self> {
-        let mut reader = stream.read();
-
-        let opcode = Opcode::from_bits(reader.read_be()?);
-        let command = match opcode.operation().unwrap() {
-            Operation::NOP => Command::Nop,
-            Operation::SetCP => {
-                let register = reader.read_be::<u8>()?;
-                let value = reader.read_be::<u32>()?;
-
-                let Some(register) = Reg::from_repr(register) else {
-                    panic!("unknown cp register {register:02X}");
-                };
-
-                Command::SetCP { register, value }
-            }
-            Operation::SetXF => {
-                let length = reader.read_be::<u16>()? as u32 + 1;
-                let start = reader.read_be::<u16>()?;
-
-                let mut values = Vec::with_capacity(length as usize);
-                for _ in 0..length {
-                    values.push(reader.read_be::<u32>()?);
-                }
-
-                Command::SetXF {
-                    start,
-                    length,
-                    values,
-                }
-            }
-            Operation::IndexedSetXFA => todo!(),
-            Operation::IndexedSetXFB => todo!(),
-            Operation::IndexedSetXFC => todo!(),
-            Operation::IndexedSetXFD => todo!(),
-            Operation::Call => todo!(),
-            Operation::InvalidateVertexCache => Command::InvalidateVertexCache,
-            Operation::SetBP => {
-                let register = reader.read_be::<u8>()?;
-                let value = u32::from_be_bytes([
-                    0,
-                    reader.read_be::<u8>()?,
-                    reader.read_be::<u8>()?,
-                    reader.read_be::<u8>()?,
-                ]);
-
-                let Some(register) = BypassReg::from_repr(register) else {
-                    panic!("unknown bypass register {register:02X}");
-                };
-
-                Command::SetBP { register, value }
-            }
-            Operation::DrawQuads => todo!(),
-            Operation::DrawTriangles => {
-                let vertex_count = reader.read_be::<u16>()?;
-                Command::DrawTriangles {
-                    vat_index: opcode.vat_index().value(),
-                    vertex_count,
-                }
-            }
-            Operation::DrawTriangleStrip => todo!(),
-            Operation::DrawTriangleFan => todo!(),
-            Operation::DrawLines => todo!(),
-            Operation::DrawLineStrip => todo!(),
-            Operation::DrawPoints => todo!(),
-        };
-
-        reader.consume();
-        Some(command)
-    }
 }
 
 /// CP status register
@@ -278,6 +204,17 @@ pub enum AttributeKind {
     Index16 = 0b11,
 }
 
+impl AttributeKind {
+    pub fn size(self) -> Option<u32> {
+        match self {
+            Self::None => Some(0),
+            Self::Direct => None,
+            Self::Index8 => Some(1),
+            Self::Index16 => Some(2),
+        }
+    }
+}
+
 /// Describes which attributes are present in the vertices of primitives and how they are present.
 #[bitos(64)]
 #[derive(Debug, Clone, Default)]
@@ -296,10 +233,10 @@ pub struct VertexDescriptor {
     pub normal: AttributeKind,
     /// Whether the diffuse color attribute is present.
     #[bits(13..15)]
-    pub diffuse_color: AttributeKind,
+    pub diffuse: AttributeKind,
     /// Whether the specular color attribute is present.
     #[bits(15..17)]
-    pub specular_color: AttributeKind,
+    pub specular: AttributeKind,
     /// Whether the texture coordinate N attribute is present.
     #[bits(32..48)]
     pub tex_coord: [AttributeKind; 8],
@@ -347,8 +284,59 @@ impl Internal {
             _ => tracing::warn!("unimplemented write to internal CP register {reg:?}"),
         }
 
-        tracing::debug!("{:?}", self.vertex_descriptor);
-        tracing::debug!("{:#?}", self.vertex_attr_tables[0]);
+        // tracing::debug!("{:?}", self.vertex_descriptor);
+        // tracing::debug!("{:#?}", self.vertex_attr_tables[0]);
+        tracing::debug!("vertex size: {:#?}", self.vertex_size(0));
+    }
+
+    pub fn vertex_size(&self, vat: u8) -> u32 {
+        let vat = vat as usize;
+
+        let mut size = 0;
+        if self.vertex_descriptor.pos_mat_index() {
+            size += 1;
+        }
+
+        for i in 0..8 {
+            if self.vertex_descriptor.tex_coord_mat_index_at(i).unwrap() {
+                size += 1;
+            }
+        }
+
+        size += self
+            .vertex_descriptor
+            .position()
+            .size()
+            .unwrap_or_else(|| self.vertex_attr_tables[vat].a.position().size());
+
+        size += self
+            .vertex_descriptor
+            .normal()
+            .size()
+            .unwrap_or_else(|| self.vertex_attr_tables[vat].a.normal().size());
+
+        size += self
+            .vertex_descriptor
+            .diffuse()
+            .size()
+            .unwrap_or_else(|| self.vertex_attr_tables[vat].a.diffuse().size());
+
+        size += self
+            .vertex_descriptor
+            .specular()
+            .size()
+            .unwrap_or_else(|| self.vertex_attr_tables[vat].a.specular().size());
+
+        for i in 0..8 {
+            size += self
+                .vertex_descriptor
+                .tex_coord_at(i)
+                .unwrap()
+                .size()
+                .unwrap_or_else(|| self.vertex_attr_tables[vat].tex(i).unwrap().size());
+        }
+
+        size
     }
 }
 
@@ -407,5 +395,91 @@ impl Interface {
         }
 
         self.update_count();
+    }
+}
+
+impl Gpu {
+    /// Reads a command from the command queue.
+    pub fn read_command(&mut self) -> Option<Command> {
+        let mut reader = self.command_queue.read();
+
+        let opcode = Opcode::from_bits(reader.read_be()?);
+        let command = match opcode.operation().unwrap() {
+            Operation::NOP => Command::Nop,
+            Operation::SetCP => {
+                let register = reader.read_be::<u8>()?;
+                let value = reader.read_be::<u32>()?;
+
+                let Some(register) = Reg::from_repr(register) else {
+                    panic!("unknown cp register {register:02X}");
+                };
+
+                Command::SetCP { register, value }
+            }
+            Operation::SetXF => {
+                let length = reader.read_be::<u16>()? as u32 + 1;
+                let start = reader.read_be::<u16>()?;
+
+                let mut values = Vec::with_capacity(length as usize);
+                for _ in 0..length {
+                    values.push(reader.read_be::<u32>()?);
+                }
+
+                Command::SetXF {
+                    start,
+                    length,
+                    values,
+                }
+            }
+            Operation::IndexedSetXFA => todo!(),
+            Operation::IndexedSetXFB => todo!(),
+            Operation::IndexedSetXFC => todo!(),
+            Operation::IndexedSetXFD => todo!(),
+            Operation::Call => todo!(),
+            Operation::InvalidateVertexCache => Command::InvalidateVertexCache,
+            Operation::SetBP => {
+                let register = reader.read_be::<u8>()?;
+                let value = u32::from_be_bytes([
+                    0,
+                    reader.read_be::<u8>()?,
+                    reader.read_be::<u8>()?,
+                    reader.read_be::<u8>()?,
+                ]);
+
+                let Some(register) = BypassReg::from_repr(register) else {
+                    panic!("unknown bypass register {register:02X}");
+                };
+
+                Command::SetBP { register, value }
+            }
+            Operation::DrawQuads => todo!(),
+            Operation::DrawTriangles => {
+                let vertex_count = reader.read_be::<u16>()?;
+                let vertex_size = self
+                    .command
+                    .internal
+                    .vertex_size(opcode.vat_index().value());
+
+                let mut vertex_attributes = vec![];
+                for _ in 0..vertex_count {
+                    for _ in 0..vertex_size {
+                        vertex_attributes.push(reader.read_be::<u8>()?);
+                    }
+                }
+
+                Command::DrawTriangles {
+                    vertex_count,
+                    vertex_attributes,
+                }
+            }
+            Operation::DrawTriangleStrip => todo!(),
+            Operation::DrawTriangleFan => todo!(),
+            Operation::DrawLines => todo!(),
+            Operation::DrawLineStrip => todo!(),
+            Operation::DrawPoints => todo!(),
+        };
+
+        reader.consume();
+        Some(command)
     }
 }
