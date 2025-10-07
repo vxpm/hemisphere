@@ -57,7 +57,7 @@ pub struct AramDmaControl {
 }
 
 #[derive(Default)]
-pub struct Interface {
+pub struct Dsp {
     pub dsp_mailbox: Mailbox,
     pub cpu_mailbox: Mailbox,
     pub control: DspControl,
@@ -66,7 +66,7 @@ pub struct Interface {
     pub aram_dma_control: AramDmaControl,
 }
 
-impl Interface {
+impl Dsp {
     pub fn write_control(&mut self, new: DspControl) {
         if new.reset() {
             self.control = DspControl::default();

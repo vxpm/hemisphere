@@ -13,7 +13,9 @@ pub mod scheduler;
 pub mod video;
 
 use crate::system::{
+    dsp::Dsp,
     executable::{Code, Executable},
+    gpu::Gpu,
     lazy::Lazy,
     mem::Memory,
     mmu::Mmu,
@@ -53,20 +55,20 @@ pub struct System {
     pub scheduler: Scheduler,
     /// The CPU state.
     pub cpu: Cpu,
+    /// The GPU state.
+    pub gpu: Gpu,
+    /// The DSP state.
+    pub dsp: Dsp,
+    /// System memory.
+    pub mem: Memory,
     /// State of memory mapping.
     pub mmu: Mmu,
     /// State of mechanisms that update lazily (e.g. time related registers).
     pub lazy: Lazy,
-    /// System memory.
-    pub mem: Memory,
-    /// The DSP state.
-    pub dsp: dsp::Interface,
     /// The video interface.
     pub video: video::Interface,
     /// The processor interface.
     pub processor: processor::Interface,
-    /// The GPU state.
-    pub gpu: gpu::Interface,
 }
 
 impl System {
@@ -128,13 +130,13 @@ impl System {
             config,
             scheduler: Scheduler::default(),
             cpu: Cpu::default(),
+            gpu: Gpu::default(),
+            dsp: Dsp::default(),
+            mem: Memory::default(),
             mmu: Mmu::default(),
             lazy: Lazy::default(),
-            mem: Memory::default(),
-            dsp: dsp::Interface::default(),
             video: video::Interface::default(),
             processor: processor::Interface::default(),
-            gpu: gpu::Interface::default(),
         };
 
         system.load_executable();

@@ -197,7 +197,7 @@ pub enum AttributeKind {
 
 /// GX subsystem
 #[derive(Debug, Default)]
-pub struct Interface {
+pub struct Gpu {
     pub command: command::Interface,
     pub command_queue: DataStream,
     pub transform: transform::Interface,
