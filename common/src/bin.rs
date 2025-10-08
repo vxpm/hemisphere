@@ -116,8 +116,6 @@ impl BinaryStream for BinRingBuffer {
     }
 
     fn consume(&mut self, amount: usize) {
-        for _ in 0..amount {
-            self.data.pop_front();
-        }
+        self.data.drain(..amount);
     }
 }

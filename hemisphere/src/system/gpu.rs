@@ -1,8 +1,14 @@
 pub mod command;
 pub mod transform;
 
-use crate::system::gpu::command::VertexAttributeStream;
-use common::bin::{BinRingBuffer, BinaryStream};
+use super::System;
+use crate::system::gpu::command::{
+    ArrayDescriptor, AttributeMode, VertexAttributeStream,
+    attributes::{Attribute, Rgba},
+};
+use bitos::integer::UnsignedInt;
+use common::bin::{BinReader, BinRingBuffer, BinaryStream};
+use glam::Vec3;
 use strum::FromRepr;
 
 /// A bypass register.
@@ -180,9 +186,10 @@ pub enum BypassReg {
 }
 
 /// Extracted vertex attributes.
-struct VertexAttributes {
-    pub position: [u32; 3],
-    pub diffuse: u32,
+#[derive(Debug)]
+pub struct VertexAttributes {
+    pub position: Option<Vec<Vec3>>,
+    pub diffuse: Option<Vec<Rgba>>,
 }
 
 /// GX subsystem
@@ -193,13 +200,98 @@ pub struct Gpu {
     pub transform: transform::Interface,
 }
 
-impl Gpu {
-    pub fn draw_triangle(&mut self, attributes: VertexAttributeStream) {
-        tracing::debug!("{:?}", self.command.internal.vertex_descriptor);
-        tracing::debug!(
-            "{:?}",
-            self.command.internal.vertex_attr_tables[attributes.table_index()]
-        );
+impl System {
+    fn gx_read_attribute_value_from_array<A: Attribute>(
+        &mut self,
+        attr: A,
+        array: ArrayDescriptor,
+        index: u16,
+    ) -> A::Value {
+        let base = array.address.value() as usize;
+        let offset = array.stride.value() as usize * index as usize;
+        let address = base + offset;
+        let mut array = &self.mem.ram[address..];
+        let mut reader = array.reader();
+
+        attr.read(&mut reader).unwrap()
+    }
+
+    fn gx_read_attribute_value<A: Attribute>(
+        &mut self,
+        mode: AttributeMode,
+        attr: A,
+        reader: &mut BinReader,
+        array: ArrayDescriptor,
+    ) -> Option<A::Value> {
+        match mode {
+            AttributeMode::None => None,
+            AttributeMode::Direct => Some(attr.read(reader).unwrap()),
+            AttributeMode::Index8 => {
+                let index = reader.read_be::<u8>().unwrap();
+                Some(self.gx_read_attribute_value_from_array(attr, array, index as u16))
+            }
+            AttributeMode::Index16 => {
+                let index = reader.read_be::<u16>().unwrap();
+                Some(self.gx_read_attribute_value_from_array(attr, array, index))
+            }
+        }
+    }
+
+    pub fn gx_extract_attributes(&mut self, stream: VertexAttributeStream) -> VertexAttributes {
+        let vcd = self.gpu.command.internal.vertex_descriptor.clone();
+        let vat = self.gpu.command.internal.vertex_attr_tables[stream.table_index()].clone();
+
+        let mut position_data = vcd
+            .position()
+            .present()
+            .then(|| Vec::with_capacity(stream.count() as usize));
+
+        let mut diffuse_data = vcd
+            .diffuse()
+            .present()
+            .then(|| Vec::with_capacity(stream.count() as usize));
+
+        let mut data = stream.data();
+        let mut reader = data.reader();
+        for _ in 0..stream.count() {
+            let position = self.gx_read_attribute_value(
+                vcd.position(),
+                vat.a.position(),
+                &mut reader,
+                self.gpu.command.internal.arrays.position.clone(),
+            );
+
+            if let Some(position) = position {
+                position_data.as_mut().unwrap().push(position);
+            }
+
+            let diffuse = self.gx_read_attribute_value(
+                vcd.diffuse(),
+                vat.a.diffuse(),
+                &mut reader,
+                self.gpu.command.internal.arrays.diffuse.clone(),
+            );
+
+            if let Some(diffuse) = diffuse {
+                diffuse_data.as_mut().unwrap().push(diffuse);
+            }
+        }
+
+        VertexAttributes {
+            position: position_data,
+            diffuse: diffuse_data,
+        }
+    }
+
+    pub fn gx_draw_triangle(&mut self, stream: VertexAttributeStream) {
+        let vcd = self.gpu.command.internal.vertex_descriptor.clone();
+        let vat = self.gpu.command.internal.vertex_attr_tables[stream.table_index()].clone();
+
+        tracing::debug!("{:?}", vcd);
+        tracing::debug!("{:?}", vat);
+
+        let attributes = self.gx_extract_attributes(stream);
+        tracing::debug!("{:?}", attributes);
 
         todo!()
     }

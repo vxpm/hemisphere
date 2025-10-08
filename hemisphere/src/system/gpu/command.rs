@@ -1,13 +1,13 @@
-mod vat;
+pub mod attributes;
 
 use crate::system::{
     System,
-    gpu::{BypassReg, Gpu},
+    gpu::{BypassReg, Gpu, command::attributes::Attribute},
 };
+use attributes::VertexAttributeTable;
 use bitos::{BitUtils, bitos, integer::u3};
 use common::{Address, Primitive, bin::BinaryStream};
 use strum::FromRepr;
-use vat::VertexAttributeTable;
 use zerocopy::IntoBytes;
 
 /// A command processor register.
@@ -52,10 +52,10 @@ pub enum Reg {
     Vat7C = 0x97,
 
     // Array Base
-    VerticesPtr = 0xA0,
-    NormalsPtr = 0xA1,
-    Color0Ptr = 0xA2,
-    Color1Ptr = 0xA3,
+    PositionPtr = 0xA0,
+    NormalPtr = 0xA1,
+    DiffusePtr = 0xA2,
+    SpecularPtr = 0xA3,
     Tex0CoordPtr = 0xA4,
     Tex1CoordPtr = 0xA5,
     Tex2CoordPtr = 0xA6,
@@ -70,10 +70,10 @@ pub enum Reg {
     GpArr3Ptr = 0xAF,
 
     // Array Stride
-    VerticesStride = 0xB0,
-    NormalsStride = 0xB1,
-    Color0Stride = 0xB2,
-    Color1Stride = 0xB3,
+    PositionStride = 0xB0,
+    NormalStride = 0xB1,
+    DiffuseStride = 0xB2,
+    SpecularStride = 0xB3,
     Tex0CoordStride = 0xB4,
     Tex1CoordStride = 0xB5,
     Tex2CoordStride = 0xB6,
@@ -195,7 +195,7 @@ pub struct Fifo {
 
 #[bitos[2]]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum AttributeKind {
+pub enum AttributeMode {
     /// Not present
     #[default]
     None = 0b00,
@@ -207,7 +207,11 @@ pub enum AttributeKind {
     Index16 = 0b11,
 }
 
-impl AttributeKind {
+impl AttributeMode {
+    pub fn present(self) -> bool {
+        self != AttributeMode::None
+    }
+
     pub fn size(self) -> Option<u32> {
         match self {
             Self::None => Some(0),
@@ -230,25 +234,38 @@ pub struct VertexDescriptor {
     pub tex_coord_mat_index: [bool; 8],
     /// Whether the position attribute is present.
     #[bits(9..11)]
-    pub position: AttributeKind,
+    pub position: AttributeMode,
     /// Whether the normal attribute is present.
     #[bits(11..13)]
-    pub normal: AttributeKind,
+    pub normal: AttributeMode,
     /// Whether the diffuse color attribute is present.
     #[bits(13..15)]
-    pub diffuse: AttributeKind,
+    pub diffuse: AttributeMode,
     /// Whether the specular color attribute is present.
     #[bits(15..17)]
-    pub specular: AttributeKind,
+    pub specular: AttributeMode,
     /// Whether the texture coordinate N attribute is present.
     #[bits(32..48)]
-    pub tex_coord: [AttributeKind; 8],
+    pub tex_coord: [AttributeMode; 8],
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ArrayDescriptor {
+    pub address: Address,
+    pub stride: u32,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct Arrays {
+    pub position: ArrayDescriptor,
+    pub diffuse: ArrayDescriptor,
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct Internal {
     pub vertex_descriptor: VertexDescriptor,
     pub vertex_attr_tables: [VertexAttributeTable; 8],
+    pub arrays: Arrays,
 }
 
 impl Internal {
@@ -257,32 +274,38 @@ impl Internal {
             Reg::VcdLow => value.write_ne_bytes(&mut self.vertex_descriptor.as_mut_bytes()[0..4]),
             Reg::VcdHigh => value.write_ne_bytes(&mut self.vertex_descriptor.as_mut_bytes()[4..8]),
 
-            Reg::Vat0A => value.write_ne_bytes(&mut self.vertex_attr_tables[0].a.as_mut_bytes()),
-            Reg::Vat1A => value.write_ne_bytes(&mut self.vertex_attr_tables[1].a.as_mut_bytes()),
-            Reg::Vat2A => value.write_ne_bytes(&mut self.vertex_attr_tables[2].a.as_mut_bytes()),
-            Reg::Vat3A => value.write_ne_bytes(&mut self.vertex_attr_tables[3].a.as_mut_bytes()),
-            Reg::Vat4A => value.write_ne_bytes(&mut self.vertex_attr_tables[4].a.as_mut_bytes()),
-            Reg::Vat5A => value.write_ne_bytes(&mut self.vertex_attr_tables[5].a.as_mut_bytes()),
-            Reg::Vat6A => value.write_ne_bytes(&mut self.vertex_attr_tables[6].a.as_mut_bytes()),
-            Reg::Vat7A => value.write_ne_bytes(&mut self.vertex_attr_tables[7].a.as_mut_bytes()),
+            Reg::Vat0A => value.write_ne_bytes(self.vertex_attr_tables[0].a.as_mut_bytes()),
+            Reg::Vat1A => value.write_ne_bytes(self.vertex_attr_tables[1].a.as_mut_bytes()),
+            Reg::Vat2A => value.write_ne_bytes(self.vertex_attr_tables[2].a.as_mut_bytes()),
+            Reg::Vat3A => value.write_ne_bytes(self.vertex_attr_tables[3].a.as_mut_bytes()),
+            Reg::Vat4A => value.write_ne_bytes(self.vertex_attr_tables[4].a.as_mut_bytes()),
+            Reg::Vat5A => value.write_ne_bytes(self.vertex_attr_tables[5].a.as_mut_bytes()),
+            Reg::Vat6A => value.write_ne_bytes(self.vertex_attr_tables[6].a.as_mut_bytes()),
+            Reg::Vat7A => value.write_ne_bytes(self.vertex_attr_tables[7].a.as_mut_bytes()),
 
-            Reg::Vat0B => value.write_ne_bytes(&mut self.vertex_attr_tables[0].b.as_mut_bytes()),
-            Reg::Vat1B => value.write_ne_bytes(&mut self.vertex_attr_tables[1].b.as_mut_bytes()),
-            Reg::Vat2B => value.write_ne_bytes(&mut self.vertex_attr_tables[2].b.as_mut_bytes()),
-            Reg::Vat3B => value.write_ne_bytes(&mut self.vertex_attr_tables[3].b.as_mut_bytes()),
-            Reg::Vat4B => value.write_ne_bytes(&mut self.vertex_attr_tables[4].b.as_mut_bytes()),
-            Reg::Vat5B => value.write_ne_bytes(&mut self.vertex_attr_tables[5].b.as_mut_bytes()),
-            Reg::Vat6B => value.write_ne_bytes(&mut self.vertex_attr_tables[6].b.as_mut_bytes()),
-            Reg::Vat7B => value.write_ne_bytes(&mut self.vertex_attr_tables[7].b.as_mut_bytes()),
+            Reg::Vat0B => value.write_ne_bytes(self.vertex_attr_tables[0].b.as_mut_bytes()),
+            Reg::Vat1B => value.write_ne_bytes(self.vertex_attr_tables[1].b.as_mut_bytes()),
+            Reg::Vat2B => value.write_ne_bytes(self.vertex_attr_tables[2].b.as_mut_bytes()),
+            Reg::Vat3B => value.write_ne_bytes(self.vertex_attr_tables[3].b.as_mut_bytes()),
+            Reg::Vat4B => value.write_ne_bytes(self.vertex_attr_tables[4].b.as_mut_bytes()),
+            Reg::Vat5B => value.write_ne_bytes(self.vertex_attr_tables[5].b.as_mut_bytes()),
+            Reg::Vat6B => value.write_ne_bytes(self.vertex_attr_tables[6].b.as_mut_bytes()),
+            Reg::Vat7B => value.write_ne_bytes(self.vertex_attr_tables[7].b.as_mut_bytes()),
 
-            Reg::Vat0C => value.write_ne_bytes(&mut self.vertex_attr_tables[0].c.as_mut_bytes()),
-            Reg::Vat1C => value.write_ne_bytes(&mut self.vertex_attr_tables[1].c.as_mut_bytes()),
-            Reg::Vat2C => value.write_ne_bytes(&mut self.vertex_attr_tables[2].c.as_mut_bytes()),
-            Reg::Vat3C => value.write_ne_bytes(&mut self.vertex_attr_tables[3].c.as_mut_bytes()),
-            Reg::Vat4C => value.write_ne_bytes(&mut self.vertex_attr_tables[4].c.as_mut_bytes()),
-            Reg::Vat5C => value.write_ne_bytes(&mut self.vertex_attr_tables[5].c.as_mut_bytes()),
-            Reg::Vat6C => value.write_ne_bytes(&mut self.vertex_attr_tables[6].c.as_mut_bytes()),
-            Reg::Vat7C => value.write_ne_bytes(&mut self.vertex_attr_tables[7].c.as_mut_bytes()),
+            Reg::Vat0C => value.write_ne_bytes(self.vertex_attr_tables[0].c.as_mut_bytes()),
+            Reg::Vat1C => value.write_ne_bytes(self.vertex_attr_tables[1].c.as_mut_bytes()),
+            Reg::Vat2C => value.write_ne_bytes(self.vertex_attr_tables[2].c.as_mut_bytes()),
+            Reg::Vat3C => value.write_ne_bytes(self.vertex_attr_tables[3].c.as_mut_bytes()),
+            Reg::Vat4C => value.write_ne_bytes(self.vertex_attr_tables[4].c.as_mut_bytes()),
+            Reg::Vat5C => value.write_ne_bytes(self.vertex_attr_tables[5].c.as_mut_bytes()),
+            Reg::Vat6C => value.write_ne_bytes(self.vertex_attr_tables[6].c.as_mut_bytes()),
+            Reg::Vat7C => value.write_ne_bytes(self.vertex_attr_tables[7].c.as_mut_bytes()),
+
+            Reg::PositionPtr => value.write_ne_bytes(self.arrays.position.address.as_mut_bytes()),
+            Reg::DiffusePtr => value.write_ne_bytes(self.arrays.diffuse.address.as_mut_bytes()),
+
+            Reg::PositionStride => value.write_ne_bytes(self.arrays.position.stride.as_mut_bytes()),
+            Reg::DiffuseStride => value.write_ne_bytes(self.arrays.diffuse.stride.as_mut_bytes()),
 
             _ => tracing::warn!("unimplemented write to internal CP register {reg:?}"),
         }
@@ -363,11 +386,15 @@ impl VertexAttributeStream {
         &self.attributes
     }
 
-    pub fn vertex(&self, index: usize) -> Option<&[u8]> {
-        let stride = self.attributes.len() / self.count as usize;
-        (index < self.count as usize)
-            .then_some(&self.attributes[index * stride..(index + 1) * stride])
+    pub fn stride(&self) -> usize {
+        self.attributes.len() / self.count as usize
     }
+
+    // pub fn vertex(&self, index: usize) -> Option<&[u8]> {
+    //     let stride = self.stride();
+    //     (index < self.count as usize)
+    //         .then_some(&self.attributes[index * stride..(index + 1) * stride])
+    // }
 }
 
 /// CP interface
@@ -557,7 +584,7 @@ impl System {
                     }
                 }
                 Command::DrawTriangles { vertex_attributes } => {
-                    self.gpu.draw_triangle(vertex_attributes);
+                    self.gx_draw_triangle(vertex_attributes);
                 }
             }
         }
