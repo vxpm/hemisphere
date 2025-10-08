@@ -17,6 +17,7 @@ slotmap.workspace = true
 tracing.workspace = true
 zerocopy.workspace = true
 strum.workspace = true
+glam.workspace = true
 
 addr2line = { version = "0.25", features = [
     "cpp_demangle",

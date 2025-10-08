@@ -8,6 +8,7 @@ pub use primitive::Primitive;
 use zerocopy::{FromBytes, Immutable, IntoBytes};
 
 pub mod arch;
+pub mod bin;
 pub mod util;
 
 /// A memory address. This is a thin wrapper around a [`u32`].

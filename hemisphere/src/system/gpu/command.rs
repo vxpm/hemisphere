@@ -5,7 +5,7 @@ use crate::system::{
     gpu::{BypassReg, Gpu},
 };
 use bitos::{BitUtils, bitos, integer::u3};
-use common::{Address, Primitive};
+use common::{Address, Primitive, bin::BinaryStream};
 use strum::FromRepr;
 use vat::VertexAttributeTable;
 use zerocopy::IntoBytes;
@@ -112,6 +112,7 @@ pub enum Operation {
 }
 
 #[bitos(8)]
+#[derive(Debug)]
 pub struct Opcode {
     #[bits(0..3)]
     pub vat_index: u3,
@@ -350,8 +351,8 @@ pub struct VertexAttributeStream {
 }
 
 impl VertexAttributeStream {
-    pub fn table_index(&self) -> u8 {
-        self.table
+    pub fn table_index(&self) -> usize {
+        self.table as usize
     }
 
     pub fn count(&self) -> u16 {
@@ -430,7 +431,7 @@ impl Interface {
 impl Gpu {
     /// Reads a command from the command queue.
     pub fn read_command(&mut self) -> Option<Command> {
-        let mut reader = self.command_queue.read();
+        let mut reader = self.command_queue.reader();
 
         let opcode = Opcode::from_bits(reader.read_be()?);
         let command = match opcode.operation().unwrap() {

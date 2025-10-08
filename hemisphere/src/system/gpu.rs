@@ -2,7 +2,7 @@ pub mod command;
 pub mod transform;
 
 use crate::system::gpu::command::VertexAttributeStream;
-use common::util::DataStream;
+use common::bin::{BinRingBuffer, BinaryStream};
 use strum::FromRepr;
 
 /// A bypass register.
@@ -189,12 +189,18 @@ struct VertexAttributes {
 #[derive(Debug, Default)]
 pub struct Gpu {
     pub command: command::Interface,
-    pub command_queue: DataStream,
+    pub command_queue: BinRingBuffer,
     pub transform: transform::Interface,
 }
 
 impl Gpu {
     pub fn draw_triangle(&mut self, attributes: VertexAttributeStream) {
+        tracing::debug!("{:?}", self.command.internal.vertex_descriptor);
+        tracing::debug!(
+            "{:?}",
+            self.command.internal.vertex_attr_tables[attributes.table_index()]
+        );
+
         todo!()
     }
 }

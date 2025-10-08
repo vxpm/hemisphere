@@ -1,4 +1,6 @@
-use bitos::{bitos, integer::u5};
+use bitos::{BitUtils, bitos, integer::u5};
+use common::bin::BinReader;
+use glam::Vec3;
 
 #[bitos(1)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -47,6 +49,33 @@ pub struct PositionAttribute {
 }
 
 impl PositionAttribute {
+    pub fn read(&self, reader: &mut BinReader) -> Option<Vec3> {
+        let mut component = || {
+            let shift = 2.0f32.powi(self.shift().value() as i32);
+            dbg!(shift, self.format());
+
+            Some(match self.format() {
+                CoordsFormat::U8 => reader.read_be::<u8>()? as f32 / shift,
+                CoordsFormat::I8 => reader.read_be::<i8>()? as f32 / shift,
+                CoordsFormat::U16 => reader.read_be::<u16>()? as f32 / shift,
+                CoordsFormat::I16 => dbg!(reader.read_be::<i16>()?) as f32 / shift,
+                CoordsFormat::F32 => f32::from_bits(reader.read_be::<u32>()?),
+                _ => panic!("reserved format"),
+            })
+        };
+
+        let x = component()?;
+        let y = component()?;
+
+        Some(match self.kind() {
+            PositionKind::Vec2 => Vec3::new(x, y, 0.0),
+            PositionKind::Vec3 => {
+                let z = component()?;
+                Vec3::new(x, y, z)
+            }
+        })
+    }
+
     pub fn size(self) -> u32 {
         match self.kind() {
             PositionKind::Vec2 => 2 * self.format().size(),
@@ -152,7 +181,80 @@ pub struct ColorAttribute {
     pub format: ColorFormat,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct Rgba {
+    r: f32,
+    g: f32,
+    b: f32,
+    a: f32,
+}
+
+impl Rgba {
+    pub fn new(r: f32, g: f32, b: f32, a: f32) -> Self {
+        Self { r, g, b, a }
+    }
+
+    pub fn rgb(self) -> Self {
+        Self {
+            r: self.r,
+            g: self.g,
+            b: self.b,
+            a: 1.0,
+        }
+    }
+}
+
 impl ColorAttribute {
+    pub fn read(&self, reader: &mut BinReader) -> Option<Rgba> {
+        let rgba = match self.format() {
+            ColorFormat::Rgb565 => {
+                let data = reader.read_be::<u16>()?;
+                Rgba::new(
+                    data.bits(0, 5) as f32 / 32.0,
+                    data.bits(5, 11) as f32 / 64.0,
+                    data.bits(11, 16) as f32 / 32.0,
+                    1.0,
+                )
+            }
+            ColorFormat::Rgb888 => Rgba::new(
+                reader.read_be::<u8>()? as f32 / 255.0,
+                reader.read_be::<u8>()? as f32 / 255.0,
+                reader.read_be::<u8>()? as f32 / 255.0,
+                1.0,
+            ),
+            ColorFormat::Rgb888x => {
+                let color = Rgba::new(
+                    reader.read_be::<u8>()? as f32 / 255.0,
+                    reader.read_be::<u8>()? as f32 / 255.0,
+                    reader.read_be::<u8>()? as f32 / 255.0,
+                    1.0,
+                );
+
+                // throw away
+                _ = reader.read_be::<u8>()?;
+
+                color
+            }
+            ColorFormat::Rgba4444 => {
+                let data = reader.read_be::<u16>()?;
+                Rgba::new(
+                    data.bits(0, 4) as f32 / 16.0,
+                    data.bits(4, 8) as f32 / 16.0,
+                    data.bits(8, 12) as f32 / 16.0,
+                    data.bits(12, 16) as f32 / 16.0,
+                )
+            }
+            ColorFormat::Rgba6666 => todo!(),
+            ColorFormat::Rgba8888 => todo!(),
+            _ => panic!("reserved format"),
+        };
+
+        Some(match self.kind() {
+            ColorKind::Rgb => rgba.rgb(),
+            ColorKind::Rgba => rgba,
+        })
+    }
+
     pub fn size(self) -> u32 {
         self.format().size()
     }
