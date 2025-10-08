@@ -1,8 +1,7 @@
 pub mod command;
 pub mod transform;
 
-use crate::system::System;
-use command::Command;
+use crate::system::gpu::command::VertexAttributeStream;
 use common::util::DataStream;
 use strum::FromRepr;
 
@@ -180,6 +179,12 @@ pub enum BypassReg {
     BypassMask = 0xFE,
 }
 
+/// Extracted vertex attributes.
+struct VertexAttributes {
+    pub position: [u32; 3],
+    pub diffuse: u32,
+}
+
 /// GX subsystem
 #[derive(Debug, Default)]
 pub struct Gpu {
@@ -188,57 +193,8 @@ pub struct Gpu {
     pub transform: transform::Interface,
 }
 
-/// GX subsystem
-impl System {
-    /// Pops a value from the CP FIFO in memory.
-    fn cp_fifo_pop(&mut self) -> u8 {
-        assert!(self.gpu.command.fifo.count > 0);
-
-        let data = self.read::<u8>(self.gpu.command.fifo.read_ptr);
-        self.gpu.command.fifo_pop();
-
-        data
-    }
-
-    pub fn cp_process(&mut self) {
-        loop {
-            if self.gpu.command_queue.is_empty() {
-                return;
-            }
-
-            let Some(cmd) = self.gpu.read_command() else {
-                return;
-            };
-
-            tracing::debug!("{:02X?}", cmd);
-
-            match cmd {
-                Command::Nop => (),
-                Command::InvalidateVertexCache => (),
-                Command::SetCP { register, value } => {
-                    self.gpu.command.internal.set(register, value)
-                }
-                Command::SetBP { register, value } => (),
-                Command::SetXF { start, values, .. } => {
-                    for (offset, value) in values.into_iter().enumerate() {
-                        self.gpu.transform.write(start + offset as u16, value);
-                    }
-                }
-                Command::DrawTriangles {
-                    vertex_count,
-                    vertex_attributes,
-                } => {}
-            }
-        }
-    }
-
-    /// Consumes commands available in the CP FIFO and processes them.
-    pub fn cp_update(&mut self) {
-        while self.gpu.command.fifo.count > 0 {
-            let data = self.cp_fifo_pop();
-            self.gpu.command_queue.push_be(data);
-        }
-
-        self.cp_process();
+impl Gpu {
+    pub fn draw_triangle(&mut self, attributes: VertexAttributeStream) {
+        todo!()
     }
 }

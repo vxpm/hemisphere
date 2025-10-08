@@ -1,6 +1,9 @@
 mod vat;
 
-use crate::system::gpu::{BypassReg, Gpu};
+use crate::system::{
+    System,
+    gpu::{BypassReg, Gpu},
+};
 use bitos::{BitUtils, bitos, integer::u3};
 use common::{Address, Primitive};
 use strum::FromRepr;
@@ -134,8 +137,7 @@ pub enum Command {
         values: Vec<u32>,
     },
     DrawTriangles {
-        vertex_count: u16,
-        vertex_attributes: Vec<u8>,
+        vertex_attributes: VertexAttributeStream,
     },
 }
 
@@ -340,6 +342,33 @@ impl Internal {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct VertexAttributeStream {
+    table: u8,
+    count: u16,
+    attributes: Vec<u8>,
+}
+
+impl VertexAttributeStream {
+    pub fn table_index(&self) -> u8 {
+        self.table
+    }
+
+    pub fn count(&self) -> u16 {
+        self.count
+    }
+
+    pub fn data(&self) -> &[u8] {
+        &self.attributes
+    }
+
+    pub fn vertex(&self, index: usize) -> Option<&[u8]> {
+        let stride = self.attributes.len() / self.count as usize;
+        (index < self.count as usize)
+            .then_some(&self.attributes[index * stride..(index + 1) * stride])
+    }
+}
+
 /// CP interface
 #[derive(Debug, Default)]
 pub struct Interface {
@@ -469,10 +498,13 @@ impl Gpu {
                 }
 
                 let vertex_attributes = reader.read_bytes(attribute_stream_size)?;
-                Command::DrawTriangles {
-                    vertex_count,
-                    vertex_attributes,
-                }
+                let vertex_attributes = VertexAttributeStream {
+                    table: opcode.vat_index().value(),
+                    count: vertex_count,
+                    attributes: vertex_attributes,
+                };
+
+                Command::DrawTriangles { vertex_attributes }
             }
             Operation::DrawTriangleStrip => todo!(),
             Operation::DrawTriangleFan => todo!(),
@@ -481,7 +513,62 @@ impl Gpu {
             Operation::DrawPoints => todo!(),
         };
 
-        reader.consume();
+        reader.finish();
         Some(command)
+    }
+}
+
+/// Command Processor
+impl System {
+    /// Pops a value from the CP FIFO in memory.
+    fn cp_fifo_pop(&mut self) -> u8 {
+        assert!(self.gpu.command.fifo.count > 0);
+
+        let data = self.read::<u8>(self.gpu.command.fifo.read_ptr);
+        self.gpu.command.fifo_pop();
+
+        data
+    }
+
+    /// Process CP commands until the queue is either empty or incomplete.
+    pub fn cp_process(&mut self) {
+        loop {
+            if self.gpu.command_queue.is_empty() {
+                return;
+            }
+
+            let Some(cmd) = self.gpu.read_command() else {
+                return;
+            };
+
+            tracing::debug!("{:02X?}", cmd);
+
+            match cmd {
+                Command::Nop => (),
+                Command::InvalidateVertexCache => (),
+                Command::SetCP { register, value } => {
+                    self.gpu.command.internal.set(register, value)
+                }
+                Command::SetBP { .. } => (),
+                Command::SetXF { start, values, .. } => {
+                    for (offset, value) in values.into_iter().enumerate() {
+                        self.gpu.transform.write(start + offset as u16, value);
+                    }
+                }
+                Command::DrawTriangles { vertex_attributes } => {
+                    self.gpu.draw_triangle(vertex_attributes);
+                }
+            }
+        }
+    }
+
+    /// Consumes commands available in the CP FIFO and processes them.
+    pub fn cp_update(&mut self) {
+        while self.gpu.command.fifo.count > 0 {
+            let data = self.cp_fifo_pop();
+            self.gpu.command_queue.push_be(data);
+        }
+
+        self.cp_process();
     }
 }

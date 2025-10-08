@@ -1,13 +1,75 @@
 //! Generic utilities.
 
-use std::{collections::VecDeque, io::BufRead};
-
 use crate::Primitive;
+use std::{collections::VecDeque, io::BufRead};
 
 /// Returns a `Box<[T; LEN]>` filled with `elem`.
 #[inline(always)]
 pub fn boxed_array<T: Clone, const LEN: usize>(elem: T) -> Box<[T; LEN]> {
     vec![elem; LEN].into_boxed_slice().try_into().ok().unwrap()
+}
+
+pub trait DataProvider {
+    fn as_data(&mut self) -> &[u8];
+    fn consume(&mut self, amount: usize);
+}
+
+impl DataProvider for &[u8] {
+    fn as_data(&mut self) -> &[u8] {
+        self
+    }
+
+    fn consume(&mut self, amount: usize) {
+        *self = &self[amount..];
+    }
+}
+
+pub struct DataReader<'a, T> {
+    provider: &'a mut T,
+    read: usize,
+}
+
+impl<'a, T> DataReader<'a, T>
+where
+    T: DataProvider,
+{
+    pub fn new(data: &'a mut T) -> Self {
+        Self {
+            provider: data,
+            read: 0,
+        }
+    }
+
+    /// Reads a primitive if there is enough data for it.
+    pub fn read_be<P>(&mut self) -> Option<P>
+    where
+        P: Primitive,
+    {
+        let slice = &self.provider.as_data()[self.read..];
+        (slice.len() >= size_of::<P>()).then(|| {
+            self.read += size_of::<P>();
+            P::read_be_bytes(slice)
+        })
+    }
+
+    /// Reads a sequence of `length` bytes if there is enough data for it.
+    pub fn read_bytes(&mut self, length: usize) -> Option<Vec<u8>> {
+        let slice = &self.provider.as_data()[self.read..];
+        (slice.len() >= length).then(|| {
+            self.read += length;
+            slice[..length].to_vec()
+        })
+    }
+
+    /// Returns how many bytes of data are remaining in the data.
+    pub fn remaining(&mut self) -> usize {
+        self.provider.as_data().len() - self.read
+    }
+
+    /// Consumes the read bytes returns how many bytes were read
+    pub fn finish(self) -> usize {
+        self.read
+    }
 }
 
 /// A data stream.
@@ -30,12 +92,8 @@ impl DataStream {
     }
 
     /// Start a reading operation.
-    pub fn read(&mut self) -> ReadOp<'_> {
-        self.data.make_contiguous();
-        ReadOp {
-            data: &mut self.data,
-            read: 0,
-        }
+    pub fn read(&mut self) -> DataReader<'_, DataStream> {
+        DataReader::new(self)
     }
 
     pub fn len(&self) -> usize {
@@ -47,43 +105,12 @@ impl DataStream {
     }
 }
 
-pub struct ReadOp<'a> {
-    data: &'a mut VecDeque<u8>,
-    read: usize,
-}
-
-impl ReadOp<'_> {
-    /// Reads a primitive from the stream if there are enough bytes for it.
-    pub fn read_be<P>(&mut self) -> Option<P>
-    where
-        P: Primitive,
-    {
-        let (data, _) = self.data.as_slices();
-        let slice = &data[self.read..];
-
-        (slice.len() >= size_of::<P>()).then(|| {
-            self.read += size_of::<P>();
-            P::read_be_bytes(slice)
-        })
+impl DataProvider for DataStream {
+    fn as_data(&mut self) -> &[u8] {
+        self.data.make_contiguous()
     }
 
-    pub fn read_bytes(&mut self, length: usize) -> Option<Vec<u8>> {
-        let (data, _) = self.data.as_slices();
-        let slice = &data[self.read..];
-
-        (slice.len() >= length).then(|| {
-            self.read += length;
-            slice[..length].to_vec()
-        })
-    }
-
-    /// Returns how many bytes of data are remaining in the stream.
-    pub fn remaining(&mut self) -> usize {
-        self.data.len() - self.read
-    }
-
-    /// Consumes the read bytes.
-    pub fn consume(self) {
-        self.data.consume(self.read);
+    fn consume(&mut self, amount: usize) {
+        self.data.consume(amount);
     }
 }
