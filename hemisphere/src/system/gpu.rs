@@ -8,7 +8,7 @@ use crate::system::gpu::command::{
 };
 use bitos::integer::UnsignedInt;
 use common::bin::{BinReader, BinRingBuffer, BinaryStream};
-use glam::Vec3;
+use glam::{Mat4, Vec3, Vec4, Vec4Swizzles};
 use strum::FromRepr;
 
 /// A bypass register.
@@ -200,6 +200,47 @@ pub struct Gpu {
     pub transform: transform::Interface,
 }
 
+// fn guPerspective(fovy: f32, aspect: f32, near: f32, far: f32) -> Mat4 {
+//     // f32 cot,angle,tmp;
+//     //
+//     // angle = fovy*0.5f;
+//     // angle = DegToRad(angle);
+//     //
+//     // cot = 1.0f/tanf(angle);
+//     //
+//     // mt[0][0] = cot/aspect;
+//     // mt[0][1] = 0.0f;
+//     // mt[0][2] = 0.0f;
+//     // mt[0][3] = 0.0f;
+//     //
+//     // mt[1][0] = 0.0f;
+//     // mt[1][1] = cot;
+//     // mt[1][2] = 0.0f;
+//     // mt[1][3] = 0.0f;
+//     //
+//     // tmp = 1.0f/(f-n);
+//     // mt[2][0] = 0.0f;
+//     // mt[2][1] = 0.0f;
+//     // mt[2][2] = -(n)*tmp;
+//     // mt[2][3] = -(f*n)*tmp;
+//     //
+//     // mt[3][0] = 0.0f;
+//     // mt[3][1] = 0.0f;
+//     // mt[3][2] = -1.0f;
+//     // mt[3][3] = 0.0f;
+//
+//     let angle = (fovy * 0.50).to_radians();
+//     let cot = 1.0 / angle.tan();
+//     let tmp = 1.0 / (far - near);
+//
+//     Mat4::from_cols_array_2d(&[
+//         [cot / aspect, 0.0, 0.0, 0.0],
+//         [0.0, cot, 0.0, 0.0],
+//         [0.0, 0.0, -near * tmp, -(far * near) * tmp],
+//         [0.0, 0.0, -1.0, 0.0],
+//     ])
+// }
+
 impl System {
     fn gx_read_attribute_value_from_array<A: Attribute>(
         &mut self,
@@ -287,11 +328,27 @@ impl System {
         let vcd = self.gpu.command.internal.vertex_descriptor.clone();
         let vat = self.gpu.command.internal.vertex_attr_tables[stream.table_index()].clone();
 
-        tracing::debug!("{:?}", vcd);
-        tracing::debug!("{:?}", vat);
+        tracing::debug!(?vcd);
+        tracing::debug!(?vat);
 
         let attributes = self.gx_extract_attributes(stream);
-        tracing::debug!("{:?}", attributes);
+        tracing::debug!(?attributes);
+
+        let positions = attributes.position.unwrap();
+        let projection = self.gpu.transform.projection_matrix();
+        tracing::debug!(?projection);
+
+        let viewport_scale = Vec4::from((self.gpu.transform.internal.viewport_scale, 1.0));
+        let viewport_offset = Vec4::from((self.gpu.transform.internal.viewport_offset, 0.0));
+        tracing::debug!(?viewport_scale, ?viewport_offset);
+
+        for pos in positions {
+            let pos = Vec4::new(pos.x, pos.y, pos.z, 1.0);
+            let transformed = projection * pos;
+            let viewport = (transformed + viewport_offset) / viewport_scale;
+            tracing::debug!(?transformed);
+            tracing::debug!(?viewport);
+        }
 
         todo!()
     }

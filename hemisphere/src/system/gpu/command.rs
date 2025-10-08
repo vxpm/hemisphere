@@ -309,10 +309,6 @@ impl Internal {
 
             _ => tracing::warn!("unimplemented write to internal CP register {reg:?}"),
         }
-
-        // tracing::debug!("{:?}", self.vertex_descriptor);
-        // tracing::debug!("{:#?}", self.vertex_attr_tables[0]);
-        tracing::debug!("vertex size: {:#?}", self.vertex_size(0));
     }
 
     pub fn vertex_size(&self, vat: u8) -> u32 {
