@@ -115,7 +115,8 @@ impl BlockBuilder<'_> {
             .call_indirect(sig, write_fn, &[self.consts.ctx_ptr, addr, value]);
     }
 
-    fn read_quantized(&mut self, addr: ir::Value, gqr: ir::Value) -> ir::Value {
+    /// Reads a quantized value. Returns the value and the type size.
+    fn read_quantized(&mut self, addr: ir::Value, gqr: ir::Value) -> (ir::Value, ir::Value) {
         let read_quantized_offset = offset_of!(Hooks, read_quantized) as i32;
         let read_fn = self.bd.ins().load(
             self.consts.ptr_type,
@@ -151,14 +152,14 @@ impl BlockBuilder<'_> {
             &[self.consts.ctx_ptr, addr, gqr, stack_slot_addr],
         );
 
-        let success = self.bd.inst_results(inst)[0];
+        let size = self.bd.inst_results(inst)[0];
         let exit_block = self.bd.create_block();
         let continue_block = self.bd.create_block();
 
         self.bd.set_cold_block(exit_block);
         self.bd
             .ins()
-            .brif(success, continue_block, &[], exit_block, &[]);
+            .brif(size, continue_block, &[], exit_block, &[]);
 
         self.bd.seal_block(exit_block);
         self.bd.seal_block(continue_block);
@@ -168,10 +169,14 @@ impl BlockBuilder<'_> {
         self.prologue_with(LOAD_INFO);
 
         self.switch_to_bb(continue_block);
-        self.bd.ins().stack_load(ir::types::F64, stack_slot, 0)
+        (
+            self.bd.ins().stack_load(ir::types::F64, stack_slot, 0),
+            self.bd.ins().uextend(ir::types::I32, size),
+        )
     }
 
-    fn write_quantized(&mut self, addr: ir::Value, gqr: ir::Value, value: ir::Value) {
+    /// Writes a quantized value. Returns the type size.
+    fn write_quantized(&mut self, addr: ir::Value, gqr: ir::Value, value: ir::Value) -> ir::Value {
         let write_quantized_offset = offset_of!(Hooks, write_quantized) as i32;
         let write_fn = self.bd.ins().load(
             self.consts.ptr_type,
@@ -195,14 +200,14 @@ impl BlockBuilder<'_> {
                 .ins()
                 .call_indirect(sig, write_fn, &[self.consts.ctx_ptr, addr, gqr, value]);
 
-        let success = self.bd.inst_results(inst)[0];
+        let size = self.bd.inst_results(inst)[0];
         let exit_block = self.bd.create_block();
         let continue_block = self.bd.create_block();
 
         self.bd.set_cold_block(exit_block);
         self.bd
             .ins()
-            .brif(success, continue_block, &[], exit_block, &[]);
+            .brif(size, continue_block, &[], exit_block, &[]);
 
         self.bd.seal_block(exit_block);
         self.bd.seal_block(continue_block);
@@ -212,6 +217,7 @@ impl BlockBuilder<'_> {
         self.prologue_with(STORE_INFO);
 
         self.switch_to_bb(continue_block);
+        self.bd.ins().uextend(ir::types::I32, size)
     }
 }
 
@@ -711,10 +717,10 @@ impl BlockBuilder<'_> {
         };
 
         let index = self.ir_value(ins.field_ps_i());
-        let ps0 = self.read_quantized(addr, index);
+        let (ps0, size) = self.read_quantized(addr, index);
         let ps1 = if ins.field_ps_w() == 0 {
-            let addr = self.bd.ins().iadd_imm(addr, 8);
-            self.read_quantized(addr, index)
+            let addr = self.bd.ins().iadd(addr, size);
+            self.read_quantized(addr, index).0
         } else {
             self.ir_value(1.0f64)
         };
@@ -740,9 +746,9 @@ impl BlockBuilder<'_> {
         let ps1 = self.get(Reg::PS1(ins.fpr_s()));
         let index = self.ir_value(ins.field_ps_i());
 
-        self.write_quantized(addr, index, ps0);
+        let size = self.write_quantized(addr, index, ps0);
         if ins.field_ps_w() == 0 {
-            let addr = self.bd.ins().iadd_imm(addr, 8);
+            let addr = self.bd.ins().iadd(addr, size);
             self.write_quantized(addr, index, ps1);
         }
 

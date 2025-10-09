@@ -14,8 +14,8 @@ pub type Context = std::ffi::c_void;
 pub type GetRegistersHook = fn(*mut Context) -> *mut Cpu;
 pub type ReadHook<T> = fn(*mut Context, Address, *mut T) -> bool;
 pub type WriteHook<T> = fn(*mut Context, Address, T) -> bool;
-pub type ReadQuantizedHook = fn(*mut Context, Address, u8, *mut f64) -> bool;
-pub type WriteQuantizedHook = fn(*mut Context, Address, u8, f64) -> bool;
+pub type ReadQuantizedHook = fn(*mut Context, Address, u8, *mut f64) -> u8;
+pub type WriteQuantizedHook = fn(*mut Context, Address, u8, f64) -> u8;
 pub type GenericHook = fn(*mut Context);
 
 /// External functions that JITed code calls.
@@ -95,7 +95,7 @@ impl Hooks {
                 ir::AbiParam::new(ir::types::I8),  // gqr
                 ir::AbiParam::new(ptr_type),       // value ptr
             ],
-            returns: vec![ir::AbiParam::new(ir::types::I8)], // success
+            returns: vec![ir::AbiParam::new(ir::types::I8)], // size
             call_conv: isa::CallConv::SystemV,
         }
     }
@@ -109,7 +109,7 @@ impl Hooks {
                 ir::AbiParam::new(ir::types::I8),  // gqr
                 ir::AbiParam::new(ir::types::F64), // value
             ],
-            returns: vec![ir::AbiParam::new(ir::types::I8)], // success
+            returns: vec![ir::AbiParam::new(ir::types::I8)], // size
             call_conv: isa::CallConv::SystemV,
         }
     }

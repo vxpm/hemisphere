@@ -5,7 +5,10 @@ use crate::system::{
     gpu::{BypassReg, Gpu, command::attributes::Attribute},
 };
 use attributes::VertexAttributeTable;
-use bitos::{BitUtils, bitos, integer::u3};
+use bitos::{
+    BitUtils, bitos,
+    integer::{u3, u6},
+};
 use common::{Address, Primitive, bin::BinaryStream};
 use strum::FromRepr;
 use zerocopy::IntoBytes;
@@ -16,8 +19,8 @@ use zerocopy::IntoBytes;
 pub enum Reg {
     Unknown = 0x20,
 
-    TexMatIndexA = 0x30,
-    TexMatIndexB = 0x40,
+    MatIndexLow = 0x30,
+    MatIndexHigh = 0x40,
 
     // VCD
     VcdLow = 0x50,
@@ -261,16 +264,29 @@ pub struct Arrays {
     pub diffuse: ArrayDescriptor,
 }
 
+#[bitos(64)]
+#[derive(Debug, Clone, Copy, Default)]
+pub struct MatrixIndices {
+    #[bits(0..6)]
+    pub position: u6,
+    #[bits(6..54)]
+    pub tex: [u6; 8],
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct Internal {
     pub vertex_descriptor: VertexDescriptor,
     pub vertex_attr_tables: [VertexAttributeTable; 8],
     pub arrays: Arrays,
+    pub mat_indices: MatrixIndices,
 }
 
 impl Internal {
     pub fn set(&mut self, reg: Reg, value: u32) {
         match reg {
+            Reg::MatIndexLow => value.write_ne_bytes(&mut self.mat_indices.as_mut_bytes()[0..4]),
+            Reg::MatIndexHigh => value.write_ne_bytes(&mut self.mat_indices.as_mut_bytes()[4..8]),
+
             Reg::VcdLow => value.write_ne_bytes(&mut self.vertex_descriptor.as_mut_bytes()[0..4]),
             Reg::VcdHigh => value.write_ne_bytes(&mut self.vertex_descriptor.as_mut_bytes()[4..8]),
 
@@ -385,12 +401,6 @@ impl VertexAttributeStream {
     pub fn stride(&self) -> usize {
         self.attributes.len() / self.count as usize
     }
-
-    // pub fn vertex(&self, index: usize) -> Option<&[u8]> {
-    //     let stride = self.stride();
-    //     (index < self.count as usize)
-    //         .then_some(&self.attributes[index * stride..(index + 1) * stride])
-    // }
 }
 
 /// CP interface

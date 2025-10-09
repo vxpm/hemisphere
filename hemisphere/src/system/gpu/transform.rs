@@ -128,25 +128,21 @@ impl Interface {
         }
     }
 
+    pub fn translation_matrix(&self, index: u8) -> Mat4 {
+        let offset = 4 * index as usize;
+        let data = &self.ram[offset..16];
+        let m: &[f32] = zerocopy::transmute_ref!(data);
+
+        Mat4::from_cols_array_2d(&[
+            [m[0], m[1], m[2], m[3]],
+            [m[4], m[5], m[6], m[7]],
+            [m[8], m[9], m[10], m[11]],
+            [0.0, 0.0, 0.0, 1.0],
+        ])
+    }
+
     pub fn projection_matrix(&self) -> Mat4 {
         let p = &self.internal.projection_params;
-
-        // if self.internal.projection_orthographic {
-        //     Mat4::from_cols_array_2d(&[
-        //         [p[0], 0.0, 0.0, 0.0],
-        //         [0.0, p[2], 0.0, 0.0],
-        //         [0.0, 0.0, p[4], 0.0],
-        //         [p[1], p[3], p[5], 1.0],
-        //     ])
-        // } else {
-        //     Mat4::from_cols_array_2d(&[
-        //         [p[0], 0.0, 0.0, 0.0],
-        //         [0.0, p[2], 0.0, 0.0],
-        //         [p[1], p[3], p[4], -1.0],
-        //         [0.0, 0.0, p[5], 0.0],
-        //     ])
-        // }
-
         if self.internal.projection_orthographic {
             Mat4::from_cols_array_2d(&[
                 [p[0], 0.0, 0.0, p[1]],

@@ -201,34 +201,6 @@ pub struct Gpu {
 }
 
 // fn guPerspective(fovy: f32, aspect: f32, near: f32, far: f32) -> Mat4 {
-//     // f32 cot,angle,tmp;
-//     //
-//     // angle = fovy*0.5f;
-//     // angle = DegToRad(angle);
-//     //
-//     // cot = 1.0f/tanf(angle);
-//     //
-//     // mt[0][0] = cot/aspect;
-//     // mt[0][1] = 0.0f;
-//     // mt[0][2] = 0.0f;
-//     // mt[0][3] = 0.0f;
-//     //
-//     // mt[1][0] = 0.0f;
-//     // mt[1][1] = cot;
-//     // mt[1][2] = 0.0f;
-//     // mt[1][3] = 0.0f;
-//     //
-//     // tmp = 1.0f/(f-n);
-//     // mt[2][0] = 0.0f;
-//     // mt[2][1] = 0.0f;
-//     // mt[2][2] = -(n)*tmp;
-//     // mt[2][3] = -(f*n)*tmp;
-//     //
-//     // mt[3][0] = 0.0f;
-//     // mt[3][1] = 0.0f;
-//     // mt[3][2] = -1.0f;
-//     // mt[3][3] = 0.0f;
-//
 //     let angle = (fovy * 0.50).to_radians();
 //     let cot = 1.0 / angle.tan();
 //     let tmp = 1.0 / (far - near);
@@ -335,6 +307,12 @@ impl System {
         tracing::debug!(?attributes);
 
         let positions = attributes.position.unwrap();
+        let index = self.gpu.command.internal.mat_indices.position().value();
+        tracing::debug!(?index);
+
+        let translation = self.gpu.transform.translation_matrix(index);
+        tracing::debug!(?translation);
+
         let projection = self.gpu.transform.projection_matrix();
         tracing::debug!(?projection);
 
@@ -344,7 +322,7 @@ impl System {
 
         for pos in positions {
             let pos = Vec4::new(pos.x, pos.y, pos.z, 1.0);
-            let transformed = projection * pos;
+            let transformed = projection * (translation * pos);
             let viewport = (transformed + viewport_offset) / viewport_scale;
             tracing::debug!(?transformed);
             tracing::debug!(?viewport);

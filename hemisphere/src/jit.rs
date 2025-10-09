@@ -205,10 +205,10 @@ pub static CTX_HOOKS: Hooks = {
         addr: Address,
         gqr: u8,
         value: &mut f64,
-    ) -> bool {
+    ) -> u8 {
         let Some(physical) = ctx.system.translate_data_addr(addr) else {
             tracing::error!("failed to translate address {addr}");
-            return false;
+            return 0;
         };
 
         let gqr = ctx.system.cpu.supervisor.gq[gqr as usize].clone();
@@ -228,8 +228,13 @@ pub static CTX_HOOKS: Hooks = {
             read *= 2.0f64.powi(-scale as i32);
         }
 
+        tracing::debug!(
+            "({}) reading quantized {read} from {addr}",
+            ctx.system.cpu.pc
+        );
+
         *value = read;
-        true
+        gqr.load_type().size()
     }
 
     extern "sysv64-unwind" fn write_quantized(
@@ -237,10 +242,10 @@ pub static CTX_HOOKS: Hooks = {
         addr: Address,
         gqr: u8,
         value: f64,
-    ) -> bool {
+    ) -> u8 {
         let Some(physical) = ctx.system.translate_data_addr(addr) else {
             tracing::error!("failed to translate address {addr}");
-            return false;
+            return 0;
         };
 
         let gqr = ctx.system.cpu.supervisor.gq[gqr as usize].clone();
@@ -248,6 +253,11 @@ pub static CTX_HOOKS: Hooks = {
             .then_some(gqr.store_scale().value())
             .unwrap_or(0);
         let scaled = value * 2.0f64.powi(-scale as i32);
+
+        tracing::debug!(
+            "({}) writing quantized {scaled} to {addr}",
+            ctx.system.cpu.pc
+        );
 
         match gqr.store_type() {
             QuantizedType::U8 => ctx.system.write(physical, scaled as u8),
@@ -257,7 +267,7 @@ pub static CTX_HOOKS: Hooks = {
             _ => ctx.system.write(physical, (scaled as f32).to_bits()),
         }
 
-        true
+        gqr.store_type().size()
     }
 
     extern "sysv64-unwind" fn ibat_changed(ctx: &mut Context) {

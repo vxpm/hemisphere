@@ -594,6 +594,17 @@ pub enum QuantizedType {
     I16,
 }
 
+impl QuantizedType {
+    pub fn size(&self) -> u8 {
+        match self {
+            Self::Float => 4,
+            Self::U8 | Self::I8 => 1,
+            Self::U16 | Self::I16 => 2,
+            _ => panic!("reserved quantized type"),
+        }
+    }
+}
+
 /// A graphics quantization register.
 #[bitos(32)]
 #[derive(Debug, Clone, PartialEq, Default)]
