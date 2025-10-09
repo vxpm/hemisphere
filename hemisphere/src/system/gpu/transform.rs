@@ -128,7 +128,8 @@ impl Interface {
         }
     }
 
-    pub fn translation_matrix(&self, index: u8) -> Mat4 {
+    /// Returns the matrix at `index` in internal memory.
+    pub fn matrix(&self, index: u8) -> Mat4 {
         let offset = 4 * index as usize;
         let data = &self.ram[offset..16];
         let m: &[f32] = zerocopy::transmute_ref!(data);
@@ -139,8 +140,10 @@ impl Interface {
             [m[8], m[9], m[10], m[11]],
             [0.0, 0.0, 0.0, 1.0],
         ])
+        .transpose()
     }
 
+    /// Returns the projection matrix.
     pub fn projection_matrix(&self) -> Mat4 {
         let p = &self.internal.projection_params;
         if self.internal.projection_orthographic {
@@ -158,5 +161,6 @@ impl Interface {
                 [0.0, 0.0, -1.0, 0.0],
             ])
         }
+        .transpose()
     }
 }

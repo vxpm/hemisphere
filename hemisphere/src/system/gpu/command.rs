@@ -268,7 +268,7 @@ pub struct Arrays {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct MatrixIndices {
     #[bits(0..6)]
-    pub position: u6,
+    pub view: u6,
     #[bits(6..54)]
     pub tex: [u6; 8],
 }

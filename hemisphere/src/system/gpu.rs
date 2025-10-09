@@ -306,28 +306,15 @@ impl System {
         let attributes = self.gx_extract_attributes(stream);
         tracing::debug!(?attributes);
 
-        let positions = attributes.position.unwrap();
-        let index = self.gpu.command.internal.mat_indices.position().value();
-        tracing::debug!(?index);
+        let view_index = self.gpu.command.internal.mat_indices.view().value();
+        tracing::debug!(%view_index);
 
-        let translation = self.gpu.transform.translation_matrix(index);
-        tracing::debug!(?translation);
+        let view = self.gpu.transform.matrix(view_index);
+        tracing::debug!(%view);
 
         let projection = self.gpu.transform.projection_matrix();
-        tracing::debug!(?projection);
+        tracing::debug!(%projection);
 
-        let viewport_scale = Vec4::from((self.gpu.transform.internal.viewport_scale, 1.0));
-        let viewport_offset = Vec4::from((self.gpu.transform.internal.viewport_offset, 0.0));
-        tracing::debug!(?viewport_scale, ?viewport_offset);
-
-        for pos in positions {
-            let pos = Vec4::new(pos.x, pos.y, pos.z, 1.0);
-            let transformed = projection * (translation * pos);
-            let viewport = (transformed + viewport_offset) / viewport_scale;
-            tracing::debug!(?transformed);
-            tracing::debug!(?viewport);
-        }
-
-        todo!()
+        // todo!()
     }
 }
