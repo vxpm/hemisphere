@@ -745,7 +745,7 @@ impl BlockBuilder<'_> {
     pub fn ps_neg(&mut self, ins: Ins) -> Info {
         self.check_floats();
 
-        let ps_b = self.get_ps(ins.fpr_a());
+        let ps_b = self.get_ps(ins.fpr_b());
 
         let value = self.bd.ins().fneg(ps_b);
         self.set_ps(ins.fpr_d(), value);
