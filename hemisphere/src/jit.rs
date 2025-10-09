@@ -212,28 +212,23 @@ pub static CTX_HOOKS: Hooks = {
         };
 
         let gqr = ctx.system.cpu.supervisor.gq[gqr as usize].clone();
-        let (mut read, scale) = match gqr.load_type() {
-            QuantizedType::U8 => (ctx.system.read::<u8>(physical) as f64, true),
-            QuantizedType::U16 => (ctx.system.read::<u16>(physical) as f64, true),
-            QuantizedType::I8 => (ctx.system.read::<i8>(physical) as f64, true),
-            QuantizedType::I16 => (ctx.system.read::<i16>(physical) as f64, true),
-            _ => (
-                f32::from_bits(ctx.system.read::<u32>(physical)) as f64,
-                false,
-            ),
+        let scale = if gqr.load_type() != QuantizedType::Float {
+            gqr.load_scale().value()
+        } else {
+            0
         };
 
-        if scale {
-            let scale = gqr.load_scale().value();
-            read *= 2.0f64.powi(-scale as i32);
-        }
+        let read = match gqr.load_type() {
+            QuantizedType::U8 => ctx.system.read::<u8>(physical) as f64,
+            QuantizedType::U16 => ctx.system.read::<u16>(physical) as f64,
+            QuantizedType::I8 => ctx.system.read::<i8>(physical) as f64,
+            QuantizedType::I16 => ctx.system.read::<i16>(physical) as f64,
+            _ => f32::from_bits(ctx.system.read::<u32>(physical)) as f64,
+        };
 
-        tracing::debug!(
-            "({}) reading quantized {read} from {addr}",
-            ctx.system.cpu.pc
-        );
+        let scaled = read * 2.0f64.powi(-scale as i32);
+        *value = scaled;
 
-        *value = read;
         gqr.load_type().size()
     }
 
@@ -249,15 +244,12 @@ pub static CTX_HOOKS: Hooks = {
         };
 
         let gqr = ctx.system.cpu.supervisor.gq[gqr as usize].clone();
-        let scale = (gqr.store_type() != QuantizedType::Float)
-            .then_some(gqr.store_scale().value())
-            .unwrap_or(0);
+        let scale = if gqr.store_type() != QuantizedType::Float {
+            gqr.store_scale().value()
+        } else {
+            0
+        };
         let scaled = value * 2.0f64.powi(-scale as i32);
-
-        tracing::debug!(
-            "({}) writing quantized {scaled} to {addr}",
-            ctx.system.cpu.pc
-        );
 
         match gqr.store_type() {
             QuantizedType::U8 => ctx.system.write(physical, scaled as u8),
