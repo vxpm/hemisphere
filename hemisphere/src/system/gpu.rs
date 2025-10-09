@@ -4,12 +4,13 @@ pub mod transform;
 use super::System;
 use crate::system::gpu::command::{
     ArrayDescriptor, AttributeMode, VertexAttributeStream,
-    attributes::{Attribute, Rgba},
+    attributes::{self, Attribute, AttributeDescriptor, Rgba},
 };
 use bitos::integer::UnsignedInt;
-use common::bin::{BinReader, BinRingBuffer, BinaryStream};
-use glam::{Mat4, Vec3, Vec4, Vec4Swizzles};
+use common::bin::{BinReader, BinaryStream};
+use glam::{Mat4, Vec2, Vec3};
 use strum::FromRepr;
+use thin_vec::ThinVec;
 
 /// A bypass register.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, FromRepr)]
@@ -188,111 +189,97 @@ pub enum BypassReg {
 /// Extracted vertex attributes.
 #[derive(Debug)]
 pub struct VertexAttributes {
-    pub position: Option<Vec<Vec3>>,
-    pub diffuse: Option<Vec<Rgba>>,
+    pub view_matrix: Option<ThinVec<Mat4>>,
+    pub tex_matrix: [Option<ThinVec<Mat4>>; 8],
+    pub position: Option<ThinVec<Vec3>>,
+    pub normal: Option<ThinVec<Vec3>>,
+    pub diffuse: Option<ThinVec<Rgba>>,
+    pub specular: Option<ThinVec<Rgba>>,
+    pub tex_uv: [Option<ThinVec<Vec2>>; 8],
 }
 
 /// GX subsystem
 #[derive(Debug, Default)]
 pub struct Gpu {
     pub command: command::Interface,
-    pub command_queue: BinRingBuffer,
     pub transform: transform::Interface,
 }
 
-// fn guPerspective(fovy: f32, aspect: f32, near: f32, far: f32) -> Mat4 {
-//     let angle = (fovy * 0.50).to_radians();
-//     let cot = 1.0 / angle.tan();
-//     let tmp = 1.0 / (far - near);
-//
-//     Mat4::from_cols_array_2d(&[
-//         [cot / aspect, 0.0, 0.0, 0.0],
-//         [0.0, cot, 0.0, 0.0],
-//         [0.0, 0.0, -near * tmp, -(far * near) * tmp],
-//         [0.0, 0.0, -1.0, 0.0],
-//     ])
-// }
-
 impl System {
-    fn gx_read_attribute_value_from_array<A: Attribute>(
+    fn gx_read_attribute_from_array<D: AttributeDescriptor>(
         &mut self,
-        attr: A,
+        descriptor: D,
         array: ArrayDescriptor,
         index: u16,
-    ) -> A::Value {
+    ) -> D::Value {
         let base = array.address.value() as usize;
         let offset = array.stride.value() as usize * index as usize;
         let address = base + offset;
         let mut array = &self.mem.ram[address..];
         let mut reader = array.reader();
-
-        attr.read(&mut reader).unwrap()
+        descriptor.read(&mut reader).unwrap()
     }
 
-    fn gx_read_attribute_value<A: Attribute>(
+    fn gx_read_attribute<A: Attribute>(
         &mut self,
-        mode: AttributeMode,
-        attr: A,
+        vat: usize,
         reader: &mut BinReader,
-        array: ArrayDescriptor,
-    ) -> Option<A::Value> {
+    ) -> Option<<A::Descriptor as AttributeDescriptor>::Value> {
+        let mode = A::get_mode(&self.gpu.command.internal.vertex_descriptor);
+        let descriptor = A::get_descriptor(&self.gpu.command.internal.vertex_attr_tables[vat]);
+
         match mode {
             AttributeMode::None => None,
-            AttributeMode::Direct => Some(attr.read(reader).unwrap()),
+            AttributeMode::Direct => Some(descriptor.read(reader).unwrap()),
             AttributeMode::Index8 => {
                 let index = reader.read_be::<u8>().unwrap();
-                Some(self.gx_read_attribute_value_from_array(attr, array, index as u16))
+                let array = A::get_array(&self.gpu.command.internal.arrays).unwrap();
+                Some(self.gx_read_attribute_from_array(descriptor, array, index as u16))
             }
             AttributeMode::Index16 => {
                 let index = reader.read_be::<u16>().unwrap();
-                Some(self.gx_read_attribute_value_from_array(attr, array, index))
+                let array = A::get_array(&self.gpu.command.internal.arrays).unwrap();
+                Some(self.gx_read_attribute_from_array(descriptor, array, index))
             }
         }
     }
 
     pub fn gx_extract_attributes(&mut self, stream: VertexAttributeStream) -> VertexAttributes {
         let vcd = self.gpu.command.internal.vertex_descriptor.clone();
-        let vat = self.gpu.command.internal.vertex_attr_tables[stream.table_index()].clone();
+        let vat = stream.table_index();
 
         let mut position_data = vcd
             .position()
             .present()
-            .then(|| Vec::with_capacity(stream.count() as usize));
+            .then(|| ThinVec::with_capacity(stream.count() as usize));
 
         let mut diffuse_data = vcd
             .diffuse()
             .present()
-            .then(|| Vec::with_capacity(stream.count() as usize));
+            .then(|| ThinVec::with_capacity(stream.count() as usize));
 
         let mut data = stream.data();
         let mut reader = data.reader();
         for _ in 0..stream.count() {
-            let position = self.gx_read_attribute_value(
-                vcd.position(),
-                vat.a.position(),
-                &mut reader,
-                self.gpu.command.internal.arrays.position.clone(),
-            );
-
-            if let Some(position) = position {
-                position_data.as_mut().unwrap().push(position);
+            let value = self.gx_read_attribute::<attributes::Position>(vat, &mut reader);
+            if let Some(value) = value {
+                position_data.as_mut().unwrap().push(value);
             }
 
-            let diffuse = self.gx_read_attribute_value(
-                vcd.diffuse(),
-                vat.a.diffuse(),
-                &mut reader,
-                self.gpu.command.internal.arrays.diffuse.clone(),
-            );
-
-            if let Some(diffuse) = diffuse {
-                diffuse_data.as_mut().unwrap().push(diffuse);
+            let value = self.gx_read_attribute::<attributes::Diffuse>(vat, &mut reader);
+            if let Some(value) = value {
+                diffuse_data.as_mut().unwrap().push(value);
             }
         }
 
         VertexAttributes {
+            view_matrix: None,
+            tex_matrix: [const { None }; 8],
             position: position_data,
             diffuse: diffuse_data,
+            normal: None,
+            specular: None,
+            tex_uv: [const { None }; 8],
         }
     }
 

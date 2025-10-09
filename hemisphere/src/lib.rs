@@ -7,6 +7,7 @@
 
 pub mod jit;
 pub mod panic;
+pub mod render;
 pub mod runner;
 pub mod system;
 

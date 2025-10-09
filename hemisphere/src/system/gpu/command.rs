@@ -2,14 +2,17 @@ pub mod attributes;
 
 use crate::system::{
     System,
-    gpu::{BypassReg, Gpu, command::attributes::Attribute},
+    gpu::{BypassReg, Gpu, command::attributes::AttributeDescriptor},
 };
 use attributes::VertexAttributeTable;
 use bitos::{
     BitUtils, bitos,
     integer::{u3, u6},
 };
-use common::{Address, Primitive, bin::BinaryStream};
+use common::{
+    Address, Primitive,
+    bin::{BinRingBuffer, BinaryStream},
+};
 use strum::FromRepr;
 use zerocopy::IntoBytes;
 
@@ -252,7 +255,7 @@ pub struct VertexDescriptor {
     pub tex_coord: [AttributeMode; 8],
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct ArrayDescriptor {
     pub address: Address,
     pub stride: u32,
@@ -410,6 +413,7 @@ pub struct Interface {
     pub control: Control,
     pub fifo: Fifo,
     pub internal: Internal,
+    pub queue: BinRingBuffer,
 }
 
 impl Interface {
@@ -464,7 +468,7 @@ impl Interface {
 impl Gpu {
     /// Reads a command from the command queue.
     pub fn read_command(&mut self) -> Option<Command> {
-        let mut reader = self.command_queue.reader();
+        let mut reader = self.command.queue.reader();
 
         let opcode = Opcode::from_bits(reader.read_be()?);
         let command = match opcode.operation().unwrap() {
@@ -567,7 +571,7 @@ impl System {
     /// Process CP commands until the queue is either empty or incomplete.
     pub fn cp_process(&mut self) {
         loop {
-            if self.gpu.command_queue.is_empty() {
+            if self.gpu.command.queue.is_empty() {
                 return;
             }
 
@@ -600,7 +604,7 @@ impl System {
     pub fn cp_update(&mut self) {
         while self.gpu.command.fifo.count > 0 {
             let data = self.cp_fifo_pop();
-            self.gpu.command_queue.push_be(data);
+            self.gpu.command.queue.push_be(data);
         }
 
         self.cp_process();

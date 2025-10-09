@@ -18,6 +18,7 @@ tracing.workspace = true
 zerocopy.workspace = true
 strum.workspace = true
 glam.workspace = true
+thin-vec.workspace = true
 
 addr2line = { version = "0.25", features = [
     "cpp_demangle",

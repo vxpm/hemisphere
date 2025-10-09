@@ -1,6 +1,6 @@
 use bitos::BitUtils;
 use common::util;
-use glam::{Mat4, Vec3};
+use glam::Mat4;
 use strum::FromRepr;
 
 /// A transform unit register.
@@ -61,9 +61,18 @@ pub enum Reg {
 }
 
 #[derive(Debug, Default)]
+pub struct Viewport {
+    pub width: f32,
+    pub height: f32,
+    pub center_x: f32,
+    pub center_y: f32,
+    pub far: f32,
+    pub near: f32,
+}
+
+#[derive(Debug, Default)]
 pub struct Internal {
-    pub viewport_scale: Vec3,
-    pub viewport_offset: Vec3,
+    pub viewport: Viewport,
     pub projection_params: [f32; 6],
     pub projection_orthographic: bool,
 }
@@ -91,12 +100,12 @@ impl Interface {
         tracing::debug!("wrote {value:02X} to xf {reg:?}");
 
         match reg {
-            Reg::ViewportScaleX => self.internal.viewport_scale.x = f32::from_bits(value) * 2.0,
-            Reg::ViewportScaleY => self.internal.viewport_scale.y = f32::from_bits(value) * -2.0,
-            Reg::ViewportScaleZ => self.internal.viewport_scale.z = f32::from_bits(value) / Z_MAX,
-            Reg::ViewportOffsetX => self.internal.viewport_offset.x = f32::from_bits(value) - 342.0,
-            Reg::ViewportOffsetY => self.internal.viewport_offset.y = f32::from_bits(value) - 342.0,
-            Reg::ViewportOffsetZ => self.internal.viewport_offset.z = f32::from_bits(value) / Z_MAX,
+            Reg::ViewportScaleX => self.internal.viewport.width = f32::from_bits(value) * 2.0,
+            Reg::ViewportScaleY => self.internal.viewport.height = f32::from_bits(value) * -2.0,
+            Reg::ViewportScaleZ => self.internal.viewport.near = f32::from_bits(value) / Z_MAX,
+            Reg::ViewportOffsetX => self.internal.viewport.center_x = f32::from_bits(value) - 342.0,
+            Reg::ViewportOffsetY => self.internal.viewport.center_y = f32::from_bits(value) - 342.0,
+            Reg::ViewportOffsetZ => self.internal.viewport.far = f32::from_bits(value) / Z_MAX,
 
             Reg::ProjectionParam0 => self.internal.projection_params[0] = f32::from_bits(value),
             Reg::ProjectionParam1 => self.internal.projection_params[1] = f32::from_bits(value),

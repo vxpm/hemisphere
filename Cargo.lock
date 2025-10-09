@@ -1555,6 +1555,7 @@ dependencies = [
  "rustc-hash 2.1.1",
  "slotmap",
  "strum 0.27.2",
+ "thin-vec",
  "tracing",
  "zerocopy",
 ]
@@ -3105,6 +3106,12 @@ checksum = "06794f8f6c5c898b3275aebefa6b8a1cb24cd2c6c79397ab15774837a0bc5755"
 dependencies = [
  "winapi-util",
 ]
+
+[[package]]
+name = "thin-vec"
+version = "0.2.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "144f754d318415ac792f9d69fc87abbbfc043ce2ef041c60f16ad828f638717d"
 
 [[package]]
 name = "thiserror"
