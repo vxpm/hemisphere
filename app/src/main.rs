@@ -4,6 +4,7 @@ mod cli;
 mod control;
 mod debug;
 mod disasm;
+mod registers;
 mod subsystem;
 mod xfb;
 
@@ -108,6 +109,7 @@ impl App {
                 Window::new(xfb::Window::new()),
                 // cpu
                 Window::new(control::Window::default()),
+                Window::new(registers::Window::default()),
                 Window::new(disasm::Window::default()),
                 // debug
                 Window::new(debug::Window::default()),

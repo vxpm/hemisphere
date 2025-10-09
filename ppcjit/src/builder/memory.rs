@@ -710,10 +710,10 @@ impl BlockBuilder<'_> {
         self.check_floats();
 
         let addr = if ins.field_ra() == 0 {
-            self.ir_value(ins.field_offset() as i32)
+            self.ir_value(ins.field_ps_offset() as i32)
         } else {
             let ra = self.get(ins.gpr_a());
-            self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
+            self.bd.ins().iadd_imm(ra, ins.field_ps_offset() as i64)
         };
 
         let index = self.ir_value(ins.field_ps_i());
@@ -736,10 +736,10 @@ impl BlockBuilder<'_> {
         self.check_floats();
 
         let addr = if ins.field_ra() == 0 {
-            self.ir_value(ins.field_offset() as i32)
+            self.ir_value(ins.field_ps_offset() as i32)
         } else {
             let ra = self.get(ins.gpr_a());
-            self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
+            self.bd.ins().iadd_imm(ra, ins.field_ps_offset() as i64)
         };
 
         let ps0 = self.get(ins.fpr_s());
