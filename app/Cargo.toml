@@ -13,7 +13,7 @@ tracing-subscriber.workspace = true
 tracing.workspace = true
 wgpu.workspace = true
 
-eframe = { version = "0.32", features = [
+eframe = { version = "0.33", features = [
     # platforms
     "wayland",
     "x11",
@@ -25,5 +25,5 @@ eframe = { version = "0.32", features = [
     "persistence",
     "default_fonts",
 ], default-features = false }
-egui_extras = "0.32"
+egui_extras = "0.33"
 tracing-appender = "0.2"
