@@ -1,4 +1,5 @@
 pub mod command;
+pub mod environment;
 pub mod transform;
 
 use super::System;
@@ -6,16 +7,23 @@ use crate::system::gpu::command::{
     ArrayDescriptor, AttributeMode, VertexAttributeStream,
     attributes::{self, Attribute, AttributeDescriptor, Rgba},
 };
-use bitos::integer::UnsignedInt;
-use common::bin::{BinReader, BinaryStream};
+use bitos::{
+    bitos,
+    integer::{UnsignedInt, u3, u4},
+};
+use common::{
+    Primitive,
+    bin::{BinReader, BinaryStream},
+};
 use glam::{Mat4, Vec2, Vec3};
 use strum::FromRepr;
 use thin_vec::ThinVec;
+use zerocopy::IntoBytes;
 
-/// A bypass register.
+/// An internal GX register.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, FromRepr)]
 #[repr(u8)]
-pub enum BypassReg {
+pub enum Reg {
     GenMode = 0x00,
     GenFilter0 = 0x01,
     GenFilter1 = 0x02,
@@ -46,18 +54,18 @@ pub enum BypassReg {
     // Setup Unit and Rasterizer
     SetupLpSize = 0x22,
     SetupPerf = 0x23,
-    RasterizerPerf = 0x24,
-    RasterizerSs0 = 0x25,
-    RasterizerSs1 = 0x26,
+    RasterPerf = 0x24,
+    RasterSs0 = 0x25,
+    RasterSs1 = 0x26,
 
-    RasterizerTexRef0 = 0x28,
-    RasterizerTexRef1 = 0x29,
-    RasterizerTexRef2 = 0x2A,
-    RasterizerTexRef3 = 0x2B,
-    RasterizerTexRef4 = 0x2C,
-    RasterizerTexRef5 = 0x2D,
-    RasterizerTexRef6 = 0x2E,
-    RasterizerTexRef7 = 0x2F,
+    RasterTexRef0 = 0x28,
+    RasterTexRef1 = 0x29,
+    RasterTexRef2 = 0x2A,
+    RasterTexRef3 = 0x2B,
+    RasterTexRef4 = 0x2C,
+    RasterTexRef5 = 0x2D,
+    RasterTexRef6 = 0x2E,
+    RasterTexRef7 = 0x2F,
 
     SetupSsize0 = 0x30,
     SetupSsize1 = 0x32,
@@ -186,6 +194,75 @@ pub enum BypassReg {
     BypassMask = 0xFE,
 }
 
+impl Reg {
+    pub fn is_tev(&self) -> bool {
+        matches!(
+            self,
+            Self::TevColor0
+                | Self::TevAlpha0
+                | Self::TevColor1
+                | Self::TevAlpha1
+                | Self::TevColor2
+                | Self::TevAlpha2
+                | Self::TevColor3
+                | Self::TevAlpha3
+                | Self::TevColor4
+                | Self::TevAlpha4
+                | Self::TevColor5
+                | Self::TevAlpha5
+                | Self::TevColor6
+                | Self::TevAlpha6
+                | Self::TevColor7
+                | Self::TevAlpha7
+                | Self::TevColor8
+                | Self::TevAlpha8
+                | Self::TevColor9
+                | Self::TevAlpha9
+                | Self::TevColor10
+                | Self::TevAlpha10
+                | Self::TevColor11
+                | Self::TevAlpha11
+                | Self::TevColor12
+                | Self::TevAlpha12
+                | Self::TevColor13
+                | Self::TevAlpha13
+                | Self::TevColor14
+                | Self::TevAlpha14
+                | Self::TevColor15
+                | Self::TevAlpha15
+        )
+    }
+}
+
+#[bitos(2)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CullingMode {
+    #[default]
+    None = 0b00,
+    Negative = 0b01,
+    Positive = 0b10,
+    All = 0b11,
+}
+
+#[bitos(32)]
+#[derive(Debug, Default)]
+pub struct GenMode {
+    #[bits(0..4)]
+    pub tex_coords_count: u4,
+    #[bits(4..8)]
+    pub color_channels_count: u4,
+    #[bits(9)]
+    pub multisampling: bool,
+    #[bits(10..14)]
+    pub tev_stages_minus_one: u4,
+    #[bits(14..16)]
+    pub culling_mode: CullingMode,
+    #[bits(16..19)]
+    pub bumpmap_count: u3,
+    #[bits(19)]
+    pub z_freeze: bool,
+}
+
 /// Extracted vertex attributes.
 #[derive(Debug)]
 pub struct VertexAttributes {
@@ -203,6 +280,117 @@ pub struct VertexAttributes {
 pub struct Gpu {
     pub command: command::Interface,
     pub transform: transform::Interface,
+    pub environment: environment::Interface,
+}
+
+impl Gpu {
+    fn set(&mut self, reg: Reg, value: u32) {
+        match reg {
+            Reg::GenMode => {
+                let mode = GenMode::from_bits(value);
+                self.environment.stages = mode.tev_stages_minus_one().value();
+                self.environment.channels = mode.color_channels_count().value();
+                tracing::debug!(?mode);
+            }
+            Reg::TevColor0 => {
+                value.write_ne_bytes(self.environment.color_stages[0].as_mut_bytes());
+            }
+            Reg::TevAlpha0 => {
+                value.write_ne_bytes(self.environment.alpha_stages[0].as_mut_bytes());
+            }
+            Reg::TevColor1 => {
+                value.write_ne_bytes(self.environment.color_stages[1].as_mut_bytes());
+            }
+            Reg::TevAlpha1 => {
+                value.write_ne_bytes(self.environment.alpha_stages[1].as_mut_bytes());
+            }
+            Reg::TevColor2 => {
+                value.write_ne_bytes(self.environment.color_stages[2].as_mut_bytes());
+            }
+            Reg::TevAlpha2 => {
+                value.write_ne_bytes(self.environment.alpha_stages[2].as_mut_bytes());
+            }
+            Reg::TevColor3 => {
+                value.write_ne_bytes(self.environment.color_stages[3].as_mut_bytes());
+            }
+            Reg::TevAlpha3 => {
+                value.write_ne_bytes(self.environment.alpha_stages[3].as_mut_bytes());
+            }
+            Reg::TevColor4 => {
+                value.write_ne_bytes(self.environment.color_stages[4].as_mut_bytes());
+            }
+            Reg::TevAlpha4 => {
+                value.write_ne_bytes(self.environment.alpha_stages[4].as_mut_bytes());
+            }
+            Reg::TevColor5 => {
+                value.write_ne_bytes(self.environment.color_stages[5].as_mut_bytes());
+            }
+            Reg::TevAlpha5 => {
+                value.write_ne_bytes(self.environment.alpha_stages[5].as_mut_bytes());
+            }
+            Reg::TevColor6 => {
+                value.write_ne_bytes(self.environment.color_stages[6].as_mut_bytes());
+            }
+            Reg::TevAlpha6 => {
+                value.write_ne_bytes(self.environment.alpha_stages[6].as_mut_bytes());
+            }
+            Reg::TevColor7 => {
+                value.write_ne_bytes(self.environment.color_stages[7].as_mut_bytes());
+            }
+            Reg::TevAlpha7 => {
+                value.write_ne_bytes(self.environment.alpha_stages[7].as_mut_bytes());
+            }
+            Reg::TevColor8 => {
+                value.write_ne_bytes(self.environment.color_stages[8].as_mut_bytes());
+            }
+            Reg::TevAlpha8 => {
+                value.write_ne_bytes(self.environment.alpha_stages[8].as_mut_bytes());
+            }
+            Reg::TevColor9 => {
+                value.write_ne_bytes(self.environment.color_stages[9].as_mut_bytes());
+            }
+            Reg::TevAlpha9 => {
+                value.write_ne_bytes(self.environment.alpha_stages[9].as_mut_bytes());
+            }
+            Reg::TevColor10 => {
+                value.write_ne_bytes(self.environment.color_stages[10].as_mut_bytes());
+            }
+            Reg::TevAlpha10 => {
+                value.write_ne_bytes(self.environment.alpha_stages[10].as_mut_bytes());
+            }
+            Reg::TevColor11 => {
+                value.write_ne_bytes(self.environment.color_stages[11].as_mut_bytes());
+            }
+            Reg::TevAlpha11 => {
+                value.write_ne_bytes(self.environment.alpha_stages[11].as_mut_bytes());
+            }
+            Reg::TevColor12 => {
+                value.write_ne_bytes(self.environment.color_stages[12].as_mut_bytes());
+            }
+            Reg::TevAlpha12 => {
+                value.write_ne_bytes(self.environment.alpha_stages[12].as_mut_bytes());
+            }
+            Reg::TevColor13 => {
+                value.write_ne_bytes(self.environment.color_stages[13].as_mut_bytes());
+            }
+            Reg::TevAlpha13 => {
+                value.write_ne_bytes(self.environment.alpha_stages[13].as_mut_bytes());
+            }
+            Reg::TevColor14 => {
+                value.write_ne_bytes(self.environment.color_stages[14].as_mut_bytes());
+            }
+            Reg::TevAlpha14 => {
+                value.write_ne_bytes(self.environment.alpha_stages[14].as_mut_bytes());
+            }
+            Reg::TevColor15 => {
+                value.write_ne_bytes(self.environment.color_stages[15].as_mut_bytes());
+            }
+            Reg::TevAlpha15 => {
+                value.write_ne_bytes(self.environment.alpha_stages[15].as_mut_bytes());
+            }
+            _ => tracing::warn!("unimplemented write to internal GX register {reg:?}"),
+        }
+    }
 }
 
 impl System {

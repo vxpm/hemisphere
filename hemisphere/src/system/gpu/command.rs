@@ -2,7 +2,7 @@ pub mod attributes;
 
 use crate::system::{
     System,
-    gpu::{BypassReg, Gpu, command::attributes::AttributeDescriptor},
+    gpu::{Gpu, Reg as GxReg, command::attributes::AttributeDescriptor},
 };
 use attributes::VertexAttributeTable;
 use bitos::{
@@ -135,12 +135,11 @@ pub enum Command {
         value: u32,
     },
     SetBP {
-        register: BypassReg,
+        register: GxReg,
         value: u32,
     },
     SetXF {
         start: u16,
-        length: u32,
         values: Vec<u32>,
     },
     DrawTriangles {
@@ -495,11 +494,7 @@ impl Gpu {
                     values.push(reader.read_be::<u32>()?);
                 }
 
-                Command::SetXF {
-                    start,
-                    length,
-                    values,
-                }
+                Command::SetXF { start, values }
             }
             Operation::IndexedSetXFA => todo!(),
             Operation::IndexedSetXFB => todo!(),
@@ -516,7 +511,7 @@ impl Gpu {
                     reader.read_be::<u8>()?,
                 ]);
 
-                let Some(register) = BypassReg::from_repr(register) else {
+                let Some(register) = GxReg::from_repr(register) else {
                     panic!("unknown bypass register {register:02X}");
                 };
 
@@ -587,8 +582,8 @@ impl System {
                 Command::SetCP { register, value } => {
                     self.gpu.command.internal.set(register, value)
                 }
-                Command::SetBP { .. } => (),
-                Command::SetXF { start, values, .. } => {
+                Command::SetBP { register, value } => self.gpu.set(register, value),
+                Command::SetXF { start, values } => {
                     for (offset, value) in values.into_iter().enumerate() {
                         self.gpu.transform.write(start + offset as u16, value);
                     }
