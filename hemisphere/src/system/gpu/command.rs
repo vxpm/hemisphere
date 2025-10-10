@@ -582,7 +582,7 @@ impl System {
                 Command::SetCP { register, value } => {
                     self.gpu.command.internal.set(register, value)
                 }
-                Command::SetBP { register, value } => self.gpu.set(register, value),
+                Command::SetBP { register, value } => self.gpu_set(register, value),
                 Command::SetXF { start, values } => {
                     for (offset, value) in values.into_iter().enumerate() {
                         self.gpu.transform.write(start + offset as u16, value);
