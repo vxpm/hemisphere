@@ -35,6 +35,9 @@ pub struct Hooks {
     pub read_quantized: ReadQuantizedHook,
     pub write_quantized: WriteQuantizedHook,
 
+    // msr
+    pub msr_changed: GenericHook,
+
     // bats
     pub ibat_changed: GenericHook,
     pub dbat_changed: GenericHook,

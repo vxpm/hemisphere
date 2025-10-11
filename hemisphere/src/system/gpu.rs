@@ -282,6 +282,7 @@ pub struct Gpu {
     pub command: command::Interface,
     pub transform: transform::Interface,
     pub environment: environment::Interface,
+    pub pixel: pixel::Interface,
 }
 
 impl System {
@@ -293,6 +294,12 @@ impl System {
                 self.gpu.environment.channels = mode.color_channels_count().value();
                 tracing::debug!(?mode);
             }
+
+            Reg::PixelDone => {
+                self.gpu.pixel.interrupt.set_finish(true);
+                self.check_interrupts();
+            }
+
             Reg::PixelCopyCmd => {
                 let cmd = pixel::CopyCmd::from_bits(value);
                 tracing::debug!(?cmd);

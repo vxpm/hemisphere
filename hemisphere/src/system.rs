@@ -173,10 +173,10 @@ impl System {
                     self.scheduler.schedule(Event::Decrementer, 32);
                 }
             }
-            Event::CheckInterrupts => self.check_external_interrupts(),
+            Event::CheckInterrupts => self.check_interrupts(),
             Event::CommandProcessor => self.cp_update(),
             Event::Video(video::Event::VerticalCount) => {
-                self.check_display_interrupts();
+                self.update_display_interrupts();
 
                 self.video.vertical_count += 1;
                 if self.video.vertical_count as u32 > self.video.lines_per_frame() {

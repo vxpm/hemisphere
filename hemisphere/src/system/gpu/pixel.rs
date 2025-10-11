@@ -29,3 +29,23 @@ pub struct CopyCmd {
     #[bits(14)]
     pub to_xfb: bool,
 }
+
+#[bitos(16)]
+#[derive(Debug, Default)]
+pub struct InterruptStatus {
+    #[bits(2)]
+    pub token: bool,
+    #[bits(3)]
+    pub finish: bool,
+}
+
+#[derive(Debug, Default)]
+pub struct Interface {
+    pub interrupt: InterruptStatus,
+}
+
+impl Interface {
+    pub fn write_interrupt(&mut self, status: u16) {
+        self.interrupt = InterruptStatus::from_bits(self.interrupt.to_bits() & !status)
+    }
+}

@@ -1,7 +1,7 @@
 use crate::{Ctx, WindowUi};
 use eframe::egui::{self, Color32};
 use egui_extras::{Column, TableBuilder};
-use hemisphere::{Address, runner::State};
+use hemisphere::runner::State;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 enum Group {

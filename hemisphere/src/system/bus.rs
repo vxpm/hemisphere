@@ -89,6 +89,9 @@ impl System {
             Mmio::CpFifoReadPtrLow => ne!(self.gpu.command.fifo.read_ptr.as_bytes()[0..2]),
             Mmio::CpFifoReadPtrHigh => ne!(self.gpu.command.fifo.read_ptr.as_bytes()[2..4]),
 
+            // === Pixel Engine ===
+            Mmio::PixelInterruptStatus => ne!(self.gpu.pixel.interrupt.as_bytes()),
+
             // === Video Interface ===
             Mmio::VideoVerticalTiming => ne!(self.video.vertical_timing.as_bytes()),
             Mmio::VideoDisplayConfig => ne!(self.video.display_config.as_bytes()),
@@ -124,10 +127,10 @@ impl System {
 
             // === Processor Interface ===
             // Interrupts
-            Mmio::ProcessorInterruptCause => ne!(self.processor.cause.as_bytes()),
-            Mmio::ProcessorInterruptMask => {
-                ne!(self.processor.mask.as_bytes())
+            Mmio::ProcessorInterruptCause => {
+                ne!((self.get_raised_interrupts().to_bits().value() as u32).as_bytes())
             }
+            Mmio::ProcessorInterruptMask => ne!(self.processor.mask.as_bytes()),
 
             // FIFO
             Mmio::ProcessorFifoStart => ne!(self.processor.fifo_start.as_bytes()),
@@ -247,6 +250,13 @@ impl System {
             Mmio::CpFifoReadPtrLow => ne!(self.gpu.command.fifo.read_ptr.as_mut_bytes()[0..2]),
             Mmio::CpFifoReadPtrHigh => ne!(self.gpu.command.fifo.read_ptr.as_mut_bytes()[2..4]),
 
+            // === Pixel Engine ===
+            Mmio::PixelInterruptStatus => {
+                let mut written = 0;
+                ne!(written.as_mut_bytes());
+                self.gpu.pixel.write_interrupt(written);
+            }
+
             // === Video Interface ===
             Mmio::VideoVerticalTiming => ne!(self.video.vertical_timing.as_mut_bytes()),
             Mmio::VideoDisplayConfig => {
@@ -309,13 +319,8 @@ impl System {
 
             // === Processor Interface ===
             // Interrupts
-            Mmio::ProcessorInterruptCause => {
-                let mut written = self.processor.cause;
-                ne!(written.as_mut_bytes());
-                self.processor.write_cause(written);
-            }
             Mmio::ProcessorInterruptMask => {
-                self.scheduler.schedule(Event::CheckInterrupts, 0);
+                self.scheduler.schedule_now(Event::CheckInterrupts);
                 ne!(self.processor.mask.as_mut_bytes())
             }
 

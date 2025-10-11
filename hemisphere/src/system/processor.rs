@@ -1,7 +1,7 @@
 //! Processor interface.
 
 use crate::system::{Event, System};
-use bitos::{bitos, integer::u14};
+use bitos::bitos;
 use common::{Address, arch::Exception};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -24,7 +24,7 @@ pub enum Interrupt {
 
 #[bitos(14)]
 #[derive(Default, Debug, Clone, Copy)]
-pub struct Sources {
+pub struct InterruptSources {
     #[bits(0)]
     pub gp_error: bool,
     #[bits(1)]
@@ -59,23 +59,13 @@ pub struct Sources {
 #[derive(Default, Debug, Clone, Copy)]
 pub struct InterruptMask {
     #[bits(0..14)]
-    pub sources: Sources,
-}
-
-#[bitos(32)]
-#[derive(Default, Debug, Clone, Copy)]
-pub struct InterruptCause {
-    #[bits(0..14)]
-    pub sources: Sources,
-    #[bits(16)]
-    pub reset_state: bool,
+    pub sources: InterruptSources,
 }
 
 #[derive(Default)]
 pub struct Interface {
     // interrupts
     pub mask: InterruptMask,
-    pub cause: InterruptCause,
 
     // fifo
     pub fifo_start: Address,
@@ -84,31 +74,39 @@ pub struct Interface {
     pub fifo_buffer: Vec<u8>,
 }
 
-impl Interface {
-    pub fn allowed(&self) -> Sources {
-        Sources::from_bits(self.cause.sources().to_bits() & self.mask.sources().to_bits())
-    }
-
-    pub fn write_cause(&mut self, new: InterruptCause) {
-        self.cause = InterruptCause::from_bits(self.cause.to_bits() & !new.to_bits())
-            .with_reset_state(self.cause.reset_state());
-    }
-
-    pub fn raise_interrupt(&mut self, interrupt: Interrupt) {
-        let sources = self.cause.sources().to_bits().value() | (1 << interrupt as usize);
-        self.cause
-            .set_sources(Sources::from_bits(u14::new(sources)));
-    }
-}
-
 impl System {
-    pub fn check_external_interrupts(&mut self) {
+    /// Returns which interrupt sources are active (i.e. triggered but maybe masked).
+    pub fn get_active_interrupts(&self) -> InterruptSources {
+        let mut sources = InterruptSources::default();
+
+        let mut video = false;
+        for i in &self.video.interrupts {
+            video |= i.enable() && i.status();
+        }
+        sources.set_video_interface(video);
+
+        sources.set_pe_token(self.gpu.pixel.interrupt.token());
+        sources.set_pe_finish(self.gpu.pixel.interrupt.finish());
+
+        sources
+    }
+
+    /// Returns which interrupt sources are raised (i.e. triggered and unmasked).
+    pub fn get_raised_interrupts(&self) -> InterruptSources {
+        InterruptSources::from_bits(
+            self.get_active_interrupts().to_bits() & self.processor.mask.sources().to_bits(),
+        )
+    }
+
+    /// Checks whether any of the currently raised interrutps can be taken and, if any, raises the
+    /// interrupt exception.
+    pub fn check_interrupts(&mut self) {
         if !self.cpu.supervisor.config.msr.interrupts() {
             return;
         }
 
-        let allowed = self.processor.allowed();
-        if allowed.to_bits().value() != 0 {
+        let raised = self.get_raised_interrupts();
+        if raised.to_bits().value() != 0 {
             self.cpu.raise_exception(Exception::Interrupt);
         }
     }
@@ -140,7 +138,7 @@ impl System {
         }
 
         if self.gpu.command.control.linked_mode() {
-            self.scheduler.schedule(Event::CommandProcessor, 0);
+            self.scheduler.schedule_now(Event::CommandProcessor);
         }
     }
 }

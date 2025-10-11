@@ -32,6 +32,7 @@ fn reg_ir_ty(reg: Reg) -> ir::Type {
 
 fn is_cacheable(reg: Reg) -> bool {
     match reg {
+        Reg::MSR => false,
         Reg::SPR(spr) => match spr {
             SPR::DEC | SPR::TBL | SPR::TBU | SPR::WPAR => false,
             spr if spr.is_bat() => false,
@@ -304,7 +305,8 @@ impl<'ctx> BlockBuilder<'ctx> {
     }
 
     /// Calls a generic context hook.
-    fn call_generic_hook(&mut self, offset: i32) {
+    fn call_generic_hook(&mut self, offset: usize) {
+        let offset = offset as i32;
         let hook = self.bd.ins().load(
             self.consts.ptr_type,
             ir::MemFlags::trusted(),
@@ -371,11 +373,11 @@ impl<'ctx> BlockBuilder<'ctx> {
         let merged = self.bd.ins().bor(instructions, cycles);
 
         if self.dbat_changed {
-            self.call_generic_hook(offset_of!(Hooks, dbat_changed) as i32);
+            self.call_generic_hook(offset_of!(Hooks, dbat_changed));
         }
 
         if self.ibat_changed {
-            self.call_generic_hook(offset_of!(Hooks, ibat_changed) as i32);
+            self.call_generic_hook(offset_of!(Hooks, ibat_changed));
         }
 
         self.bd.ins().return_(&[merged]);

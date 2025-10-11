@@ -33,6 +33,16 @@ impl Scheduler {
     }
 
     #[inline(always)]
+    pub fn schedule_now(&mut self, event: Event) {
+        self.scheduled.push(ScheduledEvent {
+            cycle: self.elapsed,
+            event,
+        });
+
+        self.scheduled.sort_unstable_by_key(|e| e.cycle);
+    }
+
+    #[inline(always)]
     pub fn len(&self) -> usize {
         self.scheduled.len()
     }

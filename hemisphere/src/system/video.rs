@@ -1,4 +1,4 @@
-use super::{Event as SystemEvent, processor::Interrupt};
+use super::Event as SystemEvent;
 use crate::system::System;
 use bitos::{
     bitos,
@@ -335,20 +335,21 @@ impl System {
         }
     }
 
-    pub fn check_display_interrupts(&mut self) {
+    pub fn update_display_interrupts(&mut self) {
         let mut raised = false;
         for (index, interrupt) in self.video.interrupts.iter_mut().enumerate() {
             if interrupt.enable() && interrupt.vertical_count().value() == self.video.vertical_count
             {
                 raised = true;
                 interrupt.set_status(true);
-                self.processor.raise_interrupt(Interrupt::Video);
                 tracing::debug!("raised display interrupt {index} ({interrupt:?})");
+            } else {
+                interrupt.set_status(false);
             }
         }
 
         if raised {
-            self.check_external_interrupts();
+            self.check_interrupts();
         }
     }
 

@@ -54,8 +54,8 @@ impl BlockBuilder<'_> {
     pub fn mfspr(&mut self, ins: Ins) -> Info {
         let spr = ins.spr();
         match spr {
-            SPR::DEC => self.call_generic_hook(offset_of!(Hooks, dec_read) as i32),
-            SPR::TBL | SPR::TBU => self.call_generic_hook(offset_of!(Hooks, tb_read) as i32),
+            SPR::DEC => self.call_generic_hook(offset_of!(Hooks, dec_read)),
+            SPR::TBL | SPR::TBU => self.call_generic_hook(offset_of!(Hooks, tb_read)),
             SPR::WPAR => tracing::warn!("read from WPAR"),
             _ => (),
         }
@@ -72,8 +72,8 @@ impl BlockBuilder<'_> {
         self.set(spr, value);
 
         match spr {
-            SPR::DEC => self.call_generic_hook(offset_of!(Hooks, dec_changed) as i32),
-            SPR::TBL | SPR::TBU => self.call_generic_hook(offset_of!(Hooks, tb_changed) as i32),
+            SPR::DEC => self.call_generic_hook(offset_of!(Hooks, dec_changed)),
+            SPR::TBL | SPR::TBU => self.call_generic_hook(offset_of!(Hooks, tb_changed)),
             SPR::WPAR => tracing::warn!("write to WPAR"),
             spr if spr.is_data_bat() => self.dbat_changed = true,
             spr if spr.is_instr_bat() => self.ibat_changed = true,
@@ -103,6 +103,8 @@ impl BlockBuilder<'_> {
 
         let value = self.get(ins.gpr_s());
         self.set(Reg::MSR, value);
+
+        self.call_generic_hook(offset_of!(Hooks, msr_changed));
 
         MSR_INFO
     }
@@ -151,7 +153,7 @@ impl BlockBuilder<'_> {
     }
 
     pub fn mftb(&mut self, ins: Ins) -> Info {
-        self.call_generic_hook(offset_of!(Hooks, tb_read) as i32);
+        self.call_generic_hook(offset_of!(Hooks, tb_read));
 
         let tb = match ins.field_tbr() {
             268 => Reg::TBL,

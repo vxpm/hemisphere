@@ -1,5 +1,10 @@
+use std::mem::offset_of;
+
 use super::BlockBuilder;
-use crate::builder::{Action, Info};
+use crate::{
+    block::Hooks,
+    builder::{Action, Info},
+};
 use common::arch::{Cpu, Exception, Reg, SPR, disasm::Ins};
 use cranelift::{
     codegen::ir,
@@ -113,6 +118,8 @@ impl BlockBuilder<'_> {
         let new_pc = self.bd.ins().band_imm(srr0, !0b11);
         self.set(Reg::PC, new_pc);
         self.set(Reg::MSR, new_msr);
+
+        self.call_generic_hook(offset_of!(Hooks, msr_changed));
 
         RFI_INFO
     }
