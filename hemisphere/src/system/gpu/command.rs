@@ -227,6 +227,25 @@ impl AttributeMode {
     }
 }
 
+#[bitos(32)]
+#[derive(Debug, Clone, Default)]
+pub struct VertexAttributeSet {
+    #[bits(0)]
+    pub pos_mat_index: bool,
+    #[bits(1..9)]
+    pub tex_coord_mat_index: [bool; 8],
+    #[bits(9)]
+    pub position: bool,
+    #[bits(10)]
+    pub normal: bool,
+    #[bits(11)]
+    pub diffuse: bool,
+    #[bits(12)]
+    pub specular: bool,
+    #[bits(13..21)]
+    pub tex_coord: [bool; 8],
+}
+
 /// Describes which attributes are present in the vertices of primitives and how they are present.
 #[bitos(64)]
 #[derive(Debug, Clone, Default)]
@@ -252,6 +271,25 @@ pub struct VertexDescriptor {
     /// Whether the texture coordinate N attribute is present.
     #[bits(32..48)]
     pub tex_coord: [AttributeMode; 8],
+}
+
+impl VertexDescriptor {
+    /// Returns the set of attributes present in this vertex descriptor.
+    pub fn attribute_set(&self) -> VertexAttributeSet {
+        let mut set = VertexAttributeSet::default()
+            .with_pos_mat_index(self.pos_mat_index())
+            .with_tex_coord_mat_index(self.tex_coord_mat_index())
+            .with_position(self.position().present())
+            .with_normal(self.normal().present())
+            .with_diffuse(self.diffuse().present())
+            .with_specular(self.specular().present());
+
+        for i in 0..8 {
+            set.set_tex_coord_at(i, self.tex_coord_at(i).unwrap().present());
+        }
+
+        set
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default)]

@@ -1,0 +1,11 @@
+[package]
+name = "renderer"
+description = "WGPU based renderer implementation"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+hemisphere = { path = "../hemisphere/" }
+tracing.workspace = true
+wgpu.workspace = true
+zerocopy.workspace = true

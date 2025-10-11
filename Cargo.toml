@@ -1,7 +1,15 @@
 [workspace]
 resolver = "3"
-members = ["common", "ppcjit", "dol", "dolinfo", "hemisphere", "app"]
-default-members = ["common", "ppcjit", "dol", "hemisphere", "app"]
+members = [
+    "common",
+    "ppcjit",
+    "dol",
+    "dolinfo",
+    "hemisphere",
+    "renderer",
+    "app",
+]
+default-members = ["common", "ppcjit", "dol", "hemisphere", "renderer", "app"]
 
 [profile.dev.package."iced-x86"]
 opt-level = 0
