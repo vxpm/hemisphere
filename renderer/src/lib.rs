@@ -1,22 +1,57 @@
+mod blit;
+
+use crate::blit::Blitter;
+use hemisphere::render::{Action, Renderer};
 use std::sync::{
     Arc, Mutex,
     mpsc::{Sender, channel},
 };
 
-use hemisphere::render::{Action, Renderer};
-
 struct Inner {
     device: wgpu::Device,
     queue: wgpu::Queue,
+    viewport: wgpu::Texture,
+    viewport_view: wgpu::TextureView,
+
+    blitter: Blitter,
 }
 
 impl Inner {
     pub fn new(device: wgpu::Device, queue: wgpu::Queue) -> Self {
-        Self { device, queue }
+        // create viewport texture
+        let viewport = device.create_texture(&wgpu::TextureDescriptor {
+            label: None,
+            dimension: wgpu::TextureDimension::D2,
+            size: wgpu::Extent3d {
+                width: 1,
+                height: 1,
+                depth_or_array_layers: 1,
+            },
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[],
+            mip_level_count: 1,
+            sample_count: 1,
+        });
+
+        let viewport_view = viewport.create_view(&wgpu::TextureViewDescriptor {
+            label: None,
+            ..Default::default()
+        });
+
+        let blitter = Blitter::new(device.clone());
+        Self {
+            device,
+            queue,
+            viewport,
+            viewport_view,
+
+            blitter,
+        }
     }
 
     fn exec(&mut self, action: Action) {
-        todo!()
+        // todo
     }
 }
 
@@ -62,7 +97,10 @@ impl WgpuRenderer {
     }
 
     pub fn render(&self, pass: &mut wgpu::RenderPass<'_>) {
-        todo!()
+        let mut guard = self.inner.lock().unwrap();
+        let inner = &mut *guard;
+
+        inner.blitter.blit(inner.viewport_view.clone(), pass);
     }
 }
 
