@@ -189,6 +189,7 @@ dependencies = [
  "egui_extras",
  "eyre-pretty",
  "hemisphere",
+ "renderer",
  "tracing",
  "tracing-appender",
  "tracing-subscriber",

@@ -4,6 +4,7 @@ mod cli;
 mod control;
 mod debug;
 mod disasm;
+mod efb;
 mod registers;
 mod subsystem;
 mod xfb;
@@ -19,6 +20,7 @@ use hemisphere::{
     runner::{Runner, State},
     system::{self, executable::Executable},
 };
+use renderer::WgpuRenderer;
 use std::{
     sync::{
         Arc,
@@ -27,9 +29,10 @@ use std::{
     time::{Duration, Instant},
 };
 
-struct Ctx {
+struct Ctx<'a> {
     step: bool,
     running: bool,
+    renderer: &'a mut WgpuRenderer,
 }
 
 trait WindowUi {
@@ -59,6 +62,7 @@ struct WindowGroup {
 
 struct App {
     last_update: Instant,
+    renderer: WgpuRenderer,
     runner: Runner,
     vsync_count: Arc<AtomicU64>,
     root: WindowGroup,
@@ -85,8 +89,16 @@ impl App {
             })
         };
 
+        let wgpu_state = cc.wgpu_render_state.as_ref().unwrap();
+        let renderer = WgpuRenderer::new(
+            wgpu_state.device.clone(),
+            wgpu_state.queue.clone(),
+            wgpu_state.target_format,
+        );
+
         let mut runner = Runner::new(Config {
             system: system::Config {
+                renderer: Box::new(renderer.clone()),
                 executable: Some(executable),
                 vsync_callback: Some(vsync_callback),
             },
@@ -105,8 +117,9 @@ impl App {
         let root = WindowGroup {
             name: "root",
             windows: vec![
-                // xfb
+                // fb
                 Window::new(xfb::Window::new()),
+                Window::new(efb::Window::new()),
                 // cpu
                 Window::new(control::Window::default()),
                 Window::new(registers::Window::default()),
@@ -120,6 +133,7 @@ impl App {
         cc.egui_ctx.set_zoom_factor(1.0);
         Ok(Self {
             last_update: Instant::now(),
+            renderer,
             runner,
             vsync_count,
             root,
@@ -184,6 +198,7 @@ impl eframe::App for App {
         let mut context = Ctx {
             step: false,
             running,
+            renderer: &mut self.renderer,
         };
 
         self.runner.with_state(|state| {
@@ -238,7 +253,7 @@ fn setup_tracing() -> tracing_appender::non_blocking::WorkerGuard {
     let (file_nb, _guard_file) = tracing_appender::non_blocking(file);
     let file_layer = fmt::layer().with_writer(file_nb).with_ansi(false);
     let env_filter = EnvFilter::try_from_default_env().unwrap_or(EnvFilter::new(
-        "cli=debug,hemisphere=debug,common=debug,ppcjit=debug",
+        "cli=debug,hemisphere=debug,common=debug,ppcjit=debug,renderer=debug",
     ));
 
     let subscriber = tracing_subscriber::registry()

@@ -467,7 +467,7 @@ impl Interface {
 
     /// Updates the FIFO count.
     pub fn update_count(&mut self) {
-        let count = if self.fifo.write_ptr >= self.fifo.start {
+        let count = if self.fifo.write_ptr >= self.fifo.read_ptr {
             self.fifo.write_ptr - self.fifo.read_ptr
         } else {
             let start = self.fifo.write_ptr - self.fifo.start;
@@ -475,7 +475,14 @@ impl Interface {
             start + end
         };
 
-        assert!(count >= 0);
+        assert!(
+            count >= 0,
+            "start: {}, end: {}; write: {}, read: {}",
+            self.fifo.start,
+            self.fifo.end,
+            self.fifo.write_ptr,
+            self.fifo.read_ptr
+        );
         self.fifo.count = count as u32;
     }
 
@@ -623,7 +630,7 @@ impl System {
                 Command::SetBP { register, value } => self.gpu_set(register, value),
                 Command::SetXF { start, values } => {
                     for (offset, value) in values.into_iter().enumerate() {
-                        self.gpu.transform.write(start + offset as u16, value);
+                        self.xf_write(start + offset as u16, value);
                     }
                 }
                 Command::DrawTriangles { vertex_attributes } => {

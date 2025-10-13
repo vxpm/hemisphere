@@ -1,5 +1,6 @@
 use wesl::include_wesl;
 
+/// Utility to blit a texture on a render pass.
 pub struct Blitter {
     device: wgpu::Device,
     group_layout: wgpu::BindGroupLayout,
@@ -8,7 +9,7 @@ pub struct Blitter {
 }
 
 impl Blitter {
-    pub fn new(device: wgpu::Device) -> Self {
+    pub fn new(device: wgpu::Device, format: wgpu::TextureFormat) -> Self {
         let group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: None,
             entries: &[
@@ -65,7 +66,7 @@ impl Blitter {
                 entry_point: Some("fs_main"),
                 compilation_options: Default::default(),
                 targets: &[Some(wgpu::ColorTargetState {
-                    format: wgpu::TextureFormat::Rgba8Unorm,
+                    format,
                     blend: None,
                     write_mask: Default::default(),
                 })],

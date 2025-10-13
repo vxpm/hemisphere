@@ -3,6 +3,8 @@ use common::util;
 use glam::Mat4;
 use strum::FromRepr;
 
+use crate::{render::Action, system::System};
+
 /// A transform unit register.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, FromRepr)]
 #[repr(u8)]
@@ -60,6 +62,12 @@ pub enum Reg {
     DualTex7 = 0x57,
 }
 
+impl Reg {
+    pub fn is_viewport_dimensions(&self) -> bool {
+        matches!(self, Reg::ViewportScaleX | Reg::ViewportScaleY)
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct Viewport {
     pub width: f32,
@@ -96,47 +104,6 @@ impl Default for Interface {
 const Z_MAX: f32 = 16777215.0;
 
 impl Interface {
-    pub fn set(&mut self, reg: Reg, value: u32) {
-        tracing::debug!("wrote {value:02X} to xf {reg:?}");
-
-        match reg {
-            Reg::ViewportScaleX => self.internal.viewport.width = f32::from_bits(value) * 2.0,
-            Reg::ViewportScaleY => self.internal.viewport.height = f32::from_bits(value) * -2.0,
-            Reg::ViewportScaleZ => self.internal.viewport.near = f32::from_bits(value) / Z_MAX,
-            Reg::ViewportOffsetX => self.internal.viewport.center_x = f32::from_bits(value) - 342.0,
-            Reg::ViewportOffsetY => self.internal.viewport.center_y = f32::from_bits(value) - 342.0,
-            Reg::ViewportOffsetZ => self.internal.viewport.far = f32::from_bits(value) / Z_MAX,
-
-            Reg::ProjectionParam0 => self.internal.projection_params[0] = f32::from_bits(value),
-            Reg::ProjectionParam1 => self.internal.projection_params[1] = f32::from_bits(value),
-            Reg::ProjectionParam2 => self.internal.projection_params[2] = f32::from_bits(value),
-            Reg::ProjectionParam3 => self.internal.projection_params[3] = f32::from_bits(value),
-            Reg::ProjectionParam4 => self.internal.projection_params[4] = f32::from_bits(value),
-            Reg::ProjectionParam5 => self.internal.projection_params[5] = f32::from_bits(value),
-            Reg::ProjectionOrthographic => self.internal.projection_orthographic = value != 0,
-
-            _ => tracing::warn!("unimplemented write to internal XF register {reg:?}"),
-        }
-    }
-
-    pub fn write(&mut self, addr: u16, value: u32) {
-        match addr {
-            0x0000..0x0400 => self.ram[addr as usize] = value,
-            0x0400..0x0460 => self.ram[addr as usize] = value.with_bits(0, 12, 0),
-            0x0500..0x0600 => self.ram[addr as usize] = value,
-            0x0600..0x0680 => self.ram[addr as usize] = value.with_bits(0, 12, 0),
-            0x1000..0x1057 => {
-                let register = addr as u8;
-                let Some(register) = Reg::from_repr(register) else {
-                    panic!("unknown xf register {register:02X}");
-                };
-
-                self.set(register, value);
-            }
-            _ => tracing::debug!("writing to unknown XF memory"),
-        }
-    }
-
     /// Returns the matrix at `index` in internal memory.
     pub fn matrix(&self, index: u8) -> Mat4 {
         let offset = 4 * index as usize;
@@ -171,5 +138,60 @@ impl Interface {
             ])
         }
         .transpose()
+    }
+}
+
+impl System {
+    /// Sets the value of an internal transform unit register.
+    pub(super) fn xf_set(&mut self, reg: Reg, value: u32) {
+        tracing::debug!("wrote {value:02X} to xf {reg:?}");
+
+        let xf = &mut self.gpu.transform.internal;
+        match reg {
+            Reg::ViewportScaleX => xf.viewport.width = f32::from_bits(value) * 2.0,
+            Reg::ViewportScaleY => xf.viewport.height = f32::from_bits(value) * -2.0,
+            Reg::ViewportScaleZ => xf.viewport.near = f32::from_bits(value) / Z_MAX,
+            Reg::ViewportOffsetX => xf.viewport.center_x = f32::from_bits(value) - 342.0,
+            Reg::ViewportOffsetY => xf.viewport.center_y = f32::from_bits(value) - 342.0,
+            Reg::ViewportOffsetZ => xf.viewport.far = f32::from_bits(value) / Z_MAX,
+
+            Reg::ProjectionParam0 => xf.projection_params[0] = f32::from_bits(value),
+            Reg::ProjectionParam1 => xf.projection_params[1] = f32::from_bits(value),
+            Reg::ProjectionParam2 => xf.projection_params[2] = f32::from_bits(value),
+            Reg::ProjectionParam3 => xf.projection_params[3] = f32::from_bits(value),
+            Reg::ProjectionParam4 => xf.projection_params[4] = f32::from_bits(value),
+            Reg::ProjectionParam5 => xf.projection_params[5] = f32::from_bits(value),
+            Reg::ProjectionOrthographic => xf.projection_orthographic = value != 0,
+
+            _ => tracing::warn!("unimplemented write to internal XF register {reg:?}"),
+        }
+
+        if reg.is_viewport_dimensions() {
+            self.config
+                .renderer
+                .exec(Action::SetViewport(crate::render::Viewport {
+                    width: self.gpu.transform.internal.viewport.width.round() as u32,
+                    height: self.gpu.transform.internal.viewport.height.round() as u32,
+                }));
+        }
+    }
+
+    /// Writes to transform unit memory.
+    pub(super) fn xf_write(&mut self, addr: u16, value: u32) {
+        match addr {
+            0x0000..0x0400 => self.gpu.transform.ram[addr as usize] = value,
+            0x0400..0x0460 => self.gpu.transform.ram[addr as usize] = value.with_bits(0, 12, 0),
+            0x0500..0x0600 => self.gpu.transform.ram[addr as usize] = value,
+            0x0600..0x0680 => self.gpu.transform.ram[addr as usize] = value.with_bits(0, 12, 0),
+            0x1000..0x1057 => {
+                let register = addr as u8;
+                let Some(register) = Reg::from_repr(register) else {
+                    panic!("unknown XF register {register:02X}");
+                };
+
+                self.xf_set(register, value);
+            }
+            _ => tracing::debug!("writing to unknown XF memory"),
+        }
     }
 }

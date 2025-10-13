@@ -12,14 +12,17 @@ pub mod processor;
 pub mod scheduler;
 pub mod video;
 
-use crate::system::{
-    dsp::Dsp,
-    executable::{Code, Executable},
-    gpu::Gpu,
-    lazy::Lazy,
-    mem::Memory,
-    mmu::Mmu,
-    scheduler::Scheduler,
+use crate::{
+    render::Renderer,
+    system::{
+        dsp::Dsp,
+        executable::{Code, Executable},
+        gpu::Gpu,
+        lazy::Lazy,
+        mem::Memory,
+        mmu::Mmu,
+        scheduler::Scheduler,
+    },
 };
 use common::{
     Address,
@@ -30,6 +33,7 @@ pub type Callback = Box<dyn FnMut() + Send + Sync + 'static>;
 
 /// System configuration.
 pub struct Config {
+    pub renderer: Box<dyn Renderer>,
     pub executable: Option<Executable>,
     pub vsync_callback: Option<Callback>,
 }

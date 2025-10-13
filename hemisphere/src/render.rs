@@ -2,9 +2,10 @@
 
 use crate::system::gpu::{VertexAttributes, command::VertexAttributeSet};
 
+#[derive(Debug, Clone, Copy)]
 pub struct Viewport {
-    pub width: f32,
-    pub height: f32,
+    pub width: u32,
+    pub height: u32,
 }
 
 pub enum Action {
@@ -13,6 +14,6 @@ pub enum Action {
     DrawTriangle(Box<VertexAttributes>),
 }
 
-pub trait Renderer {
+pub trait Renderer: Send + Sync {
     fn exec(&mut self, action: Action);
 }
