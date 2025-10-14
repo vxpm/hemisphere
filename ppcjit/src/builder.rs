@@ -34,7 +34,7 @@ fn is_cacheable(reg: Reg) -> bool {
     match reg {
         Reg::MSR => false,
         Reg::SPR(spr) => match spr {
-            SPR::DEC | SPR::TBL | SPR::TBU | SPR::WPAR => false,
+            SPR::DEC | SPR::TBL | SPR::TBU | SPR::WPAR | SPR::SRR0 | SPR::SRR1 | SPR::DAR => false,
             spr if spr.is_bat() => false,
             _ => true,
         },

@@ -8,7 +8,7 @@ use crate::{
 use common::arch::{Cpu, Exception, Reg, SPR, disasm::Ins};
 use cranelift::{
     codegen::ir,
-    prelude::{InstBuilder, IntCC, isa},
+    prelude::{InstBuilder, isa},
 };
 
 const RFI_INFO: Info = Info {
@@ -73,7 +73,6 @@ impl BlockBuilder<'_> {
 
         let msr = self.get(Reg::MSR);
         let fp_enabled = self.get_bit(msr, 13);
-        let branch = self.bd.ins().icmp_imm(IntCC::Equal, fp_enabled, 0);
 
         let exit_block = self.bd.create_block();
         let continue_block = self.bd.create_block();
@@ -82,14 +81,14 @@ impl BlockBuilder<'_> {
 
         self.bd
             .ins()
-            .brif(branch, exit_block, &[], continue_block, &[]);
+            .brif(fp_enabled, continue_block, &[], exit_block, &[]);
 
         self.bd.seal_block(exit_block);
         self.bd.seal_block(continue_block);
 
         self.switch_to_bb(exit_block);
         self.raise_exception(Exception::FloatUnavailable);
-        self.prologue_with(EXCEPTION_INFO);
+        self.prologue();
 
         self.switch_to_bb(continue_block);
         self.current_bb = continue_block;
