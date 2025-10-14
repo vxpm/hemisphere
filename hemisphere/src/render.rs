@@ -2,7 +2,7 @@
 
 use crate::system::gpu::{VertexAttributes, command::VertexAttributeSet};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Viewport {
     pub width: u32,
     pub height: u32,

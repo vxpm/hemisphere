@@ -1,7 +1,8 @@
 mod blit;
+mod render;
 
-use crate::blit::Blitter;
-use hemisphere::render::{Action, Renderer, Viewport};
+use crate::{blit::Blitter, render::Renderer};
+use hemisphere::render::{Action, Renderer as RendererInterface, Viewport};
 use std::sync::{
     Arc, Mutex,
     mpsc::{Receiver, Sender, channel},
@@ -10,15 +11,16 @@ use std::sync::{
 struct Inner {
     device: wgpu::Device,
     queue: wgpu::Queue,
-    viewport: wgpu::Texture,
+    viewport: Viewport,
+    viewport_tex: wgpu::Texture,
     viewport_view: wgpu::TextureView,
     blitter: Blitter,
+    renderer: Renderer,
 }
 
 impl Inner {
     pub fn new(device: wgpu::Device, queue: wgpu::Queue, format: wgpu::TextureFormat) -> Self {
-        // create viewport texture
-        let viewport = device.create_texture(&wgpu::TextureDescriptor {
+        let viewport_tex = device.create_texture(&wgpu::TextureDescriptor {
             label: None,
             dimension: wgpu::TextureDimension::D2,
             size: wgpu::Extent3d {
@@ -33,25 +35,35 @@ impl Inner {
             sample_count: 1,
         });
 
-        let viewport_view = viewport.create_view(&wgpu::TextureViewDescriptor {
+        let viewport_view = viewport_tex.create_view(&wgpu::TextureViewDescriptor {
             label: None,
             ..Default::default()
         });
 
         let blitter = Blitter::new(device.clone(), format);
+        let renderer = Renderer::new(device.clone());
+
         Self {
             device,
             queue,
-            viewport,
+            viewport: Viewport {
+                width: 1,
+                height: 1,
+            },
+            viewport_tex,
             viewport_view,
             blitter,
+            renderer,
         }
     }
 
     pub fn resize_viewport(&mut self, viewport: Viewport) {
-        tracing::info!(?viewport, "resizing viewport");
+        if viewport == self.viewport {
+            return;
+        }
 
-        let viewport = self.device.create_texture(&wgpu::TextureDescriptor {
+        tracing::info!(?viewport, "resizing viewport");
+        let viewport_tex = self.device.create_texture(&wgpu::TextureDescriptor {
             label: None,
             dimension: wgpu::TextureDimension::D2,
             size: wgpu::Extent3d {
@@ -66,12 +78,12 @@ impl Inner {
             sample_count: 1,
         });
 
-        let viewport_view = viewport.create_view(&wgpu::TextureViewDescriptor {
+        let viewport_view = viewport_tex.create_view(&wgpu::TextureViewDescriptor {
             label: None,
             ..Default::default()
         });
 
-        self.viewport = viewport;
+        self.viewport_tex = viewport_tex;
         self.viewport_view = viewport_view;
     }
 
@@ -137,7 +149,7 @@ impl WgpuRenderer {
     }
 }
 
-impl Renderer for WgpuRenderer {
+impl RendererInterface for WgpuRenderer {
     fn exec(&mut self, action: Action) {
         self.sender.send(action).expect("rendering thread is alive");
     }

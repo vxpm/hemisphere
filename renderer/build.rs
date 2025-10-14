@@ -5,7 +5,8 @@ fn main() {
     wesl.use_imports(true);
     wesl.use_sourcemap(true);
     wesl.use_lower(true);
-    wesl.use_stripping(true);
+    wesl.use_stripping(false);
 
-    Wesl::new("shaders").build_artifact(&"package::blit".parse().unwrap(), "blit");
+    wesl.build_artifact(&"package::blit".parse().unwrap(), "blit");
+    wesl.build_artifact(&"package::uber".parse().unwrap(), "uber");
 }
