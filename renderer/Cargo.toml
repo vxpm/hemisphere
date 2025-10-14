@@ -5,11 +5,11 @@ version = "0.1.0"
 edition = "2024"
 
 [build-dependencies]
-wesl = "0.2"
+wesl.workspace = true
 
 [dependencies]
 hemisphere = { path = "../hemisphere/" }
 tracing.workspace = true
 wgpu.workspace = true
 zerocopy.workspace = true
-wesl = "0.2"
+wesl.workspace = true
