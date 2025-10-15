@@ -18,9 +18,9 @@ struct InOut {
     output: Reg,
 
     // pad to 32 bytes
-    _padding0: u32,
-    _padding1: u32,
-    _padding2: u32,
+    _pad0: u32,
+    _pad1: u32,
+    _pad2: u32,
 }
 
 // Configuration for a TEV stage step.
@@ -41,9 +41,9 @@ struct Stage {
 /// All TEV stage configurations.
 struct Stages {
     count: u32,
-    _padding0: u32,
-    _padding1: u32,
-    _padding2: u32,
+    _pad0: u32,
+    _pad1: u32,
+    _pad2: u32,
     stages: array<Stage, 8>,
 };
 

@@ -19,9 +19,8 @@ use common::{
     Primitive,
     bin::{BinReader, BinaryStream},
 };
-use glam::{Mat4, Vec2, Vec3, Vec4};
+use glam::{Mat3, Mat4, Vec2, Vec3};
 use strum::FromRepr;
-use thin_vec::ThinVec;
 use zerocopy::IntoBytes;
 
 /// An internal GX register.
@@ -236,6 +235,13 @@ impl Reg {
                 | Self::TevAlpha15
         )
     }
+
+    pub fn is_pixel_clear(&self) -> bool {
+        matches!(
+            self,
+            Self::PixelCopyClearAr | Self::PixelCopyClearGb | Self::PixelCopyClearZ
+        )
+    }
 }
 
 #[bitos(2)]
@@ -268,16 +274,19 @@ pub struct GenMode {
 }
 
 /// Extracted vertex attributes.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct VertexAttributes {
-    pub count: u16,
-    pub view_matrix: Option<ThinVec<Mat4>>,
-    pub tex_matrix: [Option<ThinVec<Mat4>>; 8],
-    pub position: Option<ThinVec<Vec3>>,
-    pub normal: Option<ThinVec<Vec3>>,
-    pub diffuse: Option<ThinVec<Rgba>>,
-    pub specular: Option<ThinVec<Rgba>>,
-    pub tex_uv: [Option<ThinVec<Vec2>>; 8],
+    pub position: Vec3,
+    pub position_matrix: Mat4,
+
+    pub normal: Vec3,
+    pub normal_matrix: Mat3,
+
+    pub diffuse: Rgba,
+    pub specular: Rgba,
+
+    pub tex_coord: [Vec2; 8],
+    pub tex_coord_matrix: [Mat4; 8],
 }
 
 /// GX subsystem
@@ -303,11 +312,18 @@ impl System {
                 self.gpu.pixel.interrupt.set_finish(true);
                 self.check_interrupts();
             }
-
+            Reg::PixelCopyClearAr => {
+                value.write_be_bytes(&mut self.gpu.pixel.clear_color.as_mut_bytes()[0..2])
+            }
+            Reg::PixelCopyClearGb => {
+                value.write_be_bytes(&mut self.gpu.pixel.clear_color.as_mut_bytes()[2..4])
+            }
+            Reg::PixelCopyClearZ => value.write_be_bytes(self.gpu.pixel.clear_depth.as_mut_bytes()),
             Reg::PixelCopyCmd => {
                 let cmd = pixel::CopyCmd::from_bits(value);
                 tracing::debug!(?cmd);
             }
+
             Reg::TevColor0 => {
                 value.write_ne_bytes(self.gpu.environment.color_stages[0].as_mut_bytes());
             }
@@ -406,6 +422,16 @@ impl System {
             }
             _ => tracing::warn!("unimplemented write to internal GX register {reg:?}"),
         }
+
+        if reg.is_pixel_clear() {
+            let color = &self.gpu.pixel.clear_color;
+            self.config.renderer.exec(Action::SetClearColor(Rgba {
+                r: color.r() as f32 / 255.0,
+                g: color.g() as f32 / 255.0,
+                b: color.b() as f32 / 255.0,
+                a: color.a() as f32 / 255.0,
+            }));
+        }
     }
 }
 
@@ -448,44 +474,42 @@ impl System {
         }
     }
 
-    pub fn gx_extract_attributes(&mut self, stream: VertexAttributeStream) -> VertexAttributes {
-        let vcd = self.gpu.command.internal.vertex_descriptor.clone();
+    pub fn gx_extract_attributes(
+        &mut self,
+        stream: VertexAttributeStream,
+    ) -> Vec<VertexAttributes> {
         let vat = stream.table_index();
+        let default_matrix_idx = self.gpu.command.internal.mat_indices.view().value();
 
-        let mut position_data = vcd
-            .position()
-            .present()
-            .then(|| ThinVec::with_capacity(stream.count() as usize));
-
-        let mut diffuse_data = vcd
-            .diffuse()
-            .present()
-            .then(|| ThinVec::with_capacity(stream.count() as usize));
-
+        let mut vertices = Vec::with_capacity(stream.count() as usize);
         let mut data = stream.data();
         let mut reader = data.reader();
         for _ in 0..stream.count() {
-            let value = self.gx_read_attribute::<attributes::Position>(vat, &mut reader);
-            if let Some(value) = value {
-                position_data.as_mut().unwrap().push(value);
-            }
+            let position_matrix_index = self
+                .gx_read_attribute::<attributes::PositionMatrixIndex>(vat, &mut reader)
+                .unwrap_or(default_matrix_idx);
 
-            let value = self.gx_read_attribute::<attributes::Diffuse>(vat, &mut reader);
-            if let Some(value) = value {
-                diffuse_data.as_mut().unwrap().push(value);
-            }
+            let position_matrix = self.gpu.transform.matrix(position_matrix_index);
+            let normal_matrix = self.gpu.transform.normal_matrix(position_matrix_index);
+
+            let position = self
+                .gx_read_attribute::<attributes::Position>(vat, &mut reader)
+                .unwrap_or_default();
+
+            let diffuse = self
+                .gx_read_attribute::<attributes::Diffuse>(vat, &mut reader)
+                .unwrap_or_default();
+
+            vertices.push(VertexAttributes {
+                position,
+                position_matrix,
+                normal_matrix,
+                diffuse,
+                ..Default::default()
+            })
         }
 
-        VertexAttributes {
-            count: stream.count(),
-            view_matrix: None,
-            tex_matrix: [const { None }; 8],
-            position: position_data,
-            diffuse: diffuse_data,
-            normal: None,
-            specular: None,
-            tex_uv: [const { None }; 8],
-        }
+        vertices
     }
 
     pub fn gx_draw_triangle(&mut self, stream: VertexAttributeStream) {
@@ -496,9 +520,6 @@ impl System {
         tracing::debug!(?vat);
 
         let attributes = self.gx_extract_attributes(stream);
-
-        self.config
-            .renderer
-            .exec(Action::DrawTriangle(Box::new(attributes)));
+        self.config.renderer.exec(Action::DrawTriangle(attributes));
     }
 }

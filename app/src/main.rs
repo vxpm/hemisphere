@@ -90,7 +90,7 @@ impl App {
         };
 
         let wgpu_state = cc.wgpu_render_state.as_ref().unwrap();
-        println!("limits: {:#?}", wgpu_state.adapter.limits());
+        tracing::info!("wgpu device limits: {:?}", wgpu_state.device.limits());
 
         let renderer = WgpuRenderer::new(
             wgpu_state.device.clone(),
@@ -272,15 +272,35 @@ fn main() -> Result<()> {
     let _tracing_guard = setup_tracing();
 
     let args = cli::Args::parse();
+
+    let device_descriptor = Arc::new(|adapter: &wgpu::Adapter| {
+        let base_limits = if adapter.get_info().backend == wgpu::Backend::Gl {
+            wgpu::Limits::downlevel_defaults()
+        } else {
+            wgpu::Limits::default()
+        };
+
+        wgpu::DeviceDescriptor {
+            label: Some("hemisphere-egui wgpu device"),
+            required_limits: wgpu::Limits {
+                // required by egui
+                max_texture_dimension_2d: 8192,
+                ..base_limits
+            },
+            ..Default::default()
+        }
+    });
+
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default().with_maximized(true),
         wgpu_options: WgpuConfiguration {
             wgpu_setup: WgpuSetup::CreateNew(WgpuSetupCreateNew {
                 instance_descriptor: wgpu::InstanceDescriptor {
-                    backends: wgpu::Backends::all(),
+                    backends: wgpu::Backends::GL,
                     ..Default::default()
                 },
                 power_preference: wgpu::PowerPreference::HighPerformance,
+                device_descriptor,
                 ..Default::default()
             }),
             ..Default::default()

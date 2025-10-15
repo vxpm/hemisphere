@@ -1,11 +1,8 @@
 pub mod attributes;
 
-use crate::{
-    render::Action,
-    system::{
-        System,
-        gpu::{Gpu, Reg as GxReg, command::attributes::AttributeDescriptor},
-    },
+use crate::system::{
+    System,
+    gpu::{Gpu, Reg as GxReg, command::attributes::AttributeDescriptor},
 };
 use attributes::VertexAttributeTable;
 use bitos::{
@@ -606,12 +603,6 @@ impl System {
             Reg::DiffuseStride => value.write_ne_bytes(cp.arrays.diffuse.stride.as_mut_bytes()),
 
             _ => tracing::warn!("unimplemented write to internal CP register {reg:?}"),
-        }
-
-        if reg.is_matrices_index() {
-            let view_index = self.gpu.command.internal.mat_indices.view().value();
-            let view = self.gpu.transform.matrix(view_index);
-            self.config.renderer.exec(Action::SetPositionMatrix(view));
         }
     }
 

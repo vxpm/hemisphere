@@ -14,4 +14,5 @@ wgpu.workspace = true
 zerocopy.workspace = true
 wesl.workspace = true
 glam.workspace = true
-encase = "0.12"
+indexmap = "2.11"
+ordered-float = "5"

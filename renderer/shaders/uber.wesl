@@ -1,22 +1,38 @@
-import package::{attr, tev};
+import package::tev;
 
-// Contains the vertex matrices for the call.
-struct Matrices {
-    projection: mat4x4f,
-    position: mat4x4f,
-    // textures: array<mat4x4f, 8>,
+alias MatIdx = u32;
+alias ConfigIdx = u32;
+
+// Rendering configuration
+struct Config {
+    tev_stages: array<tev::Stage, 16>,
 };
 
-// Group 0: Vertex stage configuration
-@group(0) @binding(0) var<uniform> matrices: Matrices;
+// A vertex primitive
+struct Vertex {
+    config: ConfigIdx, // 4 bytes
+    projection: MatIdx, // 4 bytes
 
-// Group 1: Fragment stage configuration
-// @group(1) @binding(0) var<uniform> tev_stages: tev::Stages;
+    // pad to 16 bytes
+    _pad0: u32,
+    _pad1: u32,
 
-// Group 2: Attributes
-@group(2) @binding(0) var<uniform> attributes: attr::Attributes;
-@group(2) @binding(1) var<storage> positions: array<vec3f>;
-@group(2) @binding(2) var<storage> colors: array<vec4f>;
+    position: vec3f, // 12 bytes
+    position_mat: MatIdx, // 4 bytes
+
+    normal: vec3f, // 12 bytes
+    normal_mat: MatIdx, // 4 bytes
+
+    diffuse: vec4f, // 16 bytes
+    specular: vec4f, // 16 bytes
+
+    tex_coord: array<vec2f, 8>, // 8 * 8 = 64 bytes
+    tex_coord_mat: array<MatIdx, 8> // 4 * 8 = 32 bytes
+};
+
+@group(0) @binding(0) var<storage> configs: array<Config>;
+@group(0) @binding(1) var<storage> matrices: array<mat4x4f>;
+@group(0) @binding(2) var<storage> vertices: array<Vertex>;
 
 struct VertexOutput {
     @builtin(position) clip: vec4f,
@@ -24,17 +40,18 @@ struct VertexOutput {
 };
 
 @vertex
-fn vs_main(
-    @builtin(vertex_index) index: u32,
-) -> VertexOutput {
+fn vs_main(@builtin(vertex_index) index: u32) -> VertexOutput {
     var out: VertexOutput;
     
-    let pos = vec4f(positions[index], 1.0);
-    out.clip = matrices.projection * matrices.position * pos;
+    let vertex = vertices[index];
+    let pos = vec4f(vertex.position, 1.0);
+    let projection = matrices[vertex.projection];
+    let view = matrices[vertex.position_mat];
+    out.clip = projection * view * pos;
     out.clip.z += out.clip.w;
     out.clip.z /= 2.0;
 
-    out.raster_color = colors[index];
+    out.raster_color = vertex.diffuse;
 
     return out;
 }

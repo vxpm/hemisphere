@@ -4,7 +4,7 @@ use common::bin::BinReader;
 use glam::Vec3;
 use zerocopy::{Immutable, IntoBytes};
 
-#[derive(Clone, Copy, Immutable, IntoBytes)]
+#[derive(Clone, Copy, Immutable, IntoBytes, Default)]
 pub struct Rgba {
     pub r: f32,
     pub g: f32,
@@ -33,6 +33,20 @@ pub trait AttributeDescriptor {
 
     /// Reads a value defined by this descriptor from binary data.
     fn read(&self, reader: &mut BinReader) -> Option<Self::Value>;
+}
+
+pub struct IndexDescriptor;
+
+impl AttributeDescriptor for IndexDescriptor {
+    type Value = u8;
+
+    fn size(&self) -> u32 {
+        1
+    }
+
+    fn read(&self, reader: &mut BinReader) -> Option<Self::Value> {
+        reader.read_be::<u8>()
+    }
 }
 
 #[bitos(1)]
@@ -409,6 +423,28 @@ pub trait Attribute {
     fn get_mode(vcd: &VertexDescriptor) -> AttributeMode;
     fn get_descriptor(vat: &VertexAttributeTable) -> Self::Descriptor;
     fn get_array(arrays: &Arrays) -> Option<ArrayDescriptor>;
+}
+
+pub struct PositionMatrixIndex;
+
+impl Attribute for PositionMatrixIndex {
+    type Descriptor = IndexDescriptor;
+
+    fn get_mode(vcd: &VertexDescriptor) -> AttributeMode {
+        if vcd.pos_mat_index() {
+            AttributeMode::Direct
+        } else {
+            AttributeMode::None
+        }
+    }
+
+    fn get_descriptor(_: &VertexAttributeTable) -> Self::Descriptor {
+        IndexDescriptor
+    }
+
+    fn get_array(_: &Arrays) -> Option<ArrayDescriptor> {
+        None
+    }
 }
 
 pub struct Position;

@@ -51,7 +51,6 @@ slotmap = "1.0"
 strum = { version = "0.27", features = ["derive"] }
 tracing = { version = "0.1", default-features = false, features = ["std"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-thin-vec = "0.2"
 wgpu = { version = "27.0", features = [
     "dx12",
     "gles",

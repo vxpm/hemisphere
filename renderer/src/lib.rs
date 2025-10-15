@@ -32,7 +32,7 @@ impl Inner {
     fn exec(&mut self, action: Action) {
         match action {
             Action::SetViewport(viewport) => self.renderer.resize_viewport(viewport),
-            Action::SetPositionMatrix(mat) => self.renderer.set_position_mat(mat),
+            Action::SetClearColor(color) => self.renderer.set_clear_color(color),
             Action::SetProjectionMatrix(mat) => self.renderer.set_projection_mat(mat),
             Action::SetVertexAttributes(_) => (),
             Action::DrawTriangle(attributes) => self.renderer.draw_triangle(attributes),

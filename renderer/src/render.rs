@@ -1,16 +1,44 @@
-use glam::{Mat4, Vec3A};
+use std::collections::{HashMap, hash_map::Entry};
+
+use glam::{Mat4, Vec2, Vec3};
 use hemisphere::{
     render::Viewport,
     system::gpu::{VertexAttributes, command::attributes::Rgba},
 };
+use ordered_float::OrderedFloat;
 use wesl::include_wesl;
 use wgpu::util::DeviceExt;
 use zerocopy::{Immutable, IntoBytes};
 
-#[derive(Default, Immutable, IntoBytes)]
-struct Matrices {
-    projection: Mat4,
-    position: Mat4,
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct HashableMat4([OrderedFloat<f32>; 16]);
+
+impl From<Mat4> for HashableMat4 {
+    fn from(value: Mat4) -> Self {
+        Self(unsafe { std::mem::transmute(value.to_cols_array()) })
+    }
+}
+
+#[derive(Debug, Clone, Immutable, IntoBytes)]
+#[repr(C)]
+struct Vertex {
+    config_idx: u32,
+    projection_idx: u32,
+
+    _pad0: u32,
+    _pad1: u32,
+
+    position: Vec3,
+    position_mat_idx: u32,
+
+    normal: Vec3,
+    normal_mat_idx: u32,
+
+    diffuse: Rgba,
+    specular: Rgba,
+
+    tex_coord: [Vec2; 8],
+    tex_coord_mat_idx: [u32; 8],
 }
 
 pub struct Renderer {
@@ -18,16 +46,17 @@ pub struct Renderer {
     queue: wgpu::Queue,
 
     pipeline: wgpu::RenderPipeline,
-    vertex_group_layout: wgpu::BindGroupLayout,
-    attributes_group_layout: wgpu::BindGroupLayout,
+    group_layout: wgpu::BindGroupLayout,
+    clear_color: wgpu::Color,
 
     viewport: Viewport,
     viewport_tex: wgpu::Texture,
 
-    count: u32,
-    matrices: Matrices,
-    positions: Vec<Vec3A>,
-    diffuse: Vec<Rgba>,
+    current_projection_mat: Mat4,
+    current_projection_mat_idx: u32,
+    vertices: Vec<Vertex>,
+    matrices: Vec<Mat4>,
+    matrices_idx: HashMap<HashableMat4, u32>,
 }
 
 impl Renderer {
@@ -47,37 +76,7 @@ impl Renderer {
             sample_count: 1,
         });
 
-        let vertex_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: None,
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }],
-            });
-
-        let fragment_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: None,
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }],
-            });
-
-        let attribute_buffer_layout_entry = |binding| wgpu::BindGroupLayoutEntry {
+        let group_layout_entry = |binding| wgpu::BindGroupLayoutEntry {
             binding,
             visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
             ty: wgpu::BindingType::Buffer {
@@ -87,32 +86,18 @@ impl Renderer {
             },
             count: None,
         };
-        let attributes_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: None,
-                entries: &[
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    },
-                    attribute_buffer_layout_entry(1),
-                    attribute_buffer_layout_entry(2),
-                ],
-            });
+        let group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: None,
+            entries: &[
+                group_layout_entry(0),
+                group_layout_entry(1),
+                group_layout_entry(2),
+            ],
+        });
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: None,
-            bind_group_layouts: &[
-                &vertex_group_layout,
-                &attributes_group_layout,
-                &attributes_group_layout,
-            ],
+            bind_group_layouts: &[&group_layout],
             push_constant_ranges: &[],
         });
 
@@ -160,8 +145,8 @@ impl Renderer {
             queue,
 
             pipeline,
-            vertex_group_layout,
-            attributes_group_layout,
+            group_layout,
+            clear_color: wgpu::Color::BLACK,
 
             viewport: Viewport {
                 width: 1,
@@ -169,10 +154,23 @@ impl Renderer {
             },
             viewport_tex,
 
-            count: 0,
-            matrices: Default::default(),
-            positions: Vec::new(),
-            diffuse: Vec::new(),
+            current_projection_mat: Default::default(),
+            current_projection_mat_idx: 0,
+            vertices: Vec::new(),
+            matrices: Vec::new(),
+            matrices_idx: Default::default(),
+        }
+    }
+
+    pub fn insert_matrix(&mut self, mat: Mat4) -> u32 {
+        match self.matrices_idx.entry(mat.clone().into()) {
+            Entry::Occupied(o) => *o.get(),
+            Entry::Vacant(v) => {
+                let idx = self.matrices.len() as u32;
+                self.matrices.push(mat);
+
+                *v.insert_entry(idx).get()
+            }
         }
     }
 
@@ -207,83 +205,88 @@ impl Renderer {
         self.viewport_tex = viewport_tex;
     }
 
-    pub fn set_position_mat(&mut self, mat: Mat4) {
-        self.matrices.position = mat;
+    pub fn set_clear_color(&mut self, rgba: Rgba) {
+        self.clear_color = wgpu::Color {
+            r: rgba.r as f64,
+            g: rgba.g as f64,
+            b: rgba.b as f64,
+            // TODO: deal with alpha properly
+            a: 1.0,
+        };
     }
 
     pub fn set_projection_mat(&mut self, mat: Mat4) {
-        self.matrices.projection = mat;
+        let id = self.insert_matrix(mat);
+        self.current_projection_mat = mat;
+        self.current_projection_mat_idx = id;
     }
 
-    pub fn draw_triangle(&mut self, attributes: Box<VertexAttributes>) {
-        self.count += attributes.count as u32;
+    pub fn draw_triangle(&mut self, vertices: Vec<VertexAttributes>) {
+        for vertex in vertices {
+            let position_mat_idx = self.insert_matrix(vertex.position_matrix);
+            let normal_mat_idx = self.insert_matrix(Mat4::from_mat3(vertex.normal_matrix));
+            let tex_coord_mat_idx = vertex.tex_coord_matrix.map(|mat| self.insert_matrix(mat));
 
-        if let Some(position) = attributes.position {
-            self.positions
-                .extend(position.into_iter().map(|v| Vec3A::from(v)));
-        }
+            let vertex = Vertex {
+                config_idx: 0,
+                projection_idx: self.current_projection_mat_idx,
 
-        if let Some(diffuse) = attributes.diffuse {
-            self.diffuse.extend(diffuse.into_iter());
+                _pad0: 0,
+                _pad1: 0,
+
+                position: vertex.position,
+                position_mat_idx,
+
+                normal: vertex.normal,
+                normal_mat_idx,
+
+                diffuse: vertex.diffuse,
+                specular: vertex.specular,
+
+                tex_coord: vertex.tex_coord,
+                tex_coord_mat_idx,
+            };
+
+            self.vertices.push(vertex);
         }
 
         self.flush();
+    }
+
+    fn reset(&mut self) {
+        self.vertices.clear();
+        self.matrices.clear();
+        self.matrices_idx.clear();
+
+        self.matrices.push(self.current_projection_mat);
+        self.current_projection_mat_idx = 0;
     }
 
     pub fn flush(&mut self) {
         let matrices_buf = self
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: None,
-                contents: self.matrices.as_bytes(),
-                usage: wgpu::BufferUsages::UNIFORM,
-            });
-
-        let attributes_buf = self
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: None,
-                contents: 0u32.as_bytes(),
-                usage: wgpu::BufferUsages::UNIFORM,
-            });
-
-        let positions_buf = self
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: None,
-                contents: self.positions.as_bytes(),
+                label: Some("hemisphere matrices buffer"),
+                contents: self.matrices.as_slice().as_bytes(),
                 usage: wgpu::BufferUsages::STORAGE,
             });
 
-        let diffuse_buf = self
+        let vertices_buf = self
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: None,
-                contents: self.diffuse.as_bytes(),
+                label: Some("hemisphere vertices buffer"),
+                contents: self.vertices.as_slice().as_bytes(),
                 usage: wgpu::BufferUsages::STORAGE,
             });
 
-        let vertex_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+        let group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: None,
-            layout: &self.vertex_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                    buffer: &matrices_buf,
-                    offset: 0,
-                    size: None,
-                }),
-            }],
-        });
-
-        let attributes_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: None,
-            layout: &self.attributes_group_layout,
+            layout: &self.group_layout,
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
                     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                        buffer: &attributes_buf,
+                        buffer: &matrices_buf,
                         offset: 0,
                         size: None,
                     }),
@@ -291,7 +294,7 @@ impl Renderer {
                 wgpu::BindGroupEntry {
                     binding: 1,
                     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                        buffer: &positions_buf,
+                        buffer: &matrices_buf,
                         offset: 0,
                         size: None,
                     }),
@@ -299,7 +302,7 @@ impl Renderer {
                 wgpu::BindGroupEntry {
                     binding: 2,
                     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                        buffer: &diffuse_buf,
+                        buffer: &vertices_buf,
                         offset: 0,
                         size: None,
                     }),
@@ -314,18 +317,13 @@ impl Renderer {
 
         let mut encoder = self.device.create_command_encoder(&Default::default());
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: None,
+            label: Some("hemisphere render pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: &viewport,
                 depth_slice: None,
                 resolve_target: None,
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color {
-                        r: 0.0,
-                        g: 0.0,
-                        b: 0.0,
-                        a: 1.0,
-                    }),
+                    load: wgpu::LoadOp::Clear(self.clear_color),
                     store: wgpu::StoreOp::Store,
                 },
             })],
@@ -335,17 +333,14 @@ impl Renderer {
         });
 
         pass.set_pipeline(&self.pipeline);
-        pass.set_bind_group(0, Some(&vertex_group), &[]);
-        pass.set_bind_group(1, Some(&attributes_group), &[]);
-        pass.set_bind_group(2, Some(&attributes_group), &[]);
-        pass.draw(0..self.count, 0..1);
+        pass.set_bind_group(0, Some(&group), &[]);
+        pass.draw(0..self.vertices.len() as u32, 0..1);
 
         std::mem::drop(pass);
 
         let buffer = encoder.finish();
         self.queue.submit([buffer]);
 
-        self.positions.clear();
-        self.diffuse.clear();
+        self.reset();
     }
 }

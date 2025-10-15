@@ -1,6 +1,6 @@
 use bitos::BitUtils;
 use common::util;
-use glam::Mat4;
+use glam::{Mat3, Mat4};
 use strum::FromRepr;
 
 use crate::{render::Action, system::System};
@@ -120,7 +120,7 @@ impl Interface {
     /// Returns the matrix at `index` in internal memory.
     pub fn matrix(&self, index: u8) -> Mat4 {
         let offset = 4 * index as usize;
-        let data = &self.ram[offset..16];
+        let data = &self.ram[offset..][..16];
         let m: &[f32] = zerocopy::transmute_ref!(data);
 
         Mat4::from_cols_array_2d(&[
@@ -128,6 +128,21 @@ impl Interface {
             [m[4], m[5], m[6], m[7]],
             [m[8], m[9], m[10], m[11]],
             [0.0, 0.0, 0.0, 1.0],
+        ])
+        .transpose()
+    }
+
+    /// Returns the normal matrix at `index` in internal memory.
+    pub fn normal_matrix(&self, index: u8) -> Mat3 {
+        let offset = 4 * index as usize;
+        let data = &self.ram[0x400 + offset..][..9];
+        let m: &[f32] = zerocopy::transmute_ref!(data);
+
+        Mat3::from_cols_array_2d(&[
+            // this comment exists so rustfmt doesnt format this :)
+            [m[0], m[1], m[2]],
+            [m[3], m[4], m[5]],
+            [m[6], m[7], m[8]],
         ])
         .transpose()
     }

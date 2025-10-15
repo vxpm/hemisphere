@@ -39,9 +39,24 @@ pub struct InterruptStatus {
     pub finish: bool,
 }
 
+#[bitos(32)]
+#[derive(Debug, Default)]
+pub struct Argb8 {
+    #[bits(0..8)]
+    pub a: u8,
+    #[bits(8..16)]
+    pub r: u8,
+    #[bits(16..24)]
+    pub g: u8,
+    #[bits(24..32)]
+    pub b: u8,
+}
+
 #[derive(Debug, Default)]
 pub struct Interface {
     pub interrupt: InterruptStatus,
+    pub clear_color: Argb8,
+    pub clear_depth: u32,
 }
 
 impl Interface {

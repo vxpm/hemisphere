@@ -2,7 +2,10 @@
 
 use glam::Mat4;
 
-use crate::system::gpu::{VertexAttributes, command::VertexAttributeSet};
+use crate::system::gpu::{
+    VertexAttributes,
+    command::{VertexAttributeSet, attributes::Rgba},
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Viewport {
@@ -12,10 +15,10 @@ pub struct Viewport {
 
 pub enum Action {
     SetViewport(Viewport),
-    SetPositionMatrix(Mat4),
+    SetClearColor(Rgba),
     SetProjectionMatrix(Mat4),
     SetVertexAttributes(VertexAttributeSet),
-    DrawTriangle(Box<VertexAttributes>),
+    DrawTriangle(Vec<VertexAttributes>),
 }
 
 pub trait Renderer: Send + Sync {
