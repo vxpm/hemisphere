@@ -2,16 +2,16 @@ import package::{attr, tev};
 
 // Contains the vertex matrices for the call.
 struct Matrices {
-    position: mat4x4f,
-    textures: array<mat4x4f, 8>,
     projection: mat4x4f,
+    position: mat4x4f,
+    // textures: array<mat4x4f, 8>,
 };
 
 // Group 0: Vertex stage configuration
 @group(0) @binding(0) var<uniform> matrices: Matrices;
 
 // Group 1: Fragment stage configuration
-@group(1) @binding(0) var<uniform> tev_stages: tev::Stages;
+// @group(1) @binding(0) var<uniform> tev_stages: tev::Stages;
 
 // Group 2: Attributes
 @group(2) @binding(0) var<uniform> attributes: attr::Attributes;
@@ -31,8 +31,8 @@ fn vs_main(
     
     let pos = vec4f(positions[index], 1.0);
     out.clip = matrices.projection * matrices.position * pos;
-    out.clip += vec4f(out.clip.w, out.clip.w, out.clip.w, 0.0);
-    out.clip /= vec4f(2.0, 2.0, 2.0, 1.0);
+    out.clip.z += out.clip.w;
+    out.clip.z /= 2.0;
 
     out.raster_color = colors[index];
 

@@ -2,13 +2,14 @@ use crate::system::gpu::command::{ArrayDescriptor, Arrays, AttributeMode, Vertex
 use bitos::{BitUtils, bitos, integer::u5};
 use common::bin::BinReader;
 use glam::Vec3;
+use zerocopy::{Immutable, IntoBytes};
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Immutable, IntoBytes)]
 pub struct Rgba {
-    r: f32,
-    g: f32,
-    b: f32,
-    a: f32,
+    pub r: f32,
+    pub g: f32,
+    pub b: f32,
+    pub a: f32,
 }
 
 impl std::fmt::Debug for Rgba {

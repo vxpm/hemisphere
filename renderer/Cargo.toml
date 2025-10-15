@@ -13,3 +13,5 @@ tracing.workspace = true
 wgpu.workspace = true
 zerocopy.workspace = true
 wesl.workspace = true
+glam.workspace = true
+encase = "0.12"

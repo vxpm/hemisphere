@@ -2,7 +2,7 @@ mod blit;
 mod render;
 
 use crate::{blit::Blitter, render::Renderer};
-use hemisphere::render::{Action, Renderer as RendererInterface, Viewport};
+use hemisphere::render::{Action, Renderer as RendererInterface};
 use std::sync::{
     Arc, Mutex,
     mpsc::{Receiver, Sender, channel},
@@ -11,89 +11,31 @@ use std::sync::{
 struct Inner {
     device: wgpu::Device,
     queue: wgpu::Queue,
-    viewport: Viewport,
-    viewport_tex: wgpu::Texture,
-    viewport_view: wgpu::TextureView,
     blitter: Blitter,
     renderer: Renderer,
 }
 
 impl Inner {
     pub fn new(device: wgpu::Device, queue: wgpu::Queue, format: wgpu::TextureFormat) -> Self {
-        let viewport_tex = device.create_texture(&wgpu::TextureDescriptor {
-            label: None,
-            dimension: wgpu::TextureDimension::D2,
-            size: wgpu::Extent3d {
-                width: 1,
-                height: 1,
-                depth_or_array_layers: 1,
-            },
-            format: wgpu::TextureFormat::Rgba8Unorm,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT,
-            view_formats: &[],
-            mip_level_count: 1,
-            sample_count: 1,
-        });
-
-        let viewport_view = viewport_tex.create_view(&wgpu::TextureViewDescriptor {
-            label: None,
-            ..Default::default()
-        });
-
         let blitter = Blitter::new(device.clone(), format);
-        let renderer = Renderer::new(device.clone());
+        let renderer = Renderer::new(device.clone(), queue.clone());
 
         Self {
             device,
             queue,
-            viewport: Viewport {
-                width: 1,
-                height: 1,
-            },
-            viewport_tex,
-            viewport_view,
+
             blitter,
             renderer,
         }
     }
 
-    pub fn resize_viewport(&mut self, viewport: Viewport) {
-        if viewport == self.viewport {
-            return;
-        }
-
-        tracing::info!(?viewport, "resizing viewport");
-        let viewport_tex = self.device.create_texture(&wgpu::TextureDescriptor {
-            label: None,
-            dimension: wgpu::TextureDimension::D2,
-            size: wgpu::Extent3d {
-                width: viewport.width.max(1),
-                height: viewport.height.max(1),
-                depth_or_array_layers: 1,
-            },
-            format: wgpu::TextureFormat::Rgba8Unorm,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT,
-            view_formats: &[],
-            mip_level_count: 1,
-            sample_count: 1,
-        });
-
-        let viewport_view = viewport_tex.create_view(&wgpu::TextureViewDescriptor {
-            label: None,
-            ..Default::default()
-        });
-
-        self.viewport_tex = viewport_tex;
-        self.viewport_view = viewport_view;
-    }
-
     fn exec(&mut self, action: Action) {
         match action {
-            Action::SetViewport(viewport) => {
-                self.resize_viewport(viewport);
-            }
-            Action::SetVertexAttributes(vertex_attribute_set) => todo!(),
-            Action::DrawTriangle(vertex_attributes) => todo!(),
+            Action::SetViewport(viewport) => self.renderer.resize_viewport(viewport),
+            Action::SetPositionMatrix(mat) => self.renderer.set_position_mat(mat),
+            Action::SetProjectionMatrix(mat) => self.renderer.set_projection_mat(mat),
+            Action::SetVertexAttributes(_) => (),
+            Action::DrawTriangle(attributes) => self.renderer.draw_triangle(attributes),
         }
     }
 }
@@ -145,7 +87,7 @@ impl WgpuRenderer {
         let mut guard = self.inner.lock().unwrap();
         let inner = &mut *guard;
 
-        inner.blitter.blit(inner.viewport_view.clone(), pass);
+        inner.blitter.blit(inner.renderer.viewport_view(), pass);
     }
 }
 

@@ -66,6 +66,19 @@ impl Reg {
     pub fn is_viewport_dimensions(&self) -> bool {
         matches!(self, Reg::ViewportScaleX | Reg::ViewportScaleY)
     }
+
+    pub fn is_projection_param(&self) -> bool {
+        matches!(
+            self,
+            Reg::ProjectionParam0
+                | Reg::ProjectionParam1
+                | Reg::ProjectionParam2
+                | Reg::ProjectionParam3
+                | Reg::ProjectionParam4
+                | Reg::ProjectionParam5
+                | Reg::ProjectionOrthographic
+        )
+    }
 }
 
 #[derive(Debug, Default)]
@@ -173,6 +186,12 @@ impl System {
                     width: self.gpu.transform.internal.viewport.width.round() as u32,
                     height: self.gpu.transform.internal.viewport.height.round() as u32,
                 }));
+        }
+
+        if reg.is_projection_param() {
+            self.config.renderer.exec(Action::SetProjectionMatrix(
+                self.gpu.transform.projection_matrix(),
+            ));
         }
     }
 

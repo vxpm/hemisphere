@@ -4,9 +4,12 @@ pub mod pixel;
 pub mod transform;
 
 use super::System;
-use crate::system::gpu::command::{
-    ArrayDescriptor, AttributeMode, VertexAttributeStream,
-    attributes::{self, Attribute, AttributeDescriptor, Rgba},
+use crate::{
+    render::Action,
+    system::gpu::command::{
+        ArrayDescriptor, AttributeMode, VertexAttributeStream,
+        attributes::{self, Attribute, AttributeDescriptor, Rgba},
+    },
 };
 use bitos::{
     bitos,
@@ -16,7 +19,7 @@ use common::{
     Primitive,
     bin::{BinReader, BinaryStream},
 };
-use glam::{Mat4, Vec2, Vec3};
+use glam::{Mat4, Vec2, Vec3, Vec4};
 use strum::FromRepr;
 use thin_vec::ThinVec;
 use zerocopy::IntoBytes;
@@ -267,6 +270,7 @@ pub struct GenMode {
 /// Extracted vertex attributes.
 #[derive(Debug)]
 pub struct VertexAttributes {
+    pub count: u16,
     pub view_matrix: Option<ThinVec<Mat4>>,
     pub tex_matrix: [Option<ThinVec<Mat4>>; 8],
     pub position: Option<ThinVec<Vec3>>,
@@ -473,6 +477,7 @@ impl System {
         }
 
         VertexAttributes {
+            count: stream.count(),
             view_matrix: None,
             tex_matrix: [const { None }; 8],
             position: position_data,
@@ -493,15 +498,24 @@ impl System {
         let attributes = self.gx_extract_attributes(stream);
         tracing::debug!(?attributes);
 
+        // gotta update view matrix when this index changes
         let view_index = self.gpu.command.internal.mat_indices.view().value();
         tracing::debug!(%view_index);
 
         let view = self.gpu.transform.matrix(view_index);
         tracing::debug!(%view);
 
+        // gotta update projection matrix when parameters change
         let projection = self.gpu.transform.projection_matrix();
         tracing::debug!(%projection);
 
-        // todo!()
+        for pos in attributes.position.as_ref().unwrap() {
+            let projected = projection * view * Vec4::from((*pos, 1.0));
+            tracing::debug!(?projected);
+        }
+
+        self.config
+            .renderer
+            .exec(Action::DrawTriangle(Box::new(attributes)));
     }
 }

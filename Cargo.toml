@@ -36,7 +36,9 @@ bitos = { git = "https://github.com/vxpm/bitos.git", features = ["zerocopy"] }
 bytesize = "2"
 clap = { version = "4.5", features = ["derive"] }
 easyerr = "0.1"
-glam = "0.30"
+glam = { git = "https://github.com/bitshifter/glam-rs", features = [
+    "zerocopy",
+] }
 iced-x86 = { version = "1.21", features = [
     "decoder",
     "nasm",

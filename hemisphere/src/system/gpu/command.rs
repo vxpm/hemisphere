@@ -1,8 +1,11 @@
 pub mod attributes;
 
-use crate::system::{
-    System,
-    gpu::{Gpu, Reg as GxReg, command::attributes::AttributeDescriptor},
+use crate::{
+    render::Action,
+    system::{
+        System,
+        gpu::{Gpu, Reg as GxReg, command::attributes::AttributeDescriptor},
+    },
 };
 use attributes::VertexAttributeTable;
 use bitos::{
@@ -92,6 +95,12 @@ pub enum Reg {
     GpArr1Stride = 0xBD,
     GpArr2Stride = 0xBE,
     GpArr3Stride = 0xBF,
+}
+
+impl Reg {
+    pub fn is_matrices_index(self) -> bool {
+        matches!(self, Self::MatIndexLow | Self::MatIndexHigh)
+    }
 }
 
 #[bitos(5)]
@@ -322,51 +331,6 @@ pub struct Internal {
 }
 
 impl Internal {
-    pub fn set(&mut self, reg: Reg, value: u32) {
-        match reg {
-            Reg::MatIndexLow => value.write_ne_bytes(&mut self.mat_indices.as_mut_bytes()[0..4]),
-            Reg::MatIndexHigh => value.write_ne_bytes(&mut self.mat_indices.as_mut_bytes()[4..8]),
-
-            Reg::VcdLow => value.write_ne_bytes(&mut self.vertex_descriptor.as_mut_bytes()[0..4]),
-            Reg::VcdHigh => value.write_ne_bytes(&mut self.vertex_descriptor.as_mut_bytes()[4..8]),
-
-            Reg::Vat0A => value.write_ne_bytes(self.vertex_attr_tables[0].a.as_mut_bytes()),
-            Reg::Vat1A => value.write_ne_bytes(self.vertex_attr_tables[1].a.as_mut_bytes()),
-            Reg::Vat2A => value.write_ne_bytes(self.vertex_attr_tables[2].a.as_mut_bytes()),
-            Reg::Vat3A => value.write_ne_bytes(self.vertex_attr_tables[3].a.as_mut_bytes()),
-            Reg::Vat4A => value.write_ne_bytes(self.vertex_attr_tables[4].a.as_mut_bytes()),
-            Reg::Vat5A => value.write_ne_bytes(self.vertex_attr_tables[5].a.as_mut_bytes()),
-            Reg::Vat6A => value.write_ne_bytes(self.vertex_attr_tables[6].a.as_mut_bytes()),
-            Reg::Vat7A => value.write_ne_bytes(self.vertex_attr_tables[7].a.as_mut_bytes()),
-
-            Reg::Vat0B => value.write_ne_bytes(self.vertex_attr_tables[0].b.as_mut_bytes()),
-            Reg::Vat1B => value.write_ne_bytes(self.vertex_attr_tables[1].b.as_mut_bytes()),
-            Reg::Vat2B => value.write_ne_bytes(self.vertex_attr_tables[2].b.as_mut_bytes()),
-            Reg::Vat3B => value.write_ne_bytes(self.vertex_attr_tables[3].b.as_mut_bytes()),
-            Reg::Vat4B => value.write_ne_bytes(self.vertex_attr_tables[4].b.as_mut_bytes()),
-            Reg::Vat5B => value.write_ne_bytes(self.vertex_attr_tables[5].b.as_mut_bytes()),
-            Reg::Vat6B => value.write_ne_bytes(self.vertex_attr_tables[6].b.as_mut_bytes()),
-            Reg::Vat7B => value.write_ne_bytes(self.vertex_attr_tables[7].b.as_mut_bytes()),
-
-            Reg::Vat0C => value.write_ne_bytes(self.vertex_attr_tables[0].c.as_mut_bytes()),
-            Reg::Vat1C => value.write_ne_bytes(self.vertex_attr_tables[1].c.as_mut_bytes()),
-            Reg::Vat2C => value.write_ne_bytes(self.vertex_attr_tables[2].c.as_mut_bytes()),
-            Reg::Vat3C => value.write_ne_bytes(self.vertex_attr_tables[3].c.as_mut_bytes()),
-            Reg::Vat4C => value.write_ne_bytes(self.vertex_attr_tables[4].c.as_mut_bytes()),
-            Reg::Vat5C => value.write_ne_bytes(self.vertex_attr_tables[5].c.as_mut_bytes()),
-            Reg::Vat6C => value.write_ne_bytes(self.vertex_attr_tables[6].c.as_mut_bytes()),
-            Reg::Vat7C => value.write_ne_bytes(self.vertex_attr_tables[7].c.as_mut_bytes()),
-
-            Reg::PositionPtr => value.write_ne_bytes(self.arrays.position.address.as_mut_bytes()),
-            Reg::DiffusePtr => value.write_ne_bytes(self.arrays.diffuse.address.as_mut_bytes()),
-
-            Reg::PositionStride => value.write_ne_bytes(self.arrays.position.stride.as_mut_bytes()),
-            Reg::DiffuseStride => value.write_ne_bytes(self.arrays.diffuse.stride.as_mut_bytes()),
-
-            _ => tracing::warn!("unimplemented write to internal CP register {reg:?}"),
-        }
-    }
-
     pub fn vertex_size(&self, vat: u8) -> u32 {
         let vat = vat as usize;
 
@@ -598,6 +562,59 @@ impl Gpu {
 
 /// Command Processor
 impl System {
+    /// Sets the value of an internal command processor register.
+    pub fn cp_set(&mut self, reg: Reg, value: u32) {
+        let cp = &mut self.gpu.command.internal;
+        match reg {
+            Reg::MatIndexLow => value.write_ne_bytes(&mut cp.mat_indices.as_mut_bytes()[0..4]),
+            Reg::MatIndexHigh => value.write_ne_bytes(&mut cp.mat_indices.as_mut_bytes()[4..8]),
+
+            Reg::VcdLow => value.write_ne_bytes(&mut cp.vertex_descriptor.as_mut_bytes()[0..4]),
+            Reg::VcdHigh => value.write_ne_bytes(&mut cp.vertex_descriptor.as_mut_bytes()[4..8]),
+
+            Reg::Vat0A => value.write_ne_bytes(cp.vertex_attr_tables[0].a.as_mut_bytes()),
+            Reg::Vat1A => value.write_ne_bytes(cp.vertex_attr_tables[1].a.as_mut_bytes()),
+            Reg::Vat2A => value.write_ne_bytes(cp.vertex_attr_tables[2].a.as_mut_bytes()),
+            Reg::Vat3A => value.write_ne_bytes(cp.vertex_attr_tables[3].a.as_mut_bytes()),
+            Reg::Vat4A => value.write_ne_bytes(cp.vertex_attr_tables[4].a.as_mut_bytes()),
+            Reg::Vat5A => value.write_ne_bytes(cp.vertex_attr_tables[5].a.as_mut_bytes()),
+            Reg::Vat6A => value.write_ne_bytes(cp.vertex_attr_tables[6].a.as_mut_bytes()),
+            Reg::Vat7A => value.write_ne_bytes(cp.vertex_attr_tables[7].a.as_mut_bytes()),
+
+            Reg::Vat0B => value.write_ne_bytes(cp.vertex_attr_tables[0].b.as_mut_bytes()),
+            Reg::Vat1B => value.write_ne_bytes(cp.vertex_attr_tables[1].b.as_mut_bytes()),
+            Reg::Vat2B => value.write_ne_bytes(cp.vertex_attr_tables[2].b.as_mut_bytes()),
+            Reg::Vat3B => value.write_ne_bytes(cp.vertex_attr_tables[3].b.as_mut_bytes()),
+            Reg::Vat4B => value.write_ne_bytes(cp.vertex_attr_tables[4].b.as_mut_bytes()),
+            Reg::Vat5B => value.write_ne_bytes(cp.vertex_attr_tables[5].b.as_mut_bytes()),
+            Reg::Vat6B => value.write_ne_bytes(cp.vertex_attr_tables[6].b.as_mut_bytes()),
+            Reg::Vat7B => value.write_ne_bytes(cp.vertex_attr_tables[7].b.as_mut_bytes()),
+
+            Reg::Vat0C => value.write_ne_bytes(cp.vertex_attr_tables[0].c.as_mut_bytes()),
+            Reg::Vat1C => value.write_ne_bytes(cp.vertex_attr_tables[1].c.as_mut_bytes()),
+            Reg::Vat2C => value.write_ne_bytes(cp.vertex_attr_tables[2].c.as_mut_bytes()),
+            Reg::Vat3C => value.write_ne_bytes(cp.vertex_attr_tables[3].c.as_mut_bytes()),
+            Reg::Vat4C => value.write_ne_bytes(cp.vertex_attr_tables[4].c.as_mut_bytes()),
+            Reg::Vat5C => value.write_ne_bytes(cp.vertex_attr_tables[5].c.as_mut_bytes()),
+            Reg::Vat6C => value.write_ne_bytes(cp.vertex_attr_tables[6].c.as_mut_bytes()),
+            Reg::Vat7C => value.write_ne_bytes(cp.vertex_attr_tables[7].c.as_mut_bytes()),
+
+            Reg::PositionPtr => value.write_ne_bytes(cp.arrays.position.address.as_mut_bytes()),
+            Reg::DiffusePtr => value.write_ne_bytes(cp.arrays.diffuse.address.as_mut_bytes()),
+
+            Reg::PositionStride => value.write_ne_bytes(cp.arrays.position.stride.as_mut_bytes()),
+            Reg::DiffuseStride => value.write_ne_bytes(cp.arrays.diffuse.stride.as_mut_bytes()),
+
+            _ => tracing::warn!("unimplemented write to internal CP register {reg:?}"),
+        }
+
+        if reg.is_matrices_index() {
+            let view_index = self.gpu.command.internal.mat_indices.view().value();
+            let view = self.gpu.transform.matrix(view_index);
+            self.config.renderer.exec(Action::SetPositionMatrix(view));
+        }
+    }
+
     /// Pops a value from the CP FIFO in memory.
     fn cp_fifo_pop(&mut self) -> u8 {
         assert!(self.gpu.command.fifo.count > 0);
@@ -624,9 +641,7 @@ impl System {
             match cmd {
                 Command::Nop => (),
                 Command::InvalidateVertexCache => (),
-                Command::SetCP { register, value } => {
-                    self.gpu.command.internal.set(register, value)
-                }
+                Command::SetCP { register, value } => self.cp_set(register, value),
                 Command::SetBP { register, value } => self.gpu_set(register, value),
                 Command::SetXF { start, values } => {
                     for (offset, value) in values.into_iter().enumerate() {
