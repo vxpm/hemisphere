@@ -90,6 +90,8 @@ impl App {
         };
 
         let wgpu_state = cc.wgpu_render_state.as_ref().unwrap();
+        println!("limits: {:#?}", wgpu_state.adapter.limits());
+
         let renderer = WgpuRenderer::new(
             wgpu_state.device.clone(),
             wgpu_state.queue.clone(),

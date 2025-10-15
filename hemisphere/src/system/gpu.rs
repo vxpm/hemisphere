@@ -496,23 +496,6 @@ impl System {
         tracing::debug!(?vat);
 
         let attributes = self.gx_extract_attributes(stream);
-        tracing::debug!(?attributes);
-
-        // gotta update view matrix when this index changes
-        let view_index = self.gpu.command.internal.mat_indices.view().value();
-        tracing::debug!(%view_index);
-
-        let view = self.gpu.transform.matrix(view_index);
-        tracing::debug!(%view);
-
-        // gotta update projection matrix when parameters change
-        let projection = self.gpu.transform.projection_matrix();
-        tracing::debug!(%projection);
-
-        for pos in attributes.position.as_ref().unwrap() {
-            let projected = projection * view * Vec4::from((*pos, 1.0));
-            tracing::debug!(?projected);
-        }
 
         self.config
             .renderer
