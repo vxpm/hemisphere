@@ -34,6 +34,7 @@ impl Inner {
             Action::SetViewport(viewport) => self.renderer.resize_viewport(viewport),
             Action::SetClearColor(color) => self.renderer.set_clear_color(color),
             Action::SetProjectionMatrix(mat) => self.renderer.set_projection_mat(mat),
+            Action::SetTev(tev) => self.renderer.set_tev(tev),
             Action::DrawTriangle(attributes) => self.renderer.draw_triangle(attributes),
             Action::Flush => self.renderer.flush(),
         }

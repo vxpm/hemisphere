@@ -1,14 +1,16 @@
-use std::collections::{HashMap, hash_map::Entry};
+mod data;
 
-use glam::{Mat4, Vec2, Vec3};
+use data::*;
+use glam::Mat4;
 use hemisphere::{
     render::Viewport,
     system::gpu::{VertexAttributes, command::attributes::Rgba},
 };
 use ordered_float::OrderedFloat;
+use std::collections::{HashMap, hash_map::Entry};
 use wesl::include_wesl;
 use wgpu::util::DeviceExt;
-use zerocopy::{Immutable, IntoBytes};
+use zerocopy::IntoBytes;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct HashableMat4([OrderedFloat<f32>; 16]);
@@ -17,28 +19,6 @@ impl From<Mat4> for HashableMat4 {
     fn from(value: Mat4) -> Self {
         Self(unsafe { std::mem::transmute(value.to_cols_array()) })
     }
-}
-
-#[derive(Debug, Clone, Immutable, IntoBytes)]
-#[repr(C)]
-struct Vertex {
-    config_idx: u32,
-    projection_idx: u32,
-
-    _pad0: u32,
-    _pad1: u32,
-
-    position: Vec3,
-    position_mat_idx: u32,
-
-    normal: Vec3,
-    normal_mat_idx: u32,
-
-    diffuse: Rgba,
-    specular: Rgba,
-
-    tex_coord: [Vec2; 8],
-    tex_coord_mat_idx: [u32; 8],
 }
 
 pub struct Renderer {
@@ -52,8 +32,11 @@ pub struct Renderer {
     viewport: Viewport,
     viewport_tex: wgpu::Texture,
 
+    current_tev_config: Box<TevConfig>,
     current_projection_mat: Mat4,
     current_projection_mat_idx: u32,
+
+    configs: Vec<TevConfig>,
     vertices: Vec<Vertex>,
     matrices: Vec<Mat4>,
     matrices_idx: HashMap<HashableMat4, u32>,
@@ -61,20 +44,26 @@ pub struct Renderer {
 
 impl Renderer {
     pub fn new(device: wgpu::Device, queue: wgpu::Queue) -> Self {
-        let viewport_tex = device.create_texture(&wgpu::TextureDescriptor {
-            label: None,
-            dimension: wgpu::TextureDimension::D2,
-            size: wgpu::Extent3d {
-                width: 1,
-                height: 1,
-                depth_or_array_layers: 1,
+        let viewport_tex = device.create_texture_with_data(
+            &queue,
+            &wgpu::TextureDescriptor {
+                label: None,
+                dimension: wgpu::TextureDimension::D2,
+                size: wgpu::Extent3d {
+                    width: 1,
+                    height: 1,
+                    depth_or_array_layers: 1,
+                },
+                format: wgpu::TextureFormat::Rgba8Unorm,
+                usage: wgpu::TextureUsages::TEXTURE_BINDING
+                    | wgpu::TextureUsages::RENDER_ATTACHMENT,
+                view_formats: &[],
+                mip_level_count: 1,
+                sample_count: 1,
             },
-            format: wgpu::TextureFormat::Rgba8Unorm,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT,
-            view_formats: &[],
-            mip_level_count: 1,
-            sample_count: 1,
-        });
+            wgpu::util::TextureDataOrder::LayerMajor,
+            &[0x00, 0x00, 0x00, 0xFF],
+        );
 
         let group_layout_entry = |binding| wgpu::BindGroupLayoutEntry {
             binding,
@@ -154,8 +143,11 @@ impl Renderer {
             },
             viewport_tex,
 
+            current_tev_config: Default::default(),
             current_projection_mat: Default::default(),
             current_projection_mat_idx: 0,
+
+            configs: Vec::new(),
             vertices: Vec::new(),
             matrices: Vec::new(),
             matrices_idx: Default::default(),
@@ -222,13 +214,17 @@ impl Renderer {
         self.current_projection_mat_idx = id;
     }
 
+    pub fn set_tev(&mut self, tev: TevConfig) {
+        self.current_tev = Box::new(TevConfig::new(tev));
+    }
+
     pub fn draw_triangle(&mut self, vertices: Vec<VertexAttributes>) {
         for vertex in vertices {
             let position_mat_idx = self.insert_matrix(vertex.position_matrix);
             let normal_mat_idx = self.insert_matrix(Mat4::from_mat3(vertex.normal_matrix));
             let tex_coord_mat_idx = vertex.tex_coord_matrix.map(|mat| self.insert_matrix(mat));
 
-            let vertex = Vertex {
+            self.vertices.push(Vertex {
                 config_idx: 0,
                 projection_idx: self.current_projection_mat_idx,
 
@@ -246,9 +242,7 @@ impl Renderer {
 
                 tex_coord: vertex.tex_coord,
                 tex_coord_mat_idx,
-            };
-
-            self.vertices.push(vertex);
+            });
         }
     }
 

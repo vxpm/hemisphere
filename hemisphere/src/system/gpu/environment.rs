@@ -72,6 +72,17 @@ pub enum Bias {
     Reserved = 0b11,
 }
 
+impl Bias {
+    pub fn value(self) -> f32 {
+        match self {
+            Self::Zero => 0.0,
+            Self::PositiveHalf => 0.5,
+            Self::NegativeHalf => -0.5,
+            Self::Reserved => 1.0,
+        }
+    }
+}
+
 #[bitos(2)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Scale {
@@ -79,6 +90,17 @@ pub enum Scale {
     Two = 0b01,
     Four = 0b10,
     Half = 0b11,
+}
+
+impl Scale {
+    pub fn value(self) -> f32 {
+        match self {
+            Self::One => 1.0,
+            Self::Two => 2.0,
+            Self::Four => 4.0,
+            Self::Half => 0.5,
+        }
+    }
 }
 
 #[bitos(2)]
@@ -91,7 +113,7 @@ pub enum OutputDst {
 }
 
 #[bitos(32)]
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct StageColor {
     #[bits(0..4)]
     pub input_d: ColorInputSrc,
@@ -114,7 +136,7 @@ pub struct StageColor {
 }
 
 #[bitos(32)]
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct StageAlpha {
     #[bits(0..2)]
     pub rasterizer_swap: u2,

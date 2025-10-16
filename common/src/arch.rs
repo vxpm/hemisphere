@@ -673,7 +673,11 @@ pub struct Cpu {
 impl Cpu {
     /// Takes an exception.
     pub fn raise_exception(&mut self, exception: Exception) {
-        tracing::debug!("raised exception {exception:?} at {}", self.pc);
+        if exception == Exception::Decrementer {
+            tracing::trace!("raised exception {exception:?} at {}", self.pc);
+        } else {
+            tracing::debug!("raised exception {exception:?} at {}", self.pc);
+        }
 
         // save PC into SRR0
         self.supervisor.exception.srr[0] = self.pc.value();

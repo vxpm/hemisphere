@@ -1,6 +1,10 @@
 //! Renderer interface.
 
-use crate::system::gpu::{VertexAttributes, command::attributes::Rgba};
+use crate::system::gpu::{
+    VertexAttributes,
+    command::attributes::Rgba,
+    environment::{StageAlpha, StageColor},
+};
 use glam::Mat4;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -9,10 +13,17 @@ pub struct Viewport {
     pub height: u32,
 }
 
+#[derive(Debug, Clone)]
+pub struct TevStage {
+    pub color: StageColor,
+    pub alpha: StageAlpha,
+}
+
 pub enum Action {
     SetViewport(Viewport),
     SetClearColor(Rgba),
     SetProjectionMatrix(Mat4),
+    SetTev(Vec<TevStage>),
     DrawTriangle(Vec<VertexAttributes>),
     Flush,
 }

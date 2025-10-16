@@ -5,8 +5,7 @@ alias ConfigIdx = u32;
 
 // Rendering configuration
 struct Config {
-    _none: u32,
-    // tev_stages: array<tev::Stage, 16>,
+    tev_stages: tev::Stages,
 };
 
 // A vertex primitive
