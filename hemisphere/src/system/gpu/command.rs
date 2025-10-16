@@ -151,6 +151,9 @@ pub enum Command {
     DrawTriangles {
         vertex_attributes: VertexAttributeStream,
     },
+    DrawQuads {
+        vertex_attributes: VertexAttributeStream,
+    },
 }
 
 /// CP status register
@@ -483,7 +486,7 @@ impl Gpu {
                 let value = reader.read_be::<u32>()?;
 
                 let Some(register) = Reg::from_repr(register) else {
-                    panic!("unknown cp register {register:02X}");
+                    panic!("unknown internal CP register {register:02X}");
                 };
 
                 Command::SetCP { register, value }
@@ -518,12 +521,32 @@ impl Gpu {
                 ]);
 
                 let Some(register) = GxReg::from_repr(register) else {
-                    panic!("unknown bypass register {register:02X}");
+                    panic!("unknown internal GX register {register:02X}");
                 };
 
                 Command::SetBP { register, value }
             }
-            Operation::DrawQuads => todo!(),
+            Operation::DrawQuads => {
+                let vertex_count = reader.read_be::<u16>()?;
+                let vertex_size = self
+                    .command
+                    .internal
+                    .vertex_size(opcode.vat_index().value());
+
+                let attribute_stream_size = vertex_count as usize * vertex_size as usize;
+                if reader.remaining() < attribute_stream_size {
+                    return None;
+                }
+
+                let vertex_attributes = reader.read_bytes(attribute_stream_size)?;
+                let vertex_attributes = VertexAttributeStream {
+                    table: opcode.vat_index().value(),
+                    count: vertex_count,
+                    attributes: vertex_attributes,
+                };
+
+                Command::DrawQuads { vertex_attributes }
+            }
             Operation::DrawTriangles => {
                 let vertex_count = reader.read_be::<u16>()?;
                 let vertex_size = self
@@ -633,14 +656,17 @@ impl System {
                 Command::Nop => (),
                 Command::InvalidateVertexCache => (),
                 Command::SetCP { register, value } => self.cp_set(register, value),
-                Command::SetBP { register, value } => self.gpu_set(register, value),
+                Command::SetBP { register, value } => self.gx_set(register, value),
                 Command::SetXF { start, values } => {
                     for (offset, value) in values.into_iter().enumerate() {
                         self.xf_write(start + offset as u16, value);
                     }
                 }
                 Command::DrawTriangles { vertex_attributes } => {
-                    self.gx_draw_triangle(vertex_attributes);
+                    self.gx_draw_triangles(vertex_attributes);
+                }
+                Command::DrawQuads { vertex_attributes } => {
+                    self.gx_draw_quads(vertex_attributes);
                 }
             }
         }

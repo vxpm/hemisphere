@@ -299,7 +299,7 @@ pub struct Gpu {
 }
 
 impl System {
-    fn gpu_set(&mut self, reg: Reg, value: u32) {
+    fn gx_set(&mut self, reg: Reg, value: u32) {
         match reg {
             Reg::GenMode => {
                 let mode = GenMode::from_bits(value);
@@ -528,14 +528,19 @@ impl System {
         vertices
     }
 
-    pub fn gx_draw_triangle(&mut self, stream: VertexAttributeStream) {
-        let vcd = self.gpu.command.internal.vertex_descriptor.clone();
-        let vat = self.gpu.command.internal.vertex_attr_tables[stream.table_index()].clone();
-
-        tracing::debug!(?vcd);
-        tracing::debug!(?vat);
+    pub fn gx_draw_triangles(&mut self, stream: VertexAttributeStream) {
+        // let vcd = self.gpu.command.internal.vertex_descriptor.clone();
+        // let vat = self.gpu.command.internal.vertex_attr_tables[stream.table_index()].clone();
+        //
+        // tracing::debug!(?vcd);
+        // tracing::debug!(?vat);
 
         let attributes = self.gx_extract_attributes(stream);
-        self.config.renderer.exec(Action::DrawTriangle(attributes));
+        self.config.renderer.exec(Action::DrawTriangles(attributes));
+    }
+
+    pub fn gx_draw_quads(&mut self, stream: VertexAttributeStream) {
+        let attributes = self.gx_extract_attributes(stream);
+        self.config.renderer.exec(Action::DrawQuads(attributes));
     }
 }

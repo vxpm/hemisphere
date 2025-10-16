@@ -1,3 +1,5 @@
+#![feature(iter_array_chunks)]
+
 mod blit;
 mod render;
 
@@ -35,7 +37,8 @@ impl Inner {
             Action::SetClearColor(color) => self.renderer.set_clear_color(color),
             Action::SetProjectionMatrix(mat) => self.renderer.set_projection_mat(mat),
             Action::SetTevStages(stages) => self.renderer.set_tev_stages(stages),
-            Action::DrawTriangle(attributes) => self.renderer.draw_triangle(attributes),
+            Action::DrawTriangles(attributes) => self.renderer.draw_triangles(attributes),
+            Action::DrawQuads(attributes) => self.renderer.draw_quads(attributes),
             Action::Flush => self.renderer.flush(),
         }
     }

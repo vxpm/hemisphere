@@ -36,14 +36,19 @@ struct Vertex {
 
 struct VertexOutput {
     @builtin(position) clip: vec4f,
-    @location(0) config: u32,
-    @location(1) diffuse_color: vec4f,
-    @location(2) specular_color: vec4f,
+    @location(0) ignore: u32,
+    @location(1) config: u32,
+    @location(2) diffuse_color: vec4f,
+    @location(3) specular_color: vec4f,
 };
 
 @vertex
 fn vs_main(@builtin(vertex_index) index: u32) -> VertexOutput {
     var out: VertexOutput;
+    // if (index == 0xFFFFFFFF) {
+    //     out.ignore = 1;
+    //     return out;
+    // }
 
     let vertex = vertices[index];
     out.config = vertex.config;
@@ -63,6 +68,10 @@ fn vs_main(@builtin(vertex_index) index: u32) -> VertexOutput {
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4f {
+    if in.ignore != 0 {
+        return vec4f(0.0);
+    }
+
     let config = &configs[in.config];
     return tev::compute(config.tev_config, in.diffuse_color);
 }

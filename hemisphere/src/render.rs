@@ -24,7 +24,8 @@ pub enum Action {
     SetClearColor(Rgba),
     SetProjectionMatrix(Mat4),
     SetTevStages(Vec<TevStage>),
-    DrawTriangle(Vec<VertexAttributes>),
+    DrawTriangles(Vec<VertexAttributes>),
+    DrawQuads(Vec<VertexAttributes>),
     Flush,
 }
 
