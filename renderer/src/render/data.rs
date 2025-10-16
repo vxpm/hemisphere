@@ -24,7 +24,7 @@ pub struct Vertex {
     pub tex_coord_mat_idx: [u32; 8],
 }
 
-#[derive(Debug, Clone, Immutable, IntoBytes, Default)]
+#[derive(Debug, Clone, Immutable, IntoBytes, Default, PartialEq)]
 #[repr(C)]
 pub struct TevStageConfig {
     pub input_a: u32,
@@ -43,14 +43,14 @@ pub struct TevStageConfig {
     pub _pad2: u32,
 }
 
-#[derive(Debug, Clone, Immutable, IntoBytes, Default)]
+#[derive(Debug, Clone, Immutable, IntoBytes, Default, PartialEq)]
 #[repr(C)]
 pub struct TevStage {
     pub color: TevStageConfig,
     pub alpha: TevStageConfig,
 }
 
-#[derive(Debug, Clone, Immutable, IntoBytes, Default)]
+#[derive(Debug, Clone, Immutable, IntoBytes, Default, PartialEq)]
 #[repr(C)]
 pub struct TevConfig {
     pub count: u32,

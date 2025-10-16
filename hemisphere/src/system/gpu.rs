@@ -71,13 +71,21 @@ pub enum Reg {
     RasterTexRef7 = 0x2F,
 
     SetupSsize0 = 0x30,
+    SetupTsize0 = 0x31,
     SetupSsize1 = 0x32,
+    SetupTsize1 = 0x33,
     SetupSsize2 = 0x34,
+    SetupTsize2 = 0x35,
     SetupSsize3 = 0x36,
+    SetupTsize3 = 0x37,
     SetupSsize4 = 0x38,
+    SetupTsize4 = 0x39,
     SetupSsize5 = 0x3A,
+    SetupTsize5 = 0x3B,
     SetupSsize6 = 0x3C,
+    SetupTsize6 = 0x3D,
     SetupSsize7 = 0x3E,
+    SetupTsize7 = 0x3F,
 
     // Pixel Engine
     PixelZMode = 0x40,
@@ -110,35 +118,56 @@ pub enum Reg {
     TxPerfMode = 0x67,
     TxFieldMode = 0x68,
     TxRefresh = 0x69,
-    TxSetImage1I0 = 0x8C,
-    TxSetImage1I1 = 0x8D,
-    TxSetImage1I2 = 0x8E,
-    TxSetImage1I3 = 0x8F,
 
-    TxSetImage2I0 = 0x90,
-    TxSetImage2I1 = 0x91,
-    TxSetImage2I2 = 0x92,
-    TxSetImage2I3 = 0x93,
+    TxMode0 = 0x80,
+    TxMode1 = 0x81,
+    TxMode2 = 0x82,
+    TxMode3 = 0x83,
+    TxMode0Lod = 0x84,
+    TxMode1Lod = 0x85,
+    TxMode2Lod = 0x86,
+    TxMode3Lod = 0x87,
+    TxFormat0 = 0x88,
+    TxFormat1 = 0x89,
+    TxFormat2 = 0x8A,
+    TxFormat3 = 0x8B,
+    TxEvenLodAddress0 = 0x8C,
+    TxEvenLodAddress1 = 0x8D,
+    TxEvenLodAddress2 = 0x8E,
+    TxEvenLodAddress3 = 0x8F,
+    TxOddLodAddress0 = 0x90,
+    TxOddLodAddress1 = 0x91,
+    TxOddLodAddress2 = 0x92,
+    TxOddLodAddress3 = 0x93,
+    TxAddress0 = 0x94,
+    TxAddress1 = 0x95,
+    TxAddress2 = 0x96,
+    TxAddress3 = 0x97,
 
-    TxSetImage3I0 = 0x94,
-    TxSetImage3I1 = 0x95,
-    TxSetImage3I2 = 0x96,
-    TxSetImage3I3 = 0x97,
-
-    TxSetImage1I4 = 0xAC,
-    TxSetImage1I5 = 0xAD,
-    TxSetImage1I6 = 0xAE,
-    TxSetImage1I7 = 0xAF,
-
-    TxSetImage2I4 = 0xB0,
-    TxSetImage2I5 = 0xB1,
-    TxSetImage2I6 = 0xB2,
-    TxSetImage2I7 = 0xB3,
-
-    TxSetImage3I4 = 0xB4,
-    TxSetImage3I5 = 0xB5,
-    TxSetImage3I6 = 0xB6,
-    TxSetImage3I7 = 0xB7,
+    TxMode4 = 0xA0,
+    TxMode5 = 0xA1,
+    TxMode6 = 0xA2,
+    TxMode7 = 0xA3,
+    TxMode4Lod = 0xA4,
+    TxMode5Lod = 0xA5,
+    TxMode6Lod = 0xA6,
+    TxMode7Lod = 0xA7,
+    TxFormat4 = 0xA8,
+    TxFormat5 = 0xA9,
+    TxFormat6 = 0xAA,
+    TxFormat7 = 0xAB,
+    TxEvenLodAddress4 = 0xAC,
+    TxEvenLodAddress5 = 0xAD,
+    TxEvenLodAddress6 = 0xAE,
+    TxEvenLodAddress7 = 0xAF,
+    TxOddLodAddress4 = 0xB0,
+    TxOddLodAddress5 = 0xB1,
+    TxOddLodAddress6 = 0xB2,
+    TxOddLodAddress7 = 0xB3,
+    TxAddress4 = 0xB4,
+    TxAddress5 = 0xB5,
+    TxAddress6 = 0xB6,
+    TxAddress7 = 0xB7,
 
     // TEV
     TevColor0 = 0xC0,
@@ -173,6 +202,15 @@ pub enum Reg {
     TevAlpha14 = 0xDD,
     TevColor15 = 0xDE,
     TevAlpha15 = 0xDF,
+
+    TevConstant0Low = 0xE0,
+    TevConstant0High = 0xE1,
+    TevConstant1Low = 0xE2,
+    TevConstant1High = 0xE3,
+    TevConstant2Low = 0xE4,
+    TevConstant2High = 0xE5,
+    TevConstant3Low = 0xE6,
+    TevConstant3High = 0xE7,
 
     TevFogRange = 0xE8,
     TevFog0 = 0xEE,
@@ -285,8 +323,8 @@ pub struct VertexAttributes {
     pub diffuse: Rgba,
     pub specular: Rgba,
 
-    pub tex_coord: [Vec2; 8],
-    pub tex_coord_matrix: [Mat4; 8],
+    pub tex_coords: [Vec2; 8],
+    pub tex_coords_matrix: [Mat4; 8],
 }
 
 /// GX subsystem
@@ -516,11 +554,38 @@ impl System {
                 .gx_read_attribute::<attributes::Diffuse>(vat, &mut reader)
                 .unwrap_or_default();
 
+            let mut tex_coords = [Vec2::ZERO; 8];
+            tex_coords[0] = self
+                .gx_read_attribute::<attributes::TexCoords<0>>(vat, &mut reader)
+                .unwrap_or_default();
+            tex_coords[1] = self
+                .gx_read_attribute::<attributes::TexCoords<1>>(vat, &mut reader)
+                .unwrap_or_default();
+            tex_coords[2] = self
+                .gx_read_attribute::<attributes::TexCoords<2>>(vat, &mut reader)
+                .unwrap_or_default();
+            tex_coords[3] = self
+                .gx_read_attribute::<attributes::TexCoords<3>>(vat, &mut reader)
+                .unwrap_or_default();
+            tex_coords[4] = self
+                .gx_read_attribute::<attributes::TexCoords<4>>(vat, &mut reader)
+                .unwrap_or_default();
+            tex_coords[5] = self
+                .gx_read_attribute::<attributes::TexCoords<5>>(vat, &mut reader)
+                .unwrap_or_default();
+            tex_coords[6] = self
+                .gx_read_attribute::<attributes::TexCoords<6>>(vat, &mut reader)
+                .unwrap_or_default();
+            tex_coords[7] = self
+                .gx_read_attribute::<attributes::TexCoords<7>>(vat, &mut reader)
+                .unwrap_or_default();
+
             vertices.push(VertexAttributes {
                 position,
                 position_matrix,
                 normal_matrix,
                 diffuse,
+                tex_coords,
                 ..Default::default()
             })
         }

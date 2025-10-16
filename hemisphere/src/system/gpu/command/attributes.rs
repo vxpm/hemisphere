@@ -1,7 +1,7 @@
 use crate::system::gpu::command::{ArrayDescriptor, Arrays, AttributeMode, VertexDescriptor};
 use bitos::{BitUtils, bitos, integer::u5};
 use common::bin::BinReader;
-use glam::Vec3;
+use glam::{Vec2, Vec3};
 use zerocopy::{Immutable, IntoBytes};
 
 #[derive(Clone, Copy, Immutable, IntoBytes, Default)]
@@ -341,12 +341,37 @@ pub struct TexCoordsDescriptor {
     pub shift: u5,
 }
 
-impl TexCoordsDescriptor {
-    pub fn size(self) -> u32 {
+impl AttributeDescriptor for TexCoordsDescriptor {
+    type Value = Vec2;
+
+    fn size(&self) -> u32 {
         match self.kind() {
             TexCoordsKind::Vec1 => 1 * self.format().size(),
             TexCoordsKind::Vec2 => 2 * self.format().size(),
         }
+    }
+
+    fn read(&self, reader: &mut BinReader) -> Option<Vec2> {
+        let mut component = || {
+            let shift = 2.0f32.powi(self.shift().value() as i32);
+            Some(match self.format() {
+                CoordsFormat::U8 => reader.read_be::<u8>()? as f32 / shift,
+                CoordsFormat::I8 => reader.read_be::<i8>()? as f32 / shift,
+                CoordsFormat::U16 => reader.read_be::<u16>()? as f32 / shift,
+                CoordsFormat::I16 => reader.read_be::<i16>()? as f32 / shift,
+                CoordsFormat::F32 => f32::from_bits(reader.read_be::<u32>()?),
+                _ => panic!("reserved format"),
+            })
+        };
+
+        let s = component()?;
+        Some(match self.kind() {
+            TexCoordsKind::Vec1 => Vec2::new(s, 0.0),
+            TexCoordsKind::Vec2 => {
+                let t = component()?;
+                Vec2::new(s, t)
+            }
+        })
     }
 }
 
@@ -480,5 +505,23 @@ impl Attribute for Diffuse {
 
     fn get_array(arrays: &Arrays) -> Option<ArrayDescriptor> {
         Some(arrays.diffuse)
+    }
+}
+
+pub struct TexCoords<const N: usize>;
+
+impl<const N: usize> Attribute for TexCoords<N> {
+    type Descriptor = TexCoordsDescriptor;
+
+    fn get_mode(vcd: &VertexDescriptor) -> AttributeMode {
+        vcd.tex_coord_at(N).unwrap()
+    }
+
+    fn get_descriptor(vat: &VertexAttributeTable) -> Self::Descriptor {
+        vat.tex(N).unwrap()
+    }
+
+    fn get_array(arrays: &Arrays) -> Option<ArrayDescriptor> {
+        Some(arrays.tex_coords[N])
     }
 }

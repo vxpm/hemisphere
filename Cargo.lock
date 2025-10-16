@@ -3104,8 +3104,8 @@ version = "0.1.0"
 dependencies = [
  "glam",
  "hemisphere",
- "indexmap",
  "ordered-float",
+ "rustc-hash 2.1.1",
  "tracing",
  "wesl",
  "wgpu",

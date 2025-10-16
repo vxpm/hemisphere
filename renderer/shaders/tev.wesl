@@ -124,8 +124,7 @@ fn compute(config: Config, diffuse: vec4f) -> vec4f {
     state.diffuse = diffuse;
 
     var last_output: u32 = R3;
-
-    for (var i = 0u; i < config.count; i += 1) {
+    for (var i = 0u; i < config.count; i ++) {
         let stage = config.stages[i];
         let a = get_color_input(&state, stage.color.input_a);
         let b = get_color_input(&state, stage.color.input_b);

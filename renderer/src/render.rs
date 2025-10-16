@@ -7,7 +7,8 @@ use hemisphere::{
     system::gpu::{VertexAttributes, command::attributes::Rgba},
 };
 use ordered_float::OrderedFloat;
-use std::collections::{HashMap, hash_map::Entry};
+use rustc_hash::FxHashMap;
+use std::collections::hash_map::Entry;
 use wesl::include_wesl;
 use wgpu::util::DeviceExt;
 use zerocopy::IntoBytes;
@@ -41,7 +42,7 @@ pub struct Renderer {
     vertices: Vec<Vertex>,
     indices: Vec<u32>,
     matrices: Vec<Mat4>,
-    matrices_idx: HashMap<HashableMat4, u32>,
+    matrices_idx: FxHashMap<HashableMat4, u32>,
 }
 
 impl Renderer {
@@ -56,7 +57,7 @@ impl Renderer {
                     height: 1,
                     depth_or_array_layers: 1,
                 },
-                format: wgpu::TextureFormat::Rgba8Unorm,
+                format: wgpu::TextureFormat::Rgba8UnormSrgb,
                 usage: wgpu::TextureUsages::TEXTURE_BINDING
                     | wgpu::TextureUsages::RENDER_ATTACHMENT,
                 view_formats: &[],
@@ -135,7 +136,7 @@ impl Renderer {
                 entry_point: Some("fs_main"),
                 compilation_options: Default::default(),
                 targets: &[Some(wgpu::ColorTargetState {
-                    format: wgpu::TextureFormat::Rgba8Unorm,
+                    format: wgpu::TextureFormat::Rgba8UnormSrgb,
                     blend: None,
                     write_mask: Default::default(),
                 })],
@@ -206,7 +207,7 @@ impl Renderer {
         let position_mat_idx = self.insert_matrix(attributes.position_matrix);
         let normal_mat_idx = self.insert_matrix(Mat4::from_mat3(attributes.normal_matrix));
         let tex_coord_mat_idx = attributes
-            .tex_coord_matrix
+            .tex_coords_matrix
             .map(|mat| self.insert_matrix(mat));
 
         Vertex {
@@ -225,7 +226,7 @@ impl Renderer {
             diffuse: attributes.diffuse,
             specular: attributes.specular,
 
-            tex_coord: attributes.tex_coord,
+            tex_coord: attributes.tex_coords,
             tex_coord_mat_idx,
         }
     }
@@ -260,7 +261,7 @@ impl Renderer {
                 height: viewport.height.max(1),
                 depth_or_array_layers: 1,
             },
-            format: wgpu::TextureFormat::Rgba8Unorm,
+            format: wgpu::TextureFormat::Rgba8UnormSrgb,
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT,
             view_formats: &[],
             mip_level_count: 1,
@@ -304,7 +305,12 @@ impl Renderer {
     }
 
     pub fn set_tev_stages(&mut self, stages: Vec<render::TevStage>) {
-        self.current_config.tev = TevConfig::new(stages);
+        let new = TevConfig::new(stages);
+        if self.current_config.tev == new {
+            return;
+        }
+
+        self.current_config.tev = new;
         self.update_config();
     }
 

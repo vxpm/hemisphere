@@ -311,6 +311,7 @@ pub struct ArrayDescriptor {
 pub struct Arrays {
     pub position: ArrayDescriptor,
     pub diffuse: ArrayDescriptor,
+    pub tex_coords: [ArrayDescriptor; 8],
 }
 
 #[bitos(64)]
@@ -622,8 +623,58 @@ impl System {
             Reg::PositionPtr => value.write_ne_bytes(cp.arrays.position.address.as_mut_bytes()),
             Reg::DiffusePtr => value.write_ne_bytes(cp.arrays.diffuse.address.as_mut_bytes()),
 
+            Reg::Tex0CoordPtr => {
+                value.write_ne_bytes(cp.arrays.tex_coords[0].address.as_mut_bytes())
+            }
+            Reg::Tex1CoordPtr => {
+                value.write_ne_bytes(cp.arrays.tex_coords[1].address.as_mut_bytes())
+            }
+            Reg::Tex2CoordPtr => {
+                value.write_ne_bytes(cp.arrays.tex_coords[2].address.as_mut_bytes())
+            }
+            Reg::Tex3CoordPtr => {
+                value.write_ne_bytes(cp.arrays.tex_coords[3].address.as_mut_bytes())
+            }
+            Reg::Tex4CoordPtr => {
+                value.write_ne_bytes(cp.arrays.tex_coords[4].address.as_mut_bytes())
+            }
+            Reg::Tex5CoordPtr => {
+                value.write_ne_bytes(cp.arrays.tex_coords[5].address.as_mut_bytes())
+            }
+            Reg::Tex6CoordPtr => {
+                value.write_ne_bytes(cp.arrays.tex_coords[6].address.as_mut_bytes())
+            }
+            Reg::Tex7CoordPtr => {
+                value.write_ne_bytes(cp.arrays.tex_coords[7].address.as_mut_bytes())
+            }
+
             Reg::PositionStride => value.write_ne_bytes(cp.arrays.position.stride.as_mut_bytes()),
             Reg::DiffuseStride => value.write_ne_bytes(cp.arrays.diffuse.stride.as_mut_bytes()),
+
+            Reg::Tex0CoordStride => {
+                value.write_ne_bytes(cp.arrays.tex_coords[0].stride.as_mut_bytes())
+            }
+            Reg::Tex1CoordStride => {
+                value.write_ne_bytes(cp.arrays.tex_coords[1].stride.as_mut_bytes())
+            }
+            Reg::Tex2CoordStride => {
+                value.write_ne_bytes(cp.arrays.tex_coords[2].stride.as_mut_bytes())
+            }
+            Reg::Tex3CoordStride => {
+                value.write_ne_bytes(cp.arrays.tex_coords[3].stride.as_mut_bytes())
+            }
+            Reg::Tex4CoordStride => {
+                value.write_ne_bytes(cp.arrays.tex_coords[4].stride.as_mut_bytes())
+            }
+            Reg::Tex5CoordStride => {
+                value.write_ne_bytes(cp.arrays.tex_coords[5].stride.as_mut_bytes())
+            }
+            Reg::Tex6CoordStride => {
+                value.write_ne_bytes(cp.arrays.tex_coords[6].stride.as_mut_bytes())
+            }
+            Reg::Tex7CoordStride => {
+                value.write_ne_bytes(cp.arrays.tex_coords[7].stride.as_mut_bytes())
+            }
 
             _ => tracing::warn!("unimplemented write to internal CP register {reg:?}"),
         }

@@ -14,5 +14,5 @@ wgpu.workspace = true
 zerocopy.workspace = true
 wesl.workspace = true
 glam.workspace = true
-indexmap = "2.11"
+rustc-hash.workspace = true
 ordered-float = "5"
