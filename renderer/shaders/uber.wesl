@@ -8,7 +8,7 @@ struct Config {
     tev_config: tev::Config,
 };
 
-// A vertex primitive
+// A primitive vertex
 struct Vertex {
     config: ConfigIdx, // 4 bytes
     projection: MatIdx, // 4 bytes

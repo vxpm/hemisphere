@@ -310,6 +310,7 @@ pub struct ArrayDescriptor {
 #[derive(Debug, Clone, Default)]
 pub struct Arrays {
     pub position: ArrayDescriptor,
+    pub normal: ArrayDescriptor,
     pub diffuse: ArrayDescriptor,
     pub tex_coords: [ArrayDescriptor; 8],
 }
@@ -621,6 +622,7 @@ impl System {
             Reg::Vat7C => value.write_ne_bytes(cp.vertex_attr_tables[7].c.as_mut_bytes()),
 
             Reg::PositionPtr => value.write_ne_bytes(cp.arrays.position.address.as_mut_bytes()),
+            Reg::NormalPtr => value.write_ne_bytes(cp.arrays.normal.address.as_mut_bytes()),
             Reg::DiffusePtr => value.write_ne_bytes(cp.arrays.diffuse.address.as_mut_bytes()),
 
             Reg::Tex0CoordPtr => {
@@ -649,6 +651,7 @@ impl System {
             }
 
             Reg::PositionStride => value.write_ne_bytes(cp.arrays.position.stride.as_mut_bytes()),
+            Reg::NormalStride => value.write_ne_bytes(cp.arrays.normal.stride.as_mut_bytes()),
             Reg::DiffuseStride => value.write_ne_bytes(cp.arrays.diffuse.stride.as_mut_bytes()),
 
             Reg::Tex0CoordStride => {
@@ -701,7 +704,7 @@ impl System {
                 return;
             };
 
-            tracing::debug!("{:02X?}", cmd);
+            // tracing::debug!("{:02X?}", cmd);
 
             match cmd {
                 Command::Nop => (),

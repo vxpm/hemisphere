@@ -550,6 +550,10 @@ impl System {
                 .gx_read_attribute::<attributes::Position>(vat, &mut reader)
                 .unwrap_or_default();
 
+            let normal = self
+                .gx_read_attribute::<attributes::Normal>(vat, &mut reader)
+                .unwrap_or_default();
+
             let diffuse = self
                 .gx_read_attribute::<attributes::Diffuse>(vat, &mut reader)
                 .unwrap_or_default();
@@ -583,6 +587,7 @@ impl System {
             vertices.push(VertexAttributes {
                 position,
                 position_matrix,
+                normal,
                 normal_matrix,
                 diffuse,
                 tex_coords,

@@ -175,12 +175,34 @@ pub struct NormalDescriptor {
     pub format: NormalFormat,
 }
 
-impl NormalDescriptor {
-    pub fn size(self) -> u32 {
+impl AttributeDescriptor for NormalDescriptor {
+    type Value = Vec3;
+
+    fn size(&self) -> u32 {
         match self.kind() {
             NormalKind::N3 => 3 * self.format().size(),
             NormalKind::N9 => 9 * self.format().size(),
         }
+    }
+
+    fn read(&self, reader: &mut BinReader) -> Option<Vec3> {
+        let mut component = || {
+            Some(match self.format() {
+                NormalFormat::I8 => reader.read_be::<i8>()? as f32,
+                NormalFormat::I16 => reader.read_be::<i16>()? as f32,
+                NormalFormat::F32 => f32::from_bits(reader.read_be::<u32>()?),
+                _ => panic!("reserved format"),
+            })
+        };
+
+        let x = component()?;
+        let y = component()?;
+        let z = component()?;
+
+        Some(match self.kind() {
+            NormalKind::N3 => Vec3::new(x, y, z),
+            NormalKind::N9 => todo!(),
+        })
     }
 }
 
@@ -487,6 +509,24 @@ impl Attribute for Position {
 
     fn get_array(arrays: &Arrays) -> Option<ArrayDescriptor> {
         Some(arrays.position)
+    }
+}
+
+pub struct Normal;
+
+impl Attribute for Normal {
+    type Descriptor = NormalDescriptor;
+
+    fn get_mode(vcd: &VertexDescriptor) -> AttributeMode {
+        vcd.normal()
+    }
+
+    fn get_descriptor(vat: &VertexAttributeTable) -> Self::Descriptor {
+        vat.a.normal()
+    }
+
+    fn get_array(arrays: &Arrays) -> Option<ArrayDescriptor> {
+        Some(arrays.normal)
     }
 }
 

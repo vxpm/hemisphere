@@ -97,4 +97,21 @@ impl BlockBuilder<'_> {
 
         CMP_INFO
     }
+
+    pub fn ps_cmpo0(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let fpr_a = self.get(ins.fpr_a());
+        let fpr_b = self.get(ins.fpr_b());
+
+        let lt = self.bd.ins().fcmp(FloatCC::LessThan, fpr_a, fpr_b);
+        let gt = self.bd.ins().fcmp(FloatCC::GreaterThan, fpr_a, fpr_b);
+        let eq = self.bd.ins().fcmp(FloatCC::Equal, fpr_a, fpr_b);
+        let un = self.bd.ins().fcmp(FloatCC::Ordered, fpr_a, fpr_b);
+
+        self.update_fprf(lt, gt, eq, un);
+        self.update_cr(ins.field_crfd(), lt, gt, eq, un);
+
+        CMP_INFO
+    }
 }
