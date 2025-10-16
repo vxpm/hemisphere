@@ -26,26 +26,21 @@ pub struct Vertex {
 
 #[derive(Debug, Clone, Immutable, IntoBytes, Default)]
 #[repr(C)]
-pub struct TevStageInOut {
+pub struct TevStageConfig {
     pub input_a: u32,
     pub input_b: u32,
     pub input_c: u32,
     pub input_d: u32,
     pub output: u32,
 
-    pub _pad0: u32,
-    pub _pad1: u32,
-    pub _pad2: u32,
-}
-
-#[derive(Debug, Clone, Immutable, IntoBytes, Default)]
-#[repr(C)]
-pub struct TevStageConfig {
-    pub in_out: TevStageInOut,
     pub sign: f32,
     pub bias: f32,
     pub scale: f32,
     pub clamp: u32,
+
+    pub _pad0: u32,
+    pub _pad1: u32,
+    pub _pad2: u32,
 }
 
 #[derive(Debug, Clone, Immutable, IntoBytes, Default)]
@@ -73,22 +68,22 @@ impl TevConfig {
         let mut data = std::array::from_fn::<TevStage, 16, _>(|_| TevStage::default());
 
         for (stage, data) in stages.into_iter().zip(data.iter_mut()) {
-            data.color.in_out.input_a = stage.color.input_a() as u32;
-            data.color.in_out.input_b = stage.color.input_b() as u32;
-            data.color.in_out.input_c = stage.color.input_c() as u32;
-            data.color.in_out.input_d = stage.color.input_d() as u32;
-            data.color.in_out.output = stage.color.output() as u32;
+            data.color.input_a = stage.color.input_a() as u32;
+            data.color.input_b = stage.color.input_b() as u32;
+            data.color.input_c = stage.color.input_c() as u32;
+            data.color.input_d = stage.color.input_d() as u32;
+            data.color.output = stage.color.output() as u32;
 
             data.color.sign = if stage.color.negate() { -1.0 } else { 1.0 };
             data.color.bias = stage.color.bias().value();
             data.color.scale = stage.color.scale().value();
             data.color.clamp = 0;
 
-            data.alpha.in_out.input_a = stage.alpha.input_a() as u32;
-            data.alpha.in_out.input_b = stage.alpha.input_b() as u32;
-            data.alpha.in_out.input_c = stage.alpha.input_c() as u32;
-            data.alpha.in_out.input_d = stage.alpha.input_d() as u32;
-            data.alpha.in_out.output = stage.alpha.output() as u32;
+            data.alpha.input_a = stage.alpha.input_a() as u32;
+            data.alpha.input_b = stage.alpha.input_b() as u32;
+            data.alpha.input_c = stage.alpha.input_c() as u32;
+            data.alpha.input_d = stage.alpha.input_d() as u32;
+            data.alpha.output = stage.alpha.output() as u32;
 
             data.alpha.sign = if stage.alpha.negate() { -1.0 } else { 1.0 };
             data.alpha.bias = stage.alpha.bias().value();
@@ -104,4 +99,10 @@ impl TevConfig {
             stages: data,
         }
     }
+}
+
+#[derive(Debug, Clone, Immutable, IntoBytes, Default)]
+#[repr(C)]
+pub struct Config {
+    pub tev: TevConfig,
 }

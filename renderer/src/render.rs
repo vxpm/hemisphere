@@ -3,7 +3,7 @@ mod data;
 use data::*;
 use glam::Mat4;
 use hemisphere::{
-    render::Viewport,
+    render::{self, Viewport},
     system::gpu::{VertexAttributes, command::attributes::Rgba},
 };
 use ordered_float::OrderedFloat;
@@ -32,11 +32,11 @@ pub struct Renderer {
     viewport: Viewport,
     viewport_tex: wgpu::Texture,
 
-    current_tev_config: Box<TevConfig>,
+    current_config: Box<Config>,
     current_projection_mat: Mat4,
     current_projection_mat_idx: u32,
 
-    configs: Vec<TevConfig>,
+    configs: Vec<Config>,
     vertices: Vec<Vertex>,
     matrices: Vec<Mat4>,
     matrices_idx: HashMap<HashableMat4, u32>,
@@ -129,7 +129,7 @@ impl Renderer {
             cache: None,
         });
 
-        Self {
+        let mut value = Self {
             device,
             queue,
 
@@ -143,7 +143,7 @@ impl Renderer {
             },
             viewport_tex,
 
-            current_tev_config: Default::default(),
+            current_config: Default::default(),
             current_projection_mat: Default::default(),
             current_projection_mat_idx: 0,
 
@@ -151,7 +151,11 @@ impl Renderer {
             vertices: Vec::new(),
             matrices: Vec::new(),
             matrices_idx: Default::default(),
-        }
+        };
+
+        value.reset();
+
+        value
     }
 
     pub fn insert_matrix(&mut self, mat: Mat4) -> u32 {
@@ -164,6 +168,10 @@ impl Renderer {
                 *v.insert_entry(idx).get()
             }
         }
+    }
+
+    pub fn update_config(&mut self) {
+        self.configs.push((*self.current_config).clone());
     }
 
     pub fn viewport_view(&self) -> wgpu::TextureView {
@@ -214,8 +222,9 @@ impl Renderer {
         self.current_projection_mat_idx = id;
     }
 
-    pub fn set_tev(&mut self, tev: TevConfig) {
-        self.current_tev = Box::new(TevConfig::new(tev));
+    pub fn set_tev_stages(&mut self, stages: Vec<render::TevStage>) {
+        self.current_config.tev = TevConfig::new(stages);
+        self.update_config();
     }
 
     pub fn draw_triangle(&mut self, vertices: Vec<VertexAttributes>) {
@@ -225,7 +234,7 @@ impl Renderer {
             let tex_coord_mat_idx = vertex.tex_coord_matrix.map(|mat| self.insert_matrix(mat));
 
             self.vertices.push(Vertex {
-                config_idx: 0,
+                config_idx: self.configs.len() as u32 - 1,
                 projection_idx: self.current_projection_mat_idx,
 
                 _pad0: 0,
@@ -247,10 +256,12 @@ impl Renderer {
     }
 
     fn reset(&mut self) {
+        self.configs.clear();
         self.vertices.clear();
         self.matrices.clear();
         self.matrices_idx.clear();
 
+        self.update_config();
         self.set_projection_mat(self.current_projection_mat);
     }
 
@@ -268,7 +279,7 @@ impl Renderer {
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("hemisphere configs buffer"),
-                contents: &[0, 0, 0, 0],
+                contents: &self.configs.as_bytes(),
                 usage: wgpu::BufferUsages::STORAGE,
             });
 
@@ -276,7 +287,7 @@ impl Renderer {
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("hemisphere matrices buffer"),
-                contents: self.matrices.as_slice().as_bytes(),
+                contents: self.matrices.as_bytes(),
                 usage: wgpu::BufferUsages::STORAGE,
             });
 
@@ -284,7 +295,7 @@ impl Renderer {
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("hemisphere vertices buffer"),
-                contents: self.vertices.as_slice().as_bytes(),
+                contents: self.vertices.as_bytes(),
                 usage: wgpu::BufferUsages::STORAGE,
             });
 

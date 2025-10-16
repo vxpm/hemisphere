@@ -23,7 +23,7 @@ pub enum Action {
     SetViewport(Viewport),
     SetClearColor(Rgba),
     SetProjectionMatrix(Mat4),
-    SetTev(Vec<TevStage>),
+    SetTevStages(Vec<TevStage>),
     DrawTriangle(Vec<VertexAttributes>),
     Flush,
 }

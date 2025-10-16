@@ -5,7 +5,7 @@ alias ConfigIdx = u32;
 
 // Rendering configuration
 struct Config {
-    tev_stages: tev::Stages,
+    tev_config: tev::Config,
 };
 
 // A vertex primitive
@@ -36,14 +36,18 @@ struct Vertex {
 
 struct VertexOutput {
     @builtin(position) clip: vec4f,
-    @location(0) raster_color: vec4f,
+    @location(0) config: u32,
+    @location(1) diffuse_color: vec4f,
+    @location(2) specular_color: vec4f,
 };
 
 @vertex
 fn vs_main(@builtin(vertex_index) index: u32) -> VertexOutput {
     var out: VertexOutput;
-    
+
     let vertex = vertices[index];
+    out.config = vertex.config;
+    
     let pos = vec4f(vertex.position, 1.0);
     let projection = matrices[vertex.projection];
     let view = matrices[vertex.position_mat];
@@ -51,12 +55,14 @@ fn vs_main(@builtin(vertex_index) index: u32) -> VertexOutput {
     out.clip.z += out.clip.w;
     out.clip.z /= 2.0;
 
-    out.raster_color = vertex.diffuse;
+    out.diffuse_color = vertex.diffuse;
+    out.specular_color = vertex.specular;
 
     return out;
 }
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4f {
-    return in.raster_color;
+    let config = &configs[in.config];
+    return tev::compute(config.tev_config, in.diffuse_color);
 }

@@ -9,46 +9,42 @@ const R0: Reg = 1;
 const R1: Reg = 2;
 const R2: Reg = 3;
 
-// Defines the inputs and outputs of a TEV stage.
-struct InOut {
+// Configuration for a TEV stage.
+struct StageConfig {
     input_a: Input,
     input_b: Input, 
     input_c: Input,
     input_d: Input,
     output: Reg,
 
-    // pad to 32 bytes
-    _pad0: u32,
-    _pad1: u32,
-    _pad2: u32,
-}
-
-// Configuration for a TEV stage step.
-struct Config {
-    in_out: InOut,
     sign: f32,
     bias: f32,
     scale: f32,
     clamp: u32,
+
+    _pad0: u32,
+    _pad1: u32,
+    _pad2: u32,
 };
 
-// Configuration for a TEV stage, both color and alpha steps.
+// Configuration for a TEV stage, both color and alpha.
 struct Stage {
-    color: Config, 
-    alpha: Config, 
+    color: StageConfig, 
+    alpha: StageConfig,
 };
 
 /// All TEV stage configurations.
-struct Stages {
+struct Config {
     count: u32,
     _pad0: u32,
     _pad1: u32,
     _pad2: u32,
-    stages: array<Stage, 8>,
+    stages: array<Stage, 16>,
 };
 
 struct State {
     regs: array<vec4f, 4>,
+    diffuse: vec4f,
 }
 
 /// Returns the value for the given input in the given state.
@@ -90,10 +86,10 @@ fn get_color_input(state: ptr<function, State>, value: Input) -> vec3f {
 
         // Rasterizer colors
         case input::COLOR_RAS_COLOR: {
-            return PLACEHOLDER_RGB;
+            return state.diffuse.rgb;
         }
         case input::COLOR_RAS_ALPHA: {
-            return PLACEHOLDER_RGBA.aaa;
+            return state.diffuse.aaa;
         }
 
         // Constants
@@ -117,7 +113,30 @@ fn get_color_input(state: ptr<function, State>, value: Input) -> vec3f {
 }
 
 // Computes the output of a TEV stage with the given parameters.
-fn compute(a: vec3f, b: vec3f, c: vec3f, d: vec3f, sign: f32, bias: f32, scale: f32) -> vec3f {
-    let lerp = sign * mix(a, b, c);
+fn compute_stage(a: vec3f, b: vec3f, c: vec3f, d: vec3f, sign: f32, bias: f32, scale: f32) -> vec3f {
+    let lerp = sign * (a * (vec3f(1.0) - c) + b * c);
     return (lerp + d + bias) * scale;
+}
+
+fn compute(config: Config, diffuse: vec4f) -> vec4f {
+    var state: State;
+    state.regs = array(vec4f(1.0), vec4f(1.0), vec4f(1.0), vec4f(1.0));
+    state.diffuse = diffuse;
+
+    var last_output: u32 = R3;
+
+    for (var i = 0u; i < config.count; i += 1) {
+        let stage = config.stages[i];
+        let a = get_color_input(&state, stage.color.input_a);
+        let b = get_color_input(&state, stage.color.input_b);
+        let c = get_color_input(&state, stage.color.input_c);
+        let d = get_color_input(&state, stage.color.input_d);
+        
+        let out = compute_stage(a, b, c, d, stage.color.sign, stage.color.bias, stage.color.scale);
+        state.regs[stage.color.output] = vec4f(out, 1.0);
+
+        last_output = stage.color.output;
+    }
+
+    return state.regs[last_output];
 }

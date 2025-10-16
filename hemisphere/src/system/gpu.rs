@@ -5,7 +5,7 @@ pub mod transform;
 
 use super::System;
 use crate::{
-    render::Action,
+    render::{Action, TevStage},
     system::gpu::command::{
         ArrayDescriptor, AttributeMode, VertexAttributeStream,
         attributes::{self, Attribute, AttributeDescriptor, Rgba},
@@ -303,7 +303,7 @@ impl System {
         match reg {
             Reg::GenMode => {
                 let mode = GenMode::from_bits(value);
-                self.gpu.environment.stages = mode.tev_stages_minus_one().value();
+                self.gpu.environment.stages = mode.tev_stages_minus_one().value() + 1;
                 self.gpu.environment.channels = mode.color_channels_count().value();
                 tracing::debug!(?mode);
             }
@@ -422,6 +422,21 @@ impl System {
                 value.write_ne_bytes(self.gpu.environment.alpha_stages[15].as_mut_bytes());
             }
             _ => tracing::warn!("unimplemented write to internal GX register {reg:?}"),
+        }
+
+        if reg.is_tev() {
+            let stages = self
+                .gpu
+                .environment
+                .color_stages
+                .iter()
+                .cloned()
+                .zip(self.gpu.environment.alpha_stages.iter().cloned())
+                .take(self.gpu.environment.stages as usize)
+                .map(|(color, alpha)| TevStage { color, alpha })
+                .collect::<Vec<_>>();
+
+            self.config.renderer.exec(Action::SetTevStages(stages));
         }
 
         if reg.is_pixel_clear() {
