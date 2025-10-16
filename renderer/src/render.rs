@@ -188,7 +188,7 @@ impl Renderer {
 
         tracing::info!(?viewport, "resizing viewport");
         let viewport_tex = self.device.create_texture(&wgpu::TextureDescriptor {
-            label: None,
+            label: Some("viewport texture"),
             dimension: wgpu::TextureDimension::D2,
             size: wgpu::Extent3d {
                 width: viewport.width.max(1),
@@ -202,6 +202,7 @@ impl Renderer {
             sample_count: 1,
         });
 
+        self.viewport = viewport;
         self.viewport_tex = viewport_tex;
     }
 
@@ -249,8 +250,6 @@ impl Renderer {
 
             self.vertices.push(vertex);
         }
-
-        self.flush();
     }
 
     fn reset(&mut self) {
@@ -258,11 +257,27 @@ impl Renderer {
         self.matrices.clear();
         self.matrices_idx.clear();
 
-        self.matrices.push(self.current_projection_mat);
-        self.current_projection_mat_idx = 0;
+        self.set_projection_mat(self.current_projection_mat);
     }
 
     pub fn flush(&mut self) {
+        if self.vertices.is_empty() {
+            return;
+        }
+
+        for vertex in &self.vertices {
+            assert!(vertex.projection_idx < self.matrices.len() as u32);
+            assert!(vertex.position_mat_idx < self.matrices.len() as u32);
+        }
+
+        let configs_buf = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("hemisphere configs buffer"),
+                contents: &[0, 0, 0, 0],
+                usage: wgpu::BufferUsages::STORAGE,
+            });
+
         let matrices_buf = self
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -286,7 +301,7 @@ impl Renderer {
                 wgpu::BindGroupEntry {
                     binding: 0,
                     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                        buffer: &matrices_buf,
+                        buffer: &configs_buf,
                         offset: 0,
                         size: None,
                     }),
@@ -339,7 +354,14 @@ impl Renderer {
         std::mem::drop(pass);
 
         let buffer = encoder.finish();
-        self.queue.submit([buffer]);
+        let idx = self.queue.submit([buffer]);
+
+        self.device
+            .poll(wgpu::PollType::Wait {
+                submission_index: Some(idx),
+                timeout: None,
+            })
+            .unwrap();
 
         self.reset();
     }

@@ -322,6 +322,7 @@ impl System {
             Reg::PixelCopyCmd => {
                 let cmd = pixel::CopyCmd::from_bits(value);
                 tracing::debug!(?cmd);
+                self.config.renderer.exec(Action::Flush);
             }
 
             Reg::TevColor0 => {

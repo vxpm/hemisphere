@@ -1,11 +1,7 @@
 //! Renderer interface.
 
+use crate::system::gpu::{VertexAttributes, command::attributes::Rgba};
 use glam::Mat4;
-
-use crate::system::gpu::{
-    VertexAttributes,
-    command::{VertexAttributeSet, attributes::Rgba},
-};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Viewport {
@@ -17,8 +13,8 @@ pub enum Action {
     SetViewport(Viewport),
     SetClearColor(Rgba),
     SetProjectionMatrix(Mat4),
-    SetVertexAttributes(VertexAttributeSet),
     DrawTriangle(Vec<VertexAttributes>),
+    Flush,
 }
 
 pub trait Renderer: Send + Sync {
