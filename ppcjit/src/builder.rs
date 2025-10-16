@@ -432,9 +432,12 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Fadds => self.fadds(ins),
             Opcode::Fcmpu => self.fcmpu(ins),
             Opcode::Fctiwz => self.fctiwz(ins),
+            Opcode::Fdiv => self.fdiv(ins),
             Opcode::Fdivs => self.fdivs(ins),
             Opcode::Fmadds => self.fmadds(ins),
             Opcode::Fmr => self.fmr(ins),
+            Opcode::Fmsubs => self.fmsubs(ins),
+            Opcode::Fmul => self.fmul(ins),
             Opcode::Fmuls => self.fmuls(ins),
             Opcode::Fneg => self.fneg(ins),
             Opcode::Fnmadds => self.fnmadds(ins),
@@ -499,6 +502,7 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::PsMuls0 => self.ps_muls0(ins),
             Opcode::PsMuls1 => self.ps_muls1(ins),
             Opcode::PsNeg => self.ps_neg(ins),
+            Opcode::PsSub => self.ps_sub(ins),
             Opcode::PsSum0 => self.ps_sum0(ins),
             Opcode::PsSum1 => self.ps_sum1(ins),
             Opcode::PsqL => self.psq_l(ins),
@@ -538,7 +542,6 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Xor => self.xor(ins),
             Opcode::Xori => self.xori(ins),
             Opcode::Xoris => self.xoris(ins),
-            Opcode::Fmsubs => self.fmsubs(ins),
             Opcode::Illegal => {
                 return Err(BuilderError::Illegal(ins));
             }
