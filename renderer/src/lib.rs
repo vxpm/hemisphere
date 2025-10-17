@@ -38,6 +38,7 @@ impl Inner {
         match action {
             Action::SetViewport(viewport) => self.renderer.resize_viewport(viewport),
             Action::SetClearColor(color) => self.renderer.set_clear_color(color),
+            Action::SetDepthMode(mode) => self.renderer.set_depth_mode(mode),
             Action::SetProjectionMatrix(mat) => self.renderer.set_projection_mat(mat),
             Action::SetTevStages(stages) => self.renderer.set_tev_stages(stages),
             Action::Draw(topology, attributes) => match topology {
@@ -49,7 +50,14 @@ impl Inner {
                 Topology::LineStrip => todo!(),
                 Topology::PointList => todo!(),
             },
-            Action::EfbCopy { clear } => self.renderer.flush(clear),
+            Action::EfbCopy { clear } => {
+                self.renderer.flush(false);
+                self.renderer.swap();
+
+                // if clear {
+                //     self.renderer.flush(true);
+                // }
+            }
         }
     }
 }
@@ -102,7 +110,7 @@ impl WgpuRenderer {
         let mut guard = self.inner.lock().unwrap();
         let inner = &mut *guard;
 
-        inner.blitter.blit(&inner.renderer.viewport_view(), pass);
+        inner.blitter.blit(&inner.renderer.front_buffer(), pass);
     }
 }
 

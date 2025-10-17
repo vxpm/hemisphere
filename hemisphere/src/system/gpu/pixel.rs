@@ -52,11 +52,37 @@ pub struct Argb8 {
     pub b: u8,
 }
 
+#[bitos(3)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CompareMode {
+    #[default]
+    Never = 0x0,
+    Less = 0x1,
+    Equal = 0x2,
+    LessOrEqual = 0x3,
+    Greater = 0x4,
+    NotEqual = 0x5,
+    GreaterOrEqual = 0x6,
+    Always = 0x7,
+}
+
+#[bitos(32)]
+#[derive(Debug, Clone, Copy, Default)]
+pub struct DepthMode {
+    #[bits(0)]
+    pub enable: bool,
+    #[bits(1..4)]
+    pub compare: CompareMode,
+    #[bits(4)]
+    pub update: bool,
+}
+
 #[derive(Debug, Default)]
 pub struct Interface {
     pub interrupt: InterruptStatus,
     pub clear_color: Argb8,
     pub clear_depth: u32,
+    pub depth_mode: DepthMode,
 }
 
 impl Interface {

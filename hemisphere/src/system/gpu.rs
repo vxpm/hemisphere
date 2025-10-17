@@ -362,6 +362,12 @@ impl System {
                 tracing::debug!(texref0 = ?self.gpu.environment.order_pairs[0]);
             }
 
+            Reg::PixelZMode => {
+                value.write_ne_bytes(self.gpu.pixel.depth_mode.as_mut_bytes());
+                self.config
+                    .renderer
+                    .exec(Action::SetDepthMode(self.gpu.pixel.depth_mode));
+            }
             Reg::PixelDone => {
                 self.gpu.pixel.interrupt.set_finish(true);
                 self.check_interrupts();

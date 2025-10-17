@@ -1,15 +1,24 @@
 mod data;
+mod pipeline;
+mod viewport;
 
+use crate::render::{
+    pipeline::{Pipeline, PipelineSettings},
+    viewport::Framebuffer,
+};
 use data::*;
 use glam::Mat4;
 use hemisphere::{
     render::{self, Viewport},
-    system::gpu::{VertexAttributes, command::attributes::Rgba},
+    system::gpu::{
+        VertexAttributes,
+        command::attributes::Rgba,
+        pixel::{CompareMode, DepthMode},
+    },
 };
 use ordered_float::OrderedFloat;
 use rustc_hash::FxHashMap;
 use std::collections::hash_map::Entry;
-use wesl::include_wesl;
 use wgpu::util::DeviceExt;
 use zerocopy::IntoBytes;
 
@@ -29,14 +38,10 @@ pub struct Renderer {
     device: wgpu::Device,
     queue: wgpu::Queue,
 
-    pipeline: wgpu::RenderPipeline,
-    group_layout: wgpu::BindGroupLayout,
+    pipeline: Pipeline,
+    framebuffer: Framebuffer,
+
     clear_color: wgpu::Color,
-
-    viewport: Viewport,
-    viewport_tex: wgpu::Texture,
-    depth_tex: wgpu::Texture,
-
     current_config: Box<Config>,
     current_projection_mat: Mat4,
     current_projection_mat_idx: u32,
@@ -50,127 +55,16 @@ pub struct Renderer {
 
 impl Renderer {
     pub fn new(device: wgpu::Device, queue: wgpu::Queue) -> Self {
-        let viewport_tex = device.create_texture_with_data(
-            &queue,
-            &wgpu::TextureDescriptor {
-                label: None,
-                dimension: wgpu::TextureDimension::D2,
-                size: wgpu::Extent3d {
-                    width: 1,
-                    height: 1,
-                    depth_or_array_layers: 1,
-                },
-                format: wgpu::TextureFormat::Rgba8UnormSrgb,
-                usage: wgpu::TextureUsages::TEXTURE_BINDING
-                    | wgpu::TextureUsages::RENDER_ATTACHMENT,
-                view_formats: &[],
-                mip_level_count: 1,
-                sample_count: 1,
-            },
-            wgpu::util::TextureDataOrder::LayerMajor,
-            &[0x00, 0x00, 0x00, 0xFF],
-        );
-
-        let depth_tex = device.create_texture(&wgpu::TextureDescriptor {
-            label: None,
-            dimension: wgpu::TextureDimension::D2,
-            size: wgpu::Extent3d {
-                width: 1,
-                height: 1,
-                depth_or_array_layers: 1,
-            },
-            format: wgpu::TextureFormat::Depth32Float,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT,
-            view_formats: &[],
-            mip_level_count: 1,
-            sample_count: 1,
-        });
-
-        let group_layout_entry = |binding| wgpu::BindGroupLayoutEntry {
-            binding,
-            visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-            ty: wgpu::BindingType::Buffer {
-                ty: wgpu::BufferBindingType::Storage { read_only: true },
-                has_dynamic_offset: false,
-                min_binding_size: None,
-            },
-            count: None,
-        };
-        let group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: None,
-            entries: &[
-                group_layout_entry(0),
-                group_layout_entry(1),
-                group_layout_entry(2),
-            ],
-        });
-
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: None,
-            bind_group_layouts: &[&group_layout],
-            push_constant_ranges: &[],
-        });
-
-        let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: None,
-            source: wgpu::ShaderSource::Wgsl(include_wesl!("uber").into()),
-        });
-
-        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: None,
-            layout: Some(&pipeline_layout),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Cw,
-                cull_mode: None,
-                unclipped_depth: false,
-                polygon_mode: wgpu::PolygonMode::Fill,
-                conservative: false,
-            },
-            vertex: wgpu::VertexState {
-                module: &module,
-                entry_point: Some("vs_main"),
-                compilation_options: Default::default(),
-                buffers: &[],
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &module,
-                entry_point: Some("fs_main"),
-                compilation_options: Default::default(),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: wgpu::TextureFormat::Rgba8UnormSrgb,
-                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                    write_mask: Default::default(),
-                })],
-            }),
-            multisample: Default::default(),
-            depth_stencil: Some(wgpu::DepthStencilState {
-                format: wgpu::TextureFormat::Depth32Float,
-                depth_write_enabled: true,
-                depth_compare: wgpu::CompareFunction::Less,
-                stencil: wgpu::StencilState::default(),
-                bias: wgpu::DepthBiasState::default(),
-            }),
-            multiview: None,
-            cache: None,
-        });
-
+        let framebuffer = Framebuffer::new(&device);
+        let pipeline = Pipeline::new(&device);
         let mut value = Self {
             device,
             queue,
 
             pipeline,
-            group_layout,
+            framebuffer,
+
             clear_color: wgpu::Color::BLACK,
-
-            viewport: Viewport {
-                width: 1,
-                height: 1,
-            },
-            viewport_tex,
-            depth_tex,
-
             current_config: Default::default(),
             current_projection_mat: Default::default(),
             current_projection_mat_idx: 0,
@@ -183,7 +77,6 @@ impl Renderer {
         };
 
         value.reset();
-
         value
     }
 
@@ -243,52 +136,19 @@ impl Renderer {
         self.configs.push((*self.current_config).clone());
     }
 
-    pub fn viewport_view(&self) -> wgpu::TextureView {
-        self.viewport_tex.create_view(&wgpu::TextureViewDescriptor {
-            label: None,
-            ..Default::default()
-        })
+    pub fn front_buffer(&self) -> wgpu::TextureView {
+        self.framebuffer
+            .front()
+            .color
+            .create_view(&Default::default())
+    }
+
+    pub fn swap(&mut self) {
+        self.framebuffer.swap();
     }
 
     pub fn resize_viewport(&mut self, viewport: Viewport) {
-        if viewport == self.viewport {
-            return;
-        }
-
-        tracing::info!(?viewport, "resizing viewport");
-        let viewport_tex = self.device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("viewport texture"),
-            dimension: wgpu::TextureDimension::D2,
-            size: wgpu::Extent3d {
-                width: viewport.width.max(1),
-                height: viewport.height.max(1),
-                depth_or_array_layers: 1,
-            },
-            format: wgpu::TextureFormat::Rgba8UnormSrgb,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT,
-            view_formats: &[],
-            mip_level_count: 1,
-            sample_count: 1,
-        });
-
-        let depth_tex = self.device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("depth texture"),
-            dimension: wgpu::TextureDimension::D2,
-            size: wgpu::Extent3d {
-                width: viewport.width.max(1),
-                height: viewport.height.max(1),
-                depth_or_array_layers: 1,
-            },
-            format: wgpu::TextureFormat::Depth32Float,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT,
-            view_formats: &[],
-            mip_level_count: 1,
-            sample_count: 1,
-        });
-
-        self.viewport = viewport;
-        self.viewport_tex = viewport_tex;
-        self.depth_tex = depth_tex;
+        self.framebuffer.resize(&self.device, viewport);
     }
 
     pub fn set_clear_color(&mut self, rgba: Rgba) {
@@ -296,9 +156,31 @@ impl Renderer {
             r: rgba.r as f64,
             g: rgba.g as f64,
             b: rgba.b as f64,
-            // TODO: deal with alpha properly
-            a: 1.0,
+            a: rgba.a as f64,
         };
+    }
+
+    pub fn set_depth_mode(&mut self, mode: DepthMode) {
+        // self.flush(false);
+
+        let compare = match mode.compare() {
+            CompareMode::Never => wgpu::CompareFunction::Never,
+            CompareMode::Less => wgpu::CompareFunction::Less,
+            CompareMode::Equal => wgpu::CompareFunction::Equal,
+            CompareMode::LessOrEqual => wgpu::CompareFunction::LessEqual,
+            CompareMode::Greater => wgpu::CompareFunction::Greater,
+            CompareMode::NotEqual => wgpu::CompareFunction::NotEqual,
+            CompareMode::GreaterOrEqual => wgpu::CompareFunction::GreaterEqual,
+            CompareMode::Always => wgpu::CompareFunction::Always,
+        };
+
+        // self.pipeline.switch(
+        //     &self.device,
+        //     PipelineSettings {
+        //         depth_write: mode.update(),
+        //         depth_compare: compare,
+        //     },
+        // );
     }
 
     pub fn set_projection_mat(&mut self, mat: Mat4) {
@@ -396,7 +278,7 @@ impl Renderer {
 
         let group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: None,
-            layout: &self.group_layout,
+            layout: self.pipeline.group_layout(),
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
@@ -425,15 +307,9 @@ impl Renderer {
             ],
         });
 
-        let viewport = self.viewport_tex.create_view(&wgpu::TextureViewDescriptor {
-            label: None,
-            ..Default::default()
-        });
-
-        let depth = self.depth_tex.create_view(&wgpu::TextureViewDescriptor {
-            label: None,
-            ..Default::default()
-        });
+        let framebuffer = self.framebuffer.back();
+        let color = framebuffer.color.create_view(&Default::default());
+        let depth = framebuffer.depth.create_view(&Default::default());
 
         let color_load_op = if clear {
             wgpu::LoadOp::Clear(self.clear_color)
@@ -451,7 +327,7 @@ impl Renderer {
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("hemisphere render pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &viewport,
+                view: &color,
                 depth_slice: None,
                 resolve_target: None,
                 ops: wgpu::Operations {
@@ -471,7 +347,7 @@ impl Renderer {
             occlusion_query_set: None,
         });
 
-        pass.set_pipeline(&self.pipeline);
+        pass.set_pipeline(self.pipeline.pipeline());
         pass.set_bind_group(0, Some(&group), &[]);
         pass.set_index_buffer(index_buf.slice(..), wgpu::IndexFormat::Uint32);
         pass.draw_indexed(0..self.indices.len() as u32, 0, 0..1);

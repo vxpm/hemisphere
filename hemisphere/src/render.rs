@@ -4,6 +4,7 @@ use crate::system::gpu::{
     Topology, VertexAttributes,
     command::attributes::Rgba,
     environment::{StageAlpha, StageColor},
+    pixel::DepthMode,
 };
 use glam::Mat4;
 
@@ -22,6 +23,7 @@ pub struct TevStage {
 pub enum Action {
     SetViewport(Viewport),
     SetClearColor(Rgba),
+    SetDepthMode(DepthMode),
     SetProjectionMatrix(Mat4),
     SetTevStages(Vec<TevStage>),
     Draw(Topology, Vec<VertexAttributes>),
