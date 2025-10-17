@@ -112,30 +112,103 @@ fn get_color_input(state: ptr<function, State>, value: Input) -> vec3f {
     }
 }
 
-// Computes the output of a TEV stage with the given parameters.
-fn compute_stage(a: vec3f, b: vec3f, c: vec3f, d: vec3f, sign: f32, bias: f32, scale: f32) -> vec3f {
+/// Returns the value for the given input in the given state.
+fn get_alpha_input(state: ptr<function, State>, value: Input) -> f32 {
+    switch value {
+        // Registers
+        case input::ALPHA_R3: {
+            return state.regs[3].a;
+        }
+        case input::ALPHA_R0: {
+            return state.regs[0].a;
+        }
+        case input::ALPHA_R1: {
+            return state.regs[1].a;
+        }
+        case input::ALPHA_R2: {
+            return state.regs[2].a;
+        }
+
+        // Texture colors
+        case input::ALPHA_TEX: {
+            return PLACEHOLDER_RGBA.a;
+        }
+
+        // Rasterizer colors
+        case input::ALPHA_RAS: {
+            return state.diffuse.a;
+        }
+
+        // Constants
+        case input::ALPHA_CONSTANT: {
+            return PLACEHOLDER_RGBA.a;
+        }
+        case input::ALPHA_ZERO: {
+            return 0.0;
+        }
+
+        default: {
+            return PLACEHOLDER_RGBA.a;
+        }
+    }
+}
+
+fn compute_stage_color(a: vec3f, b: vec3f, c: vec3f, d: vec3f, sign: f32, bias: f32, scale: f32) -> vec3f {
     let lerp = sign * (a * (vec3f(1.0) - c) + b * c);
+    return (lerp + d + bias) * scale;
+}
+
+fn compute_stage_alpha(a: f32, b: f32, c: f32, d: f32, sign: f32, bias: f32, scale: f32) -> f32 {
+    let lerp = sign * (a * (1.0 - c) + b * c);
     return (lerp + d + bias) * scale;
 }
 
 fn compute(config: Config, diffuse: vec4f) -> vec4f {
     var state: State;
-    state.regs = array(vec4f(1.0), vec4f(1.0), vec4f(1.0), vec4f(1.0));
     state.diffuse = diffuse;
 
-    var last_output: u32 = R3;
+    var last_color_output = PLACEHOLDER_RGB;
+    var last_alpha_output = 1.0;
+
     for (var i = 0u; i < config.count; i ++) {
         let stage = config.stages[i];
-        let a = get_color_input(&state, stage.color.input_a);
-        let b = get_color_input(&state, stage.color.input_b);
-        let c = get_color_input(&state, stage.color.input_c);
-        let d = get_color_input(&state, stage.color.input_d);
-        
-        let out = compute_stage(a, b, c, d, stage.color.sign, stage.color.bias, stage.color.scale);
-        state.regs[stage.color.output] = vec4f(out, 1.0);
 
-        last_output = stage.color.output;
+        let color_a = get_color_input(&state, stage.color.input_a);
+        let color_b = get_color_input(&state, stage.color.input_b);
+        let color_c = get_color_input(&state, stage.color.input_c);
+        let color_d = get_color_input(&state, stage.color.input_d);
+        let color = compute_stage_color(
+            color_a,
+            color_b,
+            color_c,
+            color_d,
+            stage.color.sign,
+            stage.color.bias,
+            stage.color.scale
+        );
+
+        state.regs[stage.color.output].r = color.r;
+        state.regs[stage.color.output].g = color.g;
+        state.regs[stage.color.output].b = color.b;
+        last_color_output = color;
+
+        let alpha_a = get_alpha_input(&state, stage.alpha.input_a);
+        let alpha_b = get_alpha_input(&state, stage.alpha.input_b);
+        let alpha_c = get_alpha_input(&state, stage.alpha.input_c);
+        let alpha_d = get_alpha_input(&state, stage.alpha.input_d);
+        let alpha = compute_stage_alpha(
+            alpha_a,
+            alpha_b,
+            alpha_c,
+            alpha_d,
+            stage.color.sign,
+            stage.color.bias,
+            stage.color.scale
+        );
+
+        state.regs[stage.alpha.output].a = alpha;
+        last_alpha_output = alpha;
     }
 
-    return state.regs[last_output];
+    return vec4f(last_color_output, last_alpha_output);
 }

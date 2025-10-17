@@ -16,3 +16,12 @@ const COLOR_ONE: Input = 0xC;
 const COLOR_HALF: Input = 0xD;
 const COLOR_CONSTANT: Input = 0xE;
 const COLOR_ZERO: Input = 0xF;
+
+const ALPHA_R3: Input = 0x0;
+const ALPHA_R0: Input = 0x1;
+const ALPHA_R1: Input = 0x2;
+const ALPHA_R2: Input = 0x3;
+const ALPHA_TEX: Input = 0x4;
+const ALPHA_RAS: Input = 0x5;
+const ALPHA_CONSTANT: Input = 0x6;
+const ALPHA_ZERO: Input = 0x7;

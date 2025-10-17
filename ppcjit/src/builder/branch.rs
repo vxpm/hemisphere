@@ -67,7 +67,7 @@ impl BlockBuilder<'_> {
         if !ins.field_aa() && ins.field_li() == 0 {
             // PERF: spin loop - lie and say we executed more cycles instead
             Info {
-                cycles: 32,
+                cycles: 64,
                 ..JUMP_INFO
             }
         } else {
