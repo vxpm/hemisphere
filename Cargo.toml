@@ -59,4 +59,6 @@ wgpu = { version = "27.0", features = [
     "wgsl",
 ], default-features = false }
 zerocopy = { version = "0.8", features = ["derive"] }
-wesl = { git = "https://github.com/wgsl-tooling-wg/wesl-rs" }
+wesl = { git = "https://github.com/wgsl-tooling-wg/wesl-rs", features = [
+    "eval",
+] }
