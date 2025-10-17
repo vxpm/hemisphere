@@ -314,18 +314,32 @@ impl Renderer {
         self.update_config();
     }
 
-    pub fn draw_triangles(&mut self, vertices: Vec<VertexAttributes>) {
+    pub fn draw_quad_list(&mut self, vertices: Vec<VertexAttributes>) {
+        for vertices in vertices.into_iter().array_chunks::<4>() {
+            let [v0, v1, v2, v3] = vertices.map(|a| self.insert_attributes(a));
+            self.indices.extend_from_slice(&[v0, v1, v2]);
+            self.indices.extend_from_slice(&[v0, v2, v3]);
+        }
+    }
+
+    pub fn draw_triangle_list(&mut self, vertices: Vec<VertexAttributes>) {
         for vertices in vertices.into_iter().array_chunks::<3>() {
             let vertices = vertices.map(|a| self.insert_attributes(a));
             self.indices.extend_from_slice(&vertices);
         }
     }
 
-    pub fn draw_quads(&mut self, vertices: Vec<VertexAttributes>) {
-        for vertices in vertices.into_iter().array_chunks::<4>() {
-            let [v0, v1, v2, v3] = vertices.map(|a| self.insert_attributes(a));
+    pub fn draw_triangle_strip(&mut self, vertices: Vec<VertexAttributes>) {
+        let mut iter = vertices.into_iter();
+
+        let mut v0 = self.insert_attributes(iter.next().unwrap());
+        let mut v1 = self.insert_attributes(iter.next().unwrap());
+        for v2 in iter {
+            let v2 = self.insert_attributes(v2);
             self.indices.extend_from_slice(&[v0, v1, v2]);
-            self.indices.extend_from_slice(&[v0, v2, v3]);
+
+            v0 = v1;
+            v1 = v2;
         }
     }
 

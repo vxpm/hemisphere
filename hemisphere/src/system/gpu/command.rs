@@ -2,7 +2,7 @@ pub mod attributes;
 
 use crate::system::{
     System,
-    gpu::{Gpu, Reg as GxReg, command::attributes::AttributeDescriptor},
+    gpu::{Gpu, Reg as GxReg, Topology, command::attributes::AttributeDescriptor},
 };
 use attributes::VertexAttributeTable;
 use bitos::{
@@ -114,13 +114,13 @@ pub enum Operation {
     Call = 0b0100_0,
     InvalidateVertexCache = 0b0100_1,
     SetBP = 0b0110_0,
-    DrawQuads = 0b1000_0,
-    DrawTriangles = 0b1001_0,
+    DrawQuadList = 0b1000_0,
+    DrawTriangleList = 0b1001_0,
     DrawTriangleStrip = 0b1001_1,
     DrawTriangleFan = 0b1010_0,
-    DrawLines = 0b1010_1,
+    DrawLineList = 0b1010_1,
     DrawLineStrip = 0b1011_0,
-    DrawPoints = 0b1011_1,
+    DrawPointList = 0b1011_1,
 }
 
 #[bitos(8)]
@@ -148,10 +148,8 @@ pub enum Command {
         start: u16,
         values: Vec<u32>,
     },
-    DrawTriangles {
-        vertex_attributes: VertexAttributeStream,
-    },
-    DrawQuads {
+    Draw {
+        topology: Topology,
         vertex_attributes: VertexAttributeStream,
     },
 }
@@ -481,7 +479,8 @@ impl Gpu {
         let mut reader = self.command.queue.reader();
 
         let opcode = Opcode::from_bits(reader.read_be()?);
-        let command = match opcode.operation().unwrap() {
+        let operation = opcode.operation().unwrap();
+        let command = match operation {
             Operation::NOP => Command::Nop,
             Operation::SetCP => {
                 let register = reader.read_be::<u8>()?;
@@ -528,7 +527,13 @@ impl Gpu {
 
                 Command::SetBP { register, value }
             }
-            Operation::DrawQuads => {
+            Operation::DrawQuadList
+            | Operation::DrawTriangleList
+            | Operation::DrawTriangleStrip
+            | Operation::DrawTriangleFan
+            | Operation::DrawLineList
+            | Operation::DrawLineStrip
+            | Operation::DrawPointList => {
                 let vertex_count = reader.read_be::<u16>()?;
                 let vertex_size = self
                     .command
@@ -547,34 +552,22 @@ impl Gpu {
                     attributes: vertex_attributes,
                 };
 
-                Command::DrawQuads { vertex_attributes }
-            }
-            Operation::DrawTriangles => {
-                let vertex_count = reader.read_be::<u16>()?;
-                let vertex_size = self
-                    .command
-                    .internal
-                    .vertex_size(opcode.vat_index().value());
-
-                let attribute_stream_size = vertex_count as usize * vertex_size as usize;
-                if reader.remaining() < attribute_stream_size {
-                    return None;
-                }
-
-                let vertex_attributes = reader.read_bytes(attribute_stream_size)?;
-                let vertex_attributes = VertexAttributeStream {
-                    table: opcode.vat_index().value(),
-                    count: vertex_count,
-                    attributes: vertex_attributes,
+                let topology = match operation {
+                    Operation::DrawQuadList => Topology::QuadList,
+                    Operation::DrawTriangleList => Topology::TriangleList,
+                    Operation::DrawTriangleStrip => Topology::TriangleStrip,
+                    Operation::DrawTriangleFan => Topology::TriangleFan,
+                    Operation::DrawLineList => Topology::LineList,
+                    Operation::DrawLineStrip => Topology::LineStrip,
+                    Operation::DrawPointList => Topology::PointList,
+                    _ => unreachable!(),
                 };
 
-                Command::DrawTriangles { vertex_attributes }
+                Command::Draw {
+                    topology,
+                    vertex_attributes,
+                }
             }
-            Operation::DrawTriangleStrip => todo!(),
-            Operation::DrawTriangleFan => todo!(),
-            Operation::DrawLines => todo!(),
-            Operation::DrawLineStrip => todo!(),
-            Operation::DrawPoints => todo!(),
         };
 
         reader.finish();
@@ -716,11 +709,11 @@ impl System {
                         self.xf_write(start + offset as u16, value);
                     }
                 }
-                Command::DrawTriangles { vertex_attributes } => {
-                    self.gx_draw_triangles(vertex_attributes);
-                }
-                Command::DrawQuads { vertex_attributes } => {
-                    self.gx_draw_quads(vertex_attributes);
+                Command::Draw {
+                    topology,
+                    vertex_attributes,
+                } => {
+                    self.gx_draw(topology, vertex_attributes);
                 }
             }
         }

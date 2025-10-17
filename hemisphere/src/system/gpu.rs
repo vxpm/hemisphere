@@ -282,6 +282,17 @@ impl Reg {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Topology {
+    QuadList,
+    TriangleList,
+    TriangleStrip,
+    TriangleFan,
+    LineList,
+    LineStrip,
+    PointList,
+}
+
 #[bitos(2)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum CullingMode {
@@ -598,19 +609,10 @@ impl System {
         vertices
     }
 
-    pub fn gx_draw_triangles(&mut self, stream: VertexAttributeStream) {
-        // let vcd = self.gpu.command.internal.vertex_descriptor.clone();
-        // let vat = self.gpu.command.internal.vertex_attr_tables[stream.table_index()].clone();
-        //
-        // tracing::debug!(?vcd);
-        // tracing::debug!(?vat);
-
+    pub fn gx_draw(&mut self, topology: Topology, stream: VertexAttributeStream) {
         let attributes = self.gx_extract_attributes(stream);
-        self.config.renderer.exec(Action::DrawTriangles(attributes));
-    }
-
-    pub fn gx_draw_quads(&mut self, stream: VertexAttributeStream) {
-        let attributes = self.gx_extract_attributes(stream);
-        self.config.renderer.exec(Action::DrawQuads(attributes));
+        self.config
+            .renderer
+            .exec(Action::Draw(topology, attributes));
     }
 }

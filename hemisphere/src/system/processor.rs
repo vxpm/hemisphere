@@ -121,7 +121,7 @@ impl System {
             return;
         }
 
-        tracing::debug!("flushing PI fifo");
+        tracing::trace!("flushing PI fifo");
 
         let data = std::mem::replace(&mut self.processor.fifo_buffer, Vec::with_capacity(32));
         for byte in data {

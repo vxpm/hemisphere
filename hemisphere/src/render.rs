@@ -1,7 +1,7 @@
 //! Renderer interface.
 
 use crate::system::gpu::{
-    VertexAttributes,
+    Topology, VertexAttributes,
     command::attributes::Rgba,
     environment::{StageAlpha, StageColor},
 };
@@ -24,8 +24,7 @@ pub enum Action {
     SetClearColor(Rgba),
     SetProjectionMatrix(Mat4),
     SetTevStages(Vec<TevStage>),
-    DrawTriangles(Vec<VertexAttributes>),
-    DrawQuads(Vec<VertexAttributes>),
+    Draw(Topology, Vec<VertexAttributes>),
     Flush,
 }
 

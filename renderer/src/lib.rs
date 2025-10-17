@@ -4,15 +4,18 @@ mod blit;
 mod render;
 
 use crate::{blit::Blitter, render::Renderer};
-use hemisphere::render::{Action, Renderer as RendererInterface};
+use hemisphere::{
+    render::{Action, Renderer as RendererInterface},
+    system::gpu::Topology,
+};
 use std::sync::{
     Arc, Mutex,
     mpsc::{Receiver, Sender, channel},
 };
 
 struct Inner {
-    device: wgpu::Device,
-    queue: wgpu::Queue,
+    _device: wgpu::Device,
+    _queue: wgpu::Queue,
     blitter: Blitter,
     renderer: Renderer,
 }
@@ -23,8 +26,8 @@ impl Inner {
         let renderer = Renderer::new(device.clone(), queue.clone());
 
         Self {
-            device,
-            queue,
+            _device: device,
+            _queue: queue,
 
             blitter,
             renderer,
@@ -37,8 +40,15 @@ impl Inner {
             Action::SetClearColor(color) => self.renderer.set_clear_color(color),
             Action::SetProjectionMatrix(mat) => self.renderer.set_projection_mat(mat),
             Action::SetTevStages(stages) => self.renderer.set_tev_stages(stages),
-            Action::DrawTriangles(attributes) => self.renderer.draw_triangles(attributes),
-            Action::DrawQuads(attributes) => self.renderer.draw_quads(attributes),
+            Action::Draw(topology, attributes) => match topology {
+                Topology::QuadList => self.renderer.draw_quad_list(attributes),
+                Topology::TriangleList => self.renderer.draw_triangle_list(attributes),
+                Topology::TriangleStrip => self.renderer.draw_triangle_strip(attributes),
+                Topology::TriangleFan => todo!(),
+                Topology::LineList => todo!(),
+                Topology::LineStrip => todo!(),
+                Topology::PointList => todo!(),
+            },
             Action::Flush => self.renderer.flush(),
         }
     }
