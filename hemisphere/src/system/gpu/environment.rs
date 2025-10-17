@@ -16,9 +16,9 @@ pub enum ColorChannel {
     AlphaBump = 0x7,
 }
 
-#[bitos(32)]
+#[bitos(10)]
 #[derive(Debug, Default)]
-pub struct TexRaster {
+pub struct StageOrder {
     #[bits(0..3)]
     pub map: u3,
     #[bits(3..6)]
@@ -27,6 +27,15 @@ pub struct TexRaster {
     pub map_enable: bool,
     #[bits(7..10)]
     pub color: ColorChannel,
+}
+
+#[bitos(32)]
+#[derive(Debug, Default)]
+pub struct OrderPair {
+    #[bits(0..10)]
+    pub a: StageOrder,
+    #[bits(12..22)]
+    pub b: StageOrder,
 }
 
 #[bitos(4)]
@@ -166,7 +175,7 @@ pub struct StageAlpha {
 pub struct Interface {
     pub stages: u8,
     pub channels: u8,
-    pub tex_raster: [TexRaster; 8],
+    pub order_pairs: [OrderPair; 8],
     pub color_stages: [StageColor; 16],
     pub alpha_stages: [StageAlpha; 16],
 }

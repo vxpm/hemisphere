@@ -61,14 +61,14 @@ pub enum Reg {
     RasterSs0 = 0x25,
     RasterSs1 = 0x26,
 
-    RasterTexRef0 = 0x28,
-    RasterTexRef1 = 0x29,
-    RasterTexRef2 = 0x2A,
-    RasterTexRef3 = 0x2B,
-    RasterTexRef4 = 0x2C,
-    RasterTexRef5 = 0x2D,
-    RasterTexRef6 = 0x2E,
-    RasterTexRef7 = 0x2F,
+    TevOrder01 = 0x28,
+    TevOrder23 = 0x29,
+    TevOrder45 = 0x2A,
+    TevOrder67 = 0x2B,
+    TevOrder89 = 0x2C,
+    TevOrderAB = 0x2D,
+    TevOrderCD = 0x2E,
+    TevOrderEF = 0x2F,
 
     SetupSsize0 = 0x30,
     SetupTsize0 = 0x31,
@@ -357,6 +357,11 @@ impl System {
                 tracing::debug!(?mode);
             }
 
+            Reg::TevOrder01 => {
+                value.write_ne_bytes(self.gpu.environment.order_pairs[0].as_mut_bytes());
+                tracing::debug!(texref0 = ?self.gpu.environment.order_pairs[0]);
+            }
+
             Reg::PixelDone => {
                 self.gpu.pixel.interrupt.set_finish(true);
                 self.check_interrupts();
@@ -371,7 +376,9 @@ impl System {
             Reg::PixelCopyCmd => {
                 let cmd = pixel::CopyCmd::from_bits(value);
                 tracing::debug!(?cmd);
-                self.config.renderer.exec(Action::Flush);
+                self.config
+                    .renderer
+                    .exec(Action::EfbCopy { clear: cmd.clear() });
             }
 
             Reg::TevColor0 => {

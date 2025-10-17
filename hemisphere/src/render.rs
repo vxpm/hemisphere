@@ -25,7 +25,7 @@ pub enum Action {
     SetProjectionMatrix(Mat4),
     SetTevStages(Vec<TevStage>),
     Draw(Topology, Vec<VertexAttributes>),
-    Flush,
+    EfbCopy { clear: bool },
 }
 
 pub trait Renderer: Send + Sync {

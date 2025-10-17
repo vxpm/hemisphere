@@ -49,7 +49,7 @@ impl Inner {
                 Topology::LineStrip => todo!(),
                 Topology::PointList => todo!(),
             },
-            Action::Flush => self.renderer.flush(),
+            Action::EfbCopy { clear } => self.renderer.flush(clear),
         }
     }
 }

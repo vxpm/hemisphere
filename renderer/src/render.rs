@@ -140,7 +140,7 @@ impl Renderer {
                 compilation_options: Default::default(),
                 targets: &[Some(wgpu::ColorTargetState {
                     format: wgpu::TextureFormat::Rgba8UnormSrgb,
-                    blend: None,
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                     write_mask: Default::default(),
                 })],
             }),
@@ -357,7 +357,7 @@ impl Renderer {
         self.set_projection_mat(self.current_projection_mat);
     }
 
-    pub fn flush(&mut self) {
+    pub fn flush(&mut self, clear: bool) {
         if self.vertices.is_empty() {
             return;
         }
@@ -435,6 +435,18 @@ impl Renderer {
             ..Default::default()
         });
 
+        let color_load_op = if clear {
+            wgpu::LoadOp::Clear(self.clear_color)
+        } else {
+            wgpu::LoadOp::Load
+        };
+
+        let depth_load_op = if clear {
+            wgpu::LoadOp::Clear(1.0)
+        } else {
+            wgpu::LoadOp::Load
+        };
+
         let mut encoder = self.device.create_command_encoder(&Default::default());
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("hemisphere render pass"),
@@ -443,14 +455,14 @@ impl Renderer {
                 depth_slice: None,
                 resolve_target: None,
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(self.clear_color),
+                    load: color_load_op,
                     store: wgpu::StoreOp::Store,
                 },
             })],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                 view: &depth,
                 depth_ops: Some(wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(1.0),
+                    load: depth_load_op,
                     store: wgpu::StoreOp::Store,
                 }),
                 stencil_ops: None,
