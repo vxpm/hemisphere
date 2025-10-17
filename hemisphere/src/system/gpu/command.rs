@@ -386,7 +386,7 @@ impl Internal {
 pub struct VertexAttributeStream {
     table: u8,
     count: u16,
-    attributes: Vec<u8>,
+    data: Vec<u8>,
 }
 
 impl VertexAttributeStream {
@@ -399,11 +399,11 @@ impl VertexAttributeStream {
     }
 
     pub fn data(&self) -> &[u8] {
-        &self.attributes
+        &self.data
     }
 
     pub fn stride(&self) -> usize {
-        self.attributes.len() / self.count as usize
+        self.data.len() / self.count as usize
     }
 }
 
@@ -549,7 +549,7 @@ impl Gpu {
                 let vertex_attributes = VertexAttributeStream {
                     table: opcode.vat_index().value(),
                     count: vertex_count,
-                    attributes: vertex_attributes,
+                    data: vertex_attributes,
                 };
 
                 let topology = match operation {
@@ -713,7 +713,7 @@ impl System {
                     topology,
                     vertex_attributes,
                 } => {
-                    self.gx_draw(topology, vertex_attributes);
+                    self.gx_draw(topology, &vertex_attributes);
                 }
             }
         }

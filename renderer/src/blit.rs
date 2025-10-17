@@ -96,14 +96,14 @@ impl Blitter {
         }
     }
 
-    pub fn blit(&mut self, texture: wgpu::TextureView, pass: &mut wgpu::RenderPass<'_>) {
+    pub fn blit(&mut self, texture: &wgpu::TextureView, pass: &mut wgpu::RenderPass<'_>) {
         let group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: None,
             layout: &self.group_layout,
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&texture),
+                    resource: wgpu::BindingResource::TextureView(texture),
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,

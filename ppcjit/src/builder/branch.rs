@@ -91,13 +91,13 @@ impl BlockBuilder<'_> {
                 let cr = self.get(Reg::CR);
                 let cond = self.bd.ins().band_imm(cr, 1 << cond_bit);
 
-                let cond_ok = match options.desired_cr() {
-                    true => {
-                        self.bd
-                            .ins()
-                            .icmp_imm(ir::condcodes::IntCC::UnsignedGreaterThan, cond, 0)
-                    }
-                    false => self.bd.ins().icmp_imm(ir::condcodes::IntCC::Equal, cond, 0),
+                // TODO: revisit
+                let cond_ok = if options.desired_cr() {
+                    self.bd
+                        .ins()
+                        .icmp_imm(ir::condcodes::IntCC::UnsignedGreaterThan, cond, 0)
+                } else {
+                    self.bd.ins().icmp_imm(ir::condcodes::IntCC::Equal, cond, 0)
                 };
 
                 branch = self.bd.ins().band(branch, cond_ok);

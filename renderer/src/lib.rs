@@ -41,9 +41,9 @@ impl Inner {
             Action::SetProjectionMatrix(mat) => self.renderer.set_projection_mat(mat),
             Action::SetTevStages(stages) => self.renderer.set_tev_stages(stages),
             Action::Draw(topology, attributes) => match topology {
-                Topology::QuadList => self.renderer.draw_quad_list(attributes),
-                Topology::TriangleList => self.renderer.draw_triangle_list(attributes),
-                Topology::TriangleStrip => self.renderer.draw_triangle_strip(attributes),
+                Topology::QuadList => self.renderer.draw_quad_list(&attributes),
+                Topology::TriangleList => self.renderer.draw_triangle_list(&attributes),
+                Topology::TriangleStrip => self.renderer.draw_triangle_strip(&attributes),
                 Topology::TriangleFan => todo!(),
                 Topology::LineList => todo!(),
                 Topology::LineStrip => todo!(),
@@ -54,6 +54,7 @@ impl Inner {
     }
 }
 
+#[expect(clippy::needless_pass_by_value, reason = "makes it clearer")]
 fn worker(inner: Arc<Mutex<Inner>>, receiver: Receiver<Action>) {
     loop {
         let Ok(command) = receiver.recv() else {
@@ -101,7 +102,7 @@ impl WgpuRenderer {
         let mut guard = self.inner.lock().unwrap();
         let inner = &mut *guard;
 
-        inner.blitter.blit(inner.renderer.viewport_view(), pass);
+        inner.blitter.blit(&inner.renderer.viewport_view(), pass);
     }
 }
 

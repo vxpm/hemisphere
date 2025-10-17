@@ -57,6 +57,7 @@ pub enum Action {
     Prologue,
 }
 
+#[derive(Clone, Copy)]
 pub(crate) struct Info {
     cycles: u8,
     auto_pc: bool,

@@ -93,11 +93,7 @@ impl Compiler {
         }
 
         let mut ctx = codegen::Context::for_function(func);
-        let ir = if cfg!(debug_assertions) {
-            Some(ctx.func.display().to_string())
-        } else {
-            None
-        };
+        let ir = cfg!(debug_assertions).then(|| ctx.func.display().to_string());
 
         let compiled = ctx
             .compile(&*self.isa, &mut codegen::control::ControlPlane::default())

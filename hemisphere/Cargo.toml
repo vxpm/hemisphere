@@ -4,6 +4,9 @@ description = "The hemisphere emulator"
 version = "0.1.0"
 edition = "2024"
 
+[lints]
+workspace = true
+
 [dependencies]
 common = { path = "../common" }
 dol = { path = "../dol" }

@@ -123,7 +123,7 @@ impl Hemisphere {
             mapping: &mut self.jit.blocks.mapping,
         };
 
-        block.call(&mut ctx as *mut _ as *mut _, &CTX_HOOKS)
+        block.call(&raw mut ctx as *mut ppcjit::block::Context, &CTX_HOOKS)
     }
 
     fn exec(&mut self, limits: Limits) -> Executed {

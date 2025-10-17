@@ -18,11 +18,13 @@ const FLOAT_INFO: Info = Info {
     action: Action::Continue,
 };
 
+#[derive(Clone, Copy)]
 enum AddLhs {
     RA,
     ZeroOrRA,
 }
 
+#[derive(Clone, Copy)]
 enum AddRhs {
     RB,
     Imm,
@@ -31,6 +33,7 @@ enum AddRhs {
     MinusOne,
 }
 
+#[derive(Clone, Copy)]
 struct AddOp {
     lhs: AddLhs,
     rhs: AddRhs,
@@ -246,6 +249,7 @@ impl BlockBuilder<'_> {
     }
 }
 
+#[derive(Clone, Copy)]
 enum SubLhs {
     RB,
     Imm,
@@ -253,6 +257,7 @@ enum SubLhs {
     Zero,
 }
 
+#[derive(Clone, Copy)]
 struct SubOp {
     lhs: SubLhs,
     extend: bool,

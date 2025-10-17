@@ -114,7 +114,7 @@ impl Default for Interface {
     }
 }
 
-const Z_MAX: f32 = 16777215.0;
+const Z_MAX: f32 = 16_777_215.0;
 
 impl Interface {
     /// Returns the matrix at `index` in internal memory.

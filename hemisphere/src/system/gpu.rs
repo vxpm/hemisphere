@@ -503,7 +503,7 @@ impl System {
 impl System {
     fn gx_read_attribute_from_array<D: AttributeDescriptor>(
         &mut self,
-        descriptor: D,
+        descriptor: &D,
         array: ArrayDescriptor,
         index: u16,
     ) -> D::Value {
@@ -529,19 +529,19 @@ impl System {
             AttributeMode::Index8 => {
                 let index = reader.read_be::<u8>().unwrap();
                 let array = A::get_array(&self.gpu.command.internal.arrays).unwrap();
-                Some(self.gx_read_attribute_from_array(descriptor, array, index as u16))
+                Some(self.gx_read_attribute_from_array(&descriptor, array, index as u16))
             }
             AttributeMode::Index16 => {
                 let index = reader.read_be::<u16>().unwrap();
                 let array = A::get_array(&self.gpu.command.internal.arrays).unwrap();
-                Some(self.gx_read_attribute_from_array(descriptor, array, index))
+                Some(self.gx_read_attribute_from_array(&descriptor, array, index))
             }
         }
     }
 
     pub fn gx_extract_attributes(
         &mut self,
-        stream: VertexAttributeStream,
+        stream: &VertexAttributeStream,
     ) -> Vec<VertexAttributes> {
         let vat = stream.table_index();
         let default_matrix_idx = self.gpu.command.internal.mat_indices.view().value();
@@ -609,7 +609,7 @@ impl System {
         vertices
     }
 
-    pub fn gx_draw(&mut self, topology: Topology, stream: VertexAttributeStream) {
+    pub fn gx_draw(&mut self, topology: Topology, stream: &VertexAttributeStream) {
         let attributes = self.gx_extract_attributes(stream);
         self.config
             .renderer

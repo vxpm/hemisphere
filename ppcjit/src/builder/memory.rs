@@ -227,6 +227,7 @@ const LOAD_INFO: Info = Info {
     action: Action::Continue,
 };
 
+#[derive(Clone, Copy)]
 struct LoadOp {
     update: bool,
     signed: bool,

@@ -206,7 +206,7 @@ impl Renderer {
         idx as u32
     }
 
-    fn attributes_to_vertex(&mut self, attributes: VertexAttributes) -> Vertex {
+    fn attributes_to_vertex(&mut self, attributes: &VertexAttributes) -> Vertex {
         let position_mat_idx = self.insert_matrix(attributes.position_matrix);
         let normal_mat_idx = self.insert_matrix(Mat4::from_mat3(attributes.normal_matrix));
         let tex_coord_mat_idx = attributes
@@ -234,7 +234,7 @@ impl Renderer {
         }
     }
 
-    pub fn insert_attributes(&mut self, attributes: VertexAttributes) -> u32 {
+    pub fn insert_attributes(&mut self, attributes: &VertexAttributes) -> u32 {
         let vertex = self.attributes_to_vertex(attributes);
         self.insert_vertex(vertex)
     }
@@ -317,23 +317,23 @@ impl Renderer {
         self.update_config();
     }
 
-    pub fn draw_quad_list(&mut self, vertices: Vec<VertexAttributes>) {
-        for vertices in vertices.into_iter().array_chunks::<4>() {
+    pub fn draw_quad_list(&mut self, vertices: &[VertexAttributes]) {
+        for vertices in vertices.iter().array_chunks::<4>() {
             let [v0, v1, v2, v3] = vertices.map(|a| self.insert_attributes(a));
             self.indices.extend_from_slice(&[v0, v1, v2]);
             self.indices.extend_from_slice(&[v0, v2, v3]);
         }
     }
 
-    pub fn draw_triangle_list(&mut self, vertices: Vec<VertexAttributes>) {
-        for vertices in vertices.into_iter().array_chunks::<3>() {
+    pub fn draw_triangle_list(&mut self, vertices: &[VertexAttributes]) {
+        for vertices in vertices.iter().array_chunks::<3>() {
             let vertices = vertices.map(|a| self.insert_attributes(a));
             self.indices.extend_from_slice(&vertices);
         }
     }
 
-    pub fn draw_triangle_strip(&mut self, vertices: Vec<VertexAttributes>) {
-        let mut iter = vertices.into_iter();
+    pub fn draw_triangle_strip(&mut self, vertices: &[VertexAttributes]) {
+        let mut iter = vertices.iter();
 
         let mut v0 = self.insert_attributes(iter.next().unwrap());
         let mut v1 = self.insert_attributes(iter.next().unwrap());

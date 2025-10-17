@@ -4,9 +4,7 @@ use egui_extras::{Column, TableBuilder};
 use hemisphere::runner::State;
 
 #[derive(Default)]
-pub struct Window {}
-
-impl Window {}
+pub struct Window;
 
 impl WindowUi for Window {
     fn title(&self) -> &str {

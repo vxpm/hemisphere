@@ -69,6 +69,7 @@ struct App {
 }
 
 impl App {
+    #[allow(clippy::default_constructed_unit_structs)]
     fn new(cc: &eframe::CreationContext<'_>, args: &cli::Args) -> Result<Self> {
         tracing::info!("loading executable");
         let dwarf = match args.dwarf.as_deref() {
@@ -120,8 +121,8 @@ impl App {
             name: "root",
             windows: vec![
                 // fb
-                Window::new(xfb::Window::new()),
-                Window::new(efb::Window::new()),
+                Window::new(xfb::Window::default()),
+                Window::new(efb::Window::default()),
                 // cpu
                 Window::new(control::Window::default()),
                 Window::new(registers::Window::default()),

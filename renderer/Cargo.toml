@@ -4,6 +4,9 @@ description = "WGPU based renderer implementation"
 version = "0.1.0"
 edition = "2024"
 
+[lints]
+workspace = true
+
 [build-dependencies]
 wesl.workspace = true
 

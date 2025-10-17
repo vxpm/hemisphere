@@ -66,6 +66,8 @@ impl BlockMapping {
     pub fn invalidate(&mut self, addr: Address) {
         // check LUT first
         let page = addr.value() >> 12;
+
+        #[expect(clippy::redundant_else, reason = "makes it clearer")]
         if self.page_lut[page as usize] == 0 {
             return;
         } else {
