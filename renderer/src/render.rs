@@ -179,7 +179,7 @@ impl Renderer {
 
         self.pipeline.switch(
             &self.device,
-            PipelineSettings {
+            &PipelineSettings {
                 depth_write: mode.update(),
                 depth_compare: compare,
             },

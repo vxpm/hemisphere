@@ -1,5 +1,4 @@
 use hemisphere::render::Viewport;
-use wgpu::util::DeviceExt;
 
 pub struct Textures {
     pub color: wgpu::Texture,

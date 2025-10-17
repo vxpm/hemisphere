@@ -17,7 +17,7 @@ impl Pipeline {
         device: &wgpu::Device,
         layout: &wgpu::PipelineLayout,
         module: &wgpu::ShaderModule,
-        settings: PipelineSettings,
+        settings: &PipelineSettings,
     ) -> wgpu::RenderPipeline {
         device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("uber render pipeline"),
@@ -32,13 +32,13 @@ impl Pipeline {
                 conservative: false,
             },
             vertex: wgpu::VertexState {
-                module: module,
+                module,
                 entry_point: Some("vs_main"),
                 compilation_options: Default::default(),
                 buffers: &[],
             },
             fragment: Some(wgpu::FragmentState {
-                module: module,
+                module,
                 entry_point: Some("fs_main"),
                 compilation_options: Default::default(),
                 targets: &[Some(wgpu::ColorTargetState {
@@ -92,10 +92,10 @@ impl Pipeline {
         });
 
         let pipeline = Self::create_pipeline(
-            &device,
+            device,
             &layout,
             &module,
-            PipelineSettings {
+            &PipelineSettings {
                 depth_write: true,
                 depth_compare: wgpu::CompareFunction::Less,
             },
@@ -117,7 +117,7 @@ impl Pipeline {
         &self.pipeline
     }
 
-    pub fn switch(&mut self, device: &wgpu::Device, settings: PipelineSettings) {
+    pub fn switch(&mut self, device: &wgpu::Device, settings: &PipelineSettings) {
         self.pipeline = Self::create_pipeline(device, &self.layout, &self.module, settings);
     }
 }
