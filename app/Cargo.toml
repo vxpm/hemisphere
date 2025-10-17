@@ -10,8 +10,6 @@ workspace = true
 eyre-pretty = { path = "/home/vxpm/dev/eyre-pretty" }
 hemisphere = { path = "../hemisphere" }
 renderer = { path = "../renderer" }
-binrw.workspace = true
-bytesize.workspace = true
 clap.workspace = true
 tracing-subscriber.workspace = true
 tracing.workspace = true

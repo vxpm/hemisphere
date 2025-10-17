@@ -10,7 +10,6 @@ workspace = true
 [dependencies]
 bitos.workspace = true
 bytesize.workspace = true
-easyerr.workspace = true
 powerpc.workspace = true
 tracing.workspace = true
 zerocopy.workspace = true

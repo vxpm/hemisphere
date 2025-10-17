@@ -11,6 +11,30 @@ members = [
 ]
 default-members = ["common", "ppcjit", "dol", "hemisphere", "renderer", "app"]
 
+[profile.dev.package."x11rb-protocol"]
+opt-level = 0
+
+[profile.dev.package."wayland-protocols"]
+opt-level = 0
+
+[profile.dev.package."pxfm"]
+opt-level = 0
+
+[profile.dev.package."moxcms"]
+opt-level = 0
+
+[profile.dev.package."image"]
+opt-level = 0
+
+[profile.dev.package."wgsl-types"]
+opt-level = 0
+
+[profile.dev.package."wgsl-parse"]
+opt-level = 0
+
+[profile.dev.package."wesl"]
+opt-level = 0
+
 [profile.dev.package."iced-x86"]
 opt-level = 0
 
@@ -61,7 +85,7 @@ wgpu = { version = "27.0", features = [
 zerocopy = { version = "0.8", features = ["derive"] }
 wesl = { git = "https://github.com/wgsl-tooling-wg/wesl-rs", features = [
     "eval",
-] }
+], default-features = false }
 
 [workspace.lints.clippy]
 assigning_clones = "warn"
