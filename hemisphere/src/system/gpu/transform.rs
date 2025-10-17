@@ -172,7 +172,7 @@ impl Interface {
 impl System {
     /// Sets the value of an internal transform unit register.
     pub(super) fn xf_set(&mut self, reg: Reg, value: u32) {
-        tracing::debug!("wrote {value:02X} to xf {reg:?}");
+        tracing::debug!("wrote {value:02X} to internal XF register {reg:?}");
 
         let xf = &mut self.gpu.transform.internal;
         match reg {

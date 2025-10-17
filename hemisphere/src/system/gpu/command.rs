@@ -697,7 +697,7 @@ impl System {
                 return;
             };
 
-            // tracing::debug!("{:02X?}", cmd);
+            tracing::debug!("processing {:02X?}", cmd);
 
             match cmd {
                 Command::Nop => (),
