@@ -51,12 +51,10 @@ impl Inner {
                 Topology::PointList => todo!(),
             },
             Action::EfbCopy { clear } => {
-                self.renderer.flush(false);
                 self.renderer.swap();
-
-                // if clear {
-                //     self.renderer.flush(true);
-                // }
+                if clear {
+                    self.renderer.flush(true);
+                }
             }
         }
     }

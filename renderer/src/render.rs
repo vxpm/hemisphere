@@ -41,6 +41,7 @@ pub struct Renderer {
     pipeline: Pipeline,
     framebuffer: Framebuffer,
 
+    queued_clear: bool,
     clear_color: wgpu::Color,
     current_config: Box<Config>,
     current_projection_mat: Mat4,
@@ -69,6 +70,7 @@ impl Renderer {
             current_projection_mat: Default::default(),
             current_projection_mat_idx: 0,
 
+            queued_clear: false,
             configs: Vec::new(),
             vertices: Vec::new(),
             indices: Vec::new(),
@@ -144,6 +146,7 @@ impl Renderer {
     }
 
     pub fn swap(&mut self) {
+        self.flush(false);
         self.framebuffer.swap();
     }
 
@@ -161,7 +164,7 @@ impl Renderer {
     }
 
     pub fn set_depth_mode(&mut self, mode: DepthMode) {
-        // self.flush(false);
+        self.flush(false);
 
         let compare = match mode.compare() {
             CompareMode::Never => wgpu::CompareFunction::Never,
@@ -174,13 +177,13 @@ impl Renderer {
             CompareMode::Always => wgpu::CompareFunction::Always,
         };
 
-        // self.pipeline.switch(
-        //     &self.device,
-        //     PipelineSettings {
-        //         depth_write: mode.update(),
-        //         depth_compare: compare,
-        //     },
-        // );
+        self.pipeline.switch(
+            &self.device,
+            PipelineSettings {
+                depth_write: mode.update(),
+                depth_compare: compare,
+            },
+        );
     }
 
     pub fn set_projection_mat(&mut self, mat: Mat4) {
@@ -241,8 +244,12 @@ impl Renderer {
 
     pub fn flush(&mut self, clear: bool) {
         if self.vertices.is_empty() {
+            self.queued_clear = true;
             return;
         }
+
+        let clear = clear || self.queued_clear;
+        self.queued_clear = false;
 
         let index_buf = self
             .device
@@ -355,14 +362,7 @@ impl Renderer {
         std::mem::drop(pass);
 
         let buffer = encoder.finish();
-        let idx = self.queue.submit([buffer]);
-
-        self.device
-            .poll(wgpu::PollType::Wait {
-                submission_index: Some(idx),
-                timeout: None,
-            })
-            .unwrap();
+        self.queue.submit([buffer]);
 
         self.reset();
     }
