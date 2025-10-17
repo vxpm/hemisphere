@@ -368,7 +368,7 @@ impl AttributeDescriptor for TexCoordsDescriptor {
 
     fn size(&self) -> u32 {
         match self.kind() {
-            TexCoordsKind::Vec1 => 1 * self.format().size(),
+            TexCoordsKind::Vec1 => self.format().size(),
             TexCoordsKind::Vec2 => 2 * self.format().size(),
         }
     }

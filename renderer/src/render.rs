@@ -18,7 +18,10 @@ struct HashableMat4([OrderedFloat<f32>; 16]);
 
 impl From<Mat4> for HashableMat4 {
     fn from(value: Mat4) -> Self {
-        Self(unsafe { std::mem::transmute(value.to_cols_array()) })
+        // SAFETY: this is safe because OrderedFloat is repr(transparent)
+        Self(unsafe {
+            std::mem::transmute::<[f32; 16], [OrderedFloat<f32>; 16]>(value.to_cols_array())
+        })
     }
 }
 
@@ -185,7 +188,7 @@ impl Renderer {
     }
 
     pub fn insert_matrix(&mut self, mat: Mat4) -> u32 {
-        match self.matrices_idx.entry(mat.clone().into()) {
+        match self.matrices_idx.entry(mat.into()) {
             Entry::Occupied(o) => *o.get(),
             Entry::Vacant(v) => {
                 let idx = self.matrices.len() as u32;
@@ -371,7 +374,7 @@ impl Renderer {
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("hemisphere configs buffer"),
-                contents: &self.configs.as_bytes(),
+                contents: self.configs.as_bytes(),
                 usage: wgpu::BufferUsages::STORAGE,
             });
 

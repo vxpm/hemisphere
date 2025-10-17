@@ -4,6 +4,9 @@ use zerocopy::{FromBytes, Immutable, IntoBytes};
 ///
 /// A primitive is either a byte, half-word, word or double word.
 /// That is, [`u8`], [`i8`], [`u16`], [`i16`], [`u32`], [`i32`], [`u64`] or [`i64`].
+///
+/// # Safety
+/// TODO
 pub unsafe trait Primitive:
     std::fmt::Debug
     + std::fmt::UpperHex

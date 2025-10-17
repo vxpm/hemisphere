@@ -6,8 +6,8 @@ use hemisphere::runner::State;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 enum Group {
     #[default]
-    GPR,
-    FPR,
+    Gpr,
+    Fpr,
 }
 
 #[derive(Default)]
@@ -121,15 +121,15 @@ impl WindowUi for Window {
             egui::ComboBox::from_label("Group")
                 .selected_text(format!("{:?}", self.group))
                 .show_ui(ui, |ui| {
-                    ui.selectable_value(&mut self.group, Group::GPR, "GPR");
-                    ui.selectable_value(&mut self.group, Group::FPR, "FPR");
+                    ui.selectable_value(&mut self.group, Group::Gpr, "GPR");
+                    ui.selectable_value(&mut self.group, Group::Fpr, "FPR");
                 });
 
             ui.separator();
 
             match self.group {
-                Group::GPR => self.gpr(ui, state),
-                Group::FPR => self.fpr(ui, state),
+                Group::Gpr => self.gpr(ui, state),
+                Group::Fpr => self.fpr(ui, state),
             }
         });
     }

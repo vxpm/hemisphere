@@ -192,11 +192,9 @@ impl System {
 
                 if !self.video.display_config.progressive()
                     && self.video.vertical_count as u32 == self.video.lines_per_even_field() + 1
-                {
-                    if let Some(callback) = &mut self.config.vsync_callback {
+                    && let Some(callback) = &mut self.config.vsync_callback {
                         callback();
                     }
-                }
 
                 let cycles_per_frame = (FREQUENCY as f64 / self.video.refresh_rate()) as u32;
                 let cycles_per_line = cycles_per_frame

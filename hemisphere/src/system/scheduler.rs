@@ -48,6 +48,11 @@ impl Scheduler {
     }
 
     #[inline(always)]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    #[inline(always)]
     pub fn advance(&mut self, count: u64) {
         self.elapsed += count;
     }

@@ -243,11 +243,11 @@ impl Interface {
     /// How many halflines long a frame is.
     pub fn halflines_per_frame(&self) -> u32 {
         self.halflines_per_even_field()
-            + self
-                .display_config
-                .progressive()
-                .then_some(0)
-                .unwrap_or(self.halflines_per_odd_field())
+            + if self.display_config.progressive() {
+                0
+            } else {
+                self.halflines_per_odd_field()
+            }
     }
 
     /// How many lines long an even field is.
