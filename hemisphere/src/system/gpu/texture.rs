@@ -1,8 +1,10 @@
 use bitos::{
-    bitos,
+    BitUtils, bitos,
     integer::{u2, u10},
 };
 use common::Address;
+use common::Primitive;
+use zerocopy::{Immutable, IntoBytes};
 
 #[bitos(2)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -32,10 +34,10 @@ pub enum MinFilter {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum DataFormat {
     #[default]
-    Indexed4 = 0x0,
-    Indexed8 = 0x1,
-    Indexed4Alpha = 0x2,
-    Indexed8Alpha = 0x3,
+    Intensity4 = 0x0,
+    Intensity8 = 0x1,
+    Intensity4Alpha = 0x2,
+    Intensity8Alpha = 0x3,
     Rgb565 = 0x4,
     Rgb4A3 = 0x5,
     Rgba8 = 0x6,
@@ -49,15 +51,6 @@ pub enum DataFormat {
     Reserved3 = 0xD,
     Cmp = 0xE,
     Reserved4 = 0xF,
-}
-
-impl DataFormat {
-    pub fn size(&self) -> u32 {
-        match self {
-            Self::Rgb565 => 2,
-            _ => todo!(),
-        }
-    }
 }
 
 #[bitos(32)]
@@ -101,8 +94,14 @@ impl Format {
         self.height_minus_one().value() as u32 + 1
     }
 
+    // Size, in bytes, of the texture.
     pub fn size(&self) -> u32 {
-        self.width() * self.height() * self.data_format().size()
+        let pixels = self.width() * self.height();
+        match self.data_format() {
+            DataFormat::Intensity8 => pixels,
+            DataFormat::Rgb565 => pixels * 2,
+            _ => todo!(),
+        }
     }
 }
 
@@ -122,3 +121,84 @@ pub struct Interface {
 }
 
 impl Interface {}
+
+#[derive(Debug, Clone, Copy, Immutable, IntoBytes)]
+pub struct Rgba8 {
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
+    pub a: u8,
+}
+
+fn decode_basic_tex<
+    const TILE_WIDTH: u32,
+    const TILE_HEIGHT: u32,
+    F: FnMut(&[u8], usize) -> Rgba8,
+>(
+    data: &[u8],
+    width: u32,
+    height: u32,
+    mut decode: F,
+) -> Vec<Rgba8> {
+    let mut pixels = vec![
+        Rgba8 {
+            r: 0,
+            g: 0,
+            b: 0,
+            a: 0
+        };
+        width as usize * height as usize
+    ];
+
+    let width_in_tiles = width.div_ceil(TILE_WIDTH as u32);
+    let height_in_tiles = height.div_ceil(TILE_HEIGHT as u32);
+
+    let mut data_index = 0;
+    for tile_y in 0..height_in_tiles {
+        for tile_x in 0..width_in_tiles {
+            for inner_y in 0..TILE_HEIGHT {
+                for inner_x in 0..TILE_WIDTH {
+                    let x = tile_x * TILE_WIDTH + inner_x;
+                    let y = tile_y * TILE_HEIGHT + inner_y;
+                    let image_index = y * width + x;
+
+                    if let Some(pixel) = pixels.get_mut(image_index as usize) {
+                        *pixel = decode(data, data_index);
+                    }
+
+                    data_index += 1;
+                }
+            }
+        }
+    }
+
+    pixels
+}
+
+pub fn decode_texture(data: &[u8], format: Format) -> Vec<Rgba8> {
+    match format.data_format() {
+        DataFormat::Intensity8 => {
+            decode_basic_tex::<8, 4, _>(data, format.width(), format.height(), |data, index| {
+                let intensity = data[index];
+                Rgba8 {
+                    r: intensity,
+                    g: intensity,
+                    b: intensity,
+                    a: 255,
+                }
+            })
+        }
+        DataFormat::Rgb565 => {
+            decode_basic_tex::<4, 4, _>(data, format.width(), format.height(), |data, index| {
+                let pixel = u16::read_be_bytes(&data[2 * index..]);
+                Rgba8 {
+                    r: pixel.bits(11, 16) as u8 * 8,
+                    g: pixel.bits(5, 11) as u8 * 4,
+                    b: pixel.bits(0, 5) as u8 * 8,
+                    a: 255,
+                }
+            })
+        }
+        _ => todo!("format {format:?}"),
+    }
+}

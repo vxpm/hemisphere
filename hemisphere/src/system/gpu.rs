@@ -645,41 +645,12 @@ impl System {
         let len = map.format.size().value() as usize;
         let slice = &self.mem.ram[start..][..len];
 
-        let width = map.format.width();
-        let height = map.format.height();
-
-        let mut data = vec![[0; 4]; width as usize * height as usize];
-        match map.format.data_format() {
-            texture::DataFormat::Rgb565 => {
-                for (i, pixel) in slice.chunks_exact(2).enumerate() {
-                    let tile_index = i / 16;
-
-                    let tile_y = tile_index / (height as usize / 4);
-                    let tile_x = tile_index % (height as usize / 4);
-
-                    let inner_y = (i % 16) / 4;
-                    let inner_x = (i % 16) % 4;
-
-                    let pixel = u16::read_be_bytes(pixel);
-                    let r = pixel.bits(11, 16) as u8 * 8;
-                    let g = pixel.bits(5, 11) as u8 * 4;
-                    let b = pixel.bits(0, 5) as u8 * 8;
-                    let a = 255;
-
-                    let x = 4 * tile_x + inner_x;
-                    let y = 4 * tile_y + inner_y;
-
-                    data[y * width as usize + x] = [r, g, b, a];
-                }
-            }
-            _ => todo!(),
-        }
-
+        let data = texture::decode_texture(slice, map.format);
         self.config.renderer.exec(Action::SetTexture {
             index,
-            width,
-            height,
-            data: data.into_iter().flatten().collect(),
+            width: map.format.width(),
+            height: map.format.height(),
+            data,
         });
     }
 

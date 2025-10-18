@@ -198,8 +198,6 @@ impl Renderer {
     }
 
     pub fn set_tev_stages(&mut self, stages: Vec<render::TevStage>) {
-        dbg!(&stages);
-
         let new = TevConfig::new(stages);
         if self.current_config.tev == new {
             return;

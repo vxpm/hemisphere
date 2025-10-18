@@ -5,6 +5,7 @@ use crate::system::gpu::{
     command::attributes::Rgba,
     environment::{StageAlpha, StageColor},
     pixel::DepthMode,
+    texture::Rgba8,
 };
 use glam::Mat4;
 
@@ -30,7 +31,7 @@ pub enum Action {
         index: usize,
         width: u32,
         height: u32,
-        data: Vec<u8>,
+        data: Vec<Rgba8>,
     },
     Draw(Topology, Vec<VertexAttributes>),
     EfbCopy {

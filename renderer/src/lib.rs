@@ -46,7 +46,12 @@ impl Inner {
                 width,
                 height,
                 data,
-            } => self.renderer.set_texture(index, width, height, &data),
+            } => self.renderer.set_texture(
+                index,
+                width,
+                height,
+                zerocopy::transmute_ref!(data.as_slice()),
+            ),
             Action::Draw(topology, attributes) => match topology {
                 Topology::QuadList => self.renderer.draw_quad_list(&attributes),
                 Topology::TriangleList => self.renderer.draw_triangle_list(&attributes),
