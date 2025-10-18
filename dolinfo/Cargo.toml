@@ -9,7 +9,7 @@ workspace = true
 
 [dependencies]
 dol = { path = "../dol" }
-eyre-pretty = { path = "/home/vxpm/dev/eyre-pretty" }
 bytesize.workspace = true
 clap.workspace = true
+eyre-pretty.workspace = true
 comfy-table = { version = "7.1", default-features = false }

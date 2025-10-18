@@ -7,9 +7,9 @@ edition = "2024"
 workspace = true
 
 [dependencies]
-eyre-pretty = { path = "/home/vxpm/dev/eyre-pretty" }
 hemisphere = { path = "../hemisphere" }
 renderer = { path = "../renderer" }
+eyre-pretty.workspace = true
 clap.workspace = true
 tracing-subscriber.workspace = true
 tracing.workspace = true

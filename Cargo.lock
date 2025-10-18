@@ -1327,6 +1327,7 @@ dependencies = [
 [[package]]
 name = "eyre-pretty"
 version = "0.1.0"
+source = "git+https://github.com/vxpm/eyre-pretty#f58287ca3c33ab99659543cb918d4253e1464f60"
 dependencies = [
  "eyre",
  "owo-colors",

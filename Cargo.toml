@@ -86,6 +86,7 @@ zerocopy = { version = "0.8", features = ["derive"] }
 wesl = { git = "https://github.com/wgsl-tooling-wg/wesl-rs", features = [
     "eval",
 ], default-features = false }
+eyre-pretty = { git = "https://github.com/vxpm/eyre-pretty" }
 
 [workspace.lints.clippy]
 assigning_clones = "warn"
