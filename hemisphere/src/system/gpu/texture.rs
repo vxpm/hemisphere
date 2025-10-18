@@ -150,8 +150,8 @@ fn decode_basic_tex<
         width as usize * height as usize
     ];
 
-    let width_in_tiles = width.div_ceil(TILE_WIDTH as u32);
-    let height_in_tiles = height.div_ceil(TILE_HEIGHT as u32);
+    let width_in_tiles = width.div_ceil(TILE_WIDTH);
+    let height_in_tiles = height.div_ceil(TILE_HEIGHT);
 
     let mut data_index = 0;
     for tile_y in 0..height_in_tiles {
