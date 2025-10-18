@@ -59,7 +59,7 @@ struct VertexOutput {
     @location(0) config: u32,
     @location(1) diffuse_color: vec4f,
     @location(2) specular_color: vec4f,
-    @location(3) uv: vec2f,
+    @location(3) tex_coord0: vec2f,
 };
 
 @vertex
@@ -78,7 +78,7 @@ fn vs_main(@builtin(vertex_index) index: u32) -> VertexOutput {
 
     out.diffuse_color = vertex.diffuse;
     out.specular_color = vertex.specular;
-    out.uv = vertex.tex_coord[0];
+    out.tex_coord0 = vertex.tex_coord[0];
 
     return out;
 }
@@ -86,5 +86,5 @@ fn vs_main(@builtin(vertex_index) index: u32) -> VertexOutput {
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4f {
     let config = &configs[in.config];
-    return tev::compute(config.tev_config, in.diffuse_color, in.uv);
+    return tev::compute(config.tev_config, in.diffuse_color, in.specular_color, in.tex_coord0);
 }

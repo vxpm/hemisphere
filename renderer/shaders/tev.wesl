@@ -10,8 +10,8 @@ const R0: Reg = 1;
 const R1: Reg = 2;
 const R2: Reg = 3;
 
-// Configuration for a TEV stage.
-struct StageConfig {
+// Configuration for a TEV operation.
+struct OpConfig {
     input_a: Input,
     input_b: Input, 
     input_c: Input,
@@ -22,16 +22,19 @@ struct StageConfig {
     bias: f32,
     scale: f32,
     clamp: u32,
-
-    _pad0: u32,
-    _pad1: u32,
-    _pad2: u32,
 };
 
-// Configuration for a TEV stage, both color and alpha.
+struct Refs {
+    map: u32,
+    coord: u32,
+    color: u32,
+};
+
+// Configuration for a TEV stage, both color and alpha operations.
 struct Stage {
-    color: StageConfig, 
-    alpha: StageConfig,
+    color: OpConfig, 
+    alpha: OpConfig,
+    refs: Refs,
 };
 
 /// All TEV stage configurations.
@@ -46,6 +49,7 @@ struct Config {
 struct State {
     regs: array<vec4f, 4>,
     diffuse: vec4f,
+    specular: vec4f,
     uv: vec2f,
 }
 
@@ -168,9 +172,10 @@ fn compute_stage_alpha(a: f32, b: f32, c: f32, d: f32, sign: f32, bias: f32, sca
     return (lerp + d + bias) * scale;
 }
 
-fn compute(config: Config, diffuse: vec4f, uv: vec2f) -> vec4f {
+fn compute(config: Config, diffuse: vec4f, specular: vec4f, uv: vec2f) -> vec4f {
     var state: State;
     state.diffuse = diffuse;
+    state.specular = specular;
     state.uv = uv;
 
     var last_color_output = PLACEHOLDER_RGB;

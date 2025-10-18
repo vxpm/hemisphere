@@ -17,8 +17,8 @@ pub enum ColorChannel {
 }
 
 #[bitos(10)]
-#[derive(Debug, Default)]
-pub struct StageOrder {
+#[derive(Debug, Clone, Default)]
+pub struct StageRefs {
     #[bits(0..3)]
     pub map: u3,
     #[bits(3..6)]
@@ -31,11 +31,11 @@ pub struct StageOrder {
 
 #[bitos(32)]
 #[derive(Debug, Default)]
-pub struct OrderPair {
+pub struct StageRefsPair {
     #[bits(0..10)]
-    pub a: StageOrder,
+    pub a: StageRefs,
     #[bits(12..22)]
-    pub b: StageOrder,
+    pub b: StageRefs,
 }
 
 #[bitos(4)]
@@ -171,11 +171,16 @@ pub struct StageAlpha {
     pub output: OutputDst,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct StageOps {
+    pub color: StageColor,
+    pub alpha: StageAlpha,
+}
+
 #[derive(Debug, Default)]
 pub struct Interface {
-    pub stages: u8,
-    pub channels: u8,
-    pub order_pairs: [OrderPair; 8],
-    pub color_stages: [StageColor; 16],
-    pub alpha_stages: [StageAlpha; 16],
+    pub active_stages: u8,
+    pub active_channels: u8,
+    pub stage_ops: [StageOps; 16],
+    pub stage_refs: [StageRefsPair; 8],
 }

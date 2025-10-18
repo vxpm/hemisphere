@@ -3,7 +3,7 @@
 use crate::system::gpu::{
     Topology, VertexAttributes,
     command::attributes::Rgba,
-    environment::{StageAlpha, StageColor},
+    environment::{StageOps, StageRefs},
     pixel::DepthMode,
     texture::Rgba8,
 };
@@ -17,8 +17,8 @@ pub struct Viewport {
 
 #[derive(Debug, Clone)]
 pub struct TevStage {
-    pub color: StageColor,
-    pub alpha: StageAlpha,
+    pub ops: StageOps,
+    pub refs: StageRefs,
 }
 
 pub enum Action {

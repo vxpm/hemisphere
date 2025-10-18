@@ -26,7 +26,7 @@ pub struct Vertex {
 
 #[derive(Debug, Clone, Immutable, IntoBytes, Default, PartialEq)]
 #[repr(C)]
-pub struct TevStageConfig {
+pub struct TevOpConfig {
     pub input_a: u32,
     pub input_b: u32,
     pub input_c: u32,
@@ -37,17 +37,22 @@ pub struct TevStageConfig {
     pub bias: f32,
     pub scale: f32,
     pub clamp: u32,
+}
 
-    pub _pad0: u32,
-    pub _pad1: u32,
-    pub _pad2: u32,
+#[derive(Debug, Clone, Immutable, IntoBytes, Default, PartialEq)]
+#[repr(C)]
+pub struct TevStageRefs {
+    pub map: u32,
+    pub coord: u32,
+    pub color: u32,
 }
 
 #[derive(Debug, Clone, Immutable, IntoBytes, Default, PartialEq)]
 #[repr(C)]
 pub struct TevStage {
-    pub color: TevStageConfig,
-    pub alpha: TevStageConfig,
+    pub color: TevOpConfig,
+    pub alpha: TevOpConfig,
+    pub refs: TevStageRefs,
 }
 
 #[derive(Debug, Clone, Immutable, IntoBytes, Default, PartialEq)]
@@ -68,27 +73,31 @@ impl TevConfig {
         let mut data = std::array::from_fn::<TevStage, 16, _>(|_| TevStage::default());
 
         for (stage, data) in stages.into_iter().zip(data.iter_mut()) {
-            data.color.input_a = stage.color.input_a() as u32;
-            data.color.input_b = stage.color.input_b() as u32;
-            data.color.input_c = stage.color.input_c() as u32;
-            data.color.input_d = stage.color.input_d() as u32;
-            data.color.output = stage.color.output() as u32;
+            data.color.input_a = stage.ops.color.input_a() as u32;
+            data.color.input_b = stage.ops.color.input_b() as u32;
+            data.color.input_c = stage.ops.color.input_c() as u32;
+            data.color.input_d = stage.ops.color.input_d() as u32;
+            data.color.output = stage.ops.color.output() as u32;
 
-            data.color.sign = if stage.color.negate() { -1.0 } else { 1.0 };
-            data.color.bias = stage.color.bias().value();
-            data.color.scale = stage.color.scale().value();
+            data.color.sign = if stage.ops.color.negate() { -1.0 } else { 1.0 };
+            data.color.bias = stage.ops.color.bias().value();
+            data.color.scale = stage.ops.color.scale().value();
             data.color.clamp = 0;
 
-            data.alpha.input_a = stage.alpha.input_a() as u32;
-            data.alpha.input_b = stage.alpha.input_b() as u32;
-            data.alpha.input_c = stage.alpha.input_c() as u32;
-            data.alpha.input_d = stage.alpha.input_d() as u32;
-            data.alpha.output = stage.alpha.output() as u32;
+            data.alpha.input_a = stage.ops.alpha.input_a() as u32;
+            data.alpha.input_b = stage.ops.alpha.input_b() as u32;
+            data.alpha.input_c = stage.ops.alpha.input_c() as u32;
+            data.alpha.input_d = stage.ops.alpha.input_d() as u32;
+            data.alpha.output = stage.ops.alpha.output() as u32;
 
-            data.alpha.sign = if stage.alpha.negate() { -1.0 } else { 1.0 };
-            data.alpha.bias = stage.alpha.bias().value();
-            data.alpha.scale = stage.alpha.scale().value();
+            data.alpha.sign = if stage.ops.alpha.negate() { -1.0 } else { 1.0 };
+            data.alpha.bias = stage.ops.alpha.bias().value();
+            data.alpha.scale = stage.ops.alpha.scale().value();
             data.alpha.clamp = 0;
+
+            data.refs.map = stage.refs.map().value() as u32;
+            data.refs.coord = stage.refs.coord().value() as u32;
+            data.refs.color = stage.refs.color() as u32;
         }
 
         Self {

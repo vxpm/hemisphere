@@ -62,14 +62,14 @@ pub enum Reg {
     RasterSs0 = 0x25,
     RasterSs1 = 0x26,
 
-    TevOrder01 = 0x28,
-    TevOrder23 = 0x29,
-    TevOrder45 = 0x2A,
-    TevOrder67 = 0x2B,
-    TevOrder89 = 0x2C,
-    TevOrderAB = 0x2D,
-    TevOrderCD = 0x2E,
-    TevOrderEF = 0x2F,
+    TevRefs01 = 0x28,
+    TevRefs23 = 0x29,
+    TevRefs45 = 0x2A,
+    TevRefs67 = 0x2B,
+    TevRefs89 = 0x2C,
+    TevRefsAB = 0x2D,
+    TevRefsCD = 0x2E,
+    TevRefsEF = 0x2F,
 
     SetupSsize0 = 0x30,
     SetupTsize0 = 0x31,
@@ -354,14 +354,34 @@ impl System {
         match reg {
             Reg::GenMode => {
                 let mode = GenMode::from_bits(value);
-                self.gpu.environment.stages = mode.tev_stages_minus_one().value() + 1;
-                self.gpu.environment.channels = mode.color_channels_count().value();
+                self.gpu.environment.active_stages = mode.tev_stages_minus_one().value() + 1;
+                self.gpu.environment.active_channels = mode.color_channels_count().value();
                 tracing::debug!(?mode);
             }
 
-            Reg::TevOrder01 => {
-                value.write_ne_bytes(self.gpu.environment.order_pairs[0].as_mut_bytes());
-                tracing::debug!(texref0 = ?self.gpu.environment.order_pairs[0]);
+            Reg::TevRefs01 => {
+                value.write_ne_bytes(self.gpu.environment.stage_refs[0].as_mut_bytes())
+            }
+            Reg::TevRefs23 => {
+                value.write_ne_bytes(self.gpu.environment.stage_refs[1].as_mut_bytes())
+            }
+            Reg::TevRefs45 => {
+                value.write_ne_bytes(self.gpu.environment.stage_refs[2].as_mut_bytes())
+            }
+            Reg::TevRefs67 => {
+                value.write_ne_bytes(self.gpu.environment.stage_refs[3].as_mut_bytes())
+            }
+            Reg::TevRefs89 => {
+                value.write_ne_bytes(self.gpu.environment.stage_refs[4].as_mut_bytes())
+            }
+            Reg::TevRefsAB => {
+                value.write_ne_bytes(self.gpu.environment.stage_refs[5].as_mut_bytes())
+            }
+            Reg::TevRefsCD => {
+                value.write_ne_bytes(self.gpu.environment.stage_refs[6].as_mut_bytes())
+            }
+            Reg::TevRefsEF => {
+                value.write_ne_bytes(self.gpu.environment.stage_refs[7].as_mut_bytes())
             }
 
             Reg::PixelZMode => {
@@ -405,100 +425,100 @@ impl System {
             }
 
             Reg::TevColor0 => {
-                value.write_ne_bytes(self.gpu.environment.color_stages[0].as_mut_bytes());
+                value.write_ne_bytes(self.gpu.environment.stage_ops[0].color.as_mut_bytes());
             }
             Reg::TevAlpha0 => {
-                value.write_ne_bytes(self.gpu.environment.alpha_stages[0].as_mut_bytes());
+                value.write_ne_bytes(self.gpu.environment.stage_ops[0].alpha.as_mut_bytes());
             }
             Reg::TevColor1 => {
-                value.write_ne_bytes(self.gpu.environment.color_stages[1].as_mut_bytes());
+                value.write_ne_bytes(self.gpu.environment.stage_ops[1].color.as_mut_bytes());
             }
             Reg::TevAlpha1 => {
-                value.write_ne_bytes(self.gpu.environment.alpha_stages[1].as_mut_bytes());
+                value.write_ne_bytes(self.gpu.environment.stage_ops[1].alpha.as_mut_bytes());
             }
             Reg::TevColor2 => {
-                value.write_ne_bytes(self.gpu.environment.color_stages[2].as_mut_bytes());
+                value.write_ne_bytes(self.gpu.environment.stage_ops[2].color.as_mut_bytes());
             }
             Reg::TevAlpha2 => {
-                value.write_ne_bytes(self.gpu.environment.alpha_stages[2].as_mut_bytes());
+                value.write_ne_bytes(self.gpu.environment.stage_ops[2].alpha.as_mut_bytes());
             }
             Reg::TevColor3 => {
-                value.write_ne_bytes(self.gpu.environment.color_stages[3].as_mut_bytes());
+                value.write_ne_bytes(self.gpu.environment.stage_ops[3].color.as_mut_bytes());
             }
             Reg::TevAlpha3 => {
-                value.write_ne_bytes(self.gpu.environment.alpha_stages[3].as_mut_bytes());
+                value.write_ne_bytes(self.gpu.environment.stage_ops[3].alpha.as_mut_bytes());
             }
             Reg::TevColor4 => {
-                value.write_ne_bytes(self.gpu.environment.color_stages[4].as_mut_bytes());
+                value.write_ne_bytes(self.gpu.environment.stage_ops[4].color.as_mut_bytes());
             }
             Reg::TevAlpha4 => {
-                value.write_ne_bytes(self.gpu.environment.alpha_stages[4].as_mut_bytes());
+                value.write_ne_bytes(self.gpu.environment.stage_ops[4].alpha.as_mut_bytes());
             }
             Reg::TevColor5 => {
-                value.write_ne_bytes(self.gpu.environment.color_stages[5].as_mut_bytes());
+                value.write_ne_bytes(self.gpu.environment.stage_ops[5].color.as_mut_bytes());
             }
             Reg::TevAlpha5 => {
-                value.write_ne_bytes(self.gpu.environment.alpha_stages[5].as_mut_bytes());
+                value.write_ne_bytes(self.gpu.environment.stage_ops[5].alpha.as_mut_bytes());
             }
             Reg::TevColor6 => {
-                value.write_ne_bytes(self.gpu.environment.color_stages[6].as_mut_bytes());
+                value.write_ne_bytes(self.gpu.environment.stage_ops[6].color.as_mut_bytes());
             }
             Reg::TevAlpha6 => {
-                value.write_ne_bytes(self.gpu.environment.alpha_stages[6].as_mut_bytes());
+                value.write_ne_bytes(self.gpu.environment.stage_ops[6].alpha.as_mut_bytes());
             }
             Reg::TevColor7 => {
-                value.write_ne_bytes(self.gpu.environment.color_stages[7].as_mut_bytes());
+                value.write_ne_bytes(self.gpu.environment.stage_ops[7].color.as_mut_bytes());
             }
             Reg::TevAlpha7 => {
-                value.write_ne_bytes(self.gpu.environment.alpha_stages[7].as_mut_bytes());
+                value.write_ne_bytes(self.gpu.environment.stage_ops[7].alpha.as_mut_bytes());
             }
             Reg::TevColor8 => {
-                value.write_ne_bytes(self.gpu.environment.color_stages[8].as_mut_bytes());
+                value.write_ne_bytes(self.gpu.environment.stage_ops[8].color.as_mut_bytes());
             }
             Reg::TevAlpha8 => {
-                value.write_ne_bytes(self.gpu.environment.alpha_stages[8].as_mut_bytes());
+                value.write_ne_bytes(self.gpu.environment.stage_ops[8].alpha.as_mut_bytes());
             }
             Reg::TevColor9 => {
-                value.write_ne_bytes(self.gpu.environment.color_stages[9].as_mut_bytes());
+                value.write_ne_bytes(self.gpu.environment.stage_ops[9].color.as_mut_bytes());
             }
             Reg::TevAlpha9 => {
-                value.write_ne_bytes(self.gpu.environment.alpha_stages[9].as_mut_bytes());
+                value.write_ne_bytes(self.gpu.environment.stage_ops[9].alpha.as_mut_bytes());
             }
             Reg::TevColor10 => {
-                value.write_ne_bytes(self.gpu.environment.color_stages[10].as_mut_bytes());
+                value.write_ne_bytes(self.gpu.environment.stage_ops[10].color.as_mut_bytes());
             }
             Reg::TevAlpha10 => {
-                value.write_ne_bytes(self.gpu.environment.alpha_stages[10].as_mut_bytes());
+                value.write_ne_bytes(self.gpu.environment.stage_ops[10].alpha.as_mut_bytes());
             }
             Reg::TevColor11 => {
-                value.write_ne_bytes(self.gpu.environment.color_stages[11].as_mut_bytes());
+                value.write_ne_bytes(self.gpu.environment.stage_ops[11].color.as_mut_bytes());
             }
             Reg::TevAlpha11 => {
-                value.write_ne_bytes(self.gpu.environment.alpha_stages[11].as_mut_bytes());
+                value.write_ne_bytes(self.gpu.environment.stage_ops[11].alpha.as_mut_bytes());
             }
             Reg::TevColor12 => {
-                value.write_ne_bytes(self.gpu.environment.color_stages[12].as_mut_bytes());
+                value.write_ne_bytes(self.gpu.environment.stage_ops[12].color.as_mut_bytes());
             }
             Reg::TevAlpha12 => {
-                value.write_ne_bytes(self.gpu.environment.alpha_stages[12].as_mut_bytes());
+                value.write_ne_bytes(self.gpu.environment.stage_ops[12].alpha.as_mut_bytes());
             }
             Reg::TevColor13 => {
-                value.write_ne_bytes(self.gpu.environment.color_stages[13].as_mut_bytes());
+                value.write_ne_bytes(self.gpu.environment.stage_ops[13].color.as_mut_bytes());
             }
             Reg::TevAlpha13 => {
-                value.write_ne_bytes(self.gpu.environment.alpha_stages[13].as_mut_bytes());
+                value.write_ne_bytes(self.gpu.environment.stage_ops[13].alpha.as_mut_bytes());
             }
             Reg::TevColor14 => {
-                value.write_ne_bytes(self.gpu.environment.color_stages[14].as_mut_bytes());
+                value.write_ne_bytes(self.gpu.environment.stage_ops[14].color.as_mut_bytes());
             }
             Reg::TevAlpha14 => {
-                value.write_ne_bytes(self.gpu.environment.alpha_stages[14].as_mut_bytes());
+                value.write_ne_bytes(self.gpu.environment.stage_ops[14].alpha.as_mut_bytes());
             }
             Reg::TevColor15 => {
-                value.write_ne_bytes(self.gpu.environment.color_stages[15].as_mut_bytes());
+                value.write_ne_bytes(self.gpu.environment.stage_ops[15].color.as_mut_bytes());
             }
             Reg::TevAlpha15 => {
-                value.write_ne_bytes(self.gpu.environment.alpha_stages[15].as_mut_bytes());
+                value.write_ne_bytes(self.gpu.environment.stage_ops[15].alpha.as_mut_bytes());
             }
             _ => tracing::warn!("unimplemented write to internal GX register {reg:?}"),
         }
@@ -507,12 +527,18 @@ impl System {
             let stages = self
                 .gpu
                 .environment
-                .color_stages
+                .stage_ops
                 .iter()
                 .cloned()
-                .zip(self.gpu.environment.alpha_stages.iter().cloned())
-                .take(self.gpu.environment.stages as usize)
-                .map(|(color, alpha)| TevStage { color, alpha })
+                .take(self.gpu.environment.active_stages as usize)
+                .enumerate()
+                .map(|(i, ops)| {
+                    let pair = &self.gpu.environment.stage_refs[i / 2];
+                    TevStage {
+                        ops,
+                        refs: if i % 2 == 0 { pair.a() } else { pair.b() },
+                    }
+                })
                 .collect::<Vec<_>>();
 
             self.config.renderer.exec(Action::SetTevStages(stages));
