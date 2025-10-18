@@ -1,4 +1,5 @@
 import package::tev::{input, input::Input};
+import package::uber;
 
 const PLACEHOLDER_RGB: vec3f = vec3f(1.0, 0.0, 0.8627);
 const PLACEHOLDER_RGBA: vec4f = vec4f(1.0, 0.0, 0.8627, 0.5);
@@ -45,6 +46,7 @@ struct Config {
 struct State {
     regs: array<vec4f, 4>,
     diffuse: vec4f,
+    uv: vec2f,
 }
 
 /// Returns the value for the given input in the given state.
@@ -78,10 +80,12 @@ fn get_color_input(state: ptr<function, State>, value: Input) -> vec3f {
 
         // Texture colors
         case input::COLOR_TEX_COLOR: {
-            return PLACEHOLDER_RGB;
+            let sample = textureSample(uber::texture0, uber::sampler0, state.uv);
+            return sample.rgb;
         }
         case input::COLOR_TEX_ALPHA: {
-            return PLACEHOLDER_RGBA.aaa;
+            let sample = textureSample(uber::texture0, uber::sampler0, state.uv);
+            return sample.aaa;
         }
 
         // Rasterizer colors
@@ -131,7 +135,8 @@ fn get_alpha_input(state: ptr<function, State>, value: Input) -> f32 {
 
         // Texture colors
         case input::ALPHA_TEX: {
-            return PLACEHOLDER_RGBA.a;
+            let sample = textureSample(uber::texture0, uber::sampler0, state.uv);
+            return sample.a;
         }
 
         // Rasterizer colors
@@ -163,9 +168,10 @@ fn compute_stage_alpha(a: f32, b: f32, c: f32, d: f32, sign: f32, bias: f32, sca
     return (lerp + d + bias) * scale;
 }
 
-fn compute(config: Config, diffuse: vec4f) -> vec4f {
+fn compute(config: Config, diffuse: vec4f, uv: vec2f) -> vec4f {
     var state: State;
     state.diffuse = diffuse;
+    state.uv = uv;
 
     var last_color_output = PLACEHOLDER_RGB;
     var last_alpha_output = 1.0;

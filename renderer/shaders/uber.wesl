@@ -30,15 +30,36 @@ struct Vertex {
     tex_coord_mat: array<MatIdx, 8> // 4 * 8 = 32 bytes
 };
 
+// Primitives group
 @group(0) @binding(0) var<storage> configs: array<Config>;
 @group(0) @binding(1) var<storage> matrices: array<mat4x4f>;
 @group(0) @binding(2) var<storage> vertices: array<Vertex>;
+
+// Textures group
+@group(1) @binding(0) var texture0: texture_2d<f32>;
+@group(1) @binding(1) var sampler0: sampler;
+@group(1) @binding(2) var texture1: texture_2d<f32>;
+@group(1) @binding(3) var sampler1: sampler;
+@group(1) @binding(4) var texture2: texture_2d<f32>;
+@group(1) @binding(5) var sampler2: sampler;
+@group(1) @binding(6) var texture3: texture_2d<f32>;
+@group(1) @binding(7) var sampler3: sampler;
+
+@group(1) @binding(8) var texture4: texture_2d<f32>;
+@group(1) @binding(9) var sampler4: sampler;
+@group(1) @binding(10) var texture5: texture_2d<f32>;
+@group(1) @binding(11) var sampler5: sampler;
+@group(1) @binding(12) var texture6: texture_2d<f32>;
+@group(1) @binding(13) var sampler6: sampler;
+@group(1) @binding(14) var texture7: texture_2d<f32>;
+@group(1) @binding(15) var sampler7: sampler;
 
 struct VertexOutput {
     @builtin(position) clip: vec4f,
     @location(0) config: u32,
     @location(1) diffuse_color: vec4f,
     @location(2) specular_color: vec4f,
+    @location(3) uv: vec2f,
 };
 
 @vertex
@@ -57,6 +78,7 @@ fn vs_main(@builtin(vertex_index) index: u32) -> VertexOutput {
 
     out.diffuse_color = vertex.diffuse;
     out.specular_color = vertex.specular;
+    out.uv = vertex.tex_coord[0];
 
     return out;
 }
@@ -64,5 +86,5 @@ fn vs_main(@builtin(vertex_index) index: u32) -> VertexOutput {
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4f {
     let config = &configs[in.config];
-    return tev::compute(config.tev_config, in.diffuse_color);
+    return tev::compute(config.tev_config, in.diffuse_color, in.uv);
 }

@@ -26,8 +26,16 @@ pub enum Action {
     SetDepthMode(DepthMode),
     SetProjectionMatrix(Mat4),
     SetTevStages(Vec<TevStage>),
+    SetTexture {
+        index: usize,
+        width: u32,
+        height: u32,
+        data: Vec<u8>,
+    },
     Draw(Topology, Vec<VertexAttributes>),
-    EfbCopy { clear: bool },
+    EfbCopy {
+        clear: bool,
+    },
 }
 
 pub trait Renderer: Send + Sync {

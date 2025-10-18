@@ -1,9 +1,11 @@
 mod data;
 mod pipeline;
+mod textures;
 mod viewport;
 
 use crate::render::{
     pipeline::{Pipeline, PipelineSettings},
+    textures::Textures,
     viewport::Framebuffer,
 };
 use data::*;
@@ -40,6 +42,7 @@ pub struct Renderer {
 
     pipeline: Pipeline,
     framebuffer: Framebuffer,
+    textures: Textures,
 
     queued_clear: bool,
     clear_color: wgpu::Color,
@@ -58,12 +61,14 @@ impl Renderer {
     pub fn new(device: wgpu::Device, queue: wgpu::Queue) -> Self {
         let framebuffer = Framebuffer::new(&device);
         let pipeline = Pipeline::new(&device);
+        let textures = Textures::new(&device);
         let mut value = Self {
             device,
             queue,
 
             pipeline,
             framebuffer,
+            textures,
 
             clear_color: wgpu::Color::BLACK,
             current_config: Default::default(),
@@ -193,6 +198,8 @@ impl Renderer {
     }
 
     pub fn set_tev_stages(&mut self, stages: Vec<render::TevStage>) {
+        dbg!(&stages);
+
         let new = TevConfig::new(stages);
         if self.current_config.tev == new {
             return;
@@ -200,6 +207,12 @@ impl Renderer {
 
         self.current_config.tev = new;
         self.update_config();
+    }
+
+    pub fn set_texture(&mut self, index: usize, width: u32, height: u32, data: &[u8]) {
+        self.flush(false);
+        self.textures
+            .update_texture(&self.device, &self.queue, index, width, height, data);
     }
 
     pub fn draw_quad_list(&mut self, vertices: &[VertexAttributes]) {
@@ -283,9 +296,16 @@ impl Renderer {
                 usage: wgpu::BufferUsages::STORAGE,
             });
 
-        let group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+        let textures = self
+            .textures
+            .textures()
+            .clone()
+            .map(|tex| tex.create_view(&Default::default()));
+        let samplers = self.textures.samplers();
+
+        let primitives_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: None,
-            layout: self.pipeline.group_layout(),
+            layout: self.pipeline.primitives_group_layout(),
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
@@ -312,6 +332,26 @@ impl Renderer {
                     }),
                 },
             ],
+        });
+
+        let textures_group_entries: [wgpu::BindGroupEntry; 16] = std::array::from_fn(|binding| {
+            let tex = binding / 2;
+            if binding % 2 == 0 {
+                wgpu::BindGroupEntry {
+                    binding: binding as u32,
+                    resource: wgpu::BindingResource::TextureView(&textures[tex]),
+                }
+            } else {
+                wgpu::BindGroupEntry {
+                    binding: binding as u32,
+                    resource: wgpu::BindingResource::Sampler(&samplers[tex]),
+                }
+            }
+        });
+        let textures_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: None,
+            layout: self.pipeline.textures_group_layout(),
+            entries: &textures_group_entries,
         });
 
         let framebuffer = self.framebuffer.back();
@@ -355,7 +395,8 @@ impl Renderer {
         });
 
         pass.set_pipeline(self.pipeline.pipeline());
-        pass.set_bind_group(0, Some(&group), &[]);
+        pass.set_bind_group(0, Some(&primitives_group), &[]);
+        pass.set_bind_group(1, Some(&textures_group), &[]);
         pass.set_index_buffer(index_buf.slice(..), wgpu::IndexFormat::Uint32);
         pass.draw_indexed(0..self.indices.len() as u32, 0, 0..1);
 

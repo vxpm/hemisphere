@@ -6,7 +6,8 @@ pub struct PipelineSettings {
 }
 
 pub struct Pipeline {
-    group_layout: wgpu::BindGroupLayout,
+    group0_layout: wgpu::BindGroupLayout,
+    group1_layout: wgpu::BindGroupLayout,
     layout: wgpu::PipelineLayout,
     module: wgpu::ShaderModule,
     pipeline: wgpu::RenderPipeline,
@@ -61,7 +62,7 @@ impl Pipeline {
     }
 
     pub fn new(device: &wgpu::Device) -> Self {
-        let group_layout_entry = |binding| wgpu::BindGroupLayoutEntry {
+        let storage_buffer = |binding| wgpu::BindGroupLayoutEntry {
             binding,
             visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
             ty: wgpu::BindingType::Buffer {
@@ -71,18 +72,52 @@ impl Pipeline {
             },
             count: None,
         };
-        let group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        let group0_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: None,
+            entries: &[storage_buffer(0), storage_buffer(1), storage_buffer(2)],
+        });
+
+        let tex = |binding| wgpu::BindGroupLayoutEntry {
+            binding,
+            visibility: wgpu::ShaderStages::FRAGMENT,
+            ty: wgpu::BindingType::Texture {
+                sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                view_dimension: wgpu::TextureViewDimension::D2,
+                multisampled: false,
+            },
+            count: None,
+        };
+        let sampler = |binding| wgpu::BindGroupLayoutEntry {
+            binding,
+            visibility: wgpu::ShaderStages::FRAGMENT,
+            ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+            count: None,
+        };
+        let group1_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: None,
             entries: &[
-                group_layout_entry(0),
-                group_layout_entry(1),
-                group_layout_entry(2),
+                tex(0),
+                sampler(1),
+                tex(2),
+                sampler(3),
+                tex(4),
+                sampler(5),
+                tex(6),
+                sampler(7),
+                tex(8),
+                sampler(9),
+                tex(10),
+                sampler(11),
+                tex(12),
+                sampler(13),
+                tex(14),
+                sampler(15),
             ],
         });
 
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: None,
-            bind_group_layouts: &[&group_layout],
+            bind_group_layouts: &[&group0_layout, &group1_layout],
             push_constant_ranges: &[],
         });
 
@@ -102,15 +137,20 @@ impl Pipeline {
         );
 
         Self {
-            group_layout,
+            group0_layout,
+            group1_layout,
             layout,
             module,
             pipeline,
         }
     }
 
-    pub fn group_layout(&self) -> &wgpu::BindGroupLayout {
-        &self.group_layout
+    pub fn primitives_group_layout(&self) -> &wgpu::BindGroupLayout {
+        &self.group0_layout
+    }
+
+    pub fn textures_group_layout(&self) -> &wgpu::BindGroupLayout {
+        &self.group1_layout
     }
 
     pub fn pipeline(&self) -> &wgpu::RenderPipeline {

@@ -1,6 +1,7 @@
 pub mod command;
 pub mod environment;
 pub mod pixel;
+pub mod texture;
 pub mod transform;
 
 use super::System;
@@ -12,11 +13,11 @@ use crate::{
     },
 };
 use bitos::{
-    bitos,
+    BitUtils, bitos,
     integer::{UnsignedInt, u3, u4},
 };
 use common::{
-    Primitive,
+    Address, Primitive,
     bin::{BinReader, BinaryStream},
 };
 use glam::{Mat3, Mat4, Vec2, Vec3};
@@ -114,60 +115,60 @@ pub enum Reg {
     ScissorOffset = 0x59,
 
     // TX
-    TxInvTags = 0x66,
-    TxPerfMode = 0x67,
-    TxFieldMode = 0x68,
-    TxRefresh = 0x69,
+    TexInvTags = 0x66,
+    TexPerfMode = 0x67,
+    TexFieldMode = 0x68,
+    TexRefresh = 0x69,
 
-    TxMode0 = 0x80,
-    TxMode1 = 0x81,
-    TxMode2 = 0x82,
-    TxMode3 = 0x83,
-    TxMode0Lod = 0x84,
-    TxMode1Lod = 0x85,
-    TxMode2Lod = 0x86,
-    TxMode3Lod = 0x87,
-    TxFormat0 = 0x88,
-    TxFormat1 = 0x89,
-    TxFormat2 = 0x8A,
-    TxFormat3 = 0x8B,
-    TxEvenLodAddress0 = 0x8C,
-    TxEvenLodAddress1 = 0x8D,
-    TxEvenLodAddress2 = 0x8E,
-    TxEvenLodAddress3 = 0x8F,
-    TxOddLodAddress0 = 0x90,
-    TxOddLodAddress1 = 0x91,
-    TxOddLodAddress2 = 0x92,
-    TxOddLodAddress3 = 0x93,
-    TxAddress0 = 0x94,
-    TxAddress1 = 0x95,
-    TxAddress2 = 0x96,
-    TxAddress3 = 0x97,
+    TexMode0 = 0x80,
+    TexMode1 = 0x81,
+    TexMode2 = 0x82,
+    TexMode3 = 0x83,
+    TexMode0Lod = 0x84,
+    TexMode1Lod = 0x85,
+    TexMode2Lod = 0x86,
+    TexMode3Lod = 0x87,
+    TexFormat0 = 0x88,
+    TexFormat1 = 0x89,
+    TexFormat2 = 0x8A,
+    TexFormat3 = 0x8B,
+    TexEvenLodAddress0 = 0x8C,
+    TexEvenLodAddress1 = 0x8D,
+    TexEvenLodAddress2 = 0x8E,
+    TexEvenLodAddress3 = 0x8F,
+    TexOddLodAddress0 = 0x90,
+    TexOddLodAddress1 = 0x91,
+    TexOddLodAddress2 = 0x92,
+    TexOddLodAddress3 = 0x93,
+    TexAddress0 = 0x94,
+    TexAddress1 = 0x95,
+    TexAddress2 = 0x96,
+    TexAddress3 = 0x97,
 
-    TxMode4 = 0xA0,
-    TxMode5 = 0xA1,
-    TxMode6 = 0xA2,
-    TxMode7 = 0xA3,
-    TxMode4Lod = 0xA4,
-    TxMode5Lod = 0xA5,
-    TxMode6Lod = 0xA6,
-    TxMode7Lod = 0xA7,
-    TxFormat4 = 0xA8,
-    TxFormat5 = 0xA9,
-    TxFormat6 = 0xAA,
-    TxFormat7 = 0xAB,
-    TxEvenLodAddress4 = 0xAC,
-    TxEvenLodAddress5 = 0xAD,
-    TxEvenLodAddress6 = 0xAE,
-    TxEvenLodAddress7 = 0xAF,
-    TxOddLodAddress4 = 0xB0,
-    TxOddLodAddress5 = 0xB1,
-    TxOddLodAddress6 = 0xB2,
-    TxOddLodAddress7 = 0xB3,
-    TxAddress4 = 0xB4,
-    TxAddress5 = 0xB5,
-    TxAddress6 = 0xB6,
-    TxAddress7 = 0xB7,
+    TexMode4 = 0xA0,
+    TexMode5 = 0xA1,
+    TexMode6 = 0xA2,
+    TexMode7 = 0xA3,
+    TexMode4Lod = 0xA4,
+    TexMode5Lod = 0xA5,
+    TexMode6Lod = 0xA6,
+    TexMode7Lod = 0xA7,
+    TexFormat4 = 0xA8,
+    TexFormat5 = 0xA9,
+    TexFormat6 = 0xAA,
+    TexFormat7 = 0xAB,
+    TexEvenLodAddress4 = 0xAC,
+    TexEvenLodAddress5 = 0xAD,
+    TexEvenLodAddress6 = 0xAE,
+    TexEvenLodAddress7 = 0xAF,
+    TexOddLodAddress4 = 0xB0,
+    TexOddLodAddress5 = 0xB1,
+    TexOddLodAddress6 = 0xB2,
+    TexOddLodAddress7 = 0xB3,
+    TexAddress4 = 0xB4,
+    TexAddress5 = 0xB5,
+    TexAddress6 = 0xB6,
+    TexAddress7 = 0xB7,
 
     // TEV
     TevColor0 = 0xC0,
@@ -344,6 +345,7 @@ pub struct Gpu {
     pub command: command::Interface,
     pub transform: transform::Interface,
     pub environment: environment::Interface,
+    pub texture: texture::Interface,
     pub pixel: pixel::Interface,
 }
 
@@ -385,6 +387,21 @@ impl System {
                 self.config
                     .renderer
                     .exec(Action::EfbCopy { clear: cmd.clear() });
+            }
+
+            Reg::TexMode0 => {
+                value.write_ne_bytes(self.gpu.texture.maps[0].mode.as_mut_bytes());
+                self.gpu.texture.maps[0].dirty = true;
+            }
+
+            Reg::TexFormat0 => {
+                value.write_ne_bytes(self.gpu.texture.maps[0].format.as_mut_bytes());
+                self.gpu.texture.maps[0].dirty = true;
+            }
+
+            Reg::TexAddress0 => {
+                self.gpu.texture.maps[0].address = Address(value << 5);
+                self.gpu.texture.maps[0].dirty = true;
             }
 
             Reg::TevColor0 => {
@@ -622,7 +639,60 @@ impl System {
         vertices
     }
 
+    pub fn gx_update_texture(&mut self, index: usize) {
+        let map = self.gpu.texture.maps[index];
+        let start = map.address.value() as usize;
+        let len = map.format.size().value() as usize;
+        let slice = &self.mem.ram[start..][..len];
+
+        let width = map.format.width();
+        let height = map.format.height();
+
+        let mut data = vec![[0; 4]; width as usize * height as usize];
+        match map.format.data_format() {
+            texture::DataFormat::Rgb565 => {
+                for (i, pixel) in slice.chunks_exact(2).enumerate() {
+                    let tile_index = i / 16;
+
+                    let tile_y = tile_index / (height as usize / 4);
+                    let tile_x = tile_index % (height as usize / 4);
+
+                    let inner_y = (i % 16) / 4;
+                    let inner_x = (i % 16) % 4;
+
+                    let pixel = u16::read_be_bytes(pixel);
+                    let r = pixel.bits(11, 16) as u8 * 8;
+                    let g = pixel.bits(5, 11) as u8 * 4;
+                    let b = pixel.bits(0, 5) as u8 * 8;
+                    let a = 255;
+
+                    let x = 4 * tile_x + inner_x;
+                    let y = 4 * tile_y + inner_y;
+
+                    data[y * width as usize + x] = [r, g, b, a];
+                }
+            }
+            _ => todo!(),
+        }
+
+        self.config.renderer.exec(Action::SetTexture {
+            index,
+            width,
+            height,
+            data: data.into_iter().flatten().collect(),
+        });
+    }
+
     pub fn gx_draw(&mut self, topology: Topology, stream: &VertexAttributeStream) {
+        for map in 0..8 {
+            if !self.gpu.texture.maps[map].dirty {
+                continue;
+            }
+
+            self.gpu.texture.maps[map].dirty = false;
+            self.gx_update_texture(map);
+        }
+
         let attributes = self.gx_extract_attributes(stream);
         self.config
             .renderer

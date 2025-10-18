@@ -41,6 +41,12 @@ impl Inner {
             Action::SetDepthMode(mode) => self.renderer.set_depth_mode(mode),
             Action::SetProjectionMatrix(mat) => self.renderer.set_projection_mat(mat),
             Action::SetTevStages(stages) => self.renderer.set_tev_stages(stages),
+            Action::SetTexture {
+                index,
+                width,
+                height,
+                data,
+            } => self.renderer.set_texture(index, width, height, &data),
             Action::Draw(topology, attributes) => match topology {
                 Topology::QuadList => self.renderer.draw_quad_list(&attributes),
                 Topology::TriangleList => self.renderer.draw_triangle_list(&attributes),
