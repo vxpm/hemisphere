@@ -13,7 +13,7 @@ use crate::{
     },
 };
 use bitos::{
-    BitUtils, bitos,
+    bitos,
     integer::{UnsignedInt, u3, u4},
 };
 use common::{
