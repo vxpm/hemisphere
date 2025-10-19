@@ -50,7 +50,65 @@ struct State {
     regs: array<vec4f, 4>,
     diffuse: vec4f,
     specular: vec4f,
-    uv: vec2f,
+    coords: array<vec3f, 8>,
+    
+    // per stage
+    current_map: u32,
+    current_coord: u32,
+    current_color: u32,
+}
+
+fn sample_tex(state: ptr<function, State>) -> vec4f {
+    let coord = state.coords[state.current_coord].xy;
+    var sample: vec4f;
+    switch state.current_map {
+        case 0: {
+            sample = textureSample(uber::texture0, uber::sampler0, coord);
+        }
+        case 1: {
+            sample = textureSample(uber::texture1, uber::sampler1, coord);
+        }
+        case 2: {
+            sample = textureSample(uber::texture2, uber::sampler2, coord);
+        }
+        case 3: {
+            sample = textureSample(uber::texture3, uber::sampler3, coord);
+        }
+        case 4: {
+            sample = textureSample(uber::texture4, uber::sampler4, coord);
+        }
+        case 5: {
+            sample = textureSample(uber::texture5, uber::sampler5, coord);
+        }
+        case 6: {
+            sample = textureSample(uber::texture6, uber::sampler6, coord);
+        }
+        case 7: {
+            sample = textureSample(uber::texture7, uber::sampler7, coord);
+        }
+        default: {
+            sample = PLACEHOLDER_RGBA;
+        }
+    }
+
+    return sample;
+}
+
+fn get_color(state: ptr<function, State>) -> vec4f {
+    var color: vec4f;
+    switch state.current_color {
+        case 0: {
+            color = state.diffuse;
+        }
+        case 1: {
+            color = state.specular;
+        }
+        default: {
+            color = PLACEHOLDER_RGBA;
+        }
+    }
+
+    return color;
 }
 
 /// Returns the value for the given input in the given state.
@@ -84,20 +142,18 @@ fn get_color_input(state: ptr<function, State>, value: Input) -> vec3f {
 
         // Texture colors
         case input::COLOR_TEX_COLOR: {
-            let sample = textureSample(uber::texture0, uber::sampler0, state.uv);
-            return sample.rgb;
+            return sample_tex(state).rgb;
         }
         case input::COLOR_TEX_ALPHA: {
-            let sample = textureSample(uber::texture0, uber::sampler0, state.uv);
-            return sample.aaa;
+            return sample_tex(state).aaa;
         }
 
         // Rasterizer colors
         case input::COLOR_RAS_COLOR: {
-            return state.diffuse.rgb;
+            return get_color(state).rgb;
         }
         case input::COLOR_RAS_ALPHA: {
-            return state.diffuse.aaa;
+            return get_color(state).aaa;
         }
 
         // Constants
@@ -139,13 +195,12 @@ fn get_alpha_input(state: ptr<function, State>, value: Input) -> f32 {
 
         // Texture colors
         case input::ALPHA_TEX: {
-            let sample = textureSample(uber::texture0, uber::sampler0, state.uv);
-            return sample.a;
+            return sample_tex(state).a;
         }
 
         // Rasterizer colors
         case input::ALPHA_RAS: {
-            return state.diffuse.a;
+            return get_color(state).a;
         }
 
         // Constants
@@ -172,17 +227,20 @@ fn compute_stage_alpha(a: f32, b: f32, c: f32, d: f32, sign: f32, bias: f32, sca
     return (lerp + d + bias) * scale;
 }
 
-fn compute(config: Config, diffuse: vec4f, specular: vec4f, uv: vec2f) -> vec4f {
+fn compute(config: Config, diffuse: vec4f, specular: vec4f, coords: array<vec3f, 8>) -> vec4f {
     var state: State;
     state.diffuse = diffuse;
     state.specular = specular;
-    state.uv = uv;
+    state.coords = coords;
 
     var last_color_output = PLACEHOLDER_RGB;
     var last_alpha_output = 1.0;
 
     for (var i = 0u; i < config.count; i ++) {
         let stage = config.stages[i];
+        state.current_map = stage.refs.map;
+        state.current_coord = stage.refs.coord;
+        state.current_color = stage.refs.color;
 
         let color_a = get_color_input(&state, stage.color.input_a);
         let color_b = get_color_input(&state, stage.color.input_b);

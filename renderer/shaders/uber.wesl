@@ -111,5 +111,19 @@ fn vs_main(@builtin(vertex_index) index: u32) -> VertexOutput {
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4f {
     let config = &configs[in.config];
-    return tev::compute(config.tev, in.diffuse_color, in.specular_color, in.tex_coord0.xy);
+    return tev::compute(
+        config.tev, 
+        in.diffuse_color, 
+        in.specular_color, 
+        array(
+            in.tex_coord0,
+            in.tex_coord1,
+            in.tex_coord2,
+            in.tex_coord3,
+            in.tex_coord4,
+            in.tex_coord5,
+            in.tex_coord6,
+            in.tex_coord7,
+        )
+    );
 }
