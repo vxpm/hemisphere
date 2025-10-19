@@ -4,12 +4,21 @@ members = [
     "common",
     "ppcjit",
     "dol",
-    "dolinfo",
+    "iso",
+    "cubefile",
     "hemisphere",
     "renderer",
     "app",
 ]
-default-members = ["common", "ppcjit", "dol", "hemisphere", "renderer", "app"]
+default-members = [
+    "common",
+    "ppcjit",
+    "dol",
+    "iso",
+    "hemisphere",
+    "renderer",
+    "app",
+]
 
 [profile.dev.package."x11rb-protocol"]
 opt-level = 0

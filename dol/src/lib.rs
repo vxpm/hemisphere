@@ -1,7 +1,7 @@
 //! A simple .dol file parser using [`binrw`].
 
 pub use binrw;
-use binrw::{BinRead, BinWrite, helpers::until_eof};
+use binrw::{BinRead, BinWrite};
 
 const HEADER_SIZE: usize = 0x100;
 
@@ -72,6 +72,16 @@ impl Header {
             })
         })
     }
+
+    pub fn size(&self) -> u32 {
+        let max_section_end = self
+            .text_sections()
+            .map(|sec| sec.offset + sec.size)
+            .max()
+            .unwrap_or_default();
+
+        max_section_end
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -85,10 +95,10 @@ pub struct Section<'a> {
 #[brw(big)]
 pub struct Dol {
     /// Header of the executable.
-    #[br(pad_size_to = HEADER_SIZE)]
+    #[brw(pad_size_to = HEADER_SIZE)]
     pub header: Header,
     /// Body of the executable.
-    #[br(parse_with = until_eof)]
+    #[br(count = header.size())]
     pub body: Vec<u8>,
 }
 

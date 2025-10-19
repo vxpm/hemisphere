@@ -927,6 +927,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "cubefile"
+version = "0.1.0"
+dependencies = [
+ "binrw",
+ "bytesize",
+ "clap",
+ "comfy-table",
+ "dol",
+ "eyre-pretty",
+ "iso",
+]
+
+[[package]]
 name = "cursor-icon"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1023,17 +1036,6 @@ name = "dol"
 version = "0.1.0"
 dependencies = [
  "binrw",
-]
-
-[[package]]
-name = "dolinfo"
-version = "0.1.0"
-dependencies = [
- "bytesize",
- "clap",
- "comfy-table",
- "dol",
- "eyre-pretty",
 ]
 
 [[package]]
@@ -1872,6 +1874,15 @@ name = "is_terminal_polyfill"
 version = "1.70.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7943c866cc5cd64cbc25b2e01621d07fa8eb2a1a23160ee81ce38704e97b8ecf"
+
+[[package]]
+name = "iso"
+version = "0.1.0"
+dependencies = [
+ "binrw",
+ "dol",
+ "easyerr",
+]
 
 [[package]]
 name = "itertools"
