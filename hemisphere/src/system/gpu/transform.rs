@@ -1,4 +1,4 @@
-use bitos::BitUtils;
+use bitos::{BitUtils, bitos, integer::u3};
 use common::util;
 use glam::{Mat3, Mat4};
 use strum::FromRepr;
@@ -44,22 +44,22 @@ pub enum Reg {
     ProjectionParam5 = 0x25,
     ProjectionOrthographic = 0x26,
     TexgenCount = 0x3F,
-    Tex0 = 0x40,
-    Tex1 = 0x41,
-    Tex2 = 0x42,
-    Tex3 = 0x43,
-    Tex4 = 0x44,
-    Tex5 = 0x45,
-    Tex6 = 0x46,
-    Tex7 = 0x47,
-    DualTex0 = 0x50,
-    DualTex1 = 0x51,
-    DualTex2 = 0x52,
-    DualTex3 = 0x53,
-    DualTex4 = 0x54,
-    DualTex5 = 0x55,
-    DualTex6 = 0x56,
-    DualTex7 = 0x57,
+    TexGen0 = 0x40,
+    TexGen1 = 0x41,
+    TexGen2 = 0x42,
+    TexGen3 = 0x43,
+    TexGen4 = 0x44,
+    TexGen5 = 0x45,
+    TexGen6 = 0x46,
+    TexGen7 = 0x47,
+    DualTexGen0 = 0x50,
+    DualTexGen1 = 0x51,
+    DualTexGen2 = 0x52,
+    DualTexGen3 = 0x53,
+    DualTexGen4 = 0x54,
+    DualTexGen5 = 0x55,
+    DualTexGen6 = 0x56,
+    DualTexGen7 = 0x57,
 }
 
 impl Reg {
@@ -79,6 +79,71 @@ impl Reg {
                 | Reg::ProjectionOrthographic
         )
     }
+}
+
+#[bitos(1)]
+#[derive(Debug, Clone, Copy, Default)]
+pub enum TexGenOutputKind {
+    #[default]
+    Vec2 = 0,
+    Vec3 = 1,
+}
+
+#[bitos(1)]
+#[derive(Debug, Clone, Copy, Default)]
+pub enum TexGenInputKind {
+    #[default]
+    AB11 = 0,
+    ABC1 = 1,
+}
+
+#[bitos(2)]
+#[derive(Debug, Clone, Copy, Default)]
+pub enum TexGenKind {
+    #[default]
+    Transform = 0b00,
+    Emboss = 0b01,
+    ColorDiffuse = 0b10,
+    ColorSpecular = 0b11,
+}
+
+#[bitos(4)]
+#[derive(Debug, Clone, Copy, Default)]
+pub enum TexGenSource {
+    #[default]
+    Position = 0x0,
+    Normal = 0x1,
+    Color = 0x2,
+    BinormalT = 0x3,
+    BinormalB = 0x4,
+    TexCoord0 = 0x5,
+    TexCoord1 = 0x6,
+    TexCoord2 = 0x7,
+    TexCoord3 = 0x8,
+    TexCoord4 = 0x9,
+    TexCoord5 = 0xA,
+    TexCoord6 = 0xB,
+    TexCoord7 = 0xC,
+    Reserved0 = 0xD,
+    Reserved1 = 0xE,
+    Reserved2 = 0xF,
+}
+
+#[bitos(32)]
+#[derive(Debug, Clone, Default)]
+pub struct TexGen {
+    #[bits(1)]
+    pub output_kind: TexGenOutputKind,
+    #[bits(2)]
+    pub input_kind: TexGenInputKind,
+    #[bits(4..6)]
+    pub kind: TexGenInputKind,
+    #[bits(7..11)]
+    pub source: TexGenSource,
+    #[bits(12..15)]
+    pub emboss_source: u3,
+    #[bits(15..17)]
+    pub emboss_light: u3,
 }
 
 #[derive(Debug, Default)]
