@@ -41,6 +41,7 @@ impl Inner {
             Action::SetDepthMode(mode) => self.renderer.set_depth_mode(mode),
             Action::SetProjectionMatrix(mat) => self.renderer.set_projection_mat(mat),
             Action::SetTevStages(stages) => self.renderer.set_tev_stages(stages),
+            Action::SetTexGens(texgens) => self.renderer.set_texgens(texgens),
             Action::SetTexture {
                 index,
                 width,

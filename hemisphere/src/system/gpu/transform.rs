@@ -3,7 +3,10 @@ use common::util;
 use glam::{Mat3, Mat4};
 use strum::FromRepr;
 
-use crate::{render::Action, system::System};
+use crate::{
+    render::{Action, TexGen},
+    system::System,
+};
 
 /// A transform unit register.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, FromRepr)]
@@ -43,7 +46,7 @@ pub enum Reg {
     ProjectionParam4 = 0x24,
     ProjectionParam5 = 0x25,
     ProjectionOrthographic = 0x26,
-    TexgenCount = 0x3F,
+    TexGenCount = 0x3F,
     TexGen0 = 0x40,
     TexGen1 = 0x41,
     TexGen2 = 0x42,
@@ -77,6 +80,21 @@ impl Reg {
                 | Reg::ProjectionParam4
                 | Reg::ProjectionParam5
                 | Reg::ProjectionOrthographic
+        )
+    }
+
+    pub fn is_texgen(&self) -> bool {
+        matches!(
+            self,
+            Reg::TexGenCount
+                | Reg::TexGen0
+                | Reg::TexGen1
+                | Reg::TexGen2
+                | Reg::TexGen3
+                | Reg::TexGen4
+                | Reg::TexGen5
+                | Reg::TexGen6
+                | Reg::TexGen7
         )
     }
 }
@@ -131,18 +149,18 @@ pub enum TexGenSource {
 
 #[bitos(32)]
 #[derive(Debug, Clone, Default)]
-pub struct TexGen {
+pub struct TexGenConfig {
     #[bits(1)]
     pub output_kind: TexGenOutputKind,
     #[bits(2)]
     pub input_kind: TexGenInputKind,
     #[bits(4..6)]
-    pub kind: TexGenInputKind,
+    pub kind: TexGenKind,
     #[bits(7..11)]
     pub source: TexGenSource,
     #[bits(12..15)]
     pub emboss_source: u3,
-    #[bits(15..17)]
+    #[bits(15..18)]
     pub emboss_light: u3,
 }
 
@@ -161,6 +179,8 @@ pub struct Internal {
     pub viewport: Viewport,
     pub projection_params: [f32; 6],
     pub projection_orthographic: bool,
+    pub texgens: [TexGenConfig; 8],
+    pub active_texgens: u8,
 }
 
 /// Transform unit
@@ -235,8 +255,36 @@ impl Interface {
 }
 
 impl System {
+    pub fn gx_update_texgens(&mut self) {
+        let mut texgens = Vec::new();
+        for (i, config) in self
+            .gpu
+            .transform
+            .internal
+            .texgens
+            .iter()
+            .take(self.gpu.transform.internal.active_texgens as usize)
+            .cloned()
+            .enumerate()
+        {
+            let mat_index = self
+                .gpu
+                .command
+                .internal
+                .mat_indices
+                .tex_at(i)
+                .unwrap()
+                .value();
+
+            let mat = self.gpu.transform.matrix(mat_index);
+            texgens.push(TexGen { config, mat });
+        }
+
+        self.config.renderer.exec(Action::SetTexGens(texgens));
+    }
+
     /// Sets the value of an internal transform unit register.
-    pub(super) fn xf_set(&mut self, reg: Reg, value: u32) {
+    pub fn xf_set(&mut self, reg: Reg, value: u32) {
         tracing::debug!("wrote {value:02X} to internal XF register {reg:?}");
 
         let xf = &mut self.gpu.transform.internal;
@@ -256,7 +304,21 @@ impl System {
             Reg::ProjectionParam5 => xf.projection_params[5] = f32::from_bits(value),
             Reg::ProjectionOrthographic => xf.projection_orthographic = value != 0,
 
+            Reg::TexGenCount => xf.active_texgens = value as u8,
+            Reg::TexGen0 => xf.texgens[0] = TexGenConfig::from_bits(value),
+            Reg::TexGen1 => xf.texgens[1] = TexGenConfig::from_bits(value),
+            Reg::TexGen2 => xf.texgens[2] = TexGenConfig::from_bits(value),
+            Reg::TexGen3 => xf.texgens[3] = TexGenConfig::from_bits(value),
+            Reg::TexGen4 => xf.texgens[4] = TexGenConfig::from_bits(value),
+            Reg::TexGen5 => xf.texgens[5] = TexGenConfig::from_bits(value),
+            Reg::TexGen6 => xf.texgens[6] = TexGenConfig::from_bits(value),
+            Reg::TexGen7 => xf.texgens[7] = TexGenConfig::from_bits(value),
+
             _ => tracing::warn!("unimplemented write to internal XF register {reg:?}"),
+        }
+
+        if reg.is_texgen() {
+            self.gx_update_texgens();
         }
 
         if reg.is_viewport_dimensions() {
@@ -276,7 +338,7 @@ impl System {
     }
 
     /// Writes to transform unit memory.
-    pub(super) fn xf_write(&mut self, addr: u16, value: u32) {
+    pub fn xf_write(&mut self, addr: u16, value: u32) {
         match addr {
             0x0000..0x0400 => self.gpu.transform.ram[addr as usize] = value,
             0x0400..0x0460 => self.gpu.transform.ram[addr as usize] = value.with_bits(0, 12, 0),

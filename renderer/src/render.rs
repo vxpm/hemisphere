@@ -207,6 +207,16 @@ impl Renderer {
         self.update_config();
     }
 
+    pub fn set_texgens(&mut self, texgens: Vec<render::TexGen>) {
+        let new = TexGenConfig::new(texgens, |mat| self.insert_matrix(mat));
+        if self.current_config.texgen == new {
+            return;
+        }
+
+        self.current_config.texgen = new;
+        self.update_config();
+    }
+
     pub fn set_texture(&mut self, index: usize, width: u32, height: u32, data: &[u8]) {
         self.flush(false);
         self.textures

@@ -6,6 +6,7 @@ use crate::system::gpu::{
     environment::{StageOps, StageRefs},
     pixel::DepthMode,
     texture::Rgba8,
+    transform::TexGenConfig,
 };
 use glam::Mat4;
 
@@ -21,12 +22,19 @@ pub struct TevStage {
     pub refs: StageRefs,
 }
 
+#[derive(Debug, Clone)]
+pub struct TexGen {
+    pub config: TexGenConfig,
+    pub mat: Mat4,
+}
+
 pub enum Action {
     SetViewport(Viewport),
     SetClearColor(Rgba),
     SetDepthMode(DepthMode),
     SetProjectionMatrix(Mat4),
     SetTevStages(Vec<TevStage>),
+    SetTexGens(Vec<TexGen>),
     SetTexture {
         index: usize,
         width: u32,

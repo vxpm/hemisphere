@@ -1,4 +1,4 @@
-use glam::{Vec2, Vec3};
+use glam::{Mat4, Vec2, Vec3};
 use hemisphere::{render, system::gpu::command::attributes::Rgba};
 use zerocopy::{Immutable, IntoBytes};
 
@@ -110,8 +110,59 @@ impl TevConfig {
     }
 }
 
+#[derive(Debug, Clone, Immutable, IntoBytes, Default, PartialEq)]
+#[repr(C)]
+pub struct TexGen {
+    pub kind: u32,
+    pub input_fmt: u32,
+    pub output_fmt: u32,
+    pub source: u32,
+    pub emboss_source: u32,
+    pub emboss_light: u32,
+    pub matrix: u32,
+    pub _pad0: u32,
+}
+
+#[derive(Debug, Clone, Immutable, IntoBytes, Default, PartialEq)]
+#[repr(C)]
+pub struct TexGenConfig {
+    pub count: u32,
+
+    pub _pad0: u32,
+    pub _pad1: u32,
+    pub _pad2: u32,
+
+    pub texgens: [TexGen; 8],
+}
+
+impl TexGenConfig {
+    pub fn new(texgens: Vec<render::TexGen>, mut insert_matrix: impl FnMut(Mat4) -> u32) -> Self {
+        let count = texgens.len() as u32;
+        let mut data = std::array::from_fn::<TexGen, 8, _>(|_| TexGen::default());
+
+        for (texgen, data) in texgens.into_iter().zip(data.iter_mut()) {
+            data.kind = texgen.config.kind() as u32;
+            data.input_fmt = texgen.config.input_kind() as u32;
+            data.output_fmt = texgen.config.output_kind() as u32;
+            data.source = texgen.config.source() as u32;
+            data.emboss_source = texgen.config.emboss_source().value() as u32;
+            data.emboss_light = texgen.config.emboss_light().value() as u32;
+            data.matrix = insert_matrix(texgen.mat);
+        }
+
+        Self {
+            count,
+            _pad0: 0,
+            _pad1: 0,
+            _pad2: 0,
+            texgens: data,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Immutable, IntoBytes, Default)]
 #[repr(C)]
 pub struct Config {
     pub tev: TevConfig,
+    pub texgen: TexGenConfig,
 }

@@ -1,4 +1,4 @@
-import package::tev;
+import package::{tev, texgen};
 
 alias MatIdx = u32;
 alias ConfigIdx = u32;
@@ -6,6 +6,7 @@ alias ConfigIdx = u32;
 // Rendering configuration
 struct Config {
     tev_config: tev::Config,
+    texgen_config: texgen::Config,
 };
 
 // A primitive vertex
