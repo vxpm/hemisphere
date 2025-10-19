@@ -100,7 +100,8 @@ impl Format {
         match self.data_format() {
             DataFormat::Intensity8 => pixels,
             DataFormat::Rgb565 => pixels * 2,
-            _ => todo!(),
+            DataFormat::Rgba8 => pixels * 4,
+            _ => todo!("format {:?}", self.data_format()),
         }
     }
 }
@@ -197,6 +198,17 @@ pub fn decode_texture(data: &[u8], format: Format) -> Vec<Rgba8> {
                     b: pixel.bits(0, 5) as u8 * 8,
                     a: 255,
                 }
+            })
+        }
+        DataFormat::Rgba8 => {
+            decode_basic_tex::<4, 4, _>(data, format.width(), format.height(), |data, index| {
+                let block = index / 16;
+                let pixel = index % 16;
+
+                let [a, r] = u16::read_be_bytes(&data[64 * block + 2 * pixel..]).to_be_bytes();
+                let [g, b] = u16::read_be_bytes(&data[64 * block + 2 * pixel + 32..]).to_be_bytes();
+
+                Rgba8 { r, g, b, a }
             })
         }
         _ => todo!("format {format:?}"),
