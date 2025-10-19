@@ -30,6 +30,14 @@ struct Refs {
     color: u32,
 };
 
+const COLOR_REF_DIFFUSE_COLOR: u32 = 0x0;
+const COLOR_REF_SPECULAR_COLOR: u32 = 0x1;
+const COLOR_REF_DIFFUSE_ALPHA: u32 = 0x2;
+const COLOR_REF_SPECULAR_ALPHA: u32 = 0x3;
+const COLOR_REF_DIFFUSE_COLOR_ALPHA: u32 = 0x4;
+const COLOR_REF_SPECULAR_COLOR_ALPHA: u32 = 0x5;
+const COLOR_REF_ZERO: u32 = 0x6;
+
 // Configuration for a TEV stage, both color and alpha operations.
 struct Stage {
     color: OpConfig, 
@@ -96,11 +104,27 @@ fn sample_tex(state: ptr<function, State>) -> vec4f {
 
 fn get_color(state: ptr<function, State>) -> vec4f {
     var color: vec4f;
+
+    // TODO: figure out these values, they look wrong and libogc does weird stuff
     switch state.current_color {
-        case 0: {
+        case COLOR_REF_DIFFUSE_COLOR: {
+            // color = vec4f(state.diffuse.rgb, 1.0);
             color = state.diffuse;
         }
-        case 1: {
+        case COLOR_REF_SPECULAR_COLOR: {
+            // color = vec4f(state.specular.rgb, 1.0);
+            color = state.specular;
+        }
+        case COLOR_REF_DIFFUSE_ALPHA: {
+            color = state.diffuse.aaaa;
+        }
+        case COLOR_REF_SPECULAR_ALPHA: {
+            color = state.specular.aaaa;
+        }
+        case COLOR_REF_DIFFUSE_COLOR_ALPHA: {
+            color = state.diffuse;
+        }
+        case COLOR_REF_SPECULAR_COLOR_ALPHA: {
             color = state.specular;
         }
         default: {
@@ -217,14 +241,26 @@ fn get_alpha_input(state: ptr<function, State>, value: Input) -> f32 {
     }
 }
 
-fn compute_stage_color(a: vec3f, b: vec3f, c: vec3f, d: vec3f, sign: f32, bias: f32, scale: f32) -> vec3f {
+fn compute_stage_color(a: vec3f, b: vec3f, c: vec3f, d: vec3f, sign: f32, bias: f32, scale: f32, clamp: u32) -> vec3f {
     let lerp = sign * (a * (vec3f(1.0) - c) + b * c);
-    return (lerp + d + bias) * scale;
+    let result = (lerp + d + bias) * scale;
+
+    if clamp != 0 {
+        return clamp(result, vec3f(0.0), vec3f(1.0));
+    } else {
+        return result;
+    }
 }
 
-fn compute_stage_alpha(a: f32, b: f32, c: f32, d: f32, sign: f32, bias: f32, scale: f32) -> f32 {
+fn compute_stage_alpha(a: f32, b: f32, c: f32, d: f32, sign: f32, bias: f32, scale: f32, clamp: u32) -> f32 {
     let lerp = sign * (a * (1.0 - c) + b * c);
-    return (lerp + d + bias) * scale;
+    let result = (lerp + d + bias) * scale;
+    
+    if clamp != 0 {
+        return clamp(result, 0.0, 1.0);
+    } else {
+        return result;
+    }
 }
 
 fn compute(config: Config, diffuse: vec4f, specular: vec4f, coords: array<vec3f, 8>) -> vec4f {
@@ -253,7 +289,8 @@ fn compute(config: Config, diffuse: vec4f, specular: vec4f, coords: array<vec3f,
             color_d,
             stage.color.sign,
             stage.color.bias,
-            stage.color.scale
+            stage.color.scale,
+            stage.color.clamp,
         );
 
         state.regs[stage.color.output].r = color.r;
@@ -270,9 +307,10 @@ fn compute(config: Config, diffuse: vec4f, specular: vec4f, coords: array<vec3f,
             alpha_b,
             alpha_c,
             alpha_d,
-            stage.color.sign,
-            stage.color.bias,
-            stage.color.scale
+            stage.alpha.sign,
+            stage.alpha.bias,
+            stage.alpha.scale,
+            stage.alpha.clamp,
         );
 
         state.regs[stage.alpha.output].a = alpha;

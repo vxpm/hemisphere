@@ -1,4 +1,4 @@
-use glam::{Mat4, Vec2, Vec3};
+use glam::{Vec2, Vec3};
 use hemisphere::{
     render, system::gpu::command::attributes::Rgba, system::gpu::transform::TexGen as GpuTexGen,
 };
@@ -84,7 +84,7 @@ impl TevConfig {
             data.color.sign = if stage.ops.color.negate() { -1.0 } else { 1.0 };
             data.color.bias = stage.ops.color.bias().value();
             data.color.scale = stage.ops.color.scale().value();
-            data.color.clamp = 0;
+            data.color.clamp = stage.ops.color.clamp() as u32;
 
             data.alpha.input_a = stage.ops.alpha.input_a() as u32;
             data.alpha.input_b = stage.ops.alpha.input_b() as u32;
@@ -95,7 +95,7 @@ impl TevConfig {
             data.alpha.sign = if stage.ops.alpha.negate() { -1.0 } else { 1.0 };
             data.alpha.bias = stage.ops.alpha.bias().value();
             data.alpha.scale = stage.ops.alpha.scale().value();
-            data.alpha.clamp = 0;
+            data.alpha.clamp = stage.ops.color.clamp() as u32;
 
             data.refs.map = stage.refs.map().value() as u32;
             data.refs.coord = stage.refs.coord().value() as u32;
