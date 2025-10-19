@@ -4,6 +4,7 @@ mod cli;
 mod control;
 mod debug;
 mod disasm;
+mod efb;
 mod registers;
 mod subsystem;
 mod xfb;
@@ -19,6 +20,7 @@ use hemisphere::{
     runner::{Runner, State},
     system::{self, executable::Executable},
 };
+use renderer::WgpuRenderer;
 use std::{
     sync::{
         Arc,
@@ -27,9 +29,10 @@ use std::{
     time::{Duration, Instant},
 };
 
-struct Ctx {
+struct Ctx<'a> {
     step: bool,
     running: bool,
+    renderer: &'a mut WgpuRenderer,
 }
 
 trait WindowUi {
@@ -59,12 +62,14 @@ struct WindowGroup {
 
 struct App {
     last_update: Instant,
+    renderer: WgpuRenderer,
     runner: Runner,
     vsync_count: Arc<AtomicU64>,
     root: WindowGroup,
 }
 
 impl App {
+    #[allow(clippy::default_constructed_unit_structs)]
     fn new(cc: &eframe::CreationContext<'_>, args: &cli::Args) -> Result<Self> {
         tracing::info!("loading executable");
         let dwarf = match args.dwarf.as_deref() {
@@ -85,8 +90,18 @@ impl App {
             })
         };
 
+        let wgpu_state = cc.wgpu_render_state.as_ref().unwrap();
+        tracing::info!("wgpu device limits: {:?}", wgpu_state.device.limits());
+
+        let renderer = WgpuRenderer::new(
+            wgpu_state.device.clone(),
+            wgpu_state.queue.clone(),
+            wgpu_state.target_format,
+        );
+
         let mut runner = Runner::new(Config {
             system: system::Config {
+                renderer: Box::new(renderer.clone()),
                 executable: Some(executable),
                 vsync_callback: Some(vsync_callback),
             },
@@ -105,8 +120,9 @@ impl App {
         let root = WindowGroup {
             name: "root",
             windows: vec![
-                // xfb
-                Window::new(xfb::Window::new()),
+                // fb
+                Window::new(xfb::Window::default()),
+                Window::new(efb::Window::default()),
                 // cpu
                 Window::new(control::Window::default()),
                 Window::new(registers::Window::default()),
@@ -120,6 +136,7 @@ impl App {
         cc.egui_ctx.set_zoom_factor(1.0);
         Ok(Self {
             last_update: Instant::now(),
+            renderer,
             runner,
             vsync_count,
             root,
@@ -184,6 +201,7 @@ impl eframe::App for App {
         let mut context = Ctx {
             step: false,
             running,
+            renderer: &mut self.renderer,
         };
 
         self.runner.with_state(|state| {
@@ -238,7 +256,7 @@ fn setup_tracing() -> tracing_appender::non_blocking::WorkerGuard {
     let (file_nb, _guard_file) = tracing_appender::non_blocking(file);
     let file_layer = fmt::layer().with_writer(file_nb).with_ansi(false);
     let env_filter = EnvFilter::try_from_default_env().unwrap_or(EnvFilter::new(
-        "cli=debug,hemisphere=debug,common=debug,ppcjit=debug",
+        "cli=debug,hemisphere=debug,common=debug,ppcjit=debug,renderer=debug",
     ));
 
     let subscriber = tracing_subscriber::registry()
@@ -255,15 +273,35 @@ fn main() -> Result<()> {
     let _tracing_guard = setup_tracing();
 
     let args = cli::Args::parse();
+
+    let device_descriptor = Arc::new(|adapter: &wgpu::Adapter| {
+        let base_limits = if adapter.get_info().backend == wgpu::Backend::Gl {
+            wgpu::Limits::downlevel_defaults()
+        } else {
+            wgpu::Limits::default()
+        };
+
+        wgpu::DeviceDescriptor {
+            label: Some("hemisphere-egui wgpu device"),
+            required_limits: wgpu::Limits {
+                // required by egui
+                max_texture_dimension_2d: 8192,
+                ..base_limits
+            },
+            ..Default::default()
+        }
+    });
+
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default().with_maximized(true),
         wgpu_options: WgpuConfiguration {
             wgpu_setup: WgpuSetup::CreateNew(WgpuSetupCreateNew {
                 instance_descriptor: wgpu::InstanceDescriptor {
-                    backends: wgpu::Backends::all(),
+                    backends: wgpu::Backends::GL,
                     ..Default::default()
                 },
                 power_preference: wgpu::PowerPreference::HighPerformance,
+                device_descriptor,
                 ..Default::default()
             }),
             ..Default::default()

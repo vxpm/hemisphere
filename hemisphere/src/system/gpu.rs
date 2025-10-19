@@ -1,20 +1,33 @@
 pub mod command;
+pub mod environment;
+pub mod pixel;
+pub mod texture;
 pub mod transform;
 
 use super::System;
-use crate::system::gpu::command::{
-    ArrayDescriptor, AttributeMode, VertexAttributeStream,
-    attributes::{Attribute, Rgba},
+use crate::{
+    render::{Action, TevStage},
+    system::gpu::command::{
+        ArrayDescriptor, AttributeMode, VertexAttributeStream,
+        attributes::{self, Attribute, AttributeDescriptor, Rgba},
+    },
 };
-use bitos::integer::UnsignedInt;
-use common::bin::{BinReader, BinRingBuffer, BinaryStream};
-use glam::{Mat4, Vec3, Vec4, Vec4Swizzles};
+use bitos::{
+    bitos,
+    integer::{UnsignedInt, u3, u4},
+};
+use common::{
+    Address, Primitive,
+    bin::{BinReader, BinaryStream},
+};
+use glam::{Mat3, Mat4, Vec2, Vec3};
 use strum::FromRepr;
+use zerocopy::IntoBytes;
 
-/// A bypass register.
+/// An internal GX register.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, FromRepr)]
 #[repr(u8)]
-pub enum BypassReg {
+pub enum Reg {
     GenMode = 0x00,
     GenFilter0 = 0x01,
     GenFilter1 = 0x02,
@@ -45,27 +58,35 @@ pub enum BypassReg {
     // Setup Unit and Rasterizer
     SetupLpSize = 0x22,
     SetupPerf = 0x23,
-    RasterizerPerf = 0x24,
-    RasterizerSs0 = 0x25,
-    RasterizerSs1 = 0x26,
+    RasterPerf = 0x24,
+    RasterSs0 = 0x25,
+    RasterSs1 = 0x26,
 
-    RasterizerTexRef0 = 0x28,
-    RasterizerTexRef1 = 0x29,
-    RasterizerTexRef2 = 0x2A,
-    RasterizerTexRef3 = 0x2B,
-    RasterizerTexRef4 = 0x2C,
-    RasterizerTexRef5 = 0x2D,
-    RasterizerTexRef6 = 0x2E,
-    RasterizerTexRef7 = 0x2F,
+    TevRefs01 = 0x28,
+    TevRefs23 = 0x29,
+    TevRefs45 = 0x2A,
+    TevRefs67 = 0x2B,
+    TevRefs89 = 0x2C,
+    TevRefsAB = 0x2D,
+    TevRefsCD = 0x2E,
+    TevRefsEF = 0x2F,
 
     SetupSsize0 = 0x30,
+    SetupTsize0 = 0x31,
     SetupSsize1 = 0x32,
+    SetupTsize1 = 0x33,
     SetupSsize2 = 0x34,
+    SetupTsize2 = 0x35,
     SetupSsize3 = 0x36,
+    SetupTsize3 = 0x37,
     SetupSsize4 = 0x38,
+    SetupTsize4 = 0x39,
     SetupSsize5 = 0x3A,
+    SetupTsize5 = 0x3B,
     SetupSsize6 = 0x3C,
+    SetupTsize6 = 0x3D,
     SetupSsize7 = 0x3E,
+    SetupTsize7 = 0x3F,
 
     // Pixel Engine
     PixelZMode = 0x40,
@@ -94,39 +115,60 @@ pub enum BypassReg {
     ScissorOffset = 0x59,
 
     // TX
-    TxInvTags = 0x66,
-    TxPerfMode = 0x67,
-    TxFieldMode = 0x68,
-    TxRefresh = 0x69,
-    TxSetImage1I0 = 0x8C,
-    TxSetImage1I1 = 0x8D,
-    TxSetImage1I2 = 0x8E,
-    TxSetImage1I3 = 0x8F,
+    TexInvTags = 0x66,
+    TexPerfMode = 0x67,
+    TexFieldMode = 0x68,
+    TexRefresh = 0x69,
 
-    TxSetImage2I0 = 0x90,
-    TxSetImage2I1 = 0x91,
-    TxSetImage2I2 = 0x92,
-    TxSetImage2I3 = 0x93,
+    TexMode0 = 0x80,
+    TexMode1 = 0x81,
+    TexMode2 = 0x82,
+    TexMode3 = 0x83,
+    TexMode0Lod = 0x84,
+    TexMode1Lod = 0x85,
+    TexMode2Lod = 0x86,
+    TexMode3Lod = 0x87,
+    TexFormat0 = 0x88,
+    TexFormat1 = 0x89,
+    TexFormat2 = 0x8A,
+    TexFormat3 = 0x8B,
+    TexEvenLodAddress0 = 0x8C,
+    TexEvenLodAddress1 = 0x8D,
+    TexEvenLodAddress2 = 0x8E,
+    TexEvenLodAddress3 = 0x8F,
+    TexOddLodAddress0 = 0x90,
+    TexOddLodAddress1 = 0x91,
+    TexOddLodAddress2 = 0x92,
+    TexOddLodAddress3 = 0x93,
+    TexAddress0 = 0x94,
+    TexAddress1 = 0x95,
+    TexAddress2 = 0x96,
+    TexAddress3 = 0x97,
 
-    TxSetImage3I0 = 0x94,
-    TxSetImage3I1 = 0x95,
-    TxSetImage3I2 = 0x96,
-    TxSetImage3I3 = 0x97,
-
-    TxSetImage1I4 = 0xAC,
-    TxSetImage1I5 = 0xAD,
-    TxSetImage1I6 = 0xAE,
-    TxSetImage1I7 = 0xAF,
-
-    TxSetImage2I4 = 0xB0,
-    TxSetImage2I5 = 0xB1,
-    TxSetImage2I6 = 0xB2,
-    TxSetImage2I7 = 0xB3,
-
-    TxSetImage3I4 = 0xB4,
-    TxSetImage3I5 = 0xB5,
-    TxSetImage3I6 = 0xB6,
-    TxSetImage3I7 = 0xB7,
+    TexMode4 = 0xA0,
+    TexMode5 = 0xA1,
+    TexMode6 = 0xA2,
+    TexMode7 = 0xA3,
+    TexMode4Lod = 0xA4,
+    TexMode5Lod = 0xA5,
+    TexMode6Lod = 0xA6,
+    TexMode7Lod = 0xA7,
+    TexFormat4 = 0xA8,
+    TexFormat5 = 0xA9,
+    TexFormat6 = 0xAA,
+    TexFormat7 = 0xAB,
+    TexEvenLodAddress4 = 0xAC,
+    TexEvenLodAddress5 = 0xAD,
+    TexEvenLodAddress6 = 0xAE,
+    TexEvenLodAddress7 = 0xAF,
+    TexOddLodAddress4 = 0xB0,
+    TexOddLodAddress5 = 0xB1,
+    TexOddLodAddress6 = 0xB2,
+    TexOddLodAddress7 = 0xB3,
+    TexAddress4 = 0xB4,
+    TexAddress5 = 0xB5,
+    TexAddress6 = 0xB6,
+    TexAddress7 = 0xB7,
 
     // TEV
     TevColor0 = 0xC0,
@@ -162,6 +204,15 @@ pub enum BypassReg {
     TevColor15 = 0xDE,
     TevAlpha15 = 0xDF,
 
+    TevConstant0Low = 0xE0,
+    TevConstant0High = 0xE1,
+    TevConstant1Low = 0xE2,
+    TevConstant1High = 0xE3,
+    TevConstant2Low = 0xE4,
+    TevConstant2High = 0xE5,
+    TevConstant3Low = 0xE6,
+    TevConstant3High = 0xE7,
+
     TevFogRange = 0xE8,
     TevFog0 = 0xEE,
     TevFog1 = 0xEF,
@@ -185,136 +236,463 @@ pub enum BypassReg {
     BypassMask = 0xFE,
 }
 
+impl Reg {
+    pub fn is_tev(&self) -> bool {
+        matches!(
+            self,
+            Self::TevColor0
+                | Self::TevAlpha0
+                | Self::TevColor1
+                | Self::TevAlpha1
+                | Self::TevColor2
+                | Self::TevAlpha2
+                | Self::TevColor3
+                | Self::TevAlpha3
+                | Self::TevColor4
+                | Self::TevAlpha4
+                | Self::TevColor5
+                | Self::TevAlpha5
+                | Self::TevColor6
+                | Self::TevAlpha6
+                | Self::TevColor7
+                | Self::TevAlpha7
+                | Self::TevColor8
+                | Self::TevAlpha8
+                | Self::TevColor9
+                | Self::TevAlpha9
+                | Self::TevColor10
+                | Self::TevAlpha10
+                | Self::TevColor11
+                | Self::TevAlpha11
+                | Self::TevColor12
+                | Self::TevAlpha12
+                | Self::TevColor13
+                | Self::TevAlpha13
+                | Self::TevColor14
+                | Self::TevAlpha14
+                | Self::TevColor15
+                | Self::TevAlpha15
+        )
+    }
+
+    pub fn is_pixel_clear(&self) -> bool {
+        matches!(
+            self,
+            Self::PixelCopyClearAr | Self::PixelCopyClearGb | Self::PixelCopyClearZ
+        )
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Topology {
+    QuadList,
+    TriangleList,
+    TriangleStrip,
+    TriangleFan,
+    LineList,
+    LineStrip,
+    PointList,
+}
+
+#[bitos(2)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CullingMode {
+    #[default]
+    None = 0b00,
+    Negative = 0b01,
+    Positive = 0b10,
+    All = 0b11,
+}
+
+#[bitos(32)]
+#[derive(Debug, Default)]
+pub struct GenMode {
+    #[bits(0..4)]
+    pub tex_coords_count: u4,
+    #[bits(4..8)]
+    pub color_channels_count: u4,
+    #[bits(9)]
+    pub multisampling: bool,
+    #[bits(10..14)]
+    pub tev_stages_minus_one: u4,
+    #[bits(14..16)]
+    pub culling_mode: CullingMode,
+    #[bits(16..19)]
+    pub bumpmap_count: u3,
+    #[bits(19)]
+    pub z_freeze: bool,
+}
+
 /// Extracted vertex attributes.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct VertexAttributes {
-    pub position: Option<Vec<Vec3>>,
-    pub diffuse: Option<Vec<Rgba>>,
+    pub position: Vec3,
+    pub position_matrix: Mat4,
+
+    pub normal: Vec3,
+    pub normal_matrix: Mat3,
+
+    pub diffuse: Rgba,
+    pub specular: Rgba,
+
+    pub tex_coords: [Vec2; 8],
+    pub tex_coords_matrix: [Mat4; 8],
 }
 
 /// GX subsystem
 #[derive(Debug, Default)]
 pub struct Gpu {
     pub command: command::Interface,
-    pub command_queue: BinRingBuffer,
     pub transform: transform::Interface,
+    pub environment: environment::Interface,
+    pub texture: texture::Interface,
+    pub pixel: pixel::Interface,
 }
 
-// fn guPerspective(fovy: f32, aspect: f32, near: f32, far: f32) -> Mat4 {
-//     let angle = (fovy * 0.50).to_radians();
-//     let cot = 1.0 / angle.tan();
-//     let tmp = 1.0 / (far - near);
-//
-//     Mat4::from_cols_array_2d(&[
-//         [cot / aspect, 0.0, 0.0, 0.0],
-//         [0.0, cot, 0.0, 0.0],
-//         [0.0, 0.0, -near * tmp, -(far * near) * tmp],
-//         [0.0, 0.0, -1.0, 0.0],
-//     ])
-// }
+impl System {
+    fn gx_set(&mut self, reg: Reg, value: u32) {
+        match reg {
+            Reg::GenMode => {
+                let mode = GenMode::from_bits(value);
+                self.gpu.environment.active_stages = mode.tev_stages_minus_one().value() + 1;
+                self.gpu.environment.active_channels = mode.color_channels_count().value();
+                tracing::debug!(?mode);
+            }
+
+            Reg::TevRefs01 => {
+                value.write_ne_bytes(self.gpu.environment.stage_refs[0].as_mut_bytes())
+            }
+            Reg::TevRefs23 => {
+                value.write_ne_bytes(self.gpu.environment.stage_refs[1].as_mut_bytes())
+            }
+            Reg::TevRefs45 => {
+                value.write_ne_bytes(self.gpu.environment.stage_refs[2].as_mut_bytes())
+            }
+            Reg::TevRefs67 => {
+                value.write_ne_bytes(self.gpu.environment.stage_refs[3].as_mut_bytes())
+            }
+            Reg::TevRefs89 => {
+                value.write_ne_bytes(self.gpu.environment.stage_refs[4].as_mut_bytes())
+            }
+            Reg::TevRefsAB => {
+                value.write_ne_bytes(self.gpu.environment.stage_refs[5].as_mut_bytes())
+            }
+            Reg::TevRefsCD => {
+                value.write_ne_bytes(self.gpu.environment.stage_refs[6].as_mut_bytes())
+            }
+            Reg::TevRefsEF => {
+                value.write_ne_bytes(self.gpu.environment.stage_refs[7].as_mut_bytes())
+            }
+
+            Reg::PixelZMode => {
+                value.write_ne_bytes(self.gpu.pixel.depth_mode.as_mut_bytes());
+                self.config
+                    .renderer
+                    .exec(Action::SetDepthMode(self.gpu.pixel.depth_mode));
+            }
+            Reg::PixelDone => {
+                self.gpu.pixel.interrupt.set_finish(true);
+                self.check_interrupts();
+            }
+            Reg::PixelCopyClearAr => {
+                value.write_be_bytes(&mut self.gpu.pixel.clear_color.as_mut_bytes()[0..2])
+            }
+            Reg::PixelCopyClearGb => {
+                value.write_be_bytes(&mut self.gpu.pixel.clear_color.as_mut_bytes()[2..4])
+            }
+            Reg::PixelCopyClearZ => value.write_be_bytes(self.gpu.pixel.clear_depth.as_mut_bytes()),
+            Reg::PixelCopyCmd => {
+                let cmd = pixel::CopyCmd::from_bits(value);
+                tracing::debug!(?cmd);
+                self.config
+                    .renderer
+                    .exec(Action::EfbCopy { clear: cmd.clear() });
+            }
+
+            Reg::TexMode0 => {
+                value.write_ne_bytes(self.gpu.texture.maps[0].mode.as_mut_bytes());
+                self.gpu.texture.maps[0].dirty = true;
+            }
+
+            Reg::TexFormat0 => {
+                value.write_ne_bytes(self.gpu.texture.maps[0].format.as_mut_bytes());
+                self.gpu.texture.maps[0].dirty = true;
+            }
+
+            Reg::TexAddress0 => {
+                self.gpu.texture.maps[0].address = Address(value << 5);
+                self.gpu.texture.maps[0].dirty = true;
+            }
+
+            Reg::TevColor0 => {
+                value.write_ne_bytes(self.gpu.environment.stage_ops[0].color.as_mut_bytes());
+            }
+            Reg::TevAlpha0 => {
+                value.write_ne_bytes(self.gpu.environment.stage_ops[0].alpha.as_mut_bytes());
+            }
+            Reg::TevColor1 => {
+                value.write_ne_bytes(self.gpu.environment.stage_ops[1].color.as_mut_bytes());
+            }
+            Reg::TevAlpha1 => {
+                value.write_ne_bytes(self.gpu.environment.stage_ops[1].alpha.as_mut_bytes());
+            }
+            Reg::TevColor2 => {
+                value.write_ne_bytes(self.gpu.environment.stage_ops[2].color.as_mut_bytes());
+            }
+            Reg::TevAlpha2 => {
+                value.write_ne_bytes(self.gpu.environment.stage_ops[2].alpha.as_mut_bytes());
+            }
+            Reg::TevColor3 => {
+                value.write_ne_bytes(self.gpu.environment.stage_ops[3].color.as_mut_bytes());
+            }
+            Reg::TevAlpha3 => {
+                value.write_ne_bytes(self.gpu.environment.stage_ops[3].alpha.as_mut_bytes());
+            }
+            Reg::TevColor4 => {
+                value.write_ne_bytes(self.gpu.environment.stage_ops[4].color.as_mut_bytes());
+            }
+            Reg::TevAlpha4 => {
+                value.write_ne_bytes(self.gpu.environment.stage_ops[4].alpha.as_mut_bytes());
+            }
+            Reg::TevColor5 => {
+                value.write_ne_bytes(self.gpu.environment.stage_ops[5].color.as_mut_bytes());
+            }
+            Reg::TevAlpha5 => {
+                value.write_ne_bytes(self.gpu.environment.stage_ops[5].alpha.as_mut_bytes());
+            }
+            Reg::TevColor6 => {
+                value.write_ne_bytes(self.gpu.environment.stage_ops[6].color.as_mut_bytes());
+            }
+            Reg::TevAlpha6 => {
+                value.write_ne_bytes(self.gpu.environment.stage_ops[6].alpha.as_mut_bytes());
+            }
+            Reg::TevColor7 => {
+                value.write_ne_bytes(self.gpu.environment.stage_ops[7].color.as_mut_bytes());
+            }
+            Reg::TevAlpha7 => {
+                value.write_ne_bytes(self.gpu.environment.stage_ops[7].alpha.as_mut_bytes());
+            }
+            Reg::TevColor8 => {
+                value.write_ne_bytes(self.gpu.environment.stage_ops[8].color.as_mut_bytes());
+            }
+            Reg::TevAlpha8 => {
+                value.write_ne_bytes(self.gpu.environment.stage_ops[8].alpha.as_mut_bytes());
+            }
+            Reg::TevColor9 => {
+                value.write_ne_bytes(self.gpu.environment.stage_ops[9].color.as_mut_bytes());
+            }
+            Reg::TevAlpha9 => {
+                value.write_ne_bytes(self.gpu.environment.stage_ops[9].alpha.as_mut_bytes());
+            }
+            Reg::TevColor10 => {
+                value.write_ne_bytes(self.gpu.environment.stage_ops[10].color.as_mut_bytes());
+            }
+            Reg::TevAlpha10 => {
+                value.write_ne_bytes(self.gpu.environment.stage_ops[10].alpha.as_mut_bytes());
+            }
+            Reg::TevColor11 => {
+                value.write_ne_bytes(self.gpu.environment.stage_ops[11].color.as_mut_bytes());
+            }
+            Reg::TevAlpha11 => {
+                value.write_ne_bytes(self.gpu.environment.stage_ops[11].alpha.as_mut_bytes());
+            }
+            Reg::TevColor12 => {
+                value.write_ne_bytes(self.gpu.environment.stage_ops[12].color.as_mut_bytes());
+            }
+            Reg::TevAlpha12 => {
+                value.write_ne_bytes(self.gpu.environment.stage_ops[12].alpha.as_mut_bytes());
+            }
+            Reg::TevColor13 => {
+                value.write_ne_bytes(self.gpu.environment.stage_ops[13].color.as_mut_bytes());
+            }
+            Reg::TevAlpha13 => {
+                value.write_ne_bytes(self.gpu.environment.stage_ops[13].alpha.as_mut_bytes());
+            }
+            Reg::TevColor14 => {
+                value.write_ne_bytes(self.gpu.environment.stage_ops[14].color.as_mut_bytes());
+            }
+            Reg::TevAlpha14 => {
+                value.write_ne_bytes(self.gpu.environment.stage_ops[14].alpha.as_mut_bytes());
+            }
+            Reg::TevColor15 => {
+                value.write_ne_bytes(self.gpu.environment.stage_ops[15].color.as_mut_bytes());
+            }
+            Reg::TevAlpha15 => {
+                value.write_ne_bytes(self.gpu.environment.stage_ops[15].alpha.as_mut_bytes());
+            }
+            _ => tracing::warn!("unimplemented write to internal GX register {reg:?}"),
+        }
+
+        if reg.is_tev() {
+            let stages = self
+                .gpu
+                .environment
+                .stage_ops
+                .iter()
+                .cloned()
+                .take(self.gpu.environment.active_stages as usize)
+                .enumerate()
+                .map(|(i, ops)| {
+                    let pair = &self.gpu.environment.stage_refs[i / 2];
+                    TevStage {
+                        ops,
+                        refs: if i % 2 == 0 { pair.a() } else { pair.b() },
+                    }
+                })
+                .collect::<Vec<_>>();
+
+            self.config.renderer.exec(Action::SetTevStages(stages));
+        }
+
+        if reg.is_pixel_clear() {
+            let color = &self.gpu.pixel.clear_color;
+            self.config.renderer.exec(Action::SetClearColor(Rgba {
+                r: color.r() as f32 / 255.0,
+                g: color.g() as f32 / 255.0,
+                b: color.b() as f32 / 255.0,
+                a: color.a() as f32 / 255.0,
+            }));
+        }
+    }
+}
 
 impl System {
-    fn gx_read_attribute_value_from_array<A: Attribute>(
+    fn gx_read_attribute_from_array<D: AttributeDescriptor>(
         &mut self,
-        attr: A,
+        descriptor: &D,
         array: ArrayDescriptor,
         index: u16,
-    ) -> A::Value {
+    ) -> D::Value {
         let base = array.address.value() as usize;
         let offset = array.stride.value() as usize * index as usize;
         let address = base + offset;
         let mut array = &self.mem.ram[address..];
         let mut reader = array.reader();
-
-        attr.read(&mut reader).unwrap()
+        descriptor.read(&mut reader).unwrap()
     }
 
-    fn gx_read_attribute_value<A: Attribute>(
+    fn gx_read_attribute<A: Attribute>(
         &mut self,
-        mode: AttributeMode,
-        attr: A,
+        vat: usize,
         reader: &mut BinReader,
-        array: ArrayDescriptor,
-    ) -> Option<A::Value> {
+    ) -> Option<<A::Descriptor as AttributeDescriptor>::Value> {
+        let mode = A::get_mode(&self.gpu.command.internal.vertex_descriptor);
+        let descriptor = A::get_descriptor(&self.gpu.command.internal.vertex_attr_tables[vat]);
+
         match mode {
             AttributeMode::None => None,
-            AttributeMode::Direct => Some(attr.read(reader).unwrap()),
+            AttributeMode::Direct => Some(descriptor.read(reader).unwrap()),
             AttributeMode::Index8 => {
                 let index = reader.read_be::<u8>().unwrap();
-                Some(self.gx_read_attribute_value_from_array(attr, array, index as u16))
+                let array = A::get_array(&self.gpu.command.internal.arrays).unwrap();
+                Some(self.gx_read_attribute_from_array(&descriptor, array, index as u16))
             }
             AttributeMode::Index16 => {
                 let index = reader.read_be::<u16>().unwrap();
-                Some(self.gx_read_attribute_value_from_array(attr, array, index))
+                let array = A::get_array(&self.gpu.command.internal.arrays).unwrap();
+                Some(self.gx_read_attribute_from_array(&descriptor, array, index))
             }
         }
     }
 
-    pub fn gx_extract_attributes(&mut self, stream: VertexAttributeStream) -> VertexAttributes {
-        let vcd = self.gpu.command.internal.vertex_descriptor.clone();
-        let vat = self.gpu.command.internal.vertex_attr_tables[stream.table_index()].clone();
+    pub fn gx_extract_attributes(
+        &mut self,
+        stream: &VertexAttributeStream,
+    ) -> Vec<VertexAttributes> {
+        let vat = stream.table_index();
+        let default_matrix_idx = self.gpu.command.internal.mat_indices.view().value();
 
-        let mut position_data = vcd
-            .position()
-            .present()
-            .then(|| Vec::with_capacity(stream.count() as usize));
-
-        let mut diffuse_data = vcd
-            .diffuse()
-            .present()
-            .then(|| Vec::with_capacity(stream.count() as usize));
-
+        let mut vertices = Vec::with_capacity(stream.count() as usize);
         let mut data = stream.data();
         let mut reader = data.reader();
         for _ in 0..stream.count() {
-            let position = self.gx_read_attribute_value(
-                vcd.position(),
-                vat.a.position(),
-                &mut reader,
-                self.gpu.command.internal.arrays.position.clone(),
-            );
+            let position_matrix_index = self
+                .gx_read_attribute::<attributes::PositionMatrixIndex>(vat, &mut reader)
+                .unwrap_or(default_matrix_idx);
 
-            if let Some(position) = position {
-                position_data.as_mut().unwrap().push(position);
-            }
+            let position_matrix = self.gpu.transform.matrix(position_matrix_index);
+            let normal_matrix = self.gpu.transform.normal_matrix(position_matrix_index);
 
-            let diffuse = self.gx_read_attribute_value(
-                vcd.diffuse(),
-                vat.a.diffuse(),
-                &mut reader,
-                self.gpu.command.internal.arrays.diffuse.clone(),
-            );
+            let position = self
+                .gx_read_attribute::<attributes::Position>(vat, &mut reader)
+                .unwrap_or_default();
 
-            if let Some(diffuse) = diffuse {
-                diffuse_data.as_mut().unwrap().push(diffuse);
-            }
+            let normal = self
+                .gx_read_attribute::<attributes::Normal>(vat, &mut reader)
+                .unwrap_or_default();
+
+            let diffuse = self
+                .gx_read_attribute::<attributes::Diffuse>(vat, &mut reader)
+                .unwrap_or_default();
+
+            let mut tex_coords = [Vec2::ZERO; 8];
+            tex_coords[0] = self
+                .gx_read_attribute::<attributes::TexCoords<0>>(vat, &mut reader)
+                .unwrap_or_default();
+            tex_coords[1] = self
+                .gx_read_attribute::<attributes::TexCoords<1>>(vat, &mut reader)
+                .unwrap_or_default();
+            tex_coords[2] = self
+                .gx_read_attribute::<attributes::TexCoords<2>>(vat, &mut reader)
+                .unwrap_or_default();
+            tex_coords[3] = self
+                .gx_read_attribute::<attributes::TexCoords<3>>(vat, &mut reader)
+                .unwrap_or_default();
+            tex_coords[4] = self
+                .gx_read_attribute::<attributes::TexCoords<4>>(vat, &mut reader)
+                .unwrap_or_default();
+            tex_coords[5] = self
+                .gx_read_attribute::<attributes::TexCoords<5>>(vat, &mut reader)
+                .unwrap_or_default();
+            tex_coords[6] = self
+                .gx_read_attribute::<attributes::TexCoords<6>>(vat, &mut reader)
+                .unwrap_or_default();
+            tex_coords[7] = self
+                .gx_read_attribute::<attributes::TexCoords<7>>(vat, &mut reader)
+                .unwrap_or_default();
+
+            vertices.push(VertexAttributes {
+                position,
+                position_matrix,
+                normal,
+                normal_matrix,
+                diffuse,
+                tex_coords,
+                ..Default::default()
+            })
         }
 
-        VertexAttributes {
-            position: position_data,
-            diffuse: diffuse_data,
-        }
+        vertices
     }
 
-    pub fn gx_draw_triangle(&mut self, stream: VertexAttributeStream) {
-        let vcd = self.gpu.command.internal.vertex_descriptor.clone();
-        let vat = self.gpu.command.internal.vertex_attr_tables[stream.table_index()].clone();
+    pub fn gx_update_texture(&mut self, index: usize) {
+        let map = self.gpu.texture.maps[index];
+        let start = map.address.value() as usize;
+        let len = map.format.size().value() as usize;
+        let slice = &self.mem.ram[start..][..len];
 
-        tracing::debug!(?vcd);
-        tracing::debug!(?vat);
+        let data = texture::decode_texture(slice, map.format);
+        self.config.renderer.exec(Action::SetTexture {
+            index,
+            width: map.format.width(),
+            height: map.format.height(),
+            data,
+        });
+    }
+
+    pub fn gx_draw(&mut self, topology: Topology, stream: &VertexAttributeStream) {
+        for map in 0..8 {
+            if !self.gpu.texture.maps[map].dirty {
+                continue;
+            }
+
+            self.gpu.texture.maps[map].dirty = false;
+            self.gx_update_texture(map);
+        }
 
         let attributes = self.gx_extract_attributes(stream);
-        tracing::debug!(?attributes);
-
-        let view_index = self.gpu.command.internal.mat_indices.view().value();
-        tracing::debug!(%view_index);
-
-        let view = self.gpu.transform.matrix(view_index);
-        tracing::debug!(%view);
-
-        let projection = self.gpu.transform.projection_matrix();
-        tracing::debug!(%projection);
-
-        // todo!()
+        self.config
+            .renderer
+            .exec(Action::Draw(topology, attributes));
     }
 }

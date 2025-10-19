@@ -132,10 +132,7 @@ impl Exception {
     #[rustfmt::skip]    pub const SRR1_TO_MSR_MASK:         u32 = 0b1000_0111_1100_0000_1111_1111_0111_0011_u32;
 
     pub fn srr0_skip(self) -> bool {
-        !matches!(
-            self,
-            Self::Reset | Self::MachineCheck | Self::Interrupt | Self::Decrementer
-        )
+        matches!(self, Self::Syscall)
     }
 }
 
@@ -676,7 +673,11 @@ pub struct Cpu {
 impl Cpu {
     /// Takes an exception.
     pub fn raise_exception(&mut self, exception: Exception) {
-        tracing::debug!("raised exception {exception:?}");
+        if exception == Exception::Decrementer {
+            tracing::trace!("raised exception {exception:?} at {}", self.pc);
+        } else {
+            tracing::debug!("raised exception {exception:?} at {}", self.pc);
+        }
 
         // save PC into SRR0
         self.supervisor.exception.srr[0] = self.pc.value();

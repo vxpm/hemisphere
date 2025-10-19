@@ -2,14 +2,17 @@ pub mod attributes;
 
 use crate::system::{
     System,
-    gpu::{BypassReg, Gpu, command::attributes::Attribute},
+    gpu::{Gpu, Reg as GxReg, Topology, command::attributes::AttributeDescriptor},
 };
 use attributes::VertexAttributeTable;
 use bitos::{
     BitUtils, bitos,
     integer::{u3, u6},
 };
-use common::{Address, Primitive, bin::BinaryStream};
+use common::{
+    Address, Primitive,
+    bin::{BinRingBuffer, BinaryStream},
+};
 use strum::FromRepr;
 use zerocopy::IntoBytes;
 
@@ -91,27 +94,33 @@ pub enum Reg {
     GpArr3Stride = 0xBF,
 }
 
+impl Reg {
+    pub fn is_matrices_index(self) -> bool {
+        matches!(self, Self::MatIndexLow | Self::MatIndexHigh)
+    }
+}
+
 #[bitos(5)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Operation {
     #[default]
-    NOP = 0b0000_0,
-    SetCP = 0b0000_1,
-    SetXF = 0b0001_0,
-    IndexedSetXFA = 0b0010_0,
-    IndexedSetXFB = 0b0010_1,
-    IndexedSetXFC = 0b0011_0,
-    IndexedSetXFD = 0b0011_1,
-    Call = 0b0100_0,
-    InvalidateVertexCache = 0b0100_1,
-    SetBP = 0b0110_0,
-    DrawQuads = 0b1000_0,
-    DrawTriangles = 0b1001_0,
-    DrawTriangleStrip = 0b1001_1,
-    DrawTriangleFan = 0b1010_0,
-    DrawLines = 0b1010_1,
-    DrawLineStrip = 0b1011_0,
-    DrawPoints = 0b1011_1,
+    NOP = 0b0_0000,
+    SetCP = 0b0_0001,
+    SetXF = 0b0_0010,
+    IndexedSetXFA = 0b0_0100,
+    IndexedSetXFB = 0b0_0101,
+    IndexedSetXFC = 0b0_0110,
+    IndexedSetXFD = 0b0_0111,
+    Call = 0b0_1000,
+    InvalidateVertexCache = 0b0_1001,
+    SetBP = 0b0_1100,
+    DrawQuadList = 0b1_0000,
+    DrawTriangleList = 0b1_0010,
+    DrawTriangleStrip = 0b1_0011,
+    DrawTriangleFan = 0b1_0100,
+    DrawLineList = 0b1_0101,
+    DrawLineStrip = 0b1_0110,
+    DrawPointList = 0b1_0111,
 }
 
 #[bitos(8)]
@@ -132,15 +141,15 @@ pub enum Command {
         value: u32,
     },
     SetBP {
-        register: BypassReg,
+        register: GxReg,
         value: u32,
     },
     SetXF {
         start: u16,
-        length: u32,
         values: Vec<u32>,
     },
-    DrawTriangles {
+    Draw {
+        topology: Topology,
         vertex_attributes: VertexAttributeStream,
     },
 }
@@ -225,6 +234,25 @@ impl AttributeMode {
     }
 }
 
+#[bitos(32)]
+#[derive(Debug, Clone, Default)]
+pub struct VertexAttributeSet {
+    #[bits(0)]
+    pub pos_mat_index: bool,
+    #[bits(1..9)]
+    pub tex_coord_mat_index: [bool; 8],
+    #[bits(9)]
+    pub position: bool,
+    #[bits(10)]
+    pub normal: bool,
+    #[bits(11)]
+    pub diffuse: bool,
+    #[bits(12)]
+    pub specular: bool,
+    #[bits(13..21)]
+    pub tex_coord: [bool; 8],
+}
+
 /// Describes which attributes are present in the vertices of primitives and how they are present.
 #[bitos(64)]
 #[derive(Debug, Clone, Default)]
@@ -252,7 +280,26 @@ pub struct VertexDescriptor {
     pub tex_coord: [AttributeMode; 8],
 }
 
-#[derive(Debug, Clone, Default)]
+impl VertexDescriptor {
+    /// Returns the set of attributes present in this vertex descriptor.
+    pub fn attribute_set(&self) -> VertexAttributeSet {
+        let mut set = VertexAttributeSet::default()
+            .with_pos_mat_index(self.pos_mat_index())
+            .with_tex_coord_mat_index(self.tex_coord_mat_index())
+            .with_position(self.position().present())
+            .with_normal(self.normal().present())
+            .with_diffuse(self.diffuse().present())
+            .with_specular(self.specular().present());
+
+        for i in 0..8 {
+            set.set_tex_coord_at(i, self.tex_coord_at(i).unwrap().present());
+        }
+
+        set
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
 pub struct ArrayDescriptor {
     pub address: Address,
     pub stride: u32,
@@ -261,7 +308,9 @@ pub struct ArrayDescriptor {
 #[derive(Debug, Clone, Default)]
 pub struct Arrays {
     pub position: ArrayDescriptor,
+    pub normal: ArrayDescriptor,
     pub diffuse: ArrayDescriptor,
+    pub tex_coords: [ArrayDescriptor; 8],
 }
 
 #[bitos(64)]
@@ -282,51 +331,6 @@ pub struct Internal {
 }
 
 impl Internal {
-    pub fn set(&mut self, reg: Reg, value: u32) {
-        match reg {
-            Reg::MatIndexLow => value.write_ne_bytes(&mut self.mat_indices.as_mut_bytes()[0..4]),
-            Reg::MatIndexHigh => value.write_ne_bytes(&mut self.mat_indices.as_mut_bytes()[4..8]),
-
-            Reg::VcdLow => value.write_ne_bytes(&mut self.vertex_descriptor.as_mut_bytes()[0..4]),
-            Reg::VcdHigh => value.write_ne_bytes(&mut self.vertex_descriptor.as_mut_bytes()[4..8]),
-
-            Reg::Vat0A => value.write_ne_bytes(self.vertex_attr_tables[0].a.as_mut_bytes()),
-            Reg::Vat1A => value.write_ne_bytes(self.vertex_attr_tables[1].a.as_mut_bytes()),
-            Reg::Vat2A => value.write_ne_bytes(self.vertex_attr_tables[2].a.as_mut_bytes()),
-            Reg::Vat3A => value.write_ne_bytes(self.vertex_attr_tables[3].a.as_mut_bytes()),
-            Reg::Vat4A => value.write_ne_bytes(self.vertex_attr_tables[4].a.as_mut_bytes()),
-            Reg::Vat5A => value.write_ne_bytes(self.vertex_attr_tables[5].a.as_mut_bytes()),
-            Reg::Vat6A => value.write_ne_bytes(self.vertex_attr_tables[6].a.as_mut_bytes()),
-            Reg::Vat7A => value.write_ne_bytes(self.vertex_attr_tables[7].a.as_mut_bytes()),
-
-            Reg::Vat0B => value.write_ne_bytes(self.vertex_attr_tables[0].b.as_mut_bytes()),
-            Reg::Vat1B => value.write_ne_bytes(self.vertex_attr_tables[1].b.as_mut_bytes()),
-            Reg::Vat2B => value.write_ne_bytes(self.vertex_attr_tables[2].b.as_mut_bytes()),
-            Reg::Vat3B => value.write_ne_bytes(self.vertex_attr_tables[3].b.as_mut_bytes()),
-            Reg::Vat4B => value.write_ne_bytes(self.vertex_attr_tables[4].b.as_mut_bytes()),
-            Reg::Vat5B => value.write_ne_bytes(self.vertex_attr_tables[5].b.as_mut_bytes()),
-            Reg::Vat6B => value.write_ne_bytes(self.vertex_attr_tables[6].b.as_mut_bytes()),
-            Reg::Vat7B => value.write_ne_bytes(self.vertex_attr_tables[7].b.as_mut_bytes()),
-
-            Reg::Vat0C => value.write_ne_bytes(self.vertex_attr_tables[0].c.as_mut_bytes()),
-            Reg::Vat1C => value.write_ne_bytes(self.vertex_attr_tables[1].c.as_mut_bytes()),
-            Reg::Vat2C => value.write_ne_bytes(self.vertex_attr_tables[2].c.as_mut_bytes()),
-            Reg::Vat3C => value.write_ne_bytes(self.vertex_attr_tables[3].c.as_mut_bytes()),
-            Reg::Vat4C => value.write_ne_bytes(self.vertex_attr_tables[4].c.as_mut_bytes()),
-            Reg::Vat5C => value.write_ne_bytes(self.vertex_attr_tables[5].c.as_mut_bytes()),
-            Reg::Vat6C => value.write_ne_bytes(self.vertex_attr_tables[6].c.as_mut_bytes()),
-            Reg::Vat7C => value.write_ne_bytes(self.vertex_attr_tables[7].c.as_mut_bytes()),
-
-            Reg::PositionPtr => value.write_ne_bytes(self.arrays.position.address.as_mut_bytes()),
-            Reg::DiffusePtr => value.write_ne_bytes(self.arrays.diffuse.address.as_mut_bytes()),
-
-            Reg::PositionStride => value.write_ne_bytes(self.arrays.position.stride.as_mut_bytes()),
-            Reg::DiffuseStride => value.write_ne_bytes(self.arrays.diffuse.stride.as_mut_bytes()),
-
-            _ => tracing::warn!("unimplemented write to internal CP register {reg:?}"),
-        }
-    }
-
     pub fn vertex_size(&self, vat: u8) -> u32 {
         let vat = vat as usize;
 
@@ -382,7 +386,7 @@ impl Internal {
 pub struct VertexAttributeStream {
     table: u8,
     count: u16,
-    attributes: Vec<u8>,
+    data: Vec<u8>,
 }
 
 impl VertexAttributeStream {
@@ -395,11 +399,11 @@ impl VertexAttributeStream {
     }
 
     pub fn data(&self) -> &[u8] {
-        &self.attributes
+        &self.data
     }
 
     pub fn stride(&self) -> usize {
-        self.attributes.len() / self.count as usize
+        self.data.len() / self.count as usize
     }
 }
 
@@ -410,6 +414,7 @@ pub struct Interface {
     pub control: Control,
     pub fifo: Fifo,
     pub internal: Internal,
+    pub queue: BinRingBuffer,
 }
 
 impl Interface {
@@ -426,7 +431,7 @@ impl Interface {
 
     /// Updates the FIFO count.
     pub fn update_count(&mut self) {
-        let count = if self.fifo.write_ptr >= self.fifo.start {
+        let count = if self.fifo.write_ptr >= self.fifo.read_ptr {
             self.fifo.write_ptr - self.fifo.read_ptr
         } else {
             let start = self.fifo.write_ptr - self.fifo.start;
@@ -434,7 +439,14 @@ impl Interface {
             start + end
         };
 
-        assert!(count >= 0);
+        assert!(
+            count >= 0,
+            "start: {}, end: {}; write: {}, read: {}",
+            self.fifo.start,
+            self.fifo.end,
+            self.fifo.write_ptr,
+            self.fifo.read_ptr
+        );
         self.fifo.count = count as u32;
     }
 
@@ -464,17 +476,18 @@ impl Interface {
 impl Gpu {
     /// Reads a command from the command queue.
     pub fn read_command(&mut self) -> Option<Command> {
-        let mut reader = self.command_queue.reader();
+        let mut reader = self.command.queue.reader();
 
         let opcode = Opcode::from_bits(reader.read_be()?);
-        let command = match opcode.operation().unwrap() {
+        let operation = opcode.operation().unwrap();
+        let command = match operation {
             Operation::NOP => Command::Nop,
             Operation::SetCP => {
                 let register = reader.read_be::<u8>()?;
                 let value = reader.read_be::<u32>()?;
 
                 let Some(register) = Reg::from_repr(register) else {
-                    panic!("unknown cp register {register:02X}");
+                    panic!("unknown internal CP register {register:02X}");
                 };
 
                 Command::SetCP { register, value }
@@ -491,11 +504,7 @@ impl Gpu {
                     values.push(reader.read_be::<u32>()?);
                 }
 
-                Command::SetXF {
-                    start,
-                    length,
-                    values,
-                }
+                Command::SetXF { start, values }
             }
             Operation::IndexedSetXFA => todo!(),
             Operation::IndexedSetXFB => todo!(),
@@ -512,14 +521,19 @@ impl Gpu {
                     reader.read_be::<u8>()?,
                 ]);
 
-                let Some(register) = BypassReg::from_repr(register) else {
-                    panic!("unknown bypass register {register:02X}");
+                let Some(register) = GxReg::from_repr(register) else {
+                    panic!("unknown internal GX register {register:02X}");
                 };
 
                 Command::SetBP { register, value }
             }
-            Operation::DrawQuads => todo!(),
-            Operation::DrawTriangles => {
+            Operation::DrawQuadList
+            | Operation::DrawTriangleList
+            | Operation::DrawTriangleStrip
+            | Operation::DrawTriangleFan
+            | Operation::DrawLineList
+            | Operation::DrawLineStrip
+            | Operation::DrawPointList => {
                 let vertex_count = reader.read_be::<u16>()?;
                 let vertex_size = self
                     .command
@@ -535,16 +549,25 @@ impl Gpu {
                 let vertex_attributes = VertexAttributeStream {
                     table: opcode.vat_index().value(),
                     count: vertex_count,
-                    attributes: vertex_attributes,
+                    data: vertex_attributes,
                 };
 
-                Command::DrawTriangles { vertex_attributes }
+                let topology = match operation {
+                    Operation::DrawQuadList => Topology::QuadList,
+                    Operation::DrawTriangleList => Topology::TriangleList,
+                    Operation::DrawTriangleStrip => Topology::TriangleStrip,
+                    Operation::DrawTriangleFan => Topology::TriangleFan,
+                    Operation::DrawLineList => Topology::LineList,
+                    Operation::DrawLineStrip => Topology::LineStrip,
+                    Operation::DrawPointList => Topology::PointList,
+                    _ => unreachable!(),
+                };
+
+                Command::Draw {
+                    topology,
+                    vertex_attributes,
+                }
             }
-            Operation::DrawTriangleStrip => todo!(),
-            Operation::DrawTriangleFan => todo!(),
-            Operation::DrawLines => todo!(),
-            Operation::DrawLineStrip => todo!(),
-            Operation::DrawPoints => todo!(),
         };
 
         reader.finish();
@@ -554,6 +577,105 @@ impl Gpu {
 
 /// Command Processor
 impl System {
+    /// Sets the value of an internal command processor register.
+    pub fn cp_set(&mut self, reg: Reg, value: u32) {
+        let cp = &mut self.gpu.command.internal;
+        match reg {
+            Reg::MatIndexLow => value.write_ne_bytes(&mut cp.mat_indices.as_mut_bytes()[0..4]),
+            Reg::MatIndexHigh => value.write_ne_bytes(&mut cp.mat_indices.as_mut_bytes()[4..8]),
+
+            Reg::VcdLow => value.write_ne_bytes(&mut cp.vertex_descriptor.as_mut_bytes()[0..4]),
+            Reg::VcdHigh => value.write_ne_bytes(&mut cp.vertex_descriptor.as_mut_bytes()[4..8]),
+
+            Reg::Vat0A => value.write_ne_bytes(cp.vertex_attr_tables[0].a.as_mut_bytes()),
+            Reg::Vat1A => value.write_ne_bytes(cp.vertex_attr_tables[1].a.as_mut_bytes()),
+            Reg::Vat2A => value.write_ne_bytes(cp.vertex_attr_tables[2].a.as_mut_bytes()),
+            Reg::Vat3A => value.write_ne_bytes(cp.vertex_attr_tables[3].a.as_mut_bytes()),
+            Reg::Vat4A => value.write_ne_bytes(cp.vertex_attr_tables[4].a.as_mut_bytes()),
+            Reg::Vat5A => value.write_ne_bytes(cp.vertex_attr_tables[5].a.as_mut_bytes()),
+            Reg::Vat6A => value.write_ne_bytes(cp.vertex_attr_tables[6].a.as_mut_bytes()),
+            Reg::Vat7A => value.write_ne_bytes(cp.vertex_attr_tables[7].a.as_mut_bytes()),
+
+            Reg::Vat0B => value.write_ne_bytes(cp.vertex_attr_tables[0].b.as_mut_bytes()),
+            Reg::Vat1B => value.write_ne_bytes(cp.vertex_attr_tables[1].b.as_mut_bytes()),
+            Reg::Vat2B => value.write_ne_bytes(cp.vertex_attr_tables[2].b.as_mut_bytes()),
+            Reg::Vat3B => value.write_ne_bytes(cp.vertex_attr_tables[3].b.as_mut_bytes()),
+            Reg::Vat4B => value.write_ne_bytes(cp.vertex_attr_tables[4].b.as_mut_bytes()),
+            Reg::Vat5B => value.write_ne_bytes(cp.vertex_attr_tables[5].b.as_mut_bytes()),
+            Reg::Vat6B => value.write_ne_bytes(cp.vertex_attr_tables[6].b.as_mut_bytes()),
+            Reg::Vat7B => value.write_ne_bytes(cp.vertex_attr_tables[7].b.as_mut_bytes()),
+
+            Reg::Vat0C => value.write_ne_bytes(cp.vertex_attr_tables[0].c.as_mut_bytes()),
+            Reg::Vat1C => value.write_ne_bytes(cp.vertex_attr_tables[1].c.as_mut_bytes()),
+            Reg::Vat2C => value.write_ne_bytes(cp.vertex_attr_tables[2].c.as_mut_bytes()),
+            Reg::Vat3C => value.write_ne_bytes(cp.vertex_attr_tables[3].c.as_mut_bytes()),
+            Reg::Vat4C => value.write_ne_bytes(cp.vertex_attr_tables[4].c.as_mut_bytes()),
+            Reg::Vat5C => value.write_ne_bytes(cp.vertex_attr_tables[5].c.as_mut_bytes()),
+            Reg::Vat6C => value.write_ne_bytes(cp.vertex_attr_tables[6].c.as_mut_bytes()),
+            Reg::Vat7C => value.write_ne_bytes(cp.vertex_attr_tables[7].c.as_mut_bytes()),
+
+            Reg::PositionPtr => value.write_ne_bytes(cp.arrays.position.address.as_mut_bytes()),
+            Reg::NormalPtr => value.write_ne_bytes(cp.arrays.normal.address.as_mut_bytes()),
+            Reg::DiffusePtr => value.write_ne_bytes(cp.arrays.diffuse.address.as_mut_bytes()),
+
+            Reg::Tex0CoordPtr => {
+                value.write_ne_bytes(cp.arrays.tex_coords[0].address.as_mut_bytes())
+            }
+            Reg::Tex1CoordPtr => {
+                value.write_ne_bytes(cp.arrays.tex_coords[1].address.as_mut_bytes())
+            }
+            Reg::Tex2CoordPtr => {
+                value.write_ne_bytes(cp.arrays.tex_coords[2].address.as_mut_bytes())
+            }
+            Reg::Tex3CoordPtr => {
+                value.write_ne_bytes(cp.arrays.tex_coords[3].address.as_mut_bytes())
+            }
+            Reg::Tex4CoordPtr => {
+                value.write_ne_bytes(cp.arrays.tex_coords[4].address.as_mut_bytes())
+            }
+            Reg::Tex5CoordPtr => {
+                value.write_ne_bytes(cp.arrays.tex_coords[5].address.as_mut_bytes())
+            }
+            Reg::Tex6CoordPtr => {
+                value.write_ne_bytes(cp.arrays.tex_coords[6].address.as_mut_bytes())
+            }
+            Reg::Tex7CoordPtr => {
+                value.write_ne_bytes(cp.arrays.tex_coords[7].address.as_mut_bytes())
+            }
+
+            Reg::PositionStride => value.write_ne_bytes(cp.arrays.position.stride.as_mut_bytes()),
+            Reg::NormalStride => value.write_ne_bytes(cp.arrays.normal.stride.as_mut_bytes()),
+            Reg::DiffuseStride => value.write_ne_bytes(cp.arrays.diffuse.stride.as_mut_bytes()),
+
+            Reg::Tex0CoordStride => {
+                value.write_ne_bytes(cp.arrays.tex_coords[0].stride.as_mut_bytes())
+            }
+            Reg::Tex1CoordStride => {
+                value.write_ne_bytes(cp.arrays.tex_coords[1].stride.as_mut_bytes())
+            }
+            Reg::Tex2CoordStride => {
+                value.write_ne_bytes(cp.arrays.tex_coords[2].stride.as_mut_bytes())
+            }
+            Reg::Tex3CoordStride => {
+                value.write_ne_bytes(cp.arrays.tex_coords[3].stride.as_mut_bytes())
+            }
+            Reg::Tex4CoordStride => {
+                value.write_ne_bytes(cp.arrays.tex_coords[4].stride.as_mut_bytes())
+            }
+            Reg::Tex5CoordStride => {
+                value.write_ne_bytes(cp.arrays.tex_coords[5].stride.as_mut_bytes())
+            }
+            Reg::Tex6CoordStride => {
+                value.write_ne_bytes(cp.arrays.tex_coords[6].stride.as_mut_bytes())
+            }
+            Reg::Tex7CoordStride => {
+                value.write_ne_bytes(cp.arrays.tex_coords[7].stride.as_mut_bytes())
+            }
+
+            _ => tracing::warn!("unimplemented write to internal CP register {reg:?}"),
+        }
+    }
+
     /// Pops a value from the CP FIFO in memory.
     fn cp_fifo_pop(&mut self) -> u8 {
         assert!(self.gpu.command.fifo.count > 0);
@@ -567,7 +689,7 @@ impl System {
     /// Process CP commands until the queue is either empty or incomplete.
     pub fn cp_process(&mut self) {
         loop {
-            if self.gpu.command_queue.is_empty() {
+            if self.gpu.command.queue.is_empty() {
                 return;
             }
 
@@ -575,22 +697,23 @@ impl System {
                 return;
             };
 
-            tracing::debug!("{:02X?}", cmd);
+            tracing::debug!("processing {:02X?}", cmd);
 
             match cmd {
                 Command::Nop => (),
                 Command::InvalidateVertexCache => (),
-                Command::SetCP { register, value } => {
-                    self.gpu.command.internal.set(register, value)
-                }
-                Command::SetBP { .. } => (),
-                Command::SetXF { start, values, .. } => {
+                Command::SetCP { register, value } => self.cp_set(register, value),
+                Command::SetBP { register, value } => self.gx_set(register, value),
+                Command::SetXF { start, values } => {
                     for (offset, value) in values.into_iter().enumerate() {
-                        self.gpu.transform.write(start + offset as u16, value);
+                        self.xf_write(start + offset as u16, value);
                     }
                 }
-                Command::DrawTriangles { vertex_attributes } => {
-                    self.gx_draw_triangle(vertex_attributes);
+                Command::Draw {
+                    topology,
+                    vertex_attributes,
+                } => {
+                    self.gx_draw(topology, &vertex_attributes);
                 }
             }
         }
@@ -600,7 +723,7 @@ impl System {
     pub fn cp_update(&mut self) {
         while self.gpu.command.fifo.count > 0 {
             let data = self.cp_fifo_pop();
-            self.gpu.command_queue.push_be(data);
+            self.gpu.command.queue.push_be(data);
         }
 
         self.cp_process();

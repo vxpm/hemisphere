@@ -62,6 +62,24 @@ impl BlockBuilder<'_> {
         FLOAT_INFO
     }
 
+    pub fn fres(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let fpr_b = self.get(ins.fpr_b());
+        let one = self.ir_value(1.0f64);
+
+        let recip = self.bd.ins().fdiv(one, fpr_b);
+        self.set(ins.fpr_d(), recip);
+
+        self.update_fprf_cmpz(recip);
+
+        if ins.field_rc() {
+            self.update_cr1_float();
+        }
+
+        FLOAT_INFO
+    }
+
     pub fn frsqrte(&mut self, ins: Ins) -> Info {
         self.check_floats();
 

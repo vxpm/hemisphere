@@ -227,6 +227,7 @@ const LOAD_INFO: Info = Info {
     action: Action::Continue,
 };
 
+#[derive(Clone, Copy)]
 struct LoadOp {
     update: bool,
     signed: bool,
@@ -493,6 +494,29 @@ impl BlockBuilder<'_> {
         LOAD_INFO
     }
 
+    pub fn lfdu(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let addr = if ins.field_ra() == 0 {
+            self.ir_value(ins.field_offset() as i32)
+        } else {
+            let ra = self.get(ins.gpr_a());
+            self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
+        };
+
+        let value = self.read::<i64>(addr);
+        let value = self
+            .bd
+            .ins()
+            .bitcast(ir::types::F64, ir::MemFlags::new(), value);
+
+        let paired = self.bd.ins().splat(ir::types::F64X2, value);
+        self.set_ps(ins.fpr_d(), paired);
+        self.set(ins.gpr_a(), addr);
+
+        LOAD_INFO
+    }
+
     pub fn lfs(&mut self, ins: Ins) -> Info {
         self.check_floats();
 
@@ -501,6 +525,30 @@ impl BlockBuilder<'_> {
         } else {
             let ra = self.get(ins.gpr_a());
             self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
+        };
+
+        let value = self.read::<i32>(addr);
+        let value = self
+            .bd
+            .ins()
+            .bitcast(ir::types::F32, ir::MemFlags::new(), value);
+
+        let double = self.bd.ins().fpromote(ir::types::F64, value);
+        let paired = self.bd.ins().splat(ir::types::F64X2, double);
+        self.set_ps(ins.fpr_d(), paired);
+
+        LOAD_INFO
+    }
+
+    pub fn lfsx(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let rb = self.get(ins.gpr_b());
+        let addr = if ins.field_ra() == 0 {
+            rb
+        } else {
+            let ra = self.get(ins.gpr_a());
+            self.bd.ins().iadd(ra, rb)
         };
 
         let value = self.read::<i32>(addr);

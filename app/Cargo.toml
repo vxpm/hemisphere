@@ -3,17 +3,19 @@ name = "app"
 version = "0.1.0"
 edition = "2024"
 
+[lints]
+workspace = true
+
 [dependencies]
-eyre-pretty = { path = "/home/vxpm/dev/eyre-pretty" }
 hemisphere = { path = "../hemisphere" }
-binrw.workspace = true
-bytesize.workspace = true
+renderer = { path = "../renderer" }
+eyre-pretty.workspace = true
 clap.workspace = true
 tracing-subscriber.workspace = true
 tracing.workspace = true
 wgpu.workspace = true
 
-eframe = { version = "0.32", features = [
+eframe = { version = "0.33", features = [
     # platforms
     "wayland",
     "x11",
@@ -25,5 +27,5 @@ eframe = { version = "0.32", features = [
     "persistence",
     "default_fonts",
 ], default-features = false }
-egui_extras = "0.32"
+egui_extras = "0.33"
 tracing-appender = "0.2"

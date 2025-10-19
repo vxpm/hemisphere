@@ -13,6 +13,7 @@ const LOGIC_INFO: Info = Info {
     action: Action::Continue,
 };
 
+#[derive(Clone, Copy)]
 enum BasicBitOpKind {
     Or,
     Nor,
@@ -22,6 +23,7 @@ enum BasicBitOpKind {
     Eqv,
 }
 
+#[derive(Clone, Copy)]
 enum BasicBitOpRhs {
     RB,
     ComplementRB,
@@ -29,6 +31,7 @@ enum BasicBitOpRhs {
     ShiftedImm,
 }
 
+#[derive(Clone, Copy)]
 struct BasicBitOp {
     kind: BasicBitOpKind,
     rhs: BasicBitOpRhs,
@@ -269,17 +272,20 @@ impl BlockBuilder<'_> {
     }
 }
 
+#[derive(Clone, Copy)]
 enum ShiftKind {
     Left,
     RightLogic,
     RightArithmetic,
 }
 
+#[derive(Clone, Copy)]
 enum ShiftRhs {
     RB,
     Imm,
 }
 
+#[derive(Clone, Copy)]
 struct ShiftOp {
     kind: ShiftKind,
     rhs: ShiftRhs,

@@ -1,13 +1,15 @@
+use crate::system::gpu::command::{ArrayDescriptor, Arrays, AttributeMode, VertexDescriptor};
 use bitos::{BitUtils, bitos, integer::u5};
 use common::bin::BinReader;
-use glam::Vec3;
+use glam::{Vec2, Vec3};
+use zerocopy::{Immutable, IntoBytes};
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Immutable, IntoBytes, Default)]
 pub struct Rgba {
-    r: f32,
-    g: f32,
-    b: f32,
-    a: f32,
+    pub r: f32,
+    pub g: f32,
+    pub b: f32,
+    pub a: f32,
 }
 
 impl std::fmt::Debug for Rgba {
@@ -21,12 +23,30 @@ impl std::fmt::Debug for Rgba {
     }
 }
 
-pub trait Attribute {
+/// A vertex attribute descriptor.
+pub trait AttributeDescriptor {
+    /// The value type of this attribute.
     type Value;
 
+    /// Size of a value of this attribute in an attribute stream.
     fn size(&self) -> u32;
 
+    /// Reads a value defined by this descriptor from binary data.
     fn read(&self, reader: &mut BinReader) -> Option<Self::Value>;
+}
+
+pub struct IndexDescriptor;
+
+impl AttributeDescriptor for IndexDescriptor {
+    type Value = u8;
+
+    fn size(&self) -> u32 {
+        1
+    }
+
+    fn read(&self, reader: &mut BinReader) -> Option<Self::Value> {
+        reader.read_be::<u8>()
+    }
 }
 
 #[bitos(1)]
@@ -66,7 +86,7 @@ impl CoordsFormat {
 
 #[bitos(9)]
 #[derive(Debug, Clone, Default)]
-pub struct PositionAttribute {
+pub struct PositionDescriptor {
     #[bits(0)]
     pub kind: PositionKind,
     #[bits(1..4)]
@@ -75,7 +95,7 @@ pub struct PositionAttribute {
     pub shift: u5,
 }
 
-impl Attribute for PositionAttribute {
+impl AttributeDescriptor for PositionDescriptor {
     type Value = Vec3;
 
     fn size(&self) -> u32 {
@@ -148,19 +168,41 @@ impl NormalFormat {
 
 #[bitos(4)]
 #[derive(Debug, Clone, Default)]
-pub struct NormalAttribute {
+pub struct NormalDescriptor {
     #[bits(0)]
     pub kind: NormalKind,
     #[bits(1..4)]
     pub format: NormalFormat,
 }
 
-impl NormalAttribute {
-    pub fn size(self) -> u32 {
+impl AttributeDescriptor for NormalDescriptor {
+    type Value = Vec3;
+
+    fn size(&self) -> u32 {
         match self.kind() {
             NormalKind::N3 => 3 * self.format().size(),
             NormalKind::N9 => 9 * self.format().size(),
         }
+    }
+
+    fn read(&self, reader: &mut BinReader) -> Option<Vec3> {
+        let mut component = || {
+            Some(match self.format() {
+                NormalFormat::I8 => reader.read_be::<i8>()? as f32,
+                NormalFormat::I16 => reader.read_be::<i16>()? as f32,
+                NormalFormat::F32 => f32::from_bits(reader.read_be::<u32>()?),
+                _ => panic!("reserved format"),
+            })
+        };
+
+        let x = component()?;
+        let y = component()?;
+        let z = component()?;
+
+        Some(match self.kind() {
+            NormalKind::N3 => Vec3::new(x, y, z),
+            NormalKind::N9 => todo!(),
+        })
     }
 }
 
@@ -201,7 +243,7 @@ impl ColorFormat {
 
 #[bitos(4)]
 #[derive(Debug, Clone, Default)]
-pub struct ColorAttribute {
+pub struct ColorDescriptor {
     #[bits(0)]
     pub kind: ColorKind,
     #[bits(1..4)]
@@ -223,7 +265,7 @@ impl Rgba {
     }
 }
 
-impl Attribute for ColorAttribute {
+impl AttributeDescriptor for ColorDescriptor {
     type Value = Rgba;
 
     fn size(&self) -> u32 {
@@ -312,7 +354,7 @@ pub enum TexCoordsKind {
 
 #[bitos(9)]
 #[derive(Debug, Clone, Default)]
-pub struct TexCoordsAttribute {
+pub struct TexCoordsDescriptor {
     #[bits(0)]
     pub kind: TexCoordsKind,
     #[bits(1..4)]
@@ -321,12 +363,37 @@ pub struct TexCoordsAttribute {
     pub shift: u5,
 }
 
-impl TexCoordsAttribute {
-    pub fn size(self) -> u32 {
+impl AttributeDescriptor for TexCoordsDescriptor {
+    type Value = Vec2;
+
+    fn size(&self) -> u32 {
         match self.kind() {
-            TexCoordsKind::Vec1 => 1 * self.format().size(),
+            TexCoordsKind::Vec1 => self.format().size(),
             TexCoordsKind::Vec2 => 2 * self.format().size(),
         }
+    }
+
+    fn read(&self, reader: &mut BinReader) -> Option<Vec2> {
+        let mut component = || {
+            let shift = 2.0f32.powi(self.shift().value() as i32);
+            Some(match self.format() {
+                CoordsFormat::U8 => reader.read_be::<u8>()? as f32 / shift,
+                CoordsFormat::I8 => reader.read_be::<i8>()? as f32 / shift,
+                CoordsFormat::U16 => reader.read_be::<u16>()? as f32 / shift,
+                CoordsFormat::I16 => reader.read_be::<i16>()? as f32 / shift,
+                CoordsFormat::F32 => f32::from_bits(reader.read_be::<u32>()?),
+                _ => panic!("reserved format"),
+            })
+        };
+
+        let s = component()?;
+        Some(match self.kind() {
+            TexCoordsKind::Vec1 => Vec2::new(s, 0.0),
+            TexCoordsKind::Vec2 => {
+                let t = component()?;
+                Vec2::new(s, t)
+            }
+        })
     }
 }
 
@@ -334,15 +401,15 @@ impl TexCoordsAttribute {
 #[derive(Debug, Clone, Default)]
 pub struct VertexAttributeTableA {
     #[bits(0..9)]
-    pub position: PositionAttribute,
+    pub position: PositionDescriptor,
     #[bits(9..13)]
-    pub normal: NormalAttribute,
+    pub normal: NormalDescriptor,
     #[bits(13..17)]
-    pub diffuse: ColorAttribute,
+    pub diffuse: ColorDescriptor,
     #[bits(17..21)]
-    pub specular: ColorAttribute,
+    pub specular: ColorDescriptor,
     #[bits(21..30)]
-    pub tex0: TexCoordsAttribute,
+    pub tex0: TexCoordsDescriptor,
     #[bits(30)]
     pub byte_dequant: bool,
     #[bits(31)]
@@ -353,7 +420,7 @@ pub struct VertexAttributeTableA {
 #[derive(Debug, Clone, Default)]
 pub struct VertexAttributeTableB {
     #[bits(0..27)]
-    pub tex1to3: [TexCoordsAttribute; 3],
+    pub tex1to3: [TexCoordsDescriptor; 3],
 
     #[bits(27)]
     pub tex4_kind: TexCoordsKind,
@@ -370,7 +437,7 @@ pub struct VertexAttributeTableC {
     #[bits(0..5)]
     pub tex4_shift: u5,
     #[bits(5..32)]
-    pub tex5to7: [TexCoordsAttribute; 3],
+    pub tex5to7: [TexCoordsDescriptor; 3],
 }
 
 #[derive(Debug, Clone, Default)]
@@ -381,16 +448,120 @@ pub struct VertexAttributeTable {
 }
 
 impl VertexAttributeTable {
-    pub fn tex(&self, index: usize) -> Option<TexCoordsAttribute> {
+    pub fn tex(&self, index: usize) -> Option<TexCoordsDescriptor> {
         Some(match index {
             0 => self.a.tex0(),
             1..4 => self.b.tex1to3_at(index - 1).unwrap(),
-            4 => TexCoordsAttribute::default()
+            4 => TexCoordsDescriptor::default()
                 .with_kind(self.b.tex4_kind())
                 .with_format(self.b.tex4_format())
                 .with_shift(self.c.tex4_shift()),
             5..8 => self.c.tex5to7_at(index - 5).unwrap(),
             _ => return None,
         })
+    }
+}
+
+/// A vertex attribute.
+pub trait Attribute {
+    /// The descriptor for this attribute.
+    type Descriptor: AttributeDescriptor;
+
+    fn get_mode(vcd: &VertexDescriptor) -> AttributeMode;
+    fn get_descriptor(vat: &VertexAttributeTable) -> Self::Descriptor;
+    fn get_array(arrays: &Arrays) -> Option<ArrayDescriptor>;
+}
+
+pub struct PositionMatrixIndex;
+
+impl Attribute for PositionMatrixIndex {
+    type Descriptor = IndexDescriptor;
+
+    fn get_mode(vcd: &VertexDescriptor) -> AttributeMode {
+        if vcd.pos_mat_index() {
+            AttributeMode::Direct
+        } else {
+            AttributeMode::None
+        }
+    }
+
+    fn get_descriptor(_: &VertexAttributeTable) -> Self::Descriptor {
+        IndexDescriptor
+    }
+
+    fn get_array(_: &Arrays) -> Option<ArrayDescriptor> {
+        None
+    }
+}
+
+pub struct Position;
+
+impl Attribute for Position {
+    type Descriptor = PositionDescriptor;
+
+    fn get_mode(vcd: &VertexDescriptor) -> AttributeMode {
+        vcd.position()
+    }
+
+    fn get_descriptor(vat: &VertexAttributeTable) -> Self::Descriptor {
+        vat.a.position()
+    }
+
+    fn get_array(arrays: &Arrays) -> Option<ArrayDescriptor> {
+        Some(arrays.position)
+    }
+}
+
+pub struct Normal;
+
+impl Attribute for Normal {
+    type Descriptor = NormalDescriptor;
+
+    fn get_mode(vcd: &VertexDescriptor) -> AttributeMode {
+        vcd.normal()
+    }
+
+    fn get_descriptor(vat: &VertexAttributeTable) -> Self::Descriptor {
+        vat.a.normal()
+    }
+
+    fn get_array(arrays: &Arrays) -> Option<ArrayDescriptor> {
+        Some(arrays.normal)
+    }
+}
+
+pub struct Diffuse;
+
+impl Attribute for Diffuse {
+    type Descriptor = ColorDescriptor;
+
+    fn get_mode(vcd: &VertexDescriptor) -> AttributeMode {
+        vcd.diffuse()
+    }
+
+    fn get_descriptor(vat: &VertexAttributeTable) -> Self::Descriptor {
+        vat.a.diffuse()
+    }
+
+    fn get_array(arrays: &Arrays) -> Option<ArrayDescriptor> {
+        Some(arrays.diffuse)
+    }
+}
+
+pub struct TexCoords<const N: usize>;
+
+impl<const N: usize> Attribute for TexCoords<N> {
+    type Descriptor = TexCoordsDescriptor;
+
+    fn get_mode(vcd: &VertexDescriptor) -> AttributeMode {
+        vcd.tex_coord_at(N).unwrap()
+    }
+
+    fn get_descriptor(vat: &VertexAttributeTable) -> Self::Descriptor {
+        vat.tex(N).unwrap()
+    }
+
+    fn get_array(arrays: &Arrays) -> Option<ArrayDescriptor> {
+        Some(arrays.tex_coords[N])
     }
 }

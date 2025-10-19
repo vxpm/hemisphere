@@ -127,9 +127,7 @@ impl Runner {
     where
         F: FnOnce(&mut State) -> R,
     {
-        if self.handle.is_finished() {
-            panic!("runner thread died");
-        }
+        assert!(!self.handle.is_finished(), "runner thread died");
 
         let current = self.state.advance.get();
         self.state.advance.set(false);

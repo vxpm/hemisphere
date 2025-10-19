@@ -4,14 +4,20 @@ description = "JIT for PowerPC code using cranelift"
 version = "0.1.0"
 edition = "2024"
 
+[lints]
+workspace = true
+
+[features]
+disasm = ["dep:iced-x86"]
+
 [dependencies]
 common = { path = "../common" }
 bitos.workspace = true
-bytesize.workspace = true
+# bytesize.workspace = true
 easyerr.workspace = true
-iced-x86.workspace = true
+iced-x86 = { workspace = true, optional = true }
 memmap2.workspace = true
 rustc-hash.workspace = true
 zerocopy.workspace = true
 tracing.workspace = true
-cranelift = { version = "0.122", features = ["frontend", "native"] }
+cranelift = { version = "0.124", features = ["frontend", "native"] }

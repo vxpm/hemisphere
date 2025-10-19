@@ -6,7 +6,6 @@ use cranelift::{
     codegen::{CompiledCode, ir},
     prelude::isa,
 };
-use iced_x86::Formatter;
 use memmap2::{Mmap, MmapOptions};
 use std::fmt::Display;
 
@@ -34,6 +33,9 @@ pub struct Hooks {
     pub write_i64: WriteHook<i64>,
     pub read_quantized: ReadQuantizedHook,
     pub write_quantized: WriteQuantizedHook,
+
+    // msr
+    pub msr_changed: GenericHook,
 
     // bats
     pub ibat_changed: GenericHook,
@@ -186,9 +188,11 @@ impl Block {
     }
 }
 
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "disasm"))]
 impl Display for Block {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use iced_x86::Formatter;
+
         let mut decoder =
             iced_x86::Decoder::new(usize::BITS, &self.code, iced_x86::DecoderOptions::NONE);
 
@@ -228,9 +232,9 @@ impl Display for Block {
     }
 }
 
-#[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+#[cfg(not(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "disasm")))]
 impl Display for Block {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "disasm unsupported");
+        write!(f, "disasm unsupported")
     }
 }

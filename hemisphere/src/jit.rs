@@ -66,6 +66,8 @@ impl BlockMapping {
     pub fn invalidate(&mut self, addr: Address) {
         // check LUT first
         let page = addr.value() >> 12;
+
+        #[expect(clippy::redundant_else, reason = "makes it clearer")]
         if self.page_lut[page as usize] == 0 {
             return;
         } else {
@@ -262,6 +264,10 @@ pub static CTX_HOOKS: Hooks = {
         gqr.store_type().size()
     }
 
+    extern "sysv64-unwind" fn msr_changed(ctx: &mut Context) {
+        ctx.system.scheduler.schedule_now(Event::CheckInterrupts);
+    }
+
     extern "sysv64-unwind" fn ibat_changed(ctx: &mut Context) {
         tracing::info!("ibats changed - clearing blocks mapping and rebuilding ibat lut");
         ctx.mapping.clear();
@@ -337,6 +343,8 @@ pub static CTX_HOOKS: Hooks = {
             write_quantized as extern "sysv64-unwind" fn(_, _, _, _) -> _,
         );
 
+        let msr_changed = transmute::<_, GenericHook>(msr_changed as extern "sysv64-unwind" fn(_));
+
         let ibat_changed =
             transmute::<_, GenericHook>(ibat_changed as extern "sysv64-unwind" fn(_));
         let dbat_changed =
@@ -361,6 +369,8 @@ pub static CTX_HOOKS: Hooks = {
             write_i64,
             read_quantized,
             write_quantized,
+
+            msr_changed,
 
             ibat_changed,
             dbat_changed,

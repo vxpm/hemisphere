@@ -32,8 +32,9 @@ fn reg_ir_ty(reg: Reg) -> ir::Type {
 
 fn is_cacheable(reg: Reg) -> bool {
     match reg {
+        Reg::MSR => false,
         Reg::SPR(spr) => match spr {
-            SPR::DEC | SPR::TBL | SPR::TBU | SPR::WPAR => false,
+            SPR::DEC | SPR::TBL | SPR::TBU | SPR::WPAR | SPR::SRR0 | SPR::SRR1 | SPR::DAR => false,
             spr if spr.is_bat() => false,
             _ => true,
         },
@@ -56,6 +57,7 @@ pub enum Action {
     Prologue,
 }
 
+#[derive(Clone, Copy)]
 pub(crate) struct Info {
     cycles: u8,
     auto_pc: bool,
@@ -304,7 +306,8 @@ impl<'ctx> BlockBuilder<'ctx> {
     }
 
     /// Calls a generic context hook.
-    fn call_generic_hook(&mut self, offset: i32) {
+    fn call_generic_hook(&mut self, offset: usize) {
+        let offset = offset as i32;
         let hook = self.bd.ins().load(
             self.consts.ptr_type,
             ir::MemFlags::trusted(),
@@ -371,11 +374,11 @@ impl<'ctx> BlockBuilder<'ctx> {
         let merged = self.bd.ins().bor(instructions, cycles);
 
         if self.dbat_changed {
-            self.call_generic_hook(offset_of!(Hooks, dbat_changed) as i32);
+            self.call_generic_hook(offset_of!(Hooks, dbat_changed));
         }
 
         if self.ibat_changed {
-            self.call_generic_hook(offset_of!(Hooks, ibat_changed) as i32);
+            self.call_generic_hook(offset_of!(Hooks, ibat_changed));
         }
 
         self.bd.ins().return_(&[merged]);
@@ -430,13 +433,19 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Fadds => self.fadds(ins),
             Opcode::Fcmpu => self.fcmpu(ins),
             Opcode::Fctiwz => self.fctiwz(ins),
+            Opcode::Fdiv => self.fdiv(ins),
             Opcode::Fdivs => self.fdivs(ins),
+            Opcode::Fmadd => self.fmadd(ins),
             Opcode::Fmadds => self.fmadds(ins),
             Opcode::Fmr => self.fmr(ins),
+            Opcode::Fmsub => self.fmsub(ins),
+            Opcode::Fmsubs => self.fmsubs(ins),
+            Opcode::Fmul => self.fmul(ins),
             Opcode::Fmuls => self.fmuls(ins),
             Opcode::Fneg => self.fneg(ins),
             Opcode::Fnmadds => self.fnmadds(ins),
             Opcode::Fnmsubs => self.fnmsubs(ins),
+            Opcode::Fres => self.fres(ins),
             Opcode::Frsp => self.frsp(ins),
             Opcode::Frsqrte => self.frsqrte(ins),
             Opcode::Fsub => self.fsub(ins),
@@ -448,7 +457,9 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Lbzux => self.lbzux(ins),
             Opcode::Lbzx => self.lbzx(ins),
             Opcode::Lfd => self.lfd(ins),
+            Opcode::Lfdu => self.lfdu(ins),
             Opcode::Lfs => self.lfs(ins),
+            Opcode::Lfsx => self.lfsx(ins),
             Opcode::Lha => self.lha(ins),
             Opcode::Lhau => self.lhau(ins),
             Opcode::Lhaux => self.lhaux(ins),
@@ -484,6 +495,8 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Orc => self.orc(ins),
             Opcode::Ori => self.ori(ins),
             Opcode::Oris => self.oris(ins),
+            Opcode::PsAdd => self.ps_add(ins),
+            Opcode::PsCmpo0 => self.ps_cmpo0(ins),
             Opcode::PsMadd => self.ps_madd(ins),
             Opcode::PsMadds0 => self.ps_madds0(ins),
             Opcode::PsMadds1 => self.ps_madds1(ins),
@@ -497,6 +510,9 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::PsMuls0 => self.ps_muls0(ins),
             Opcode::PsMuls1 => self.ps_muls1(ins),
             Opcode::PsNeg => self.ps_neg(ins),
+            Opcode::PsNmadd => self.ps_nmadd(ins),
+            Opcode::PsNmsub => self.ps_nmsub(ins),
+            Opcode::PsSub => self.ps_sub(ins),
             Opcode::PsSum0 => self.ps_sum0(ins),
             Opcode::PsSum1 => self.ps_sum1(ins),
             Opcode::PsqL => self.psq_l(ins),

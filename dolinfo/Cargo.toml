@@ -4,9 +4,12 @@ description = "A small utility to print information about a .dol executable"
 version = "0.1.0"
 edition = "2024"
 
+[lints]
+workspace = true
+
 [dependencies]
 dol = { path = "../dol" }
-eyre-pretty = { path = "/home/vxpm/dev/eyre-pretty" }
 bytesize.workspace = true
 clap.workspace = true
+eyre-pretty.workspace = true
 comfy-table = { version = "7.1", default-features = false }

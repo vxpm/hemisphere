@@ -1,0 +1,21 @@
+[package]
+name = "renderer"
+description = "WGPU based renderer implementation"
+version = "0.1.0"
+edition = "2024"
+
+[lints]
+workspace = true
+
+[build-dependencies]
+wesl.workspace = true
+
+[dependencies]
+hemisphere = { path = "../hemisphere/" }
+tracing.workspace = true
+wgpu.workspace = true
+zerocopy.workspace = true
+wesl.workspace = true
+glam.workspace = true
+rustc-hash.workspace = true
+ordered-float = "5"

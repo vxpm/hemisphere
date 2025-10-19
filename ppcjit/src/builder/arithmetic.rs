@@ -18,11 +18,13 @@ const FLOAT_INFO: Info = Info {
     action: Action::Continue,
 };
 
+#[derive(Clone, Copy)]
 enum AddLhs {
     RA,
     ZeroOrRA,
 }
 
+#[derive(Clone, Copy)]
 enum AddRhs {
     RB,
     Imm,
@@ -31,6 +33,7 @@ enum AddRhs {
     MinusOne,
 }
 
+#[derive(Clone, Copy)]
 struct AddOp {
     lhs: AddLhs,
     rhs: AddRhs,
@@ -246,6 +249,7 @@ impl BlockBuilder<'_> {
     }
 }
 
+#[derive(Clone, Copy)]
 enum SubLhs {
     RB,
     Imm,
@@ -253,6 +257,7 @@ enum SubLhs {
     Zero,
 }
 
+#[derive(Clone, Copy)]
 struct SubOp {
     lhs: SubLhs,
     extend: bool,
@@ -570,6 +575,25 @@ impl BlockBuilder<'_> {
 
         FLOAT_INFO
     }
+
+    pub fn ps_add(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let ps_a = self.get_ps(ins.fpr_a());
+        let ps_b = self.get_ps(ins.fpr_b());
+
+        let value = self.bd.ins().fadd(ps_a, ps_b);
+        self.set_ps(ins.fpr_d(), value);
+
+        let ps0 = self.get(ins.fpr_d());
+        self.update_fprf_cmpz(ps0);
+
+        if ins.field_rc() {
+            self.update_cr1_float();
+        }
+
+        FLOAT_INFO
+    }
 }
 
 /// Floating point subtraction operations
@@ -605,6 +629,25 @@ impl BlockBuilder<'_> {
         self.set(Reg::PS1(ins.fpr_d()), value);
 
         self.update_fprf_cmpz(value);
+
+        if ins.field_rc() {
+            self.update_cr1_float();
+        }
+
+        FLOAT_INFO
+    }
+
+    pub fn ps_sub(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let ps_a = self.get_ps(ins.fpr_a());
+        let ps_b = self.get_ps(ins.fpr_b());
+
+        let value = self.bd.ins().fsub(ps_a, ps_b);
+        self.set_ps(ins.fpr_d(), value);
+
+        let ps0 = self.get(ins.fpr_d());
+        self.update_fprf_cmpz(ps0);
 
         if ins.field_rc() {
             self.update_cr1_float();
@@ -652,6 +695,26 @@ impl BlockBuilder<'_> {
         FLOAT_INFO
     }
 
+    pub fn fmul(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let fpr_a = self.get(ins.fpr_a());
+        let fpr_c = self.get(ins.fpr_c());
+
+        let value = self.bd.ins().fmul(fpr_a, fpr_c);
+
+        self.set(ins.fpr_d(), value);
+        self.set(Reg::PS1(ins.fpr_d()), value);
+
+        self.update_fprf_cmpz(value);
+
+        if ins.field_rc() {
+            self.update_cr1_float();
+        }
+
+        FLOAT_INFO
+    }
+
     pub fn fmadds(&mut self, ins: Ins) -> Info {
         self.check_floats();
 
@@ -664,6 +727,68 @@ impl BlockBuilder<'_> {
 
         self.set(ins.fpr_d(), value);
         self.set(Reg::PS1(ins.fpr_d()), value);
+
+        self.update_fprf_cmpz(value);
+
+        if ins.field_rc() {
+            self.update_cr1_float();
+        }
+
+        FLOAT_INFO
+    }
+
+    pub fn fmadd(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let fpr_a = self.get(ins.fpr_a());
+        let fpr_b = self.get(ins.fpr_b());
+        let fpr_c = self.get(ins.fpr_c());
+
+        let value = self.bd.ins().fma(fpr_a, fpr_c, fpr_b);
+        self.set(ins.fpr_d(), value);
+
+        self.update_fprf_cmpz(value);
+
+        if ins.field_rc() {
+            self.update_cr1_float();
+        }
+
+        FLOAT_INFO
+    }
+
+    pub fn fmsubs(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let fpr_a = self.get(ins.fpr_a());
+        let fpr_b = self.get(ins.fpr_b());
+        let fpr_c = self.get(ins.fpr_c());
+
+        let neg_fpr_b = self.bd.ins().fneg(fpr_b);
+        let value = self.bd.ins().fma(fpr_a, fpr_c, neg_fpr_b);
+        let value = self.round_to_single(value);
+
+        self.set(ins.fpr_d(), value);
+        self.set(Reg::PS1(ins.fpr_d()), value);
+
+        self.update_fprf_cmpz(value);
+
+        if ins.field_rc() {
+            self.update_cr1_float();
+        }
+
+        FLOAT_INFO
+    }
+
+    pub fn fmsub(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let fpr_a = self.get(ins.fpr_a());
+        let fpr_b = self.get(ins.fpr_b());
+        let fpr_c = self.get(ins.fpr_c());
+
+        let neg_fpr_b = self.bd.ins().fneg(fpr_b);
+        let value = self.bd.ins().fma(fpr_a, fpr_c, neg_fpr_b);
+        self.set(ins.fpr_d(), value);
 
         self.update_fprf_cmpz(value);
 
@@ -729,6 +854,26 @@ impl BlockBuilder<'_> {
 
         let value = self.bd.ins().fdiv(fpr_a, fpr_b);
         let value = self.round_to_single(value);
+
+        self.set(ins.fpr_d(), value);
+        self.set(Reg::PS1(ins.fpr_d()), value);
+
+        self.update_fprf_cmpz(value);
+
+        if ins.field_rc() {
+            self.update_cr1_float();
+        }
+
+        FLOAT_INFO
+    }
+
+    pub fn fdiv(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let fpr_a = self.get(ins.fpr_a());
+        let fpr_b = self.get(ins.fpr_b());
+
+        let value = self.bd.ins().fdiv(fpr_a, fpr_b);
 
         self.set(ins.fpr_d(), value);
         self.set(Reg::PS1(ins.fpr_d()), value);
@@ -849,6 +994,49 @@ impl BlockBuilder<'_> {
 
         let neg_ps_b = self.bd.ins().fneg(ps_b);
         let value = self.bd.ins().fma(ps_a, ps_c, neg_ps_b);
+        self.set_ps(ins.fpr_d(), value);
+
+        let ps0 = self.get(ins.fpr_d());
+        self.update_fprf_cmpz(ps0);
+
+        if ins.field_rc() {
+            self.update_cr1_float();
+        }
+
+        FLOAT_INFO
+    }
+
+    pub fn ps_nmadd(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let ps_a = self.get_ps(ins.fpr_a());
+        let ps_b = self.get_ps(ins.fpr_b());
+        let ps_c = self.get_ps(ins.fpr_c());
+
+        let value = self.bd.ins().fma(ps_a, ps_c, ps_b);
+        let value = self.bd.ins().fneg(value);
+        self.set_ps(ins.fpr_d(), value);
+
+        let ps0 = self.get(ins.fpr_d());
+        self.update_fprf_cmpz(ps0);
+
+        if ins.field_rc() {
+            self.update_cr1_float();
+        }
+
+        FLOAT_INFO
+    }
+
+    pub fn ps_nmsub(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let ps_a = self.get_ps(ins.fpr_a());
+        let ps_b = self.get_ps(ins.fpr_b());
+        let ps_c = self.get_ps(ins.fpr_c());
+
+        let neg_ps_b = self.bd.ins().fneg(ps_b);
+        let value = self.bd.ins().fma(ps_a, ps_c, neg_ps_b);
+        let value = self.bd.ins().fneg(value);
         self.set_ps(ins.fpr_d(), value);
 
         let ps0 = self.get(ins.fpr_d());

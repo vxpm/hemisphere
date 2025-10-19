@@ -13,18 +13,10 @@ fn ycbcr_to_rgb(y: u8, cb: u8, cr: u8) -> [u8; 3] {
     [r, g, b].map(|x| x.clamp(0.0, 255.0) as u8)
 }
 
+#[derive(Default)]
 pub struct Window {
     bottom: bool,
     texture: Option<egui::TextureHandle>,
-}
-
-impl Window {
-    pub fn new() -> Self {
-        Self {
-            bottom: false,
-            texture: None,
-        }
-    }
 }
 
 impl WindowUi for Window {
