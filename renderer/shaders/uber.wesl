@@ -5,8 +5,8 @@ alias ConfigIdx = u32;
 
 // Rendering configuration
 struct Config {
-    tev_config: tev::Config,
-    texgen_config: texgen::Config,
+    tev: tev::Config,
+    texgen: texgen::Config,
 };
 
 // A primitive vertex
@@ -60,7 +60,14 @@ struct VertexOutput {
     @location(0) config: u32,
     @location(1) diffuse_color: vec4f,
     @location(2) specular_color: vec4f,
-    @location(3) tex_coord0: vec2f,
+    @location(3) tex_coord0: vec3f,
+    @location(4) tex_coord1: vec3f,
+    @location(5) tex_coord2: vec3f,
+    @location(6) tex_coord3: vec3f,
+    @location(7) tex_coord4: vec3f,
+    @location(8) tex_coord5: vec3f,
+    @location(9) tex_coord6: vec3f,
+    @location(10) tex_coord7: vec3f,
 };
 
 @vertex
@@ -68,6 +75,8 @@ fn vs_main(@builtin(vertex_index) index: u32) -> VertexOutput {
     var out: VertexOutput;
 
     let vertex = vertices[index];
+
+    let config = configs[vertex.config];
     out.config = vertex.config;
     
     let pos = vec4f(vertex.position, 1.0);
@@ -79,7 +88,22 @@ fn vs_main(@builtin(vertex_index) index: u32) -> VertexOutput {
 
     out.diffuse_color = vertex.diffuse;
     out.specular_color = vertex.specular;
-    out.tex_coord0 = vertex.tex_coord[0];
+
+    var tex_coords: array<vec3f, 8>;
+    for (var i = 0u; i < config.texgen.count; i ++) {
+        let texgen = config.texgen.texgens[i];
+        let matrix = matrices[vertex.tex_coord_mat[i]];
+        tex_coords[i] = texgen::compute(vertex, texgen, matrix);
+    }
+
+    out.tex_coord0 = tex_coords[0];
+    out.tex_coord1 = tex_coords[1];
+    out.tex_coord2 = tex_coords[2];
+    out.tex_coord3 = tex_coords[3];
+    out.tex_coord4 = tex_coords[4];
+    out.tex_coord5 = tex_coords[5];
+    out.tex_coord6 = tex_coords[6];
+    out.tex_coord7 = tex_coords[7];
 
     return out;
 }
@@ -87,5 +111,5 @@ fn vs_main(@builtin(vertex_index) index: u32) -> VertexOutput {
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4f {
     let config = &configs[in.config];
-    return tev::compute(config.tev_config, in.diffuse_color, in.specular_color, in.tex_coord0);
+    return tev::compute(config.tev, in.diffuse_color, in.specular_color, in.tex_coord0.xy);
 }

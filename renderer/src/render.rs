@@ -8,7 +8,6 @@ use crate::render::{
     textures::Textures,
     viewport::Framebuffer,
 };
-use data::*;
 use glam::Mat4;
 use hemisphere::{
     render::{self, Viewport},
@@ -16,6 +15,7 @@ use hemisphere::{
         VertexAttributes,
         command::attributes::Rgba,
         pixel::{CompareMode, DepthMode},
+        transform::TexGen,
     },
 };
 use ordered_float::OrderedFloat;
@@ -46,12 +46,12 @@ pub struct Renderer {
 
     queued_clear: bool,
     clear_color: wgpu::Color,
-    current_config: Box<Config>,
+    current_config: Box<data::Config>,
     current_projection_mat: Mat4,
     current_projection_mat_idx: u32,
 
-    configs: Vec<Config>,
-    vertices: Vec<Vertex>,
+    configs: Vec<data::Config>,
+    vertices: Vec<data::Vertex>,
     indices: Vec<u32>,
     matrices: Vec<Mat4>,
     matrices_idx: FxHashMap<HashableMat4, u32>,
@@ -99,21 +99,21 @@ impl Renderer {
         }
     }
 
-    pub fn insert_vertex(&mut self, vertex: Vertex) -> u32 {
+    pub fn insert_vertex(&mut self, vertex: data::Vertex) -> u32 {
         let idx = self.vertices.len();
         self.vertices.push(vertex);
 
         idx as u32
     }
 
-    fn attributes_to_vertex(&mut self, attributes: &VertexAttributes) -> Vertex {
+    fn attributes_to_vertex(&mut self, attributes: &VertexAttributes) -> data::Vertex {
         let position_mat_idx = self.insert_matrix(attributes.position_matrix);
         let normal_mat_idx = self.insert_matrix(Mat4::from_mat3(attributes.normal_matrix));
         let tex_coord_mat_idx = attributes
             .tex_coords_matrix
             .map(|mat| self.insert_matrix(mat));
 
-        Vertex {
+        data::Vertex {
             config_idx: self.configs.len() as u32 - 1,
             projection_idx: self.current_projection_mat_idx,
 
@@ -198,7 +198,7 @@ impl Renderer {
     }
 
     pub fn set_tev_stages(&mut self, stages: Vec<render::TevStage>) {
-        let new = TevConfig::new(stages);
+        let new = data::TevConfig::new(stages);
         if self.current_config.tev == new {
             return;
         }
@@ -207,8 +207,8 @@ impl Renderer {
         self.update_config();
     }
 
-    pub fn set_texgens(&mut self, texgens: Vec<render::TexGen>) {
-        let new = TexGenConfig::new(texgens, |mat| self.insert_matrix(mat));
+    pub fn set_texgens(&mut self, texgens: Vec<TexGen>) {
+        let new = data::TexGenConfig::new(texgens);
         if self.current_config.texgen == new {
             return;
         }
