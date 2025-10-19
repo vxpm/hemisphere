@@ -39,7 +39,7 @@ pub enum DataFormat {
     Intensity4Alpha = 0x2,
     Intensity8Alpha = 0x3,
     Rgb565 = 0x4,
-    Rgb4A3 = 0x5,
+    Rgb5A3 = 0x5,
     Rgba8 = 0x6,
     // everything below is a mystery
     Reserved0 = 0x7,
@@ -100,6 +100,7 @@ impl Format {
         match self.data_format() {
             DataFormat::Intensity8 => pixels,
             DataFormat::Rgb565 => pixels * 2,
+            DataFormat::Rgb5A3 => pixels * 2,
             DataFormat::Rgba8 => pixels * 4,
             _ => todo!("format {:?}", self.data_format()),
         }
@@ -197,6 +198,26 @@ pub fn decode_texture(data: &[u8], format: Format) -> Vec<Rgba8> {
                     g: pixel.bits(5, 11) as u8 * 4,
                     b: pixel.bits(0, 5) as u8 * 8,
                     a: 255,
+                }
+            })
+        }
+        DataFormat::Rgb5A3 => {
+            decode_basic_tex::<4, 4, _>(data, format.width(), format.height(), |data, index| {
+                let pixel = u16::read_be_bytes(&data[2 * index..]);
+                if pixel.bit(15) {
+                    Rgba8 {
+                        r: pixel.bits(10, 15) as u8 * 8,
+                        g: pixel.bits(5, 10) as u8 * 8,
+                        b: pixel.bits(0, 5) as u8 * 8,
+                        a: 255,
+                    }
+                } else {
+                    Rgba8 {
+                        r: pixel.bits(8, 12) as u8 * 16,
+                        g: pixel.bits(4, 8) as u8 * 16,
+                        b: pixel.bits(0, 4) as u8 * 16,
+                        a: pixel.bits(12, 15) as u8 * 32,
+                    }
                 }
             })
         }
