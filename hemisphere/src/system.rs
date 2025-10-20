@@ -1,5 +1,6 @@
 //! State of the emulator.
 
+pub mod audio;
 pub mod bus;
 pub mod dsp;
 pub mod eabi;
@@ -83,6 +84,8 @@ pub struct System {
     pub processor: processor::Interface,
     /// The external interface.
     pub external: external::Interface,
+    /// The audio interface.
+    pub audio: audio::Interface,
 }
 
 impl System {
@@ -157,6 +160,7 @@ impl System {
             video: video::Interface::default(),
             processor: processor::Interface::default(),
             external: external::Interface::default(),
+            audio: audio::Interface::default(),
 
             config,
         };

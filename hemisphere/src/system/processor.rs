@@ -87,6 +87,7 @@ impl System {
 
         sources.set_pe_token(self.gpu.pixel.interrupt.token());
         sources.set_pe_finish(self.gpu.pixel.interrupt.finish());
+        sources.set_audio_interface(self.audio.control.interrupt());
 
         sources
     }
