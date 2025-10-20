@@ -534,6 +534,7 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Stfd => self.stfd(ins),
             Opcode::Stfiwx => self.stfiwx(ins),
             Opcode::Stfs => self.stfs(ins),
+            Opcode::Stfsx => self.stfsx(ins),
             Opcode::Sth => self.sth(ins),
             Opcode::Sthu => self.sthu(ins),
             Opcode::Sthux => self.sthux(ins),

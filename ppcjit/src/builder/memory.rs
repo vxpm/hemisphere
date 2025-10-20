@@ -748,6 +748,29 @@ impl BlockBuilder<'_> {
         STORE_INFO
     }
 
+    pub fn stfsx(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let rb = self.get(ins.gpr_b());
+        let addr = if ins.field_ra() == 0 {
+            rb
+        } else {
+            let ra = self.get(ins.gpr_a());
+            self.bd.ins().iadd(ra, rb)
+        };
+
+        let value = self.get(ins.fpr_s());
+        let value = self.bd.ins().fdemote(ir::types::F32, value);
+        let value = self
+            .bd
+            .ins()
+            .bitcast(ir::types::I32, ir::MemFlags::new(), value);
+
+        self.write::<i32>(addr, value);
+
+        STORE_INFO
+    }
+
     pub fn stfsu(&mut self, ins: Ins) -> Info {
         self.check_floats();
 
