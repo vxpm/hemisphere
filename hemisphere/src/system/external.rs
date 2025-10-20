@@ -117,21 +117,34 @@ impl System {
         let channel = self.external.channels[0];
         match channel.parameter.device0().unwrap() {
             Device::IplRtcSram => {
-                if channel.control.dma() {
-                    let ram_base = channel.dma_base.value() as usize;
-                    let ipl_base = (channel.immediate >> 6) as usize;
-                    let length = channel.dma_length as usize;
+                let offset = (channel.immediate >> 6) as usize;
+                tracing::debug!(pc=?self.cpu.pc, control = ?channel.control, "writing 0x{:08X}", channel.immediate);
 
-                    self.mem.ram[ram_base..][..length]
-                        .copy_from_slice(&self.mem.ipl[ipl_base..][..length]);
+                match offset {
+                    0x0000_0000..0x0080_0000 => {
+                        if channel.control.dma() {
+                            let ram_base = channel.dma_base.value() as usize;
+                            let ipl_base = (channel.immediate >> 6) as usize;
+                            let length = channel.dma_length as usize;
 
-                    tracing::debug!(
-                        pc = ?self.cpu.pc,
-                        ram_base = ?Address(ram_base as u32),
-                        ipl_base = ?Address(ipl_base as u32),
-                        length,
-                        "EXI DMA transfer from IPL ROM",
-                    )
+                            tracing::debug!(
+                                pc = ?self.cpu.pc,
+                                ram_base = ?Address(ram_base as u32),
+                                ipl_base = ?Address(ipl_base as u32),
+                                length,
+                                "EXI DMA transfer from IPL ROM",
+                            );
+
+                            self.mem.ram[ram_base..][..length]
+                                .copy_from_slice(&self.mem.ipl[ipl_base..][..length]);
+                        } else {
+                            // TODO: this breaks
+                            // todo!()
+                        }
+                    }
+                    _ => {
+                        tracing::warn!("EXI channel 0 transfer ignored (SRAM or RTC)");
+                    }
                 }
             }
             _ => todo!(),
@@ -146,5 +159,10 @@ impl System {
         if self.external.channels[0].control.transfer_ongoing() {
             self.exi_channel_0_transfer();
         }
+
+        // HACK: ignore transfer in channel 2
+        self.external.channels[2]
+            .control
+            .set_transfer_ongoing(false);
     }
 }

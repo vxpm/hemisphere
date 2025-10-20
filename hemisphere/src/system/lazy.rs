@@ -4,6 +4,7 @@ use crate::system::System;
 pub struct Lazy {
     pub last_updated_tb: u64,
     pub last_updated_dec: u64,
+    pub audio_samples: u64,
 }
 
 impl System {

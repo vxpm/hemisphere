@@ -149,6 +149,7 @@ impl System {
                 data
             }
             Mmio::DspControl => ne!(self.dsp.control.as_bytes()),
+            Mmio::DspAramMode => ne!((!0u64).as_mut_bytes()), // TODO: figure out this register
             Mmio::DspAramDmaRamBase => ne!(self.dsp.aram_dma_ram.as_bytes()),
             Mmio::DspAramDmaAramBase => ne!(self.dsp.aram_dma_aram.as_bytes()),
             Mmio::DspAramDmaControl => ne!(self.dsp.aram_dma_control.as_bytes()),
@@ -157,14 +158,24 @@ impl System {
             Mmio::ExiChannel0Param => ne!(self.external.channels[0].parameter.as_bytes()),
             Mmio::ExiChannel0DmaBase => ne!(self.external.channels[0].dma_base.as_bytes()),
             Mmio::ExiChannel0DmaLength => ne!(self.external.channels[0].dma_length.as_bytes()),
+            Mmio::ExiChannel0Control => ne!(self.external.channels[0].control.as_bytes()),
 
             Mmio::ExiChannel1Param => ne!(self.external.channels[1].parameter.as_bytes()),
             Mmio::ExiChannel1DmaBase => ne!(self.external.channels[1].dma_base.as_bytes()),
             Mmio::ExiChannel1DmaLength => ne!(self.external.channels[1].dma_length.as_bytes()),
+            Mmio::ExiChannel1Control => ne!(self.external.channels[1].control.as_bytes()),
 
             Mmio::ExiChannel2Param => ne!(self.external.channels[2].parameter.as_bytes()),
             Mmio::ExiChannel2DmaBase => ne!(self.external.channels[2].dma_base.as_bytes()),
             Mmio::ExiChannel2DmaLength => ne!(self.external.channels[2].dma_length.as_bytes()),
+            Mmio::ExiChannel2Control => ne!(self.external.channels[2].control.as_bytes()),
+
+            // === Audio Interface ===
+            Mmio::AudioSampleCounter => {
+                // HACK: allows IPL to progress further
+                self.lazy.audio_samples += 1;
+                ne!(self.lazy.audio_samples.as_bytes())
+            }
 
             _ => {
                 tracing::warn!("unimplemented read from known mmio register ({reg:?})");

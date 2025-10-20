@@ -47,12 +47,12 @@ pub enum AramDmaDirection {
     FromAramToRam = 1,
 }
 
-#[bitos(16)]
+#[bitos(32)]
 #[derive(Debug, Clone, Default)]
 pub struct AramDmaControl {
-    #[bits(0..15)]
+    #[bits(16..31)]
     pub length: u15,
-    #[bits(15)]
+    #[bits(31)]
     pub direction: AramDmaDirection,
 }
 

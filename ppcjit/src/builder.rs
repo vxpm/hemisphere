@@ -432,6 +432,7 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Extsh => self.extsh(ins),
             Opcode::Fadds => self.fadds(ins),
             Opcode::Fcmpu => self.fcmpu(ins),
+            Opcode::Fcmpo => self.fcmpo(ins),
             Opcode::Fctiwz => self.fctiwz(ins),
             Opcode::Fdiv => self.fdiv(ins),
             Opcode::Fdivs => self.fdivs(ins),
@@ -552,6 +553,12 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Xor => self.xor(ins),
             Opcode::Xori => self.xori(ins),
             Opcode::Xoris => self.xoris(ins),
+            Opcode::Stfsu => self.stfsu(ins),
+            Opcode::Stfdu => self.stfdu(ins),
+            Opcode::Dcbz => self.stub(ins),
+            Opcode::Dcbst => self.stub(ins),
+            Opcode::Mffs => self.mffs(ins),
+            Opcode::Fabs => self.fabs(ins),
             Opcode::Illegal => {
                 return Err(BuilderError::Illegal(ins));
             }

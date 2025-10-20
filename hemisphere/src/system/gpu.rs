@@ -61,6 +61,7 @@ pub enum Reg {
     RasterPerf = 0x24,
     RasterSs0 = 0x25,
     RasterSs1 = 0x26,
+    RasterIRef = 0x27,
 
     TevRefs01 = 0x28,
     TevRefs23 = 0x29,

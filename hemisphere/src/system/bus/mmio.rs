@@ -120,6 +120,7 @@ mmio! {
     0x5004, 4, DspCpuMailbox;
     0x500A, 2, DspControl;
     0x5012, 2, DspAramSize;
+    0x5016, 2, DspAramMode;
     0x5020, 4, DspAramDmaRamBase;
     0x5024, 4, DspAramDmaAramBase;
     0x5028, 4, DspAramDmaControl;
@@ -164,6 +165,7 @@ mmio! {
 
     // === Audio Interface ===
     0x6C00, 4, AudioControl;
+    0x6C08, 4, AudioSampleCounter;
 
     // === PI FIFO===
     0x8000, 32, ProcessorFifo;
