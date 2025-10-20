@@ -1,7 +1,7 @@
 mod mmio;
 
 use crate::system::{
-    Event, System,
+    Event, System, external,
     mem::{IPL_LEN, RAM_LEN},
 };
 use common::{Address, Primitive};
@@ -152,6 +152,12 @@ impl System {
             Mmio::DspAramDmaRamBase => ne!(self.dsp.aram_dma_ram.as_bytes()),
             Mmio::DspAramDmaAramBase => ne!(self.dsp.aram_dma_aram.as_bytes()),
             Mmio::DspAramDmaControl => ne!(self.dsp.aram_dma_control.as_bytes()),
+
+            // === External Interface ===
+            Mmio::ExiChannel0Param => ne!(self.external.channels[0].parameter.as_bytes()),
+            Mmio::ExiChannel1Param => ne!(self.external.channels[1].parameter.as_bytes()),
+            Mmio::ExiChannel2Param => ne!(self.external.channels[2].parameter.as_bytes()),
+
             _ => {
                 tracing::warn!("unimplemented read from known mmio register ({reg:?})");
                 P::default()
@@ -347,6 +353,26 @@ impl System {
 
                 // HACK: stub hack, set mailbox as having data
                 self.dsp.cpu_mailbox.set_status(true);
+            }
+
+            // === External Interface ===
+            Mmio::ExiChannel0Param => {
+                let mut written = external::Parameter::from_bits(0);
+                ne!(written.as_mut_bytes());
+                self.external.channels[0].parameter.write(written);
+                tracing::debug!(exi0param = ?self.external.channels[0].parameter);
+            }
+            Mmio::ExiChannel1Param => {
+                let mut written = external::Parameter::from_bits(0);
+                ne!(written.as_mut_bytes());
+                self.external.channels[1].parameter.write(written);
+                tracing::debug!(exi1param = ?self.external.channels[1].parameter);
+            }
+            Mmio::ExiChannel2Param => {
+                let mut written = external::Parameter::from_bits(0);
+                ne!(written.as_mut_bytes());
+                self.external.channels[2].parameter.write(written);
+                tracing::debug!(exi2param = ?self.external.channels[2].parameter);
             }
 
             // === PI FIFO ===

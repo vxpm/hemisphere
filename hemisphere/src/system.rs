@@ -4,6 +4,7 @@ pub mod bus;
 pub mod dsp;
 pub mod eabi;
 pub mod executable;
+pub mod external;
 pub mod gpu;
 pub mod lazy;
 pub mod mem;
@@ -80,6 +81,8 @@ pub struct System {
     pub video: video::Interface,
     /// The processor interface.
     pub processor: processor::Interface,
+    /// The external interface.
+    pub external: external::Interface,
 }
 
 impl System {
@@ -153,6 +156,7 @@ impl System {
             lazy: Lazy::default(),
             video: video::Interface::default(),
             processor: processor::Interface::default(),
+            external: external::Interface::default(),
 
             config,
         };
