@@ -60,6 +60,7 @@ pub struct AramDmaControl {
 pub struct Dsp {
     pub dsp_mailbox: Mailbox,
     pub cpu_mailbox: Mailbox,
+    pub cpu_mailbox_queue: Vec<u32>,
     pub control: DspControl,
     pub aram_dma_ram: Address,
     pub aram_dma_aram: Address,
@@ -70,6 +71,13 @@ impl Dsp {
     pub fn write_control(&mut self, new: DspControl) {
         if new.reset() {
             self.control = DspControl::default();
+            self.cpu_mailbox_queue = vec![
+                0x8071_FEED,
+                0x8071_FEED,
+                0x8071_FEED,
+                0x8071_FEED,
+                0x8071_FEED,
+            ];
         }
 
         self.control.set_halted(new.halted());
@@ -90,5 +98,12 @@ impl Dsp {
         }
         self.control
             .set_dsp_interrupt_mask(new.dsp_interrupt_mask());
+    }
+
+    pub fn pop_cpu_mailbox(&mut self) {
+        let next = self.cpu_mailbox_queue.pop();
+        self.cpu_mailbox
+            .set_data(u31::new(next.unwrap_or(0)))
+            .set_status(next.is_some());
     }
 }

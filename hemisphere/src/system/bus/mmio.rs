@@ -121,6 +121,7 @@ mmio! {
     0x500A, 2, DspControl;
     0x5012, 2, DspAramSize;
     0x5016, 2, DspAramMode;
+    0x501A, 2, DspAramRefresh;
     0x5020, 4, DspAramDmaRamBase;
     0x5024, 4, DspAramDmaAramBase;
     0x5028, 4, DspAramDmaControl;

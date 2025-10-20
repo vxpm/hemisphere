@@ -109,19 +109,22 @@ pub struct Channel {
 
 #[derive(Default)]
 pub struct Interface {
+    pub rtc: u32,
+    pub waiting_trace_step: bool,
     pub channels: [Channel; 3],
 }
 
 impl System {
     fn exi_channel_0_transfer(&mut self) {
         let channel = self.external.channels[0];
-        match channel.parameter.device0().unwrap() {
-            Device::IplRtcSram => {
-                let offset = (channel.immediate >> 6) as usize;
-                tracing::debug!(pc=?self.cpu.pc, control = ?channel.control, "writing 0x{:08X}", channel.immediate);
+        let device = channel.parameter.device0().unwrap();
 
-                match offset {
-                    0x0000_0000..0x0080_0000 => {
+        match device {
+            Device::IplRtcSram => {
+                tracing::debug!(pc = ?self.cpu.pc, control = ?channel.control, "IPL/RTC/SRAM write: 0x{:08X}", channel.immediate);
+
+                match channel.immediate {
+                    0x0000_0000..0x2000_0000 => {
                         if channel.control.dma() {
                             let ram_base = channel.dma_base.value() as usize;
                             let ipl_base = (channel.immediate >> 6) as usize;
@@ -138,19 +141,68 @@ impl System {
                             self.mem.ram[ram_base..][..length]
                                 .copy_from_slice(&self.mem.ipl[ipl_base..][..length]);
                         } else {
-                            // TODO: this breaks
-                            // todo!()
+                            tracing::debug!(
+                                "set IPL base address to 0x{:08X} (0x{:08X})",
+                                channel.immediate >> 6,
+                                channel.immediate
+                            );
                         }
                     }
+                    0x2000_0000 => {
+                        tracing::debug!("reading from RTC");
+                        self.external.channels[0].immediate = self.external.rtc;
+                    }
+                    0xA000_0000 => {
+                        tracing::debug!("writing to RTC");
+                        self.external.rtc = self.external.channels[0].immediate;
+                    }
+                    0x2000_0100 => {
+                        tracing::debug!("reading from SRAM");
+                        self.external.channels[0].immediate = 0;
+                    }
                     _ => {
-                        tracing::warn!("EXI channel 0 transfer ignored (SRAM or RTC)");
+                        tracing::warn!("EXI channel 0 transfer ignored (SRAM?)");
                     }
                 }
             }
-            _ => todo!(),
+            Device::SerialPort1 => {
+                tracing::debug!(pc = ?self.cpu.pc, control = ?channel.control, "SP1 writing 0x{:08X}", channel.immediate);
+            }
+            _ => todo!("{:?}", device),
         }
 
         self.external.channels[0]
+            .control
+            .set_transfer_ongoing(false);
+    }
+
+    fn exi_channel_2_transfer(&mut self) {
+        let channel = self.external.channels[2];
+        let device = channel.parameter.device2().unwrap();
+
+        match device {
+            Device::AD16 => {
+                assert!(!channel.control.dma());
+
+                if self.external.waiting_trace_step {
+                    tracing::info!("write to AD16 (trace step): 0x{:08X}", channel.immediate);
+                    self.external.waiting_trace_step = false;
+                } else {
+                    match channel.immediate {
+                        0x0000_0000 => self.external.channels[2].immediate = 0x04120000,
+                        0xA000_0000 if !self.external.waiting_trace_step => {
+                            self.external.waiting_trace_step = true;
+                        }
+                        _ => {
+                            tracing::warn!("write to AD16 (unknown): 0x{:08X}", channel.immediate);
+                        }
+                    }
+                }
+            }
+            _ => unreachable!(),
+        }
+
+        self.external.channels[2]
             .control
             .set_transfer_ongoing(false);
     }
@@ -160,9 +212,8 @@ impl System {
             self.exi_channel_0_transfer();
         }
 
-        // HACK: ignore transfer in channel 2
-        self.external.channels[2]
-            .control
-            .set_transfer_ongoing(false);
+        if self.external.channels[2].control.transfer_ongoing() {
+            self.exi_channel_2_transfer();
+        }
     }
 }

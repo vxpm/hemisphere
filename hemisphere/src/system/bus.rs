@@ -1,7 +1,7 @@
 mod mmio;
 
 use crate::system::{
-    Event, System, external,
+    Event, System, audio, external,
     mem::{IPL_LEN, RAM_LEN},
 };
 use common::{Address, Primitive};
@@ -51,7 +51,7 @@ impl System {
 
     fn read_mmio<P: Primitive>(&mut self, offset: u16) -> P {
         let Some((reg, offset)) = Mmio::find(offset) else {
-            tracing::error!("reading from unknown mmio register ({offset:04X})");
+            tracing::error!(pc = ?self.cpu.pc, "reading from unknown mmio register ({offset:04X})");
             return P::default();
         };
 
@@ -142,8 +142,8 @@ impl System {
             Mmio::DspCpuMailbox => {
                 let data = ne!(self.dsp.cpu_mailbox.as_bytes());
                 if (2..4).contains(&offset) && self.dsp.cpu_mailbox.status() {
-                    debug!("clearing CPU mailbox");
-                    self.dsp.cpu_mailbox.set_status(false);
+                    debug!("popping CPU mailbox");
+                    self.dsp.pop_cpu_mailbox();
                 }
 
                 data
@@ -159,31 +159,36 @@ impl System {
             Mmio::ExiChannel0DmaBase => ne!(self.external.channels[0].dma_base.as_bytes()),
             Mmio::ExiChannel0DmaLength => ne!(self.external.channels[0].dma_length.as_bytes()),
             Mmio::ExiChannel0Control => ne!(self.external.channels[0].control.as_bytes()),
+            Mmio::ExiChannel0Immediate => ne!(self.external.channels[0].immediate.as_bytes()),
 
             Mmio::ExiChannel1Param => ne!(self.external.channels[1].parameter.as_bytes()),
             Mmio::ExiChannel1DmaBase => ne!(self.external.channels[1].dma_base.as_bytes()),
             Mmio::ExiChannel1DmaLength => ne!(self.external.channels[1].dma_length.as_bytes()),
             Mmio::ExiChannel1Control => ne!(self.external.channels[1].control.as_bytes()),
+            Mmio::ExiChannel1Immediate => ne!(self.external.channels[1].immediate.as_bytes()),
 
             Mmio::ExiChannel2Param => ne!(self.external.channels[2].parameter.as_bytes()),
             Mmio::ExiChannel2DmaBase => ne!(self.external.channels[2].dma_base.as_bytes()),
             Mmio::ExiChannel2DmaLength => ne!(self.external.channels[2].dma_length.as_bytes()),
             Mmio::ExiChannel2Control => ne!(self.external.channels[2].control.as_bytes()),
+            Mmio::ExiChannel2Immediate => ne!(self.external.channels[2].immediate.as_bytes()),
 
             // === Audio Interface ===
             Mmio::AudioSampleCounter => {
                 // HACK: allows IPL to progress further
-                self.lazy.audio_samples += 1;
-                ne!(self.lazy.audio_samples.as_bytes())
+                self.audio.sample_counter += 1;
+                ne!(self.audio.sample_counter.as_bytes())
             }
+            Mmio::AudioControl => ne!(self.audio.control.as_bytes()),
 
             _ => {
-                tracing::warn!("unimplemented read from known mmio register ({reg:?})");
+                tracing::warn!(pc = ?self.cpu.pc, "unimplemented read from known mmio register ({reg:?})");
                 P::default()
             }
         };
 
         tracing::debug!(
+            pc = ?self.cpu.pc,
             "reading from {:?}[{}..{}]: {:08X}",
             reg,
             offset,
@@ -373,6 +378,13 @@ impl System {
                 // HACK: stub hack, set mailbox as having data
                 self.dsp.cpu_mailbox.set_status(true);
             }
+            Mmio::AudioDmaControl => {
+                debug!("forcing AI DMA");
+                self.audio
+                    .control
+                    .set_interrupt(self.audio.control.interrupt_mask());
+                self.scheduler.schedule_now(Event::CheckInterrupts);
+            }
 
             // === External Interface ===
             Mmio::ExiChannel0Param => {
@@ -413,6 +425,13 @@ impl System {
                 self.exi_update();
             }
             Mmio::ExiChannel2Immediate => ne!(self.external.channels[2].immediate.as_mut_bytes()),
+
+            // === Audio Interface ===
+            Mmio::AudioControl => {
+                let mut written = audio::Control::from_bits(0);
+                ne!(written.as_mut_bytes());
+                self.audio.write_control(written);
+            }
 
             // === PI FIFO ===
             Mmio::ProcessorFifo => {
