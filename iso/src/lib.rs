@@ -87,6 +87,21 @@ impl Header {
     }
 }
 
+// An apploader program in a .iso.
+#[derive(Debug, BinRead, BinWrite)]
+#[brw(big)]
+pub struct Apploader {
+    #[brw(pad_size_to = 0xA)]
+    #[brw(assert(version.len() <= 0xA))]
+    pub version: NullString,
+    #[brw(pad_before = 0x5)]
+    pub entrypoint: u32,
+    pub size: u32,
+    pub trailer_size: u32,
+    #[br(count = size)]
+    pub data: Vec<u8>,
+}
+
 /// A GameCube .iso file.
 #[derive(Debug)]
 pub struct Iso<R> {
@@ -98,6 +113,14 @@ pub struct Iso<R> {
 
 #[derive(Debug, Error)]
 pub enum BootfileError {
+    #[error(transparent)]
+    Io { source: std::io::Error },
+    #[error(transparent)]
+    Format { source: binrw::Error },
+}
+
+#[derive(Debug, Error)]
+pub enum ApploaderError {
     #[error(transparent)]
     Io { source: std::io::Error },
     #[error(transparent)]
@@ -128,5 +151,13 @@ where
             .context(BootfileCtx::Io)?;
 
         dol::Dol::read(&mut self.reader).context(BootfileCtx::Format)
+    }
+
+    pub fn apploader(&mut self) -> Result<Apploader, ApploaderError> {
+        self.reader
+            .seek(SeekFrom::Start(0x2440))
+            .context(ApploaderCtx::Io)?;
+
+        Apploader::read(&mut self.reader).context(ApploaderCtx::Format)
     }
 }

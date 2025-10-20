@@ -1,4 +1,4 @@
-use binrw::{BinRead, io::BufReader};
+use binrw::{BinRead, BinWrite, io::BufReader};
 use bytesize::ByteSize;
 use clap::Parser;
 use comfy_table::{
@@ -16,6 +16,9 @@ use std::path::PathBuf;
 struct Args {
     /// Path to the input file
     input: PathBuf,
+    /// Path to write the bootfile of a .iso into. Ignored if input is not a .iso.
+    #[arg(long)]
+    bootfile: Option<PathBuf>,
 }
 
 fn dol_table(header: &dol::Header) -> Result<()> {
@@ -84,6 +87,50 @@ fn inspect_dol(config: Args) -> Result<()> {
 
     println!("{info}");
     dol_table(&header)?;
+
+    Ok(())
+}
+
+fn apploader_table(apploader: &iso::Apploader) -> Result<()> {
+    let mut properties = Table::new();
+    properties
+        .load_preset(UTF8_FULL)
+        .apply_modifier(UTF8_ROUND_CORNERS)
+        .set_content_arrangement(ContentArrangement::Dynamic)
+        .set_header(vec![
+            Cell::new("Property").set_alignment(CellAlignment::Center),
+            Cell::new("Value").set_alignment(CellAlignment::Center),
+        ]);
+
+    properties.add_row(vec![
+        Cell::new("Version"),
+        Cell::new(format!("{}", apploader.version)),
+    ]);
+
+    properties.add_row(vec![
+        Cell::new("Entrypoint"),
+        Cell::new(format!("0x{:08X}", apploader.entrypoint)),
+    ]);
+
+    properties.add_row(vec![
+        Cell::new("Size"),
+        Cell::new(format!(
+            "0x{:08X} ({})",
+            apploader.size,
+            ByteSize(apploader.size as u64)
+        )),
+    ]);
+
+    properties.add_row(vec![
+        Cell::new("Trailer Size"),
+        Cell::new(format!(
+            "0x{:08X} ({})",
+            apploader.size,
+            ByteSize(apploader.size as u64)
+        )),
+    ]);
+
+    println!("{properties}");
 
     Ok(())
 }
@@ -244,6 +291,16 @@ fn inspect_iso(config: Args) -> Result<()> {
     println!("{info}");
     println!("{properties}");
 
+    if let Ok(apploader) = iso.apploader() {
+        let mut info = Table::new();
+        info.load_preset(comfy_table::presets::NOTHING)
+            .set_content_arrangement(ContentArrangement::Dynamic)
+            .set_header(vec![Cell::new(format!("Apploader"))]);
+
+        println!("{info}");
+        apploader_table(&apploader);
+    }
+
     if let Ok(bootfile) = iso.bootfile() {
         let mut info = Table::new();
         info.load_preset(comfy_table::presets::NOTHING)
@@ -255,6 +312,12 @@ fn inspect_iso(config: Args) -> Result<()> {
 
         println!("{info}");
         dol_table(&bootfile.header)?;
+
+        if let Some(path) = config.bootfile {
+            bootfile
+                .write(&mut std::fs::File::create(path).unwrap())
+                .unwrap();
+        }
     }
 
     Ok(())
