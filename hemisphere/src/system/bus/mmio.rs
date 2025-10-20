@@ -124,6 +124,8 @@ mmio! {
     0x5020, 4, DspAramDmaRamBase;
     0x5024, 4, DspAramDmaAramBase;
     0x5028, 4, DspAramDmaControl;
+    0x5030, 4, AudioDmaBase;
+    0x5036, 2, AudioDmaControl;
 
     // === Disk Interface ===
     0x6000, 4, DiskStatus;
@@ -165,6 +167,7 @@ mmio! {
 
     // === Audio Interface ===
     0x6C00, 4, AudioControl;
+    0x6C04, 4, AudioVolume;
     0x6C08, 4, AudioSampleCounter;
 
     // === PI FIFO===
