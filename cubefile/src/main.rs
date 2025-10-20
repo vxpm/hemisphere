@@ -248,7 +248,10 @@ fn inspect_iso(config: Args) -> Result<()> {
         let mut info = Table::new();
         info.load_preset(comfy_table::presets::NOTHING)
             .set_content_arrangement(ContentArrangement::Dynamic)
-            .set_header(vec![Cell::new(format!("Bootfile (.dol)",))]);
+            .set_header(vec![
+                Cell::new(format!("Bootfile (.dol)")),
+                Cell::new(format!("Entry: 0x{:08X}", bootfile.header.entry)),
+            ]);
 
         println!("{info}");
         dol_table(&bootfile.header)?;

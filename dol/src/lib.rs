@@ -76,6 +76,7 @@ impl Header {
     pub fn size(&self) -> u32 {
         let max_section_end = self
             .text_sections()
+            .chain(self.data_sections())
             .map(|sec| sec.offset + sec.size)
             .max()
             .unwrap_or_default();

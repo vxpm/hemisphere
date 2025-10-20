@@ -5,8 +5,11 @@ use std::path::PathBuf;
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 pub struct Args {
-    /// Path to a .dol file to load and execute
+    /// Path to the file to load and execute.
+    ///
+    /// Supported formats are .dol and .iso.
     pub input: PathBuf,
+    /// Path to a file to use as a debug info provider.
     #[arg(long)]
     pub dwarf: Option<PathBuf>,
     /// Whether to start running right away

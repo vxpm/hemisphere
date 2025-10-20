@@ -1688,6 +1688,7 @@ dependencies = [
  "dol",
  "easyerr",
  "glam",
+ "iso",
  "parking_lot",
  "ppcjit",
  "slotmap",

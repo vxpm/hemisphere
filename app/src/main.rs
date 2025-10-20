@@ -14,14 +14,15 @@ use eframe::{
     egui,
     egui_wgpu::{WgpuConfiguration, WgpuSetup, WgpuSetupCreateNew},
 };
-use eyre_pretty::eyre::Result;
+use eyre_pretty::{ContextCompat, bail, eyre::Result};
 use hemisphere::{
-    Config, jit,
+    Config, iso, jit,
     runner::{Runner, State},
     system::{self, executable::Executable},
 };
 use renderer::WgpuRenderer;
 use std::{
+    io::BufReader,
     sync::{
         Arc,
         atomic::{AtomicU64, Ordering},
@@ -72,15 +73,35 @@ impl App {
     #[allow(clippy::default_constructed_unit_structs)]
     fn new(cc: &eframe::CreationContext<'_>, args: &cli::Args) -> Result<Self> {
         tracing::info!("loading executable");
-        let dwarf = match args.dwarf.as_deref() {
-            Some(debug) => Some(debug.to_path_buf()),
-            None => {
-                let mut elf = args.input.clone();
-                elf.set_extension("elf");
-                elf.exists().then_some(elf)
+
+        let input_extension = args
+            .input
+            .extension()
+            .and_then(|e| e.to_str())
+            .context("unknown input file extension")?;
+
+        let mut iso = None;
+        let mut executable = None;
+        match input_extension {
+            "iso" => {
+                let file = std::fs::File::open(&args.input)?;
+                let reader = BufReader::new(file);
+                iso = Some(iso::Iso::new(Box::new(reader) as _)?);
             }
-        };
-        let executable = Executable::open(&args.input, dwarf.as_deref())?;
+            "dol" => {
+                let dwarf = match args.dwarf.as_deref() {
+                    Some(debug) => Some(debug.to_path_buf()),
+                    None => {
+                        let mut elf = args.input.clone();
+                        elf.set_extension("elf");
+                        elf.exists().then_some(elf)
+                    }
+                };
+
+                executable = Some(Executable::open(&args.input, dwarf.as_deref())?);
+            }
+            _ => bail!("unknown input file extension"),
+        }
 
         let vsync_count = Arc::new(AtomicU64::new(0));
         let vsync_callback = {
@@ -102,7 +123,8 @@ impl App {
         let mut runner = Runner::new(Config {
             system: system::Config {
                 renderer: Box::new(renderer.clone()),
-                executable: Some(executable),
+                iso,
+                executable,
                 vsync_callback: Some(vsync_callback),
             },
             jit: jit::Config {

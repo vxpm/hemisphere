@@ -9,8 +9,9 @@ workspace = true
 
 [dependencies]
 common = { path = "../common" }
-dol = { path = "../dol" }
 ppcjit = { path = "../ppcjit" }
+dol = { path = "../dol" }
+iso = { path = "../iso" }
 bitos.workspace = true
 bytesize.workspace = true
 easyerr.workspace = true

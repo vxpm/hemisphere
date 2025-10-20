@@ -124,6 +124,18 @@ mmio! {
     0x5024, 4, DspAramDmaAramBase;
     0x5028, 4, DspAramDmaControl;
 
+    // === Disk Interface ===
+    0x6000, 4, DiskStatus;
+    0x6004, 4, DiskCover;
+    0x6008, 4, DiskCommand0;
+    0x600C, 4, DiskCommand1;
+    0x6010, 4, DiskCommand2;
+    0x6014, 4, DiskDmaBase;
+    0x6018, 4, DiskDmaLength;
+    0x601C, 4, DiskControl;
+    0x6020, 4, DiskImmediateData;
+    0x6024, 4, DiskConfiguration;
+
     // === Serial Interface ===
     0x6430, 4, SerialPoll;
     0x6434, 4, SerialComControl;

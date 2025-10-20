@@ -28,12 +28,18 @@ use common::{
     Address,
     arch::{Cpu, Exception, FREQUENCY},
 };
+use iso::Iso;
+use std::io::{Read, Seek};
 
 pub type Callback = Box<dyn FnMut() + Send + Sync + 'static>;
+
+pub trait ReadAndSeek: Read + Seek + Send + 'static {}
+impl<T> ReadAndSeek for T where T: Read + Seek + Send + 'static {}
 
 /// System configuration.
 pub struct Config {
     pub renderer: Box<dyn Renderer>,
+    pub iso: Option<Iso<Box<dyn ReadAndSeek>>>,
     pub executable: Option<Executable>,
     pub vsync_callback: Option<Callback>,
 }
@@ -98,7 +104,7 @@ impl System {
                     .msr
                     .set_data_addr_translation(true);
 
-                // zero bss first, let others section overwrite it if it occurs
+                // zero bss first, let other sections overwrite it if it occurs
                 for offset in 0..dol.header.bss_size {
                     let target = self
                         .translate_data_addr(Address(dol.header.bss_target + offset))
@@ -143,7 +149,13 @@ impl System {
             processor: processor::Interface::default(),
         };
 
-        system.load_executable();
+        if let Some(iso) = &mut system.config.iso {
+            let bootfile = iso.bootfile().unwrap();
+            system.config.executable = Some(Executable::new(Code::Dol(bootfile)));
+            system.load_executable();
+        } else if system.config.executable.is_some() {
+            system.load_executable();
+        }
         system
     }
 
@@ -192,9 +204,10 @@ impl System {
 
                 if !self.video.display_config.progressive()
                     && self.video.vertical_count as u32 == self.video.lines_per_even_field() + 1
-                    && let Some(callback) = &mut self.config.vsync_callback {
-                        callback();
-                    }
+                    && let Some(callback) = &mut self.config.vsync_callback
+                {
+                    callback();
+                }
 
                 let cycles_per_frame = (FREQUENCY as f64 / self.video.refresh_rate()) as u32;
                 let cycles_per_line = cycles_per_frame

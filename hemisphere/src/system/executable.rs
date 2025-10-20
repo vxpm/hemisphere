@@ -27,6 +27,10 @@ pub struct Executable {
 }
 
 impl Executable {
+    pub fn new(code: Code) -> Self {
+        Self { code, debug: None }
+    }
+
     pub fn open(exec: &Path, debug: Option<&Path>) -> Result<Self, OpenError> {
         let exec_file = std::fs::File::open(exec).context(OpenCtx::Io)?;
         let code = match exec.extension().and_then(|s| s.to_str()) {

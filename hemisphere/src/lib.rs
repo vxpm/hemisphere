@@ -20,6 +20,7 @@ use ppcjit::block::Executed;
 
 pub use common::{self, Address, Primitive, arch};
 pub use dol;
+pub use iso;
 
 /// Represents limits for execution.
 #[derive(Debug, Clone, Copy)]
