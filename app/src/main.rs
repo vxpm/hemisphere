@@ -80,6 +80,11 @@ impl App {
             .and_then(|e| e.to_str())
             .context("unknown input file extension")?;
 
+        let mut ipl = None;
+        if let Some(path) = &args.ipl {
+            ipl = Some(std::fs::read(path)?);
+        }
+
         let mut iso = None;
         let mut executable = None;
         match input_extension {
@@ -123,6 +128,7 @@ impl App {
         let mut runner = Runner::new(Config {
             system: system::Config {
                 renderer: Box::new(renderer.clone()),
+                ipl,
                 iso,
                 executable,
                 vsync_callback: Some(vsync_callback),

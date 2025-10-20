@@ -10,12 +10,67 @@ pub struct Memory {
     pub ipl: Box<[u8; IPL_LEN as usize]>,
 }
 
-impl Default for Memory {
-    fn default() -> Self {
+/// IPL decryption function, thanks hazelwiss!!
+fn decrypt_ipl(ipl: &mut [u8]) {
+    let mut acc = 0u8;
+    let mut nacc = 0u8;
+
+    let mut t = 0x2953u16;
+    let mut u = 0xd9c2u16;
+    let mut v = 0x3ff1u16;
+
+    let mut x = 1u8;
+
+    let mut it = 0;
+    while it < ipl.len() {
+        let t0 = t as u8 & 1;
+        let t1 = (t as u8 >> 1) & 1;
+        let u0 = u as u8 & 1;
+        let u1 = (u as u8 >> 1) & 1;
+        let v0 = v as u8 & 1;
+
+        x ^= t1 ^ v0;
+        x ^= u0 | u1;
+        x ^= (t0 ^ u1 ^ v0) & (t0 ^ u0);
+
+        if t0 == u0 {
+            v >>= 1;
+            if v0 != 0 {
+                v ^= 0xb3d0;
+            }
+        }
+
+        if t0 == 0 {
+            u >>= 1;
+            if u0 != 0 {
+                u ^= 0xfb10;
+            }
+        }
+
+        t >>= 1;
+        if t0 != 0 {
+            t ^= 0xa740;
+        }
+
+        nacc += 1;
+        acc = acc.wrapping_mul(2).wrapping_add(x);
+        if nacc == 8 {
+            ipl[it] ^= acc;
+            it += 1;
+            nacc = 0;
+        }
+    }
+}
+
+impl Memory {
+    pub fn new(mut ipl: Vec<u8>) -> Self {
+        assert_eq!(ipl.len(), IPL_LEN as usize);
+        decrypt_ipl(&mut ipl[0x0000_0100..0x001A_EEE8]);
+
         Self {
             ram: boxed_array(0x00),
             l2c: boxed_array(0x00),
-            ipl: boxed_array(0x00),
+            ipl: ipl.try_into().unwrap(),
         }
     }
 }

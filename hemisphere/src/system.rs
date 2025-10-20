@@ -39,6 +39,7 @@ impl<T> ReadAndSeek for T where T: Read + Seek + Send + 'static {}
 /// System configuration.
 pub struct Config {
     pub renderer: Box<dyn Renderer>,
+    pub ipl: Option<Vec<u8>>,
     pub iso: Option<Iso<Box<dyn ReadAndSeek>>>,
     pub executable: Option<Executable>,
     pub vsync_callback: Option<Callback>,
@@ -133,29 +134,38 @@ impl System {
         }
 
         self.config.executable = Some(exec);
+        tracing::debug!("finished loading executable");
     }
 
-    pub fn new(config: Config) -> Self {
+    pub fn new(mut config: Config) -> Self {
         let mut system = System {
-            config,
             scheduler: Scheduler::default(),
             cpu: Cpu::default(),
             gpu: Gpu::default(),
             dsp: Dsp::default(),
-            mem: Memory::default(),
+            mem: Memory::new(
+                config
+                    .ipl
+                    .take()
+                    .unwrap_or_else(|| vec![0; mem::IPL_LEN as usize]),
+            ),
             mmu: Mmu::default(),
             lazy: Lazy::default(),
             video: video::Interface::default(),
             processor: processor::Interface::default(),
+
+            config,
         };
 
-        if let Some(iso) = &mut system.config.iso {
-            let bootfile = iso.bootfile().unwrap();
-            system.config.executable = Some(Executable::new(Code::Dol(bootfile)));
-            system.load_executable();
+        if let Some(_) = &mut system.config.iso {
+            system.cpu.supervisor.memory.setup_default_bats();
+            system.cpu.supervisor.config.msr.set_exception_prefix(true);
+            system.mmu.build_bat_lut(&system.cpu.supervisor.memory);
+            system.cpu.raise_exception(Exception::Reset);
         } else if system.config.executable.is_some() {
             system.load_executable();
         }
+
         system
     }
 

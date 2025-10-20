@@ -9,6 +9,9 @@ pub struct Args {
     ///
     /// Supported formats are .dol and .iso.
     pub input: PathBuf,
+    /// Path to the IPL ROM.
+    #[arg(long)]
+    pub ipl: Option<PathBuf>,
     /// Path to a file to use as a debug info provider.
     #[arg(long)]
     pub dwarf: Option<PathBuf>,
