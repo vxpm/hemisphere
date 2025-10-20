@@ -298,7 +298,7 @@ fn inspect_iso(config: Args) -> Result<()> {
             .set_header(vec![Cell::new(format!("Apploader"))]);
 
         println!("{info}");
-        apploader_table(&apploader);
+        apploader_table(&apploader)?;
     }
 
     if let Ok(bootfile) = iso.bootfile() {
