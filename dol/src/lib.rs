@@ -73,6 +73,8 @@ impl Header {
         })
     }
 
+    /// Size of the .dol file. This is computed from the text and data sections: each section has
+    /// an end, and the size of the .dol is considered to be the highest end.
     pub fn size(&self) -> u32 {
         let max_section_end = self
             .text_sections()
@@ -99,7 +101,7 @@ pub struct Dol {
     #[brw(pad_size_to = HEADER_SIZE)]
     pub header: Header,
     /// Body of the executable.
-    #[br(count = header.size())]
+    #[br(count = header.size() - HEADER_SIZE as u32)]
     pub body: Vec<u8>,
 }
 
