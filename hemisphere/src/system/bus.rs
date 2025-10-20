@@ -1,7 +1,7 @@
 mod mmio;
 
 use crate::system::{
-    Event, System, audio, external,
+    Event, System, audio, disk, external,
     mem::{IPL_LEN, RAM_LEN},
 };
 use common::{Address, Primitive};
@@ -153,6 +153,12 @@ impl System {
             Mmio::DspAramDmaRamBase => ne!(self.dsp.aram_dma_ram.as_bytes()),
             Mmio::DspAramDmaAramBase => ne!(self.dsp.aram_dma_aram.as_bytes()),
             Mmio::DspAramDmaControl => ne!(self.dsp.aram_dma_control.as_bytes()),
+
+            // === Disk Interface ===
+            Mmio::DiskStatus => ne!(self.disk.status.as_bytes()),
+            Mmio::DiskCover => ne!(self.disk.cover.as_bytes()),
+            Mmio::DiskControl => ne!(self.disk.control.as_bytes()),
+            Mmio::DiskConfiguration => ne!(self.disk.config.as_bytes()),
 
             // === External Interface ===
             Mmio::ExiChannel0Param => ne!(self.external.channels[0].parameter.as_bytes()),
@@ -375,6 +381,8 @@ impl System {
                 // NOTE: stubbed, just set DMA as complete
                 self.dsp.control.set_aram_interrupt(true);
 
+                self.dsp.cpu_mailbox_queue.push_back(0);
+
                 // HACK: stub hack, set mailbox as having data
                 self.dsp.cpu_mailbox.set_status(true);
             }
@@ -384,6 +392,28 @@ impl System {
                     .control
                     .set_interrupt(self.audio.control.interrupt_mask());
                 self.scheduler.schedule_now(Event::CheckInterrupts);
+            }
+
+            // === Disk Interface ===
+            Mmio::DiskStatus => {
+                let mut written = disk::Status::from_bits(0);
+                ne!(written.as_mut_bytes());
+                self.disk.write_status(written);
+                tracing::debug!(diskstatus = ?self.disk.status);
+            }
+            Mmio::DiskCover => {
+                let mut written = disk::Cover::from_bits(0);
+                ne!(written.as_mut_bytes());
+                self.disk.write_cover(written);
+                self.disk.cover.set_cover(true);
+                tracing::debug!(diskcover = ?self.disk.cover);
+            }
+            Mmio::DiskControl => {
+                ne!(self.disk.control.as_mut_bytes());
+                tracing::debug!(diskcontrol = ?self.disk.control);
+            }
+            Mmio::DiskConfiguration => {
+                ne!(self.disk.config.as_mut_bytes());
             }
 
             // === External Interface ===
@@ -399,7 +429,6 @@ impl System {
                 self.exi_update();
             }
             Mmio::ExiChannel0Immediate => ne!(self.external.channels[0].immediate.as_mut_bytes()),
-
             Mmio::ExiChannel1Param => {
                 let mut written = external::Parameter::from_bits(0);
                 ne!(written.as_mut_bytes());
@@ -412,7 +441,6 @@ impl System {
                 self.exi_update();
             }
             Mmio::ExiChannel1Immediate => ne!(self.external.channels[1].immediate.as_mut_bytes()),
-
             Mmio::ExiChannel2Param => {
                 let mut written = external::Parameter::from_bits(0);
                 ne!(written.as_mut_bytes());

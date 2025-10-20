@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 use bitos::{
     bitos,
     integer::{u15, u31},
@@ -60,7 +62,7 @@ pub struct AramDmaControl {
 pub struct Dsp {
     pub dsp_mailbox: Mailbox,
     pub cpu_mailbox: Mailbox,
-    pub cpu_mailbox_queue: Vec<u32>,
+    pub cpu_mailbox_queue: VecDeque<u32>,
     pub control: DspControl,
     pub aram_dma_ram: Address,
     pub aram_dma_aram: Address,
@@ -77,7 +79,8 @@ impl Dsp {
                 0x8071_FEED,
                 0x8071_FEED,
                 0x8071_FEED,
-            ];
+            ]
+            .into();
         }
 
         self.control.set_halted(new.halted());
@@ -101,7 +104,7 @@ impl Dsp {
     }
 
     pub fn pop_cpu_mailbox(&mut self) {
-        let next = self.cpu_mailbox_queue.pop();
+        let next = self.cpu_mailbox_queue.pop_front();
         self.cpu_mailbox
             .set_data(u31::new(next.unwrap_or(0)))
             .set_status(next.is_some());

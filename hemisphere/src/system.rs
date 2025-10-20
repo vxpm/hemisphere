@@ -2,6 +2,7 @@
 
 pub mod audio;
 pub mod bus;
+pub mod disk;
 pub mod dsp;
 pub mod eabi;
 pub mod executable;
@@ -86,6 +87,8 @@ pub struct System {
     pub external: external::Interface,
     /// The audio interface.
     pub audio: audio::Interface,
+    /// The disk interface.
+    pub disk: disk::Interface,
 }
 
 impl System {
@@ -161,6 +164,7 @@ impl System {
             processor: processor::Interface::default(),
             external: external::Interface::default(),
             audio: audio::Interface::default(),
+            disk: disk::Interface::default(),
 
             config,
         };
