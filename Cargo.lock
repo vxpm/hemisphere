@@ -1347,6 +1347,9 @@ dependencies = [
 [[package]]
 name = "fake-ipl"
 version = "0.1.0"
+dependencies = [
+ "numtoa",
+]
 
 [[package]]
 name = "fallible-iterator"
@@ -2398,6 +2401,12 @@ dependencies = [
  "quote",
  "syn",
 ]
+
+[[package]]
+name = "numtoa"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9a6da8d50bd4f4b2e9788c44714a3fa4e465d33fd6a6ad70991db6eb30807dca"
 
 [[package]]
 name = "objc"

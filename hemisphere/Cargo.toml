@@ -9,7 +9,7 @@ workspace = true
 
 [dependencies]
 common = { path = "../common" }
-ppcjit = { path = "../ppcjit" }
+ppcjit = { path = "../ppcjit", features = ["disasm"] }
 dol = { path = "../dol" }
 iso = { path = "../iso" }
 bitos.workspace = true

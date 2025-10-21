@@ -517,6 +517,29 @@ impl BlockBuilder<'_> {
         LOAD_INFO
     }
 
+    pub fn lfdx(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let rb = self.get(ins.gpr_b());
+        let addr = if ins.field_ra() == 0 {
+            rb
+        } else {
+            let ra = self.get(ins.gpr_a());
+            self.bd.ins().iadd(ra, rb)
+        };
+
+        let value = self.read::<i64>(addr);
+        let value = self
+            .bd
+            .ins()
+            .bitcast(ir::types::F64, ir::MemFlags::new(), value);
+
+        let paired = self.bd.ins().splat(ir::types::F64X2, value);
+        self.set_ps(ins.fpr_d(), paired);
+
+        LOAD_INFO
+    }
+
     pub fn lfs(&mut self, ins: Ins) -> Info {
         self.check_floats();
 

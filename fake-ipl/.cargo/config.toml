@@ -9,3 +9,4 @@ opt-level = 'z'
 
 [unstable]
 build-std = ["core"]
+build-std-features = ["compiler-builtins-mem"]

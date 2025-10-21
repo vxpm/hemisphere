@@ -98,10 +98,14 @@ impl Format {
     pub fn size(&self) -> u32 {
         let pixels = self.width() * self.height();
         match self.data_format() {
+            DataFormat::Intensity4 => pixels / 2,
             DataFormat::Intensity8 => pixels,
+            DataFormat::Intensity4Alpha => pixels,
+            DataFormat::Intensity8Alpha => pixels * 2,
             DataFormat::Rgb565 => pixels * 2,
             DataFormat::Rgb5A3 => pixels * 2,
             DataFormat::Rgba8 => pixels * 4,
+            DataFormat::Cmp => pixels / 2,
             _ => todo!("format {:?}", self.data_format()),
         }
     }
@@ -179,6 +183,37 @@ fn decode_basic_tex<
 
 pub fn decode_texture(data: &[u8], format: Format) -> Vec<Rgba8> {
     match format.data_format() {
+        DataFormat::Intensity4 => {
+            decode_basic_tex::<8, 8, _>(data, format.width(), format.height(), |data, index| {
+                let value = data[index / 2];
+                let intensity = if index % 2 == 0 {
+                    value.bits(0, 4)
+                } else {
+                    value.bits(4, 8)
+                };
+
+                Rgba8 {
+                    r: intensity,
+                    g: intensity,
+                    b: intensity,
+                    a: 255,
+                }
+            })
+        }
+        DataFormat::Intensity4Alpha => {
+            decode_basic_tex::<8, 8, _>(data, format.width(), format.height(), |data, index| {
+                let value = data[index];
+                let intensity = value.bits(0, 4);
+                let alpha = value.bits(4, 8);
+
+                Rgba8 {
+                    r: intensity,
+                    g: intensity,
+                    b: intensity,
+                    a: alpha,
+                }
+            })
+        }
         DataFormat::Intensity8 => {
             decode_basic_tex::<8, 4, _>(data, format.width(), format.height(), |data, index| {
                 let intensity = data[index];
@@ -187,6 +222,17 @@ pub fn decode_texture(data: &[u8], format: Format) -> Vec<Rgba8> {
                     g: intensity,
                     b: intensity,
                     a: 255,
+                }
+            })
+        }
+        DataFormat::Intensity8Alpha => {
+            decode_basic_tex::<4, 4, _>(data, format.width(), format.height(), |data, index| {
+                let [alpha, intensity] = u16::read_be_bytes(&data[2 * index..]).to_be_bytes();
+                Rgba8 {
+                    r: intensity,
+                    g: intensity,
+                    b: intensity,
+                    a: alpha,
                 }
             })
         }
@@ -231,6 +277,18 @@ pub fn decode_texture(data: &[u8], format: Format) -> Vec<Rgba8> {
 
                 Rgba8 { r, g, b, a }
             })
+        }
+        DataFormat::Cmp => {
+            let total = format.width() * format.height();
+            vec![
+                Rgba8 {
+                    r: 128,
+                    g: 0,
+                    b: 128,
+                    a: 128
+                };
+                total as usize
+            ]
         }
         _ => todo!("format {format:?}"),
     }

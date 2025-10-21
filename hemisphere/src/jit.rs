@@ -177,6 +177,10 @@ pub static CTX_HOOKS: Hooks = {
     ) -> bool {
         if let Some(physical) = ctx.system.translate_data_addr(addr) {
             *value = ctx.system.read(physical);
+            // tracing::debug!(
+            //     "reading from logical {addr}, physical {physical}: 0x{:X?}",
+            //     value
+            // );
             true
         } else {
             tracing::error!("failed to translate address {addr}");
@@ -193,6 +197,11 @@ pub static CTX_HOOKS: Hooks = {
             tracing::error!("failed to translate address {addr}");
             return false;
         };
+
+        // tracing::debug!(
+        //     "writing to logical {addr}, physical {physical}: 0x{:X?}",
+        //     value
+        // );
 
         ctx.system.write(physical, value);
         for i in 0..size_of::<P>() {

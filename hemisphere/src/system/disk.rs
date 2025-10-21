@@ -1,5 +1,8 @@
+use std::io::SeekFrom;
+
 use crate::system::System;
 use bitos::bitos;
+use common::Address;
 
 #[bitos(32)]
 #[derive(Debug, Clone, Copy, Default)]
@@ -53,6 +56,9 @@ pub struct Cover {
 pub struct Interface {
     pub status: Status,
     pub control: Control,
+    pub command: [u32; 3],
+    pub dma_base: Address,
+    pub dma_length: u32,
     pub cover: Cover,
     pub config: u32,
 }
@@ -83,4 +89,50 @@ impl Interface {
     }
 }
 
-impl System {}
+impl System {
+    pub fn di_update(&mut self) {
+        if self.disk.control.transfer_ongoing() {
+            let command = self.disk.command[0];
+            match command {
+                0xA800_0000 => {
+                    assert!(self.disk.control.dma());
+
+                    // load from disk!
+                    let target = self.disk.dma_base;
+                    let offset = self.disk.command[1] << 2;
+                    let length = self.disk.dma_length;
+
+                    if length == 0 {
+                        tracing::warn!(
+                            "ignoring zero sized disk read from 0x{offset:08X} into {target}"
+                        );
+                        self.disk.control.set_transfer_ongoing(false);
+                        return;
+                    }
+
+                    tracing::debug!(
+                        "reading 0x{length:08X} bytes from disk at 0x{offset:08X} into {target}"
+                    );
+
+                    let iso = self.config.iso.as_mut().unwrap();
+                    let reader = iso.reader();
+
+                    let target = self.mmu.translate_instr_addr(target).unwrap();
+                    reader.seek(SeekFrom::Start(offset as u64)).unwrap();
+                    reader
+                        .read_exact(&mut self.mem.ram[target.value() as usize..][..length as usize])
+                        .unwrap();
+
+                    self.disk.control.set_transfer_ongoing(false);
+                }
+                0x1200_0000 => {
+                    let target = self.mmu.translate_data_addr(self.disk.dma_base).unwrap();
+                    let length = self.disk.dma_length;
+                    self.mem.ram[target.value() as usize..][..length as usize].fill(0);
+                    self.disk.control.set_transfer_ongoing(false);
+                }
+                _ => todo!("{}", command),
+            }
+        }
+    }
+}

@@ -33,6 +33,17 @@ pub enum Reg {
     GenFilter1 = 0x02,
     GenFilter2 = 0x03,
     GenFilter3 = 0x04,
+
+    IndMatxA0 = 0x06,
+    IndMatxB0 = 0x07,
+    IndMatxC0 = 0x08,
+    IndMatxA1 = 0x09,
+    IndMatxB1 = 0x0A,
+    IndMatxC1 = 0x0B,
+    IndMatxA2 = 0x0C,
+    IndMatxB2 = 0x0D,
+    IndMatxC2 = 0x0E,
+
     BumpIMask = 0x0F,
 
     IndirectCmd0 = 0x10,

@@ -157,6 +157,8 @@ impl System {
             // === Disk Interface ===
             Mmio::DiskStatus => ne!(self.disk.status.as_bytes()),
             Mmio::DiskCover => ne!(self.disk.cover.as_bytes()),
+            Mmio::DiskDmaBase => ne!(self.disk.dma_base.as_bytes()),
+            Mmio::DiskDmaLength => ne!(self.disk.dma_length.as_bytes()),
             Mmio::DiskControl => ne!(self.disk.control.as_bytes()),
             Mmio::DiskConfiguration => ne!(self.disk.config.as_bytes()),
 
@@ -408,9 +410,14 @@ impl System {
                 self.disk.cover.set_cover(true);
                 tracing::debug!(diskcover = ?self.disk.cover);
             }
+            Mmio::DiskCommand0 => ne!(self.disk.command[0].as_mut_bytes()),
+            Mmio::DiskCommand1 => ne!(self.disk.command[1].as_mut_bytes()),
+            Mmio::DiskCommand2 => ne!(self.disk.command[2].as_mut_bytes()),
+            Mmio::DiskDmaBase => ne!(self.disk.dma_base.as_mut_bytes()),
+            Mmio::DiskDmaLength => ne!(self.disk.dma_length.as_mut_bytes()),
             Mmio::DiskControl => {
                 ne!(self.disk.control.as_mut_bytes());
-                tracing::debug!(diskcontrol = ?self.disk.control);
+                self.di_update();
             }
             Mmio::DiskConfiguration => {
                 ne!(self.disk.config.as_mut_bytes());
@@ -459,6 +466,13 @@ impl System {
                 let mut written = audio::Control::from_bits(0);
                 ne!(written.as_mut_bytes());
                 self.audio.write_control(written);
+            }
+
+            // === Fake STDOUT ===
+            Mmio::FakeStdout => {
+                let mut written = 0u8;
+                ne!(written.as_mut_bytes());
+                print!("{}", written as char);
             }
 
             // === PI FIFO ===

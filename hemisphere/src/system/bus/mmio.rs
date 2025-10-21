@@ -171,6 +171,9 @@ mmio! {
     0x6C04, 4, AudioVolume;
     0x6C08, 4, AudioSampleCounter;
 
+    // === Fake STDOUT ===
+    0x7000, 1, FakeStdout;
+
     // === PI FIFO===
     0x8000, 32, ProcessorFifo;
 }

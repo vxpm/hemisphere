@@ -162,7 +162,8 @@ pub fn elf_to_dol(reader: impl Read + Seek) -> Result<Dol, ElfToDolError> {
     let mut data = vec![];
     let mut bss = None;
     for segment in segments {
-        if segment.p_type != elf::abi::PT_LOAD || segment.p_memsz == 0 {
+        if !matches!(segment.p_type, elf::abi::PT_LOAD | elf::abi::PT_NOTE) || segment.p_memsz == 0
+        {
             continue;
         }
 

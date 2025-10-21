@@ -446,6 +446,7 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Fneg => self.fneg(ins),
             Opcode::Fnmadds => self.fnmadds(ins),
             Opcode::Fnmsubs => self.fnmsubs(ins),
+            Opcode::Fnmsub => self.fnmsub(ins),
             Opcode::Fres => self.fres(ins),
             Opcode::Frsp => self.frsp(ins),
             Opcode::Frsqrte => self.frsqrte(ins),
@@ -459,6 +460,7 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Lbzx => self.lbzx(ins),
             Opcode::Lfd => self.lfd(ins),
             Opcode::Lfdu => self.lfdu(ins),
+            Opcode::Lfdx => self.lfdx(ins),
             Opcode::Lfs => self.lfs(ins),
             Opcode::Lfsu => self.lfsu(ins),
             Opcode::Lfsx => self.lfsx(ins),
@@ -523,7 +525,7 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Rlwimi => self.rlwimi(ins),
             Opcode::Rlwinm => self.rlwinm(ins),
             Opcode::Rlwnm => self.rlwnm(ins),
-            Opcode::Sc => self.sc(ins),
+            Opcode::Sc => self.stub(ins),
             Opcode::Slw => self.slw(ins),
             Opcode::Sraw => self.sraw(ins),
             Opcode::Srawi => self.srawi(ins),
@@ -562,6 +564,7 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Mffs => self.mffs(ins),
             Opcode::Fabs => self.fabs(ins),
             Opcode::PsRsqrte => self.ps_rsqrte(ins),
+            Opcode::Fadd => self.fadd(ins),
             Opcode::Illegal => {
                 return Err(BuilderError::Illegal(ins));
             }

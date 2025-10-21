@@ -3,6 +3,7 @@
 .section .data.stack
 .space 0x1000
 stack:
+.space 0x1000
 
 .section .text.init
 .global _start

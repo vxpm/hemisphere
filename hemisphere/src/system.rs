@@ -31,8 +31,9 @@ use common::{
     Address,
     arch::{Cpu, Exception, FREQUENCY},
 };
+use dol::binrw::BinRead;
 use iso::Iso;
-use std::io::{Read, Seek};
+use std::io::{Cursor, Read, Seek};
 
 pub type Callback = Box<dyn FnMut() + Send + Sync + 'static>;
 
@@ -92,6 +93,18 @@ pub struct System {
 }
 
 impl System {
+    fn load_apploader(&mut self) -> Option<Address> {
+        let Some(iso) = &mut self.config.iso else {
+            return None;
+        };
+
+        let apploader = iso.apploader().unwrap();
+        let size = apploader.size;
+        self.mem.ram[0x0120_0000..][..size as usize].copy_from_slice(&apploader.data);
+
+        Some(Address(apploader.entrypoint))
+    }
+
     fn load_executable(&mut self) {
         let Some(exec) = self.config.executable.take() else {
             return;
@@ -146,6 +159,36 @@ impl System {
         tracing::debug!("finished loading executable");
     }
 
+    fn load_iso(&mut self) {
+        self.cpu.supervisor.memory.setup_default_bats();
+        self.mmu.build_bat_lut(&self.cpu.supervisor.memory);
+
+        // load apploader
+        let entry = self.load_apploader().unwrap();
+
+        // load fake-ipl
+        let mut cursor = Cursor::new(include_bytes!("../../resources/fake-ipl.dol"));
+        let ipl = dol::Dol::read(&mut cursor).unwrap();
+        self.config.executable = Some(Executable::new(Code::Dol(ipl)));
+        self.load_executable();
+
+        // setup apploader entrypoint for fake-ipl
+        self.cpu.user.gpr[3] = entry.value();
+
+        // load dolphin-os constans
+        self.write::<u32>(Address(0x20), 0x0D15EA5E); // Boot kind
+        self.write::<u32>(Address(0x24), 0x1); // Version
+        self.write::<u32>(Address(0x28), 0x01800000); // Physical Memory Size
+        self.write::<u32>(Address(0x2C), 0x1); // Console Type
+        self.write::<u32>(Address(0x30), 0x00000000); // Arena Low
+        self.write::<u32>(Address(0x34), 0x817fe8c0); // Arena High
+        self.write::<u32>(Address(0x38), 0x817fe8c0); // FST address
+        self.write::<u32>(Address(0x3C), 0x24); // FST max length
+        self.write::<u32>(Address(0xD0), 16 * 1024 * 1024); // ARAM size
+
+        // done :)
+    }
+
     pub fn new(mut config: Config) -> Self {
         let mut system = System {
             scheduler: Scheduler::default(),
@@ -169,11 +212,8 @@ impl System {
             config,
         };
 
-        if let Some(_) = &mut system.config.iso {
-            system.cpu.supervisor.memory.setup_default_bats();
-            system.cpu.supervisor.config.msr.set_exception_prefix(true);
-            system.mmu.build_bat_lut(&system.cpu.supervisor.memory);
-            system.cpu.raise_exception(Exception::Reset);
+        if system.config.iso.is_some() {
+            system.load_iso();
         } else if system.config.executable.is_some() {
             system.load_executable();
         }

@@ -124,6 +124,8 @@ impl Hemisphere {
             mapping: &mut self.jit.blocks.mapping,
         };
 
+        // tracing::debug!("block:\n{block}");
+
         block.call(&raw mut ctx as *mut ppcjit::block::Context, &CTX_HOOKS)
     }
 
@@ -200,10 +202,21 @@ impl Hemisphere {
                 remaining_instr
             };
 
+            // tracing::debug!("exec at {}", self.system.cpu.pc);
+
+            self.system
+                .cpu
+                .supervisor
+                .config
+                .msr
+                .set_exception_prefix(false);
+
+            // let prev_cpu = self.system.cpu.clone();
             let e = self.exec(Limits {
                 cycles: cycles_to_run,
                 instructions,
             });
+            // let curr_cpu = self.system.cpu.clone();
 
             executed.instructions += e.instructions;
             executed.cycles += e.cycles;
