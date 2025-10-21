@@ -326,12 +326,6 @@ fn inspect_iso(input: PathBuf) -> Result<()> {
 
         println!("{info}");
         dol_table(&bootfile.header)?;
-
-        // if let Some(path) = config.bootfile {
-        //     bootfile
-        //         .write(&mut std::fs::File::create(path).unwrap())
-        //         .unwrap();
-        // }
     }
 
     Ok(())

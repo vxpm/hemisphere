@@ -18,12 +18,11 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
 type OsReportCallbackFn = extern "C" fn(*const c_char);
 type AppEntryFn = extern "C" fn() -> !;
 
+type ApploaderEntryFn =
+    extern "C" fn(*mut ApploaderInitFn, *mut ApploaderMainFn, *mut ApploaderCloseFn);
 type ApploaderInitFn = extern "C" fn(OsReportCallbackFn);
 type ApploaderMainFn = extern "C" fn(*mut *mut c_void, *mut usize, *mut usize) -> bool;
 type ApploaderCloseFn = extern "C" fn() -> AppEntryFn;
-
-type ApploaderEntryFn =
-    extern "C" fn(*mut ApploaderInitFn, *mut ApploaderMainFn, *mut ApploaderCloseFn);
 
 #[unsafe(no_mangle)]
 pub extern "C" fn os_report_callback(_message: *const c_char) {
