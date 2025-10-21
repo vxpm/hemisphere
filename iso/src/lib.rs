@@ -91,13 +91,13 @@ impl Header {
 #[derive(Debug, BinRead, BinWrite)]
 #[brw(big)]
 pub struct Apploader {
-    #[brw(pad_size_to = 0xA)]
-    #[brw(assert(version.len() <= 0xA))]
+    #[brw(pad_size_to = 0x10)]
+    #[brw(assert(version.len() <= 0x10))]
     pub version: NullString,
-    #[brw(pad_before = 0x5)]
     pub entrypoint: u32,
     pub size: u32,
     pub trailer_size: u32,
+    #[brw(pad_before = 0x4)]
     #[br(count = size)]
     pub data: Vec<u8>,
 }
