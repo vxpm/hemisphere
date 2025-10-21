@@ -15,22 +15,23 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
     loop {}
 }
 
-type OsReportCallbackFn = fn(*const c_char);
-type AppEntry = fn() -> !;
+type OsReportCallbackFn = extern "C" fn(*const c_char);
+type AppEntryFn = extern "C" fn() -> !;
 
-type ApploaderInitFn = fn(OsReportCallbackFn);
-type ApploaderMainFn = fn(*mut *mut c_void, *mut usize, *mut usize) -> bool;
-type ApploaderCloseFn = fn() -> AppEntry;
+type ApploaderInitFn = extern "C" fn(OsReportCallbackFn);
+type ApploaderMainFn = extern "C" fn(*mut *mut c_void, *mut usize, *mut usize) -> bool;
+type ApploaderCloseFn = extern "C" fn() -> AppEntryFn;
 
-type ApploaderEntryFn = fn(*mut ApploaderInitFn, *mut ApploaderMainFn, *mut ApploaderCloseFn);
+type ApploaderEntryFn =
+    extern "C" fn(*mut ApploaderInitFn, *mut ApploaderMainFn, *mut ApploaderCloseFn);
 
 #[unsafe(no_mangle)]
-pub fn os_report_callback(_message: *const c_char) {
+pub extern "C" fn os_report_callback(_message: *const c_char) {
     // ignored for now
 }
 
 #[inline(never)]
-pub fn disk_load(address: *mut c_void, length: usize, offset: usize) {
+pub extern "C" fn disk_load(address: *mut c_void, length: usize, offset: usize) {
     let disk_cmd0 = core::ptr::without_provenance_mut::<usize>(0xCC00_6008);
     let disk_cmd1 = core::ptr::without_provenance_mut::<usize>(0xCC00_600C);
     let disk_cmd2 = core::ptr::without_provenance_mut::<usize>(0xCC00_6010);
@@ -51,7 +52,7 @@ pub fn disk_load(address: *mut c_void, length: usize, offset: usize) {
 }
 
 #[unsafe(no_mangle)]
-pub fn main(entry: ApploaderEntryFn) {
+pub extern "C" fn main(entry: ApploaderEntryFn) {
     let mut init = MaybeUninit::uninit();
     let mut main = MaybeUninit::uninit();
     let mut close = MaybeUninit::uninit();

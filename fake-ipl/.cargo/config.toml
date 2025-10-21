@@ -2,7 +2,7 @@
 target = "powerpc-unknown-eabi.json"
 
 [profile.dev]
-opt-level = 'z'
+opt-level = 0
 
 [profile.release]
 opt-level = 'z'
