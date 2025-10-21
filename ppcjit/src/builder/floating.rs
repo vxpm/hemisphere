@@ -115,6 +115,28 @@ impl BlockBuilder<'_> {
         FLOAT_INFO
     }
 
+    pub fn ps_rsqrte(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let ps_b = self.get_ps(ins.fpr_b());
+        let one = self.ir_value(1.0f64);
+        let ps_one = self.bd.ins().splat(ir::types::F64X2, one);
+
+        let sqrt = self.bd.ins().sqrt(ps_b);
+        let recip = self.bd.ins().fdiv(ps_one, sqrt);
+
+        self.set_ps(ins.fpr_d(), recip);
+
+        let ps0 = self.get(ins.fpr_b());
+        self.update_fprf_cmpz(ps0);
+
+        if ins.field_rc() {
+            self.update_cr1_float();
+        }
+
+        FLOAT_INFO
+    }
+
     pub fn ps_mr(&mut self, ins: Ins) -> Info {
         self.check_floats();
 

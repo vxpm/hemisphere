@@ -460,6 +460,7 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Lfd => self.lfd(ins),
             Opcode::Lfdu => self.lfdu(ins),
             Opcode::Lfs => self.lfs(ins),
+            Opcode::Lfsu => self.lfsu(ins),
             Opcode::Lfsx => self.lfsx(ins),
             Opcode::Lha => self.lha(ins),
             Opcode::Lhau => self.lhau(ins),
@@ -560,6 +561,7 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Dcbst => self.stub(ins),
             Opcode::Mffs => self.mffs(ins),
             Opcode::Fabs => self.fabs(ins),
+            Opcode::PsRsqrte => self.ps_rsqrte(ins),
             Opcode::Illegal => {
                 return Err(BuilderError::Illegal(ins));
             }
