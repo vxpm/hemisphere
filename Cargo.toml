@@ -6,6 +6,7 @@ members = [
     "dol",
     "iso",
     "cubefile",
+    "fake-ipl",
     "hemisphere",
     "renderer",
     "app",

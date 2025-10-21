@@ -1,0 +1,8 @@
+# Lists all recipes
+list:
+    @just --list
+
+# Builds the fake-ipl binary and copies it to the resources folder
+build:
+    cargo build --release
+    cp ../target/powerpc-unknown-eabi/release/fake-ipl.elf ../resources/fake-ipl.elf
