@@ -2,7 +2,13 @@
 list:
     @just --list
 
-# Builds the fake-ipl binary and copies it to the resources folder
+# Builds the fake-ipl binary, copies it to the resources folder and converts it to a .dol
 build:
-    cargo build --release
-    cp ../target/powerpc-unknown-eabi/release/fake-ipl.elf ../resources/fake-ipl.elf
+    @echo -e "=> Building fake-ipl.elf ..."
+    @cargo build --release
+    @echo -e "=> Copying fake-ipl.elf to resources folder ..."
+    @cp ../target/powerpc-unknown-eabi/release/fake-ipl.elf ../resources/fake-ipl.elf
+    @echo -e "=> Converting fake-ipl.elf to fake-ipl.dol ..."
+    @cd .. && cargo run -p cubefile convert resources/fake-ipl.elf resources/fake-ipl.dol
+    @echo -e "=> Done!"
+    @cd .. && cargo run -p cubefile inspect resources/fake-ipl.dol

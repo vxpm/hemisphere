@@ -1,24 +1,36 @@
 use binrw::{BinRead, BinWrite, io::BufReader};
 use bytesize::ByteSize;
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use comfy_table::{
     Cell, CellAlignment, ContentArrangement, Table, modifiers::UTF8_ROUND_CORNERS,
     presets::UTF8_FULL,
 };
 use eyre_pretty::{Context, ContextCompat, Result, bail};
-use std::path::PathBuf;
+use std::{io::BufWriter, path::PathBuf};
 
-/// A CLI to inspect files related to the GameCube.
+#[derive(Debug, Subcommand)]
+enum Command {
+    Inspect {
+        /// Path to the input file
+        input: PathBuf,
+    },
+    Convert {
+        /// Path to the input file
+        input: PathBuf,
+        /// Path to the output file
+        output: PathBuf,
+    },
+}
+
+/// A CLI to inspect and manipulate files related to the GameCube.
 ///
-/// Supported formats: .dol, .iso
+/// Supported formats: .dol, .iso, .elf.
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
-    /// Path to the input file
-    input: PathBuf,
-    /// Path to write the bootfile of a .iso into. Ignored if input is not a .iso.
-    #[arg(long)]
-    bootfile: Option<PathBuf>,
+    /// Action to take
+    #[command(subcommand)]
+    command: Command,
 }
 
 fn dol_table(header: &dol::Header) -> Result<()> {
@@ -54,22 +66,24 @@ fn dol_table(header: &dol::Header) -> Result<()> {
         row(format!(".data{i}"), section)
     }
 
-    sections.add_row(vec![
-        Cell::new(".bss"),
-        Cell::new("-").set_alignment(CellAlignment::Center),
-        Cell::new(format!("0x{:08X}", header.bss_target)),
-        Cell::new(format!("0x{:08X}", header.bss_size)),
-        Cell::new(format!("{}", ByteSize(header.bss_size as u64).display()))
-            .set_alignment(CellAlignment::Center),
-    ]);
+    if header.bss_size != 0 {
+        sections.add_row(vec![
+            Cell::new(".bss"),
+            Cell::new("-").set_alignment(CellAlignment::Center),
+            Cell::new(format!("0x{:08X}", header.bss_target)),
+            Cell::new(format!("0x{:08X}", header.bss_size)),
+            Cell::new(format!("{}", ByteSize(header.bss_size as u64).display()))
+                .set_alignment(CellAlignment::Center),
+        ]);
+    }
 
     println!("{sections}");
 
     Ok(())
 }
 
-fn inspect_dol(config: Args) -> Result<()> {
-    let mut file = std::fs::File::open(&config.input).context("opening file")?;
+fn inspect_dol(input: PathBuf) -> Result<()> {
+    let mut file = std::fs::File::open(&input).context("opening file")?;
     let header = dol::Header::read(&mut file).context("parsing .dol header")?;
     let meta = file.metadata()?;
 
@@ -79,7 +93,7 @@ fn inspect_dol(config: Args) -> Result<()> {
         .set_header(vec![
             Cell::new(format!(
                 "{} ({})",
-                config.input.file_name().unwrap().to_string_lossy(),
+                input.file_name().unwrap().to_string_lossy(),
                 ByteSize(meta.len()).display()
             )),
             Cell::new(format!("Entry: 0x{:08X}", header.entry)),
@@ -135,8 +149,8 @@ fn apploader_table(apploader: &iso::Apploader) -> Result<()> {
     Ok(())
 }
 
-fn inspect_iso(config: Args) -> Result<()> {
-    let mut file = std::fs::File::open(&config.input).context("opening file")?;
+fn inspect_iso(input: PathBuf) -> Result<()> {
+    let mut file = std::fs::File::open(&input).context("opening file")?;
     let meta = file.metadata()?;
     let mut iso = iso::Iso::new(BufReader::new(&mut file)).context("parsing .iso header")?;
 
@@ -145,7 +159,7 @@ fn inspect_iso(config: Args) -> Result<()> {
         .set_content_arrangement(ContentArrangement::Dynamic)
         .set_header(vec![Cell::new(format!(
             "{} ({})",
-            config.input.file_name().unwrap().to_string_lossy(),
+            input.file_name().unwrap().to_string_lossy(),
             ByteSize(meta.len()).display()
         ))]);
 
@@ -313,12 +327,22 @@ fn inspect_iso(config: Args) -> Result<()> {
         println!("{info}");
         dol_table(&bootfile.header)?;
 
-        if let Some(path) = config.bootfile {
-            bootfile
-                .write(&mut std::fs::File::create(path).unwrap())
-                .unwrap();
-        }
+        // if let Some(path) = config.bootfile {
+        //     bootfile
+        //         .write(&mut std::fs::File::create(path).unwrap())
+        //         .unwrap();
+        // }
     }
+
+    Ok(())
+}
+
+fn convert_elf_to_dol(input: PathBuf, output: PathBuf) -> Result<()> {
+    let input = std::fs::File::open(&input).context("opening input file")?;
+    let dol = dol::elf_to_dol(BufReader::new(input))?;
+
+    let mut output = BufWriter::new(std::fs::File::create(&output).context("opening output file")?);
+    dol.write(&mut output)?;
 
     Ok(())
 }
@@ -327,15 +351,29 @@ fn main() -> Result<()> {
     eyre_pretty::install().unwrap();
 
     let config = Args::parse();
-    let extension = config
-        .input
-        .extension()
-        .and_then(|ext| ext.to_str())
-        .context("unknown or missing file extension")?;
+    match config.command {
+        Command::Inspect { input } => {
+            let extension = input
+                .extension()
+                .and_then(|ext| ext.to_str())
+                .context("unknown or missing file extension")?;
 
-    match extension {
-        "dol" => inspect_dol(config),
-        "iso" => inspect_iso(config),
-        _ => bail!("unknown or missing file extension"),
+            match extension {
+                "dol" => inspect_dol(input),
+                "iso" => inspect_iso(input),
+                _ => bail!("unknown or missing file extension"),
+            }
+        }
+        Command::Convert { input, output } => {
+            let extension = input
+                .extension()
+                .and_then(|ext| ext.to_str())
+                .context("unknown or missing file extension")?;
+
+            match extension {
+                "elf" => convert_elf_to_dol(input, output),
+                _ => bail!("unknown or missing file extension"),
+            }
+        }
     }
 }

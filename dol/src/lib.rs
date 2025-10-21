@@ -1,12 +1,15 @@
 //! A simple .dol file parser using [`binrw`].
 
+use std::io::{Read, Seek};
+
 pub use binrw;
 use binrw::{BinRead, BinWrite};
+use easyerr::{Error, ResultExt};
 
 const HEADER_SIZE: usize = 0x100;
 
 // The header of a .dol file.
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, Default, BinRead, BinWrite)]
 #[brw(big)]
 pub struct Header {
     /// Offset of the start of .text sections. An offset of zero means the section does not exist.
@@ -133,4 +136,98 @@ impl Dol {
     pub fn entrypoint(&self) -> u32 {
         self.header.entry
     }
+}
+
+#[derive(Debug, Error)]
+pub enum ElfToDolError {
+    #[error(transparent)]
+    Elf { source: elf::ParseError },
+    #[error("elf has multiple .bss sections")]
+    MultipleBss,
+    #[error("elf has more than 7 .text sections")]
+    TooManyTextSections,
+    #[error("elf has more than 11 .data sections")]
+    TooManyDataSections,
+}
+
+pub fn elf_to_dol(reader: impl Read + Seek) -> Result<Dol, ElfToDolError> {
+    let mut elf = elf::ElfStream::<elf::endian::AnyEndian, _>::open_stream(reader)
+        .context(ElfToDolCtx::Elf)?;
+
+    let entry = elf.ehdr.e_entry;
+    let segments = elf.segments().clone();
+    let has_flag = |value, flag| value & flag != 0;
+
+    let mut text = vec![];
+    let mut data = vec![];
+    let mut bss = None;
+    for segment in segments {
+        if segment.p_type != elf::abi::PT_LOAD || segment.p_memsz == 0 {
+            continue;
+        }
+
+        let target = segment.p_vaddr;
+        if segment.p_filesz == 0 {
+            if bss.is_some() {
+                return Err(ElfToDolError::MultipleBss);
+            }
+
+            bss = Some((target, segment.p_memsz));
+            continue;
+        }
+
+        if has_flag(segment.p_flags, elf::abi::PF_X) {
+            let bytes = elf
+                .segment_data(&segment)
+                .context(ElfToDolCtx::Elf)?
+                .to_vec();
+
+            text.push((target, bytes));
+            continue;
+        }
+
+        if has_flag(segment.p_flags, elf::abi::PF_R) || has_flag(segment.p_flags, elf::abi::PF_W) {
+            let bytes = elf
+                .segment_data(&segment)
+                .context(ElfToDolCtx::Elf)?
+                .to_vec();
+
+            data.push((target, bytes));
+            continue;
+        }
+    }
+
+    if text.len() > 7 {
+        return Err(ElfToDolError::TooManyTextSections);
+    }
+
+    if data.len() > 11 {
+        return Err(ElfToDolError::TooManyDataSections);
+    }
+
+    let mut header = Header::default();
+    let mut body = Vec::new();
+
+    header.entry = entry as u32;
+
+    for (i, (target, bytes)) in text.into_iter().enumerate() {
+        header.text_offsets[i] = (HEADER_SIZE + body.len()) as u32;
+        header.text_targets[i] = target as u32;
+        header.text_sizes[i] = bytes.len() as u32;
+        body.extend(bytes);
+    }
+
+    for (i, (target, bytes)) in data.into_iter().enumerate() {
+        header.data_offsets[i] = (HEADER_SIZE + body.len()) as u32;
+        header.data_targets[i] = target as u32;
+        header.data_sizes[i] = bytes.len() as u32;
+        body.extend(bytes);
+    }
+
+    if let Some((target, size)) = bss {
+        header.bss_target = target as u32;
+        header.bss_size = size as u32;
+    }
+
+    Ok(Dol { header, body })
 }

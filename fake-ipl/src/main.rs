@@ -32,12 +32,12 @@ pub extern "C" fn os_report_callback(_message: *const c_char) {
 
 #[inline(never)]
 pub extern "C" fn disk_load(address: *mut c_void, length: usize, offset: usize) {
-    let disk_cmd0 = core::ptr::without_provenance_mut::<usize>(0xCC00_6008);
-    let disk_cmd1 = core::ptr::without_provenance_mut::<usize>(0xCC00_600C);
-    let disk_cmd2 = core::ptr::without_provenance_mut::<usize>(0xCC00_6010);
-    let dma_base = core::ptr::without_provenance_mut::<*mut c_void>(0xCC00_6014);
-    let dma_length = core::ptr::without_provenance_mut::<usize>(0xCC00_6018);
-    let disk_control = core::ptr::without_provenance_mut::<usize>(0xCC00_601C);
+    let disk_cmd0 = 0xCC00_6008 as *mut usize;
+    let disk_cmd1 = 0xCC00_600C as *mut usize;
+    let disk_cmd2 = 0xCC00_6010 as *mut usize;
+    let dma_base = 0xCC00_6014 as *mut *mut c_void;
+    let dma_length = 0xCC00_6018 as *mut usize;
+    let disk_control = 0xCC00_601C as *mut usize;
 
     unsafe {
         disk_cmd0.write_volatile(0xA800_0000);
