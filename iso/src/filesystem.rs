@@ -6,7 +6,7 @@ pub struct Root {
     #[br(parse_with = binrw::helpers::read_u24)]
     #[bw(write_with = binrw::helpers::write_u24)]
     pub name_offset: u32,
-    pub parent_offset: u32,
+    #[brw(pad_before = 4)]
     pub num_entries: u32,
 }
 
@@ -19,7 +19,7 @@ pub enum Entry {
         #[bw(write_with = binrw::helpers::write_u24)]
         name_offset: u32,
         data_offset: u32,
-        length: u32,
+        data_length: u32,
     },
     #[brw(magic(1u8))]
     Directory {

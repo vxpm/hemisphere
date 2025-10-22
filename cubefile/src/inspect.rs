@@ -129,7 +129,7 @@ fn apploader_table(apploader: &iso::Apploader) -> Result<()> {
 fn inspect_iso_fs(mut iso: iso::Iso<impl Read + Seek>) -> Result<()> {
     let root = iso
         .filesystem_root_entries()
-        .context("reading filesystem root")?;
+        .context("reading filesystem root entries")?;
     dbg!(root);
 
     Ok(())

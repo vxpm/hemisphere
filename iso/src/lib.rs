@@ -172,9 +172,9 @@ where
         for _ in 0..count {
             let entry = filesystem::Entry::read(&mut self.reader).context(ReadCtx::Format)?;
             match entry {
-                filesystem::Entry::File { length, .. } => {
+                filesystem::Entry::File { data_length, .. } => {
                     self.reader()
-                        .seek_relative(length as i64)
+                        .seek(SeekFrom::Current(data_length as i64))
                         .context(ReadCtx::Io)?;
                 }
                 filesystem::Entry::Directory { next_offset, .. } => {

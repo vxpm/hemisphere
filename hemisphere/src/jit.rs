@@ -183,7 +183,7 @@ pub static CTX_HOOKS: Hooks = {
             // );
             true
         } else {
-            tracing::error!("failed to translate address {addr}");
+            tracing::error!(pc = ?ctx.system.cpu.pc, "failed to translate address {addr}");
             false
         }
     }
@@ -194,7 +194,7 @@ pub static CTX_HOOKS: Hooks = {
         value: P,
     ) -> bool {
         let Some(physical) = ctx.system.translate_data_addr(addr) else {
-            tracing::error!("failed to translate address {addr}");
+            tracing::error!(pc = ?ctx.system.cpu.pc, "failed to translate address {addr}");
             return false;
         };
 
