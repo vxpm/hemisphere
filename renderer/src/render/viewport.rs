@@ -1,18 +1,16 @@
 use hemisphere::render::Viewport;
 
-pub struct Textures {
-    pub color: wgpu::Texture,
-    pub depth: wgpu::Texture,
-}
-
 pub struct Framebuffer {
     viewport: Viewport,
-    textures: [Textures; 2],
-    front_is_second: bool,
+    color: wgpu::Texture,
+    depth: wgpu::Texture,
 }
 
 impl Framebuffer {
-    fn create_textures(device: &wgpu::Device, viewport: Viewport) -> [Textures; 2] {
+    fn create_textures(
+        device: &wgpu::Device,
+        viewport: Viewport,
+    ) -> (wgpu::Texture, wgpu::Texture) {
         let size = wgpu::Extent3d {
             width: viewport.width.max(1),
             height: viewport.height.max(1),
@@ -47,12 +45,7 @@ impl Framebuffer {
             })
         };
 
-        let tex = || Textures {
-            color: color_tex(),
-            depth: depth_tex(),
-        };
-
-        [tex(), tex()]
+        (color_tex(), depth_tex())
     }
 
     pub fn new(device: &wgpu::Device) -> Self {
@@ -60,12 +53,13 @@ impl Framebuffer {
             width: 1,
             height: 1,
         };
-        let textures = Self::create_textures(device, viewport);
+
+        let (color, depth) = Self::create_textures(device, viewport);
 
         Self {
             viewport,
-            textures,
-            front_is_second: false,
+            color,
+            depth,
         }
     }
 
@@ -75,19 +69,17 @@ impl Framebuffer {
         }
 
         tracing::info!(?viewport, "resizing viewport");
+        let (color, depth) = Self::create_textures(device, viewport);
+        self.color = color;
+        self.depth = depth;
         self.viewport = viewport;
-        self.textures = Self::create_textures(device, viewport);
     }
 
-    pub fn front(&self) -> &Textures {
-        &self.textures[self.front_is_second as usize]
+    pub fn color(&self) -> &wgpu::Texture {
+        &self.color
     }
 
-    pub fn back(&self) -> &Textures {
-        &self.textures[!self.front_is_second as usize]
-    }
-
-    pub fn swap(&mut self) {
-        self.front_is_second = !self.front_is_second;
+    pub fn depth(&self) -> &wgpu::Texture {
+        &self.depth
     }
 }

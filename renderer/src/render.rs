@@ -40,6 +40,9 @@ pub struct Renderer {
     device: wgpu::Device,
     queue: wgpu::Queue,
 
+    current_encoder: wgpu::CommandEncoder,
+    current_pass: wgpu::RenderPass<'static>,
+
     pipeline: Pipeline,
     framebuffer: Framebuffer,
     textures: Textures,
@@ -62,9 +65,42 @@ impl Renderer {
         let framebuffer = Framebuffer::new(&device);
         let pipeline = Pipeline::new(&device);
         let textures = Textures::new(&device);
+
+        let color = framebuffer.color().create_view(&Default::default());
+        let depth = framebuffer.depth().create_view(&Default::default());
+
+        let mut encoder = device.create_command_encoder(&Default::default());
+        let pass = encoder
+            .begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("hemisphere render pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &color,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &depth,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            })
+            .forget_lifetime();
+
         let mut value = Self {
             device,
             queue,
+
+            current_encoder: encoder,
+            current_pass: pass,
 
             pipeline,
             framebuffer,
@@ -143,16 +179,12 @@ impl Renderer {
         self.configs.push((*self.current_config).clone());
     }
 
-    pub fn front_buffer(&self) -> wgpu::TextureView {
-        self.framebuffer
-            .front()
-            .color
-            .create_view(&Default::default())
+    pub fn framebuffer(&self) -> wgpu::TextureView {
+        self.framebuffer.color().create_view(&Default::default())
     }
 
     pub fn swap(&mut self) {
         self.flush(false);
-        self.framebuffer.swap();
     }
 
     pub fn resize_viewport(&mut self, viewport: Viewport) {
@@ -185,6 +217,7 @@ impl Renderer {
         self.pipeline.switch(
             &self.device,
             &PipelineSettings {
+                depth_enabled: mode.enable(),
                 depth_write: mode.update(),
                 depth_compare: compare,
             },
@@ -198,10 +231,12 @@ impl Renderer {
     }
 
     pub fn set_tev_stages(&mut self, stages: Vec<render::TevStage>) {
-        let new = data::TevConfig::new(stages);
+        let new = data::TevConfig::new(stages.clone());
         if self.current_config.tev == new {
             return;
         }
+
+        println!("{stages:#?}");
 
         self.current_config.tev = new;
         self.update_config();
@@ -273,7 +308,7 @@ impl Renderer {
 
     pub fn flush(&mut self, clear: bool) {
         if self.vertices.is_empty() {
-            self.queued_clear = true;
+            self.queued_clear |= clear;
             return;
         }
 
@@ -370,57 +405,55 @@ impl Renderer {
             entries: &textures_group_entries,
         });
 
-        let framebuffer = self.framebuffer.back();
-        let color = framebuffer.color.create_view(&Default::default());
-        let depth = framebuffer.depth.create_view(&Default::default());
-
-        let color_load_op = if clear {
-            wgpu::LoadOp::Clear(self.clear_color)
-        } else {
-            wgpu::LoadOp::Load
-        };
-
-        let depth_load_op = if clear {
-            wgpu::LoadOp::Clear(1.0)
-        } else {
-            wgpu::LoadOp::Load
-        };
-
-        let mut encoder = self.device.create_command_encoder(&Default::default());
-        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("hemisphere render pass"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &color,
-                depth_slice: None,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: color_load_op,
-                    store: wgpu::StoreOp::Store,
-                },
-            })],
-            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &depth,
-                depth_ops: Some(wgpu::Operations {
-                    load: depth_load_op,
-                    store: wgpu::StoreOp::Store,
-                }),
-                stencil_ops: None,
-            }),
-            timestamp_writes: None,
-            occlusion_query_set: None,
-        });
-
-        pass.set_pipeline(self.pipeline.pipeline());
-        pass.set_bind_group(0, Some(&primitives_group), &[]);
-        pass.set_bind_group(1, Some(&textures_group), &[]);
-        pass.set_index_buffer(index_buf.slice(..), wgpu::IndexFormat::Uint32);
-        pass.draw_indexed(0..self.indices.len() as u32, 0, 0..1);
-
-        std::mem::drop(pass);
-
-        let buffer = encoder.finish();
-        self.queue.submit([buffer]);
+        self.current_pass.set_pipeline(self.pipeline.pipeline());
+        self.current_pass
+            .set_bind_group(0, Some(&primitives_group), &[]);
+        self.current_pass
+            .set_bind_group(1, Some(&textures_group), &[]);
+        self.current_pass
+            .set_index_buffer(index_buf.slice(..), wgpu::IndexFormat::Uint32);
+        self.current_pass
+            .draw_indexed(0..self.indices.len() as u32, 0, 0..1);
 
         self.reset();
+
+        if clear {
+            let color = self.framebuffer.color().create_view(&Default::default());
+            let depth = self.framebuffer.depth().create_view(&Default::default());
+
+            let mut encoder = self.device.create_command_encoder(&Default::default());
+            let pass = encoder
+                .begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("hemisphere render pass"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &color,
+                        depth_slice: None,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(self.clear_color),
+                            store: wgpu::StoreOp::Store,
+                        },
+                    })],
+                    depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                        view: &depth,
+                        depth_ops: Some(wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(1.0),
+                            store: wgpu::StoreOp::Store,
+                        }),
+                        stencil_ops: None,
+                    }),
+                    timestamp_writes: None,
+                    occlusion_query_set: None,
+                })
+                .forget_lifetime();
+
+            let previous_encoder = std::mem::replace(&mut self.current_encoder, encoder);
+            let previous_pass = std::mem::replace(&mut self.current_pass, pass);
+
+            std::mem::drop(previous_pass);
+
+            let buffer = previous_encoder.finish();
+            self.queue.submit([buffer]);
+        }
     }
 }

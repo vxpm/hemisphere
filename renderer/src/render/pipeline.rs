@@ -1,6 +1,7 @@
 use wesl::include_wesl;
 
 pub struct PipelineSettings {
+    pub depth_enabled: bool,
     pub depth_write: bool,
     pub depth_compare: wgpu::CompareFunction,
 }
@@ -20,6 +21,24 @@ impl Pipeline {
         module: &wgpu::ShaderModule,
         settings: &PipelineSettings,
     ) -> wgpu::RenderPipeline {
+        let depth_stencil = if settings.depth_enabled {
+            wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: settings.depth_write,
+                depth_compare: settings.depth_compare,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }
+        } else {
+            wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: false,
+                depth_compare: wgpu::CompareFunction::Always,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }
+        };
+
         device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("uber render pipeline"),
             layout: Some(layout),
@@ -49,13 +68,7 @@ impl Pipeline {
                 })],
             }),
             multisample: Default::default(),
-            depth_stencil: Some(wgpu::DepthStencilState {
-                format: wgpu::TextureFormat::Depth32Float,
-                depth_write_enabled: settings.depth_write,
-                depth_compare: settings.depth_compare,
-                stencil: wgpu::StencilState::default(),
-                bias: wgpu::DepthBiasState::default(),
-            }),
+            depth_stencil: Some(depth_stencil),
             multiview: None,
             cache: None,
         })
@@ -131,6 +144,7 @@ impl Pipeline {
             &layout,
             &module,
             &PipelineSettings {
+                depth_enabled: true,
                 depth_write: true,
                 depth_compare: wgpu::CompareFunction::Less,
             },

@@ -251,6 +251,9 @@ fn decode_cmpr_tex(data: &[u8], width: u32, height: u32) -> Vec<Rgba8> {
 
             for subtile_y in 0..2 {
                 for subtile_x in 0..2 {
+                    let subtile_base_x = base_tile_x + subtile_x * 4;
+                    let subtile_base_y = base_tile_y + subtile_y * 4;
+
                     // read palette
                     let a = u16::read_be_bytes(&data[data_index..]);
                     let b = u16::read_be_bytes(&data[data_index + 2..]);
@@ -266,8 +269,6 @@ fn decode_cmpr_tex(data: &[u8], width: u32, height: u32) -> Vec<Rgba8> {
                         palette[2] = palette[0].lerp(palette[1], 0.5);
                     }
 
-                    let subtile_base_x = base_tile_x + subtile_x * 2;
-                    let subtile_base_y = base_tile_y + subtile_y * 2;
                     let mut indices = data[data_index + 4..][..4]
                         .iter()
                         .copied()

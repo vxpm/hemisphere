@@ -121,7 +121,7 @@ impl WgpuRenderer {
         let mut guard = self.inner.lock().unwrap();
         let inner = &mut *guard;
 
-        inner.blitter.blit(&inner.renderer.front_buffer(), pass);
+        inner.blitter.blit(&inner.renderer.framebuffer(), pass);
     }
 }
 
