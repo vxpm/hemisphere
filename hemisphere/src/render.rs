@@ -29,11 +29,15 @@ pub enum Action {
     SetProjectionMatrix(Mat4),
     SetTevStages(Vec<TevStage>),
     SetTexGens(Vec<TexGen>),
-    SetTexture {
-        index: usize,
+    LoadTexture {
+        id: u32,
         width: u32,
         height: u32,
         data: Vec<Rgba8>,
+    },
+    SetTexture {
+        index: usize,
+        id: u32,
     },
     Draw(Topology, Vec<VertexAttributes>),
     EfbCopy {

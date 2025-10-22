@@ -1,11 +1,11 @@
-use std::collections::HashMap;
-
 use bitos::{
     BitUtils, bitos,
     integer::{u2, u10},
 };
 use common::Address;
 use common::Primitive;
+use rustc_hash::FxBuildHasher;
+use std::collections::HashMap;
 use zerocopy::{Immutable, IntoBytes};
 
 #[bitos(2)]
@@ -121,14 +121,44 @@ pub struct TextureMap {
     pub dirty: bool,
 }
 
-impl TextureMap {}
-
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct Interface {
     pub maps: [TextureMap; 8],
+    pub cache: HashMap<Address, u64>,
+    pub hasher: FxBuildHasher,
 }
 
-impl Interface {}
+impl std::fmt::Debug for Interface {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Interface")
+            .field("maps", &self.maps)
+            .field("cache", &self.cache)
+            .finish()
+    }
+}
+
+impl Interface {
+    /// Given an address and the texture data present there, returns whether the data hash matches
+    /// with the one in the cache. If not, the hash is inserted into the cache.
+    pub fn insert_cache(&mut self, addr: Address, data: &[u8]) -> bool {
+        use std::hash::{BuildHasher, Hash, Hasher};
+        let mut hasher = self.hasher.build_hasher();
+        data.hash(&mut hasher);
+
+        let new_hash = hasher.finish();
+        if let Some(old_hash) = self.cache.get(&addr) {
+            if *old_hash == new_hash {
+                true
+            } else {
+                self.cache.insert(addr, new_hash);
+                false
+            }
+        } else {
+            self.cache.insert(addr, new_hash);
+            false
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, Default, Immutable, IntoBytes)]
 pub struct Rgba8 {
@@ -273,9 +303,9 @@ pub fn decode_texture(data: &[u8], format: Format) -> Vec<Rgba8> {
             decode_basic_tex::<8, 8, _>(data, format.width(), format.height(), |data, index| {
                 let value = data[index / 2];
                 let intensity = if index % 2 == 0 {
-                    value.bits(0, 4)
-                } else {
                     value.bits(4, 8)
+                } else {
+                    value.bits(0, 4)
                 };
 
                 Rgba8 {

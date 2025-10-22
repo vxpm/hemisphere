@@ -683,12 +683,19 @@ impl System {
         let len = map.format.size().value() as usize;
         let slice = &self.mem.ram[start..][..len];
 
-        let data = texture::decode_texture(slice, map.format);
+        if !self.gpu.texture.insert_cache(map.address, slice) {
+            let data = texture::decode_texture(slice, map.format);
+            self.config.renderer.exec(Action::LoadTexture {
+                id: map.address.value(),
+                width: map.format.width(),
+                height: map.format.height(),
+                data,
+            });
+        }
+
         self.config.renderer.exec(Action::SetTexture {
             index,
-            width: map.format.width(),
-            height: map.format.height(),
-            data,
+            id: map.address.value(),
         });
     }
 

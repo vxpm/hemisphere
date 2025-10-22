@@ -1,4 +1,8 @@
+use rustc_hash::FxHashMap;
+
 pub struct Textures {
+    cached: FxHashMap<u32, wgpu::Texture>,
+    texture_ids: [u32; 8],
     textures: [wgpu::Texture; 8],
     samplers: [wgpu::Sampler; 8],
 }
@@ -43,14 +47,19 @@ impl Textures {
         });
         let samplers = std::array::from_fn(|_| Self::create_sampler(device));
 
-        Self { textures, samplers }
+        Self {
+            cached: FxHashMap::default(),
+            texture_ids: [0; 8],
+            textures,
+            samplers,
+        }
     }
 
     pub fn update_texture(
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        index: usize,
+        id: u32,
         width: u32,
         height: u32,
         data: &[u8],
@@ -78,7 +87,16 @@ impl Textures {
             size,
         );
 
-        self.textures[index] = texture;
+        self.cached.insert(id, texture);
+    }
+
+    pub fn get_texture_id(&self, index: usize) -> u32 {
+        self.texture_ids[index]
+    }
+
+    pub fn set_texture(&mut self, index: usize, id: u32) {
+        self.texture_ids[index] = id;
+        self.textures[index] = self.cached.get(&id).unwrap().clone();
     }
 
     pub fn textures(&self) -> &[wgpu::Texture; 8] {

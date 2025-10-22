@@ -1706,6 +1706,7 @@ dependencies = [
  "iso",
  "parking_lot",
  "ppcjit",
+ "rustc-hash 2.1.1",
  "slotmap",
  "strum",
  "tracing",

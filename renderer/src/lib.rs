@@ -42,17 +42,18 @@ impl Inner {
             Action::SetProjectionMatrix(mat) => self.renderer.set_projection_mat(mat),
             Action::SetTevStages(stages) => self.renderer.set_tev_stages(stages),
             Action::SetTexGens(texgens) => self.renderer.set_texgens(texgens),
-            Action::SetTexture {
-                index,
+            Action::LoadTexture {
+                id,
                 width,
                 height,
                 data,
-            } => self.renderer.set_texture(
-                index,
+            } => self.renderer.load_texture(
+                id,
                 width,
                 height,
                 zerocopy::transmute_ref!(data.as_slice()),
             ),
+            Action::SetTexture { index, id } => self.renderer.set_texture(index, id),
             Action::Draw(topology, attributes) => match topology {
                 Topology::QuadList => self.renderer.draw_quad_list(&attributes),
                 Topology::TriangleList => self.renderer.draw_triangle_list(&attributes),

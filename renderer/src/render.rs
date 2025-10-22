@@ -217,10 +217,18 @@ impl Renderer {
         self.update_config();
     }
 
-    pub fn set_texture(&mut self, index: usize, width: u32, height: u32, data: &[u8]) {
+    pub fn load_texture(&mut self, id: u32, width: u32, height: u32, data: &[u8]) {
         self.flush(false);
         self.textures
-            .update_texture(&self.device, &self.queue, index, width, height, data);
+            .update_texture(&self.device, &self.queue, id, width, height, data);
+    }
+
+    pub fn set_texture(&mut self, index: usize, id: u32) {
+        let current = self.textures.get_texture_id(index);
+        if current != id {
+            self.flush(false);
+            self.textures.set_texture(index, id);
+        }
     }
 
     pub fn draw_quad_list(&mut self, vertices: &[VertexAttributes]) {
