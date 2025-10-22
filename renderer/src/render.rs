@@ -3,18 +3,14 @@ mod pipeline;
 mod textures;
 mod viewport;
 
-use crate::render::{
-    pipeline::{Pipeline, PipelineSettings},
-    textures::Textures,
-    viewport::Framebuffer,
-};
+use crate::render::{pipeline::Pipeline, textures::Textures, viewport::Framebuffer};
 use glam::Mat4;
 use hemisphere::{
     render::{self, Viewport},
     system::gpu::{
         VertexAttributes,
         command::attributes::Rgba,
-        pixel::{CompareMode, DepthMode},
+        pixel::{BlendFactor, BlendMode, CompareMode, DepthMode},
         transform::TexGen,
     },
 };
@@ -200,6 +196,37 @@ impl Renderer {
         };
     }
 
+    pub fn set_blend_mode(&mut self, mode: BlendMode) {
+        self.flush(false);
+
+        let factor = |factor: BlendFactor| match factor {
+            BlendFactor::Zero => wgpu::BlendFactor::Zero,
+            BlendFactor::One => wgpu::BlendFactor::One,
+            BlendFactor::SrcColor => wgpu::BlendFactor::Src,
+            BlendFactor::InverseSrcColor => wgpu::BlendFactor::OneMinusSrc,
+            BlendFactor::SrcAlpha => wgpu::BlendFactor::SrcAlpha,
+            BlendFactor::InverseSrcAlpha => wgpu::BlendFactor::OneMinusSrcAlpha,
+            BlendFactor::DstAlpha => wgpu::BlendFactor::DstAlpha,
+            BlendFactor::InverseDstAlpha => wgpu::BlendFactor::OneMinusDstAlpha,
+        };
+
+        let src = factor(mode.src_factor());
+        let dst = factor(mode.dst_factor());
+        let op = if mode.blend_subtract() {
+            wgpu::BlendOperation::Subtract
+        } else {
+            wgpu::BlendOperation::Add
+        };
+
+        self.pipeline.settings.color_write = mode.color_mask();
+        self.pipeline.settings.alpha_write = mode.alpha_mask();
+        self.pipeline.settings.blend_enabled = mode.enable();
+        self.pipeline.settings.blend_src = src;
+        self.pipeline.settings.blend_dst = dst;
+        self.pipeline.settings.blend_op = op;
+        self.pipeline.update(&self.device);
+    }
+
     pub fn set_depth_mode(&mut self, mode: DepthMode) {
         self.flush(false);
 
@@ -214,14 +241,10 @@ impl Renderer {
             CompareMode::Always => wgpu::CompareFunction::Always,
         };
 
-        self.pipeline.switch(
-            &self.device,
-            &PipelineSettings {
-                depth_enabled: mode.enable(),
-                depth_write: mode.update(),
-                depth_compare: compare,
-            },
-        );
+        self.pipeline.settings.depth_enabled = mode.enable();
+        self.pipeline.settings.depth_write = mode.update();
+        self.pipeline.settings.depth_compare = compare;
+        self.pipeline.update(&self.device);
     }
 
     pub fn set_projection_mat(&mut self, mat: Mat4) {
@@ -236,7 +259,7 @@ impl Renderer {
             return;
         }
 
-        println!("{stages:#?}");
+        // println!("stages: {stages:#?}");
 
         self.current_config.tev = new;
         self.update_config();

@@ -183,6 +183,23 @@ impl BlockBuilder<'_> {
         CR_INFO
     }
 
+    pub fn creqv(&mut self, ins: Ins) -> Info {
+        let bit_a = 31 - ins.field_crba();
+        let bit_b = 31 - ins.field_crbb();
+        let bit_dest = 31 - ins.field_crbd();
+
+        let cr = self.get(Reg::CR);
+        let bit_a = self.get_bit(cr, bit_a);
+        let bit_b = self.get_bit(cr, bit_b);
+        let xored = self.bd.ins().bxor(bit_a, bit_b);
+        let compl = self.bd.ins().bnot(xored);
+
+        let value = self.set_bit(cr, bit_dest, compl);
+        self.set(Reg::CR, value);
+
+        CR_INFO
+    }
+
     pub fn cror(&mut self, ins: Ins) -> Info {
         let bit_a = 31 - ins.field_crba();
         let bit_b = 31 - ins.field_crbb();

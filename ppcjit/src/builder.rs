@@ -567,6 +567,7 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Fadd => self.fadd(ins),
             Opcode::Dcbt => self.stub(ins),
             Opcode::DcbzL => self.stub(ins),
+            Opcode::Creqv => self.creqv(ins),
             Opcode::Illegal => {
                 return Err(BuilderError::Illegal(ins));
             }

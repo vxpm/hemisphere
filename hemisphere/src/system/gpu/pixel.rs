@@ -1,4 +1,7 @@
-use bitos::{bitos, integer::u2};
+use bitos::{
+    bitos,
+    integer::{u2, u3},
+};
 
 // NOTE: might be wrong
 #[bitos(3)]
@@ -77,12 +80,72 @@ pub struct DepthMode {
     pub update: bool,
 }
 
+#[bitos(3)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum BlendFactor {
+    #[default]
+    Zero = 0x0,
+    One = 0x1,
+    SrcColor = 0x2,
+    InverseSrcColor = 0x3,
+    SrcAlpha = 0x4,
+    InverseSrcAlpha = 0x5,
+    DstAlpha = 0x6,
+    InverseDstAlpha = 0x7,
+}
+
+#[bitos(4)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum BlendLogicOp {
+    #[default]
+    Clear = 0x0,
+    And = 0x1,
+    ReverseAnd = 0x2,
+    Copy = 0x3,
+    InverseAnd = 0x4,
+    Noop = 0x5,
+    Xor = 0x6,
+    Or = 0x7,
+    Nor = 0x8,
+    Equiv = 0x9,
+    Inverse = 0xA,
+    ReverseOr = 0xB,
+    InverseCopy = 0xC,
+    InverseOr = 0xD,
+    Nand = 0xE,
+    Set = 0xF,
+}
+
+#[bitos(32)]
+#[derive(Debug, Clone, Copy, Default)]
+pub struct BlendMode {
+    #[bits(0)]
+    pub enable: bool,
+    #[bits(1)]
+    pub logic_op_enable: bool,
+    #[bits(2)]
+    pub dither_enable: bool,
+    #[bits(3)]
+    pub color_mask: bool,
+    #[bits(4)]
+    pub alpha_mask: bool,
+    #[bits(5..8)]
+    pub dst_factor: BlendFactor,
+    #[bits(8..11)]
+    pub src_factor: BlendFactor,
+    #[bits(11)]
+    pub blend_subtract: bool,
+    #[bits(12..16)]
+    pub logic_op: BlendLogicOp,
+}
+
 #[derive(Debug, Default)]
 pub struct Interface {
     pub interrupt: InterruptStatus,
     pub clear_color: Argb8,
     pub clear_depth: u32,
     pub depth_mode: DepthMode,
+    pub blend_mode: BlendMode,
 }
 
 impl Interface {

@@ -38,6 +38,7 @@ impl Inner {
         match action {
             Action::SetViewport(viewport) => self.renderer.resize_viewport(viewport),
             Action::SetClearColor(color) => self.renderer.set_clear_color(color),
+            Action::SetBlendMode(mode) => self.renderer.set_blend_mode(mode),
             Action::SetDepthMode(mode) => self.renderer.set_depth_mode(mode),
             Action::SetProjectionMatrix(mat) => self.renderer.set_projection_mat(mat),
             Action::SetTevStages(stages) => self.renderer.set_tev_stages(stages),

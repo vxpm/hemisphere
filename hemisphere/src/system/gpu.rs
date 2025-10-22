@@ -102,7 +102,7 @@ pub enum Reg {
 
     // Pixel Engine
     PixelZMode = 0x40,
-    PixelMode0 = 0x41,
+    PixelBlendMode = 0x41,
     PixelMode1 = 0x42,
     PixelControl = 0x43,
     PixelFieldMask = 0x44,
@@ -401,6 +401,12 @@ impl System {
                 self.config
                     .renderer
                     .exec(Action::SetDepthMode(self.gpu.pixel.depth_mode));
+            }
+            Reg::PixelBlendMode => {
+                value.write_ne_bytes(self.gpu.pixel.blend_mode.as_mut_bytes());
+                self.config
+                    .renderer
+                    .exec(Action::SetBlendMode(self.gpu.pixel.blend_mode));
             }
             Reg::PixelDone => {
                 self.gpu.pixel.interrupt.set_finish(true);

@@ -4,7 +4,7 @@ use crate::system::gpu::{
     Topology, VertexAttributes,
     command::attributes::Rgba,
     environment::{StageOps, StageRefs},
-    pixel::DepthMode,
+    pixel::{BlendMode, DepthMode},
     texture::Rgba8,
     transform::TexGen,
 };
@@ -26,6 +26,7 @@ pub enum Action {
     SetViewport(Viewport),
     SetClearColor(Rgba),
     SetDepthMode(DepthMode),
+    SetBlendMode(BlendMode),
     SetProjectionMatrix(Mat4),
     SetTevStages(Vec<TevStage>),
     SetTexGens(Vec<TexGen>),
