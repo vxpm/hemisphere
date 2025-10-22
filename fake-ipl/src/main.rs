@@ -94,6 +94,7 @@ pub extern "C" fn disk_load(address: *mut c_void, length: usize, offset: usize) 
         dma_length.write_volatile(length);
 
         disk_control.write_volatile(3);
+        while disk_control.read_volatile() & 1 != 0 {}
     }
 }
 

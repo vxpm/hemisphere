@@ -1,10 +1,12 @@
 //! A simple GameCube .iso file parser using [`binrw`].
+pub mod apploader;
+pub mod filesystem;
 
+use binrw::{BinRead, BinWrite, NullString};
+use easyerr::{Error, ResultExt};
 use std::io::{Read, Seek, SeekFrom};
 
 pub use binrw;
-use binrw::{BinRead, BinWrite, NullString};
-use easyerr::{Error, ResultExt};
 
 #[derive(Debug, BinRead, BinWrite)]
 #[brw(big, magic = 0xC233_9F3D_u32)]
@@ -112,15 +114,7 @@ pub struct Iso<R> {
 }
 
 #[derive(Debug, Error)]
-pub enum BootfileError {
-    #[error(transparent)]
-    Io { source: std::io::Error },
-    #[error(transparent)]
-    Format { source: binrw::Error },
-}
-
-#[derive(Debug, Error)]
-pub enum ApploaderError {
+pub enum ReadError {
     #[error(transparent)]
     Io { source: std::io::Error },
     #[error(transparent)]
@@ -144,20 +138,55 @@ where
         &mut self.reader
     }
 
-    pub fn bootfile(&mut self) -> Result<dol::Dol, BootfileError> {
+    pub fn bootfile(&mut self) -> Result<dol::Dol, ReadError> {
         let offset = self.header.bootfile_offset;
         self.reader
             .seek(SeekFrom::Start(offset as u64))
-            .context(BootfileCtx::Io)?;
+            .context(ReadCtx::Io)?;
 
-        dol::Dol::read(&mut self.reader).context(BootfileCtx::Format)
+        dol::Dol::read(&mut self.reader).context(ReadCtx::Format)
     }
 
-    pub fn apploader(&mut self) -> Result<Apploader, ApploaderError> {
+    pub fn apploader(&mut self) -> Result<Apploader, ReadError> {
         self.reader
             .seek(SeekFrom::Start(0x2440))
-            .context(ApploaderCtx::Io)?;
+            .context(ReadCtx::Io)?;
 
-        Apploader::read(&mut self.reader).context(ApploaderCtx::Format)
+        Apploader::read(&mut self.reader).context(ReadCtx::Format)
+    }
+
+    pub fn filesystem_root(&mut self) -> Result<filesystem::Root, ReadError> {
+        let offset = self.header.filesystem_offset;
+        self.reader()
+            .seek(SeekFrom::Start(offset as u64))
+            .context(ReadCtx::Io)?;
+
+        filesystem::Root::read(&mut self.reader).context(ReadCtx::Format)
+    }
+
+    pub fn filesystem_root_entries(&mut self) -> Result<Vec<filesystem::Entry>, ReadError> {
+        let root = self.filesystem_root()?;
+        let count = root.num_entries;
+
+        let mut entries = Vec::new();
+        for _ in 0..count {
+            let entry = filesystem::Entry::read(&mut self.reader).context(ReadCtx::Format)?;
+            match entry {
+                filesystem::Entry::File { length, .. } => {
+                    self.reader()
+                        .seek_relative(length as i64)
+                        .context(ReadCtx::Io)?;
+                }
+                filesystem::Entry::Directory { next_offset, .. } => {
+                    self.reader()
+                        .seek(SeekFrom::Start(next_offset as u64))
+                        .context(ReadCtx::Io)?;
+                }
+            }
+
+            entries.push(entry);
+        }
+
+        Ok(entries)
     }
 }

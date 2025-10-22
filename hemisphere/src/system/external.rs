@@ -3,7 +3,7 @@ use bitos::{
     bitos,
     integer::{u2, u3},
 };
-use common::Address;
+use common::{Address, Primitive};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Device {
@@ -98,6 +98,12 @@ pub struct Control {
     pub imm_length_minus_one: u2,
 }
 
+impl Control {
+    pub fn imm_length(&self) -> u32 {
+        self.imm_length_minus_one().value() as u32 + 1
+    }
+}
+
 #[derive(Default, Debug, Clone, Copy)]
 pub struct Channel {
     pub parameter: Parameter,
@@ -107,11 +113,26 @@ pub struct Channel {
     pub immediate: u32,
 }
 
-#[derive(Default)]
 pub struct Interface {
     pub rtc: u32,
+    pub sram: [u8; 64],
     pub waiting_trace_step: bool,
+    pub sram_write_offset: u32,
+    pub sram_write_remaining: u32,
     pub channels: [Channel; 3],
+}
+
+impl Default for Interface {
+    fn default() -> Self {
+        Self {
+            rtc: Default::default(),
+            sram: [0; 64],
+            waiting_trace_step: Default::default(),
+            sram_write_offset: Default::default(),
+            sram_write_remaining: Default::default(),
+            channels: Default::default(),
+        }
+    }
 }
 
 impl System {
@@ -122,6 +143,29 @@ impl System {
         match device {
             Device::IplRtcSram => {
                 tracing::debug!(pc = ?self.cpu.pc, control = ?channel.control, "IPL/RTC/SRAM write: 0x{:08X}", channel.immediate);
+
+                if self.external.sram_write_remaining > 0 {
+                    tracing::debug!(
+                        "writing 0x{:08X} to SRAM 0x{:08X}",
+                        channel.immediate,
+                        self.external.sram_write_offset
+                    );
+
+                    let len = channel.control.imm_length();
+                    channel.immediate.write_be_bytes(
+                        &mut self.external.sram[self.external.sram_write_offset as usize..]
+                            [..len as usize],
+                    );
+
+                    self.external.sram_write_offset += len;
+                    self.external.sram_write_remaining -= len;
+
+                    self.external.channels[0]
+                        .control
+                        .set_transfer_ongoing(false);
+
+                    return;
+                }
 
                 match channel.immediate {
                     0x0000_0000..0x2000_0000 => {
@@ -156,9 +200,37 @@ impl System {
                         tracing::debug!("writing to RTC");
                         self.external.rtc = self.external.channels[0].immediate;
                     }
-                    0x2000_0100 => {
+                    0x2000_0100..0x2000_1100 => {
                         tracing::debug!("reading from SRAM");
-                        self.external.channels[0].immediate = 0;
+
+                        if channel.control.dma() {
+                            let ram_base = channel.dma_base.value() as usize;
+                            let length = channel.dma_length as usize;
+
+                            assert_eq!(length, 64);
+
+                            tracing::debug!(
+                                pc = ?self.cpu.pc,
+                                ram_base = ?Address(ram_base as u32),
+                                length,
+                                "EXI DMA transfer from SRAM",
+                            );
+
+                            self.mem.ram[ram_base..][..length].copy_from_slice(&self.external.sram);
+                        } else {
+                            self.external.channels[0].immediate =
+                                u32::read_be_bytes(&self.external.sram);
+                        }
+                    }
+                    0xA000_0100..0xA000_1100 => {
+                        let address = ((channel.immediate & 0xFFFF) - 0x0100) >> 6;
+                        let remaining = 64 - address;
+                        tracing::debug!(
+                            "writing to SRAM address 0x{address:02X} - total bytes needed: {remaining}"
+                        );
+
+                        self.external.sram_write_offset = address;
+                        self.external.sram_write_remaining = remaining;
                     }
                     _ => {
                         tracing::warn!("EXI channel 0 transfer ignored (SRAM?)");

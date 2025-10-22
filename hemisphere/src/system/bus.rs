@@ -407,7 +407,7 @@ impl System {
                 let mut written = disk::Cover::from_bits(0);
                 ne!(written.as_mut_bytes());
                 self.disk.write_cover(written);
-                self.disk.cover.set_cover(true);
+                self.disk.cover.set_open(false);
                 tracing::debug!(diskcover = ?self.disk.cover);
             }
             Mmio::DiskCommand0 => ne!(self.disk.command[0].as_mut_bytes()),

@@ -172,10 +172,10 @@ impl Rgba8 {
     fn lerp(&self, rhs: Self, t: f32) -> Self {
         let lerp = |a, b, t| a * (1.0 - t) + b * t;
         Self {
-            r: lerp(self.r as f32, rhs.r as f32, t) as u8,
-            g: lerp(self.g as f32, rhs.g as f32, t) as u8,
-            b: lerp(self.b as f32, rhs.b as f32, t) as u8,
-            a: lerp(self.a as f32, rhs.a as f32, t) as u8,
+            r: lerp(self.r as f32, rhs.r as f32, t).round() as u8,
+            g: lerp(self.g as f32, rhs.g as f32, t).round() as u8,
+            b: lerp(self.b as f32, rhs.b as f32, t).round() as u8,
+            a: lerp(self.a as f32, rhs.a as f32, t).round() as u8,
         }
     }
 

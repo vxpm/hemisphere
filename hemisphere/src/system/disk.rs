@@ -45,7 +45,7 @@ pub struct Control {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Cover {
     #[bits(0)]
-    pub cover: bool,
+    pub open: bool,
     #[bits(1)]
     pub interrupt_mask: bool,
     #[bits(2)]
@@ -122,7 +122,6 @@ impl System {
                     reader
                         .read_exact(&mut self.mem.ram[target.value() as usize..][..length as usize])
                         .unwrap();
-
                     self.disk.control.set_transfer_ongoing(false);
                 }
                 0x1200_0000 => {
