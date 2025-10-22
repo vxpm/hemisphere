@@ -108,6 +108,8 @@ pub enum Reg {
     PixelFieldMask = 0x44,
     PixelDone = 0x45,
     PixelRefresh = 0x46,
+    PixelToken = 0x47,
+    PixelTokenInt = 0x48,
     PixelCopySrc = 0x49,
     PixelCopySrcSize = 0x4A,
     PixelCopyDstBase0 = 0x4B,

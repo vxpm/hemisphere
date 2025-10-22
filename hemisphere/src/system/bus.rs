@@ -241,7 +241,7 @@ impl System {
             (size as usize - offset - size_of::<P>())..(size as usize - offset)
         };
 
-        if reg != Mmio::ProcessorFifo {
+        if !matches!(reg, Mmio::FakeStdout | Mmio::ProcessorFifo) {
             tracing::debug!("writing 0x{:08X} to {:?}[{:?}]", value, reg, range,);
         }
 

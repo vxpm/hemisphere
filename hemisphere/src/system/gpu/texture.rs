@@ -272,7 +272,7 @@ fn decode_cmpr_tex(data: &[u8], width: u32, height: u32) -> Vec<Rgba8> {
                     let mut indices = data[data_index + 4..][..4]
                         .iter()
                         .copied()
-                        .flat_map(|b| [b.bits(0, 2), b.bits(2, 4), b.bits(4, 6), b.bits(6, 8)]);
+                        .flat_map(|b| [b.bits(6, 8), b.bits(4, 6), b.bits(2, 4), b.bits(0, 2)]);
 
                     for inner_y in 0..4 {
                         for inner_x in 0..4 {
@@ -307,7 +307,7 @@ pub fn decode_texture(data: &[u8], format: Format) -> Vec<Rgba8> {
                     value.bits(4, 8)
                 } else {
                     value.bits(0, 4)
-                };
+                } * 16;
 
                 Rgba8 {
                     r: intensity,
@@ -320,8 +320,8 @@ pub fn decode_texture(data: &[u8], format: Format) -> Vec<Rgba8> {
         DataFormat::Intensity4Alpha => {
             decode_basic_tex::<8, 8, _>(data, format.width(), format.height(), |data, index| {
                 let value = data[index];
-                let intensity = value.bits(0, 4);
-                let alpha = value.bits(4, 8);
+                let intensity = value.bits(0, 4) * 16;
+                let alpha = value.bits(4, 8) * 16;
 
                 Rgba8 {
                     r: intensity,
