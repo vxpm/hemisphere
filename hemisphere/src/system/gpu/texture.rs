@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use bitos::{
     BitUtils, bitos,
     integer::{u2, u10},
@@ -128,12 +130,33 @@ pub struct Interface {
 
 impl Interface {}
 
-#[derive(Debug, Clone, Copy, Immutable, IntoBytes)]
+#[derive(Debug, Clone, Copy, Default, Immutable, IntoBytes)]
 pub struct Rgba8 {
     pub r: u8,
     pub g: u8,
     pub b: u8,
     pub a: u8,
+}
+
+impl Rgba8 {
+    fn lerp(&self, rhs: Self, t: f32) -> Self {
+        let lerp = |a, b, t| a * (1.0 - t) + b * t;
+        Self {
+            r: lerp(self.r as f32, rhs.r as f32, t) as u8,
+            g: lerp(self.g as f32, rhs.g as f32, t) as u8,
+            b: lerp(self.b as f32, rhs.b as f32, t) as u8,
+            a: lerp(self.a as f32, rhs.a as f32, t) as u8,
+        }
+    }
+
+    fn rgb565(value: u16) -> Self {
+        Rgba8 {
+            r: value.bits(11, 16) as u8 * 8,
+            g: value.bits(5, 11) as u8 * 4,
+            b: value.bits(0, 5) as u8 * 8,
+            a: 255,
+        }
+    }
 }
 
 fn decode_basic_tex<
@@ -173,6 +196,69 @@ fn decode_basic_tex<
                     }
 
                     data_index += 1;
+                }
+            }
+        }
+    }
+
+    pixels
+}
+
+fn decode_cmpr_tex(data: &[u8], width: u32, height: u32) -> Vec<Rgba8> {
+    const TILE_WIDTH: u32 = 8;
+    const TILE_HEIGHT: u32 = 8;
+
+    let mut pixels = vec![Default::default(); width as usize * height as usize];
+
+    let width_in_tiles = width.div_ceil(TILE_WIDTH);
+    let height_in_tiles = height.div_ceil(TILE_HEIGHT);
+
+    let mut data_index = 0;
+    for tile_y in 0..height_in_tiles {
+        for tile_x in 0..width_in_tiles {
+            let base_tile_x = tile_x * TILE_WIDTH;
+            let base_tile_y = tile_y * TILE_HEIGHT;
+
+            for subtile_y in 0..2 {
+                for subtile_x in 0..2 {
+                    // read palette
+                    let a = u16::read_be_bytes(&data[data_index..]);
+                    let b = u16::read_be_bytes(&data[data_index + 2..]);
+
+                    let mut palette = [Rgba8::default(); 4];
+                    palette[0] = Rgba8::rgb565(a);
+                    palette[1] = Rgba8::rgb565(b);
+
+                    if a > b {
+                        palette[2] = palette[0].lerp(palette[1], 1.0 / 3.0);
+                        palette[3] = palette[0].lerp(palette[1], 2.0 / 3.0);
+                    } else {
+                        palette[2] = palette[0].lerp(palette[1], 0.5);
+                    }
+
+                    let subtile_base_x = base_tile_x + subtile_x * 2;
+                    let subtile_base_y = base_tile_y + subtile_y * 2;
+                    let mut indices = data[data_index + 4..][..4]
+                        .iter()
+                        .copied()
+                        .flat_map(|b| [b.bits(0, 2), b.bits(2, 4), b.bits(4, 6), b.bits(6, 8)]);
+
+                    for inner_y in 0..4 {
+                        for inner_x in 0..4 {
+                            let index = indices.next().unwrap();
+                            let color = palette[index as usize];
+
+                            let x = subtile_base_x + inner_x;
+                            let y = subtile_base_y + inner_y;
+                            let image_index = y * width + x;
+
+                            if let Some(pixel) = pixels.get_mut(image_index as usize) {
+                                *pixel = color;
+                            }
+                        }
+                    }
+
+                    data_index += 8;
                 }
             }
         }
@@ -278,18 +364,7 @@ pub fn decode_texture(data: &[u8], format: Format) -> Vec<Rgba8> {
                 Rgba8 { r, g, b, a }
             })
         }
-        DataFormat::Cmp => {
-            let total = format.width() * format.height();
-            vec![
-                Rgba8 {
-                    r: 128,
-                    g: 0,
-                    b: 128,
-                    a: 128
-                };
-                total as usize
-            ]
-        }
+        DataFormat::Cmp => decode_cmpr_tex(data, format.width(), format.height()),
         _ => todo!("format {format:?}"),
     }
 }

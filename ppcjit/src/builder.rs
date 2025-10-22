@@ -565,6 +565,8 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Fabs => self.fabs(ins),
             Opcode::PsRsqrte => self.ps_rsqrte(ins),
             Opcode::Fadd => self.fadd(ins),
+            Opcode::Dcbt => self.stub(ins),
+            Opcode::DcbzL => self.stub(ins),
             Opcode::Illegal => {
                 return Err(BuilderError::Illegal(ins));
             }
