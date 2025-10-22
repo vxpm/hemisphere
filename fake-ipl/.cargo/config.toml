@@ -1,5 +1,5 @@
 [build]
-target = "powerpc-unknown-eabi.json"
+target = "powerpc-nintendo-gamecube-eabi.json"
 
 [profile.dev]
 opt-level = 0
