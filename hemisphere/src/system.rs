@@ -186,6 +186,9 @@ impl System {
         self.write::<u32>(Address(0x3C), 0x24); // FST max length
         self.write::<u32>(Address(0xD0), 16 * 1024 * 1024); // ARAM size
 
+        // setup MSR
+        self.cpu.supervisor.config.msr.set_exception_prefix(false);
+
         // done :)
     }
 

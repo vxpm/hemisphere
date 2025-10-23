@@ -203,14 +203,6 @@ impl Hemisphere {
             };
 
             // tracing::debug!("exec at {}", self.system.cpu.pc);
-
-            self.system
-                .cpu
-                .supervisor
-                .config
-                .msr
-                .set_exception_prefix(false);
-
             // let prev_cpu = self.system.cpu.clone();
             let e = self.exec(Limits {
                 cycles: cycles_to_run,
