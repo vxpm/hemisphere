@@ -163,23 +163,23 @@ impl System {
             Mmio::DiskConfiguration => ne!(self.disk.config.as_bytes()),
 
             // === External Interface ===
-            Mmio::ExiChannel0Param => ne!(self.external.channels[0].parameter.as_bytes()),
-            Mmio::ExiChannel0DmaBase => ne!(self.external.channels[0].dma_base.as_bytes()),
-            Mmio::ExiChannel0DmaLength => ne!(self.external.channels[0].dma_length.as_bytes()),
-            Mmio::ExiChannel0Control => ne!(self.external.channels[0].control.as_bytes()),
-            Mmio::ExiChannel0Immediate => ne!(self.external.channels[0].immediate.as_bytes()),
+            Mmio::ExiChannel0Param => ne!(self.external.channel0.parameter.as_bytes()),
+            Mmio::ExiChannel0DmaBase => ne!(self.external.channel0.dma_base.as_bytes()),
+            Mmio::ExiChannel0DmaLength => ne!(self.external.channel0.dma_length.as_bytes()),
+            Mmio::ExiChannel0Control => ne!(self.external.channel0.control.as_bytes()),
+            Mmio::ExiChannel0Immediate => ne!(self.external.channel0.immediate.as_bytes()),
 
-            Mmio::ExiChannel1Param => ne!(self.external.channels[1].parameter.as_bytes()),
-            Mmio::ExiChannel1DmaBase => ne!(self.external.channels[1].dma_base.as_bytes()),
-            Mmio::ExiChannel1DmaLength => ne!(self.external.channels[1].dma_length.as_bytes()),
-            Mmio::ExiChannel1Control => ne!(self.external.channels[1].control.as_bytes()),
-            Mmio::ExiChannel1Immediate => ne!(self.external.channels[1].immediate.as_bytes()),
+            Mmio::ExiChannel1Param => ne!(self.external.channel1.parameter.as_bytes()),
+            Mmio::ExiChannel1DmaBase => ne!(self.external.channel1.dma_base.as_bytes()),
+            Mmio::ExiChannel1DmaLength => ne!(self.external.channel1.dma_length.as_bytes()),
+            Mmio::ExiChannel1Control => ne!(self.external.channel1.control.as_bytes()),
+            Mmio::ExiChannel1Immediate => ne!(self.external.channel1.immediate.as_bytes()),
 
-            Mmio::ExiChannel2Param => ne!(self.external.channels[2].parameter.as_bytes()),
-            Mmio::ExiChannel2DmaBase => ne!(self.external.channels[2].dma_base.as_bytes()),
-            Mmio::ExiChannel2DmaLength => ne!(self.external.channels[2].dma_length.as_bytes()),
-            Mmio::ExiChannel2Control => ne!(self.external.channels[2].control.as_bytes()),
-            Mmio::ExiChannel2Immediate => ne!(self.external.channels[2].immediate.as_bytes()),
+            Mmio::ExiChannel2Param => ne!(self.external.channel2.parameter.as_bytes()),
+            Mmio::ExiChannel2DmaBase => ne!(self.external.channel2.dma_base.as_bytes()),
+            Mmio::ExiChannel2DmaLength => ne!(self.external.channel2.dma_length.as_bytes()),
+            Mmio::ExiChannel2Control => ne!(self.external.channel2.control.as_bytes()),
+            Mmio::ExiChannel2Immediate => ne!(self.external.channel2.immediate.as_bytes()),
 
             // === Audio Interface ===
             Mmio::AudioSampleCounter => {
@@ -427,39 +427,39 @@ impl System {
             Mmio::ExiChannel0Param => {
                 let mut written = external::Parameter::from_bits(0);
                 ne!(written.as_mut_bytes());
-                self.external.channels[0].parameter.write(written);
+                self.external.channel0.parameter.write(written);
             }
-            Mmio::ExiChannel0DmaBase => ne!(self.external.channels[0].dma_base.as_mut_bytes()),
-            Mmio::ExiChannel0DmaLength => ne!(self.external.channels[0].dma_length.as_mut_bytes()),
+            Mmio::ExiChannel0DmaBase => ne!(self.external.channel0.dma_base.as_mut_bytes()),
+            Mmio::ExiChannel0DmaLength => ne!(self.external.channel0.dma_length.as_mut_bytes()),
             Mmio::ExiChannel0Control => {
-                ne!(self.external.channels[0].control.as_mut_bytes());
+                ne!(self.external.channel0.control.as_mut_bytes());
                 self.exi_update();
             }
-            Mmio::ExiChannel0Immediate => ne!(self.external.channels[0].immediate.as_mut_bytes()),
+            Mmio::ExiChannel0Immediate => ne!(self.external.channel0.immediate.as_mut_bytes()),
             Mmio::ExiChannel1Param => {
                 let mut written = external::Parameter::from_bits(0);
                 ne!(written.as_mut_bytes());
-                self.external.channels[1].parameter.write(written);
+                self.external.channel1.parameter.write(written);
             }
-            Mmio::ExiChannel1DmaBase => ne!(self.external.channels[1].dma_base.as_mut_bytes()),
-            Mmio::ExiChannel1DmaLength => ne!(self.external.channels[1].dma_length.as_mut_bytes()),
+            Mmio::ExiChannel1DmaBase => ne!(self.external.channel1.dma_base.as_mut_bytes()),
+            Mmio::ExiChannel1DmaLength => ne!(self.external.channel1.dma_length.as_mut_bytes()),
             Mmio::ExiChannel1Control => {
-                ne!(self.external.channels[1].control.as_mut_bytes());
+                ne!(self.external.channel1.control.as_mut_bytes());
                 self.exi_update();
             }
-            Mmio::ExiChannel1Immediate => ne!(self.external.channels[1].immediate.as_mut_bytes()),
+            Mmio::ExiChannel1Immediate => ne!(self.external.channel1.immediate.as_mut_bytes()),
             Mmio::ExiChannel2Param => {
                 let mut written = external::Parameter::from_bits(0);
                 ne!(written.as_mut_bytes());
-                self.external.channels[2].parameter.write(written);
+                self.external.channel2.parameter.write(written);
             }
-            Mmio::ExiChannel2DmaBase => ne!(self.external.channels[2].dma_base.as_mut_bytes()),
-            Mmio::ExiChannel2DmaLength => ne!(self.external.channels[2].dma_length.as_mut_bytes()),
+            Mmio::ExiChannel2DmaBase => ne!(self.external.channel2.dma_base.as_mut_bytes()),
+            Mmio::ExiChannel2DmaLength => ne!(self.external.channel2.dma_length.as_mut_bytes()),
             Mmio::ExiChannel2Control => {
-                ne!(self.external.channels[2].control.as_mut_bytes());
+                ne!(self.external.channel2.control.as_mut_bytes());
                 self.exi_update();
             }
-            Mmio::ExiChannel2Immediate => ne!(self.external.channels[2].immediate.as_mut_bytes()),
+            Mmio::ExiChannel2Immediate => ne!(self.external.channel2.immediate.as_mut_bytes()),
 
             // === Audio Interface ===
             Mmio::AudioControl => {
