@@ -128,10 +128,16 @@ fn apploader_table(apploader: &iso::Apploader) -> Result<()> {
     Ok(())
 }
 
-fn print_dir(graph: &VfsGraph, id: VfsEntryId, depth: u8) {
+fn print_dir(graph: &VfsGraph, id: VfsEntryId, depth: u8, current: &str) {
     let VirtualEntry::Dir(dir) = graph.node_weight(id).unwrap() else {
         unreachable!()
     };
+
+    let base = format!(
+        "{current}{}{}",
+        if current.is_empty() { "" } else { "/" },
+        dir.name
+    );
 
     let indent = |offset| {
         for _ in 0..(depth + offset) {
@@ -140,17 +146,24 @@ fn print_dir(graph: &VfsGraph, id: VfsEntryId, depth: u8) {
     };
 
     indent(0);
-    println!("{}/", dir.name);
+    println!(
+        "{}/",
+        if dir.name.is_empty() && current.is_empty() {
+            "root"
+        } else {
+            &dir.name
+        }
+    );
 
     for child in graph.neighbors(id) {
         let entry = graph.node_weight(child).unwrap();
         match entry {
             VirtualEntry::File(file) => {
                 indent(2);
-                println!("{}", file.name);
+                println!("{} ({}/{})", file.name, base, file.name);
             }
             VirtualEntry::Dir(_) => {
-                print_dir(graph, child, depth + 2);
+                print_dir(graph, child, depth + 2, &base);
             }
         }
     }
@@ -161,7 +174,7 @@ fn inspect_iso_fs(mut iso: iso::Iso<impl Read + Seek>) -> Result<()> {
     let root = filesystem.root();
     let graph = filesystem.graph();
 
-    print_dir(graph, root, 0);
+    print_dir(graph, root, 0, "");
 
     Ok(())
 }

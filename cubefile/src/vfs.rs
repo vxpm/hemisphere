@@ -36,14 +36,12 @@ impl VirtualFileSystem {
         let filesystem = iso.filesystem()?;
         let mut reader = iso.reader();
         let mut graph = Graph::new();
-        let root = graph.add_node(VirtualEntry::Dir(VirtualDir {
-            name: "root".into(),
-        }));
+        let root = graph.add_node(VirtualEntry::Dir(VirtualDir { name: "".into() }));
 
         let mut dir_stack = vec![root];
         let mut end_stack = vec![filesystem.root.entry_count];
         for (index, entry) in filesystem.entries.iter().enumerate() {
-            while index as u32 == *end_stack.last().unwrap() {
+            while index as u32 + 1 == *end_stack.last().unwrap() {
                 dir_stack.pop();
                 end_stack.pop();
             }
