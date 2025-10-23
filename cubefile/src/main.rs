@@ -11,14 +11,20 @@ use std::{
 
 #[derive(Debug, Subcommand)]
 enum Command {
+    /// Inspect a file
+    ///
+    /// Supported formats: .dol, .iso
     Inspect {
         /// Path to the input file
         #[arg(short, long)]
         input: PathBuf,
-        /// Whether to inspect the filesystem.
+        /// Whether to inspect the filesystem (only valid for .iso files)
         #[arg(long, default_value_t = false)]
         filesystem: bool,
     },
+    /// Convert a file to another format
+    ///
+    /// Supported conversions: .dol to .elf
     Convert {
         /// Path to the input file
         #[arg(short, long)]
@@ -27,6 +33,9 @@ enum Command {
         #[arg(short, long)]
         output: PathBuf,
     },
+    /// Extract a file from another
+    ///
+    /// Supported input formats: .iso
     Extract {
         /// Target to extract
         #[arg(short, long)]
@@ -44,7 +53,7 @@ enum Command {
 ///
 /// Supported formats: .dol, .iso, .elf.
 #[derive(Parser, Debug)]
-#[command(version, about, long_about = None)]
+#[command(version)]
 struct Args {
     /// Action to take
     #[command(subcommand)]
