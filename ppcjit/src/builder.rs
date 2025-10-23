@@ -525,7 +525,7 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Rlwimi => self.rlwimi(ins),
             Opcode::Rlwinm => self.rlwinm(ins),
             Opcode::Rlwnm => self.rlwnm(ins),
-            Opcode::Sc => self.stub(ins),
+            Opcode::Sc => self.sc(ins),
             Opcode::Slw => self.slw(ins),
             Opcode::Sraw => self.sraw(ins),
             Opcode::Srawi => self.srawi(ins),

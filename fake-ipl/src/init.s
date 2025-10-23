@@ -1,9 +1,13 @@
 .extern main
 
-.section .data.stack
-.space 0x1000
+.section .bss.stack
+.space 0x800
 stack:
-.space 0x1000
+.space 0x800
+
+.section .text.eh.syscall
+_eh_syscall:
+  rfi
 
 .section .text.init
 .global _start
