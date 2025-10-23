@@ -433,6 +433,7 @@ impl System {
             Mmio::ExiChannel0DmaLength => ne!(self.external.channel0.dma_length.as_mut_bytes()),
             Mmio::ExiChannel0Control => {
                 ne!(self.external.channel0.control.as_mut_bytes());
+                tracing::debug!("{:?}", self.external.channel0.control);
                 self.exi_update();
             }
             Mmio::ExiChannel0Immediate => ne!(self.external.channel0.immediate.as_mut_bytes()),

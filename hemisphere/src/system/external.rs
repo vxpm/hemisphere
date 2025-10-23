@@ -112,16 +112,17 @@ impl Control {
 }
 
 #[derive(Debug, Clone, Default)]
-pub enum Ch0State {
+pub enum IplChipState {
     #[default]
     Idle,
+    SramWrite(u8),
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct Channel0 {
-    pub ipl_base: u32,
     pub rtc: u32,
-    pub state: Ch0State,
+    pub ipl_base: u32,
+    pub ipl_state: IplChipState,
 
     pub parameter: Parameter,
     pub control: Control,
@@ -176,8 +177,9 @@ impl System {
         self.mem.ram[ram_base..][..length].copy_from_slice(&self.mem.ipl[ipl_base..][..length]);
     }
 
-    fn exi_sram_transfer(&mut self) {
-        let sram_base = ((self.external.channel0.immediate & !0xA000_0000) >> 6) as usize;
+    fn exi_sram_transfer_read(&mut self) {
+        let sram_base =
+            (((self.external.channel0.immediate & !0xA000_0000) - 0x0000_0100) >> 6) as usize;
         tracing::debug!("SRAM TRANSFER {:?}", self.external.channel0.control);
 
         if !self.external.channel0.control.dma() {
@@ -197,9 +199,26 @@ impl System {
         self.mem.ram[ram_base..][..length].copy_from_slice(&self.mem.sram[sram_base..][..length]);
     }
 
+    fn exi_sram_transfer_write(&mut self, current: u8) {
+        assert!(!self.external.channel0.control.dma());
+
+        self.external
+            .channel0
+            .immediate
+            .write_be_bytes(&mut self.mem.sram[current as usize..]);
+
+        let next = current + 4;
+        if next == 64 {
+            self.external.channel0.ipl_state = IplChipState::Idle;
+        } else {
+            self.external.channel0.ipl_state = IplChipState::SramWrite(next);
+        }
+    }
+
     fn exi_ipl_rtc_sram_transfer(&mut self) {
-        match self.external.channel0.clone().state {
-            Ch0State::Idle => {
+        match self.external.channel0.clone().ipl_state {
+            IplChipState::SramWrite(current) => self.exi_sram_transfer_write(current),
+            IplChipState::Idle => {
                 // new transfer
                 match self.external.channel0.clone().immediate {
                     0x0000_0000..0x2000_0000 => self.exi_ipl_transfer(),
@@ -209,12 +228,27 @@ impl System {
                         self.external.channel0.immediate = self.external.channel0.rtc;
                     }
                     0x2000_0100..0x2000_1100 => {
-                        self.exi_sram_transfer();
+                        self.exi_sram_transfer_read();
+                    }
+                    0x2001_0000 => {
+                        panic!("EXI UART read");
                     }
                     0xA000_0000 => {
                         tracing::debug!("RTC write: 0x{:08X}", self.external.channel0.immediate);
                         assert!(!self.external.channel0.control.dma());
                         self.external.channel0.rtc = self.external.channel0.immediate;
+                    }
+                    0xA000_0100..0xA000_1100 => {
+                        let sram_base = (((self.external.channel0.immediate & !0xA000_0000)
+                            - 0x0000_0100)
+                            >> 6) as u8;
+                        tracing::debug!("starting SRAM write: 0x{:08X}", sram_base);
+                        assert!(!self.external.channel0.control.dma());
+
+                        self.external.channel0.ipl_state = IplChipState::SramWrite(sram_base);
+                    }
+                    0xA001_0000 => {
+                        panic!("EXI UART write");
                     }
                     _ => todo!(),
                 }
