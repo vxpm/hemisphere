@@ -1,14 +1,13 @@
 mod inspect;
+mod vfs;
 
 use binrw::{BinWrite, io::BufReader};
-use clap::{Parser, Subcommand, ValueEnum};
-use eyre_pretty::{Context, ContextCompat, Result, bail};
-use std::{io::BufWriter, path::PathBuf};
-
-#[derive(Debug, Clone, Copy, ValueEnum)]
-enum ExtractKind {
-    Bootfile,
-}
+use clap::{Parser, Subcommand};
+use eyre_pretty::{Context, ContextCompat, Result, bail, eyre};
+use std::{
+    io::{BufWriter, Read, Seek, SeekFrom},
+    path::PathBuf,
+};
 
 #[derive(Debug, Subcommand)]
 enum Command {
@@ -29,8 +28,9 @@ enum Command {
         output: PathBuf,
     },
     Extract {
-        /// What to extract from the input
-        kind: ExtractKind,
+        /// Target to extract
+        #[arg(short, long)]
+        target: String,
         /// Path to the input file
         #[arg(short, long)]
         input: PathBuf,
@@ -72,6 +72,30 @@ fn extract_bootfile(input: PathBuf, output: PathBuf) -> Result<()> {
     Ok(())
 }
 
+fn extract_iso_file(input: PathBuf, output: PathBuf, target: String) -> Result<()> {
+    let input = std::fs::File::open(&input).context("opening input file")?;
+    let mut iso = iso::Iso::new(BufReader::new(input))?;
+    let filesystem = vfs::VirtualFileSystem::new(&mut iso)?;
+
+    let target = filesystem
+        .path_to_entry(target)
+        .ok_or(eyre!("no entry with such path in the filesystem"))?;
+
+    let entry = filesystem.graph().node_weight(target).unwrap();
+    let vfs::VirtualEntry::File(file) = entry else {
+        bail!("entry at given path is a directory");
+    };
+
+    let mut output = BufWriter::new(std::fs::File::create(&output).context("opening output file")?);
+    iso.reader()
+        .seek(SeekFrom::Start(file.data_offset as u64))?;
+
+    let mut reader = iso.reader().take(file.data_length as u64);
+    std::io::copy(&mut reader, &mut output)?;
+
+    Ok(())
+}
+
 fn main() -> Result<()> {
     eyre_pretty::install().unwrap();
 
@@ -101,7 +125,7 @@ fn main() -> Result<()> {
             }
         }
         Command::Extract {
-            kind,
+            target,
             input,
             output,
         } => {
@@ -110,8 +134,9 @@ fn main() -> Result<()> {
                 .and_then(|ext| ext.to_str())
                 .context("unknown or missing file extension")?;
 
-            match (extension, kind) {
-                ("iso", ExtractKind::Bootfile) => extract_bootfile(input, output),
+            match (extension, &*target) {
+                ("iso", "bootfile") => extract_bootfile(input, output),
+                ("iso", _) => extract_iso_file(input, output, target),
                 _ => bail!("unsupported extension/target combination"),
             }
         }

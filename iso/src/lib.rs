@@ -8,6 +8,8 @@ use std::io::{Read, Seek, SeekFrom};
 
 pub use binrw;
 
+use crate::filesystem::FileSystem;
+
 #[derive(Debug, BinRead, BinWrite)]
 #[brw(big, magic = 0xC233_9F3D_u32)]
 pub struct MagicWord;
@@ -139,9 +141,8 @@ where
     }
 
     pub fn bootfile(&mut self) -> Result<dol::Dol, ReadError> {
-        let offset = self.header.bootfile_offset;
         self.reader
-            .seek(SeekFrom::Start(offset as u64))
+            .seek(SeekFrom::Start(self.header.bootfile_offset as u64))
             .context(ReadCtx::Io)?;
 
         dol::Dol::read(&mut self.reader).context(ReadCtx::Format)
@@ -155,38 +156,11 @@ where
         Apploader::read(&mut self.reader).context(ReadCtx::Format)
     }
 
-    pub fn filesystem_root(&mut self) -> Result<filesystem::Root, ReadError> {
-        let offset = self.header.filesystem_offset;
-        self.reader()
-            .seek(SeekFrom::Start(offset as u64))
+    pub fn filesystem(&mut self) -> Result<FileSystem, ReadError> {
+        self.reader
+            .seek(SeekFrom::Start(self.header.filesystem_offset as u64))
             .context(ReadCtx::Io)?;
 
-        filesystem::Root::read(&mut self.reader).context(ReadCtx::Format)
-    }
-
-    pub fn filesystem_root_entries(&mut self) -> Result<Vec<filesystem::Entry>, ReadError> {
-        let root = self.filesystem_root()?;
-        let count = root.num_entries;
-
-        let mut entries = Vec::new();
-        for _ in 0..count {
-            let entry = filesystem::Entry::read(&mut self.reader).context(ReadCtx::Format)?;
-            match entry {
-                filesystem::Entry::File { data_length, .. } => {
-                    self.reader()
-                        .seek(SeekFrom::Current(data_length as i64))
-                        .context(ReadCtx::Io)?;
-                }
-                filesystem::Entry::Directory { next_offset, .. } => {
-                    self.reader()
-                        .seek(SeekFrom::Start(next_offset as u64))
-                        .context(ReadCtx::Io)?;
-                }
-            }
-
-            entries.push(entry);
-        }
-
-        Ok(entries)
+        FileSystem::read(&mut self.reader).context(ReadCtx::Format)
     }
 }

@@ -14,4 +14,6 @@ bytesize.workspace = true
 clap.workspace = true
 eyre-pretty.workspace = true
 binrw.workspace = true
+
 comfy-table = { version = "7.1", default-features = false }
+petgraph = "0.8"

@@ -10,6 +10,8 @@ use std::{
     path::PathBuf,
 };
 
+use crate::vfs::{self, VfsEntryId, VfsGraph, VirtualEntry};
+
 fn dol_table(header: &dol::Header) -> Result<()> {
     let mut sections = Table::new();
     sections
@@ -126,11 +128,40 @@ fn apploader_table(apploader: &iso::Apploader) -> Result<()> {
     Ok(())
 }
 
+fn print_dir(graph: &VfsGraph, id: VfsEntryId, depth: u8) {
+    let VirtualEntry::Dir(dir) = graph.node_weight(id).unwrap() else {
+        unreachable!()
+    };
+
+    let indent = |offset| {
+        for _ in 0..(depth + offset) {
+            print!(" ")
+        }
+    };
+
+    indent(0);
+    println!("{}/", dir.name);
+
+    for child in graph.neighbors(id) {
+        let entry = graph.node_weight(child).unwrap();
+        match entry {
+            VirtualEntry::File(file) => {
+                indent(2);
+                println!("{}", file.name);
+            }
+            VirtualEntry::Dir(_) => {
+                print_dir(graph, child, depth + 2);
+            }
+        }
+    }
+}
+
 fn inspect_iso_fs(mut iso: iso::Iso<impl Read + Seek>) -> Result<()> {
-    let root = iso
-        .filesystem_root_entries()
-        .context("reading filesystem root entries")?;
-    dbg!(root);
+    let filesystem = vfs::VirtualFileSystem::new(&mut iso)?;
+    let root = filesystem.root();
+    let graph = filesystem.graph();
+
+    print_dir(graph, root, 0);
 
     Ok(())
 }
