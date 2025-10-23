@@ -202,13 +202,10 @@ impl Hemisphere {
                 remaining_instr
             };
 
-            // tracing::debug!("exec at {}", self.system.cpu.pc);
-            // let prev_cpu = self.system.cpu.clone();
             let e = self.exec(Limits {
                 cycles: cycles_to_run,
                 instructions,
             });
-            // let curr_cpu = self.system.cpu.clone();
 
             executed.instructions += e.instructions;
             executed.cycles += e.cycles;

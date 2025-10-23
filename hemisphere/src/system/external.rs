@@ -178,11 +178,10 @@ impl System {
 
     fn exi_sram_transfer(&mut self) {
         let sram_base = ((self.external.channel0.immediate & !0xA000_0000) >> 6) as usize;
-        tracing::debug!("SRAM TRANSFER");
+        tracing::debug!("SRAM TRANSFER {:?}", self.external.channel0.control);
 
         if !self.external.channel0.control.dma() {
             self.external.channel0.immediate = u32::read_be_bytes(&self.mem.sram[sram_base..]);
-            todo!();
             return;
         }
 
