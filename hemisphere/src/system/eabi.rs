@@ -13,6 +13,7 @@ pub struct CallFrame {
     pub returns: Address,
 }
 
+#[derive(Default)]
 pub struct CallStack(pub Vec<CallFrame>);
 
 impl std::fmt::Display for CallStack {
