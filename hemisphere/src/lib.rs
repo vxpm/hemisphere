@@ -153,10 +153,17 @@ impl Hemisphere {
     }
 
     pub fn step(&mut self) -> Executed {
-        self.exec(Limits {
+        let executed = self.exec(Limits {
             instructions: 1,
             cycles: u32::MAX,
-        })
+        });
+
+        self.system.scheduler.advance(executed.cycles as u64);
+        while let Some(event) = self.system.scheduler.pop() {
+            self.system.process(event);
+        }
+
+        executed
     }
 
     fn closest_breakpoint(&self, breakpoints: &[Address]) -> Address {
