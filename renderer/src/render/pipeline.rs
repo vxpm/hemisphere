@@ -1,5 +1,7 @@
+use std::collections::{HashMap, hash_map::Entry};
 use wesl::include_wesl;
 
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct PipelineSettings {
     pub blend_enabled: bool,
     pub blend_src: wgpu::BlendFactor,
@@ -38,6 +40,7 @@ pub struct Pipeline {
     group1_layout: wgpu::BindGroupLayout,
     layout: wgpu::PipelineLayout,
     module: wgpu::ShaderModule,
+    cached: HashMap<PipelineSettings, wgpu::RenderPipeline>,
     pipeline: wgpu::RenderPipeline,
 }
 
@@ -187,6 +190,8 @@ impl Pipeline {
 
         let settings = PipelineSettings::default();
         let pipeline = Self::create_pipeline(device, &layout, &module, &settings);
+        let mut cached = HashMap::new();
+        cached.insert(settings.clone(), pipeline.clone());
 
         Self {
             settings,
@@ -194,6 +199,7 @@ impl Pipeline {
             group1_layout,
             layout,
             module,
+            cached,
             pipeline,
         }
     }
@@ -211,6 +217,16 @@ impl Pipeline {
     }
 
     pub fn update(&mut self, device: &wgpu::Device) {
-        self.pipeline = Self::create_pipeline(device, &self.layout, &self.module, &self.settings);
+        self.pipeline = match self.cached.entry(self.settings.clone()) {
+            Entry::Occupied(o) => o.get().clone(),
+            Entry::Vacant(v) => v
+                .insert(Self::create_pipeline(
+                    device,
+                    &self.layout,
+                    &self.module,
+                    &self.settings,
+                ))
+                .clone(),
+        };
     }
 }

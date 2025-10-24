@@ -43,7 +43,6 @@ pub struct Renderer {
     framebuffer: Framebuffer,
     textures: Textures,
 
-    queued_clear: bool,
     clear_color: wgpu::Color,
     current_config: Box<data::Config>,
     current_projection_mat: Mat4,
@@ -107,7 +106,6 @@ impl Renderer {
             current_projection_mat: Default::default(),
             current_projection_mat_idx: 0,
 
-            queued_clear: false,
             configs: Vec::new(),
             vertices: Vec::new(),
             indices: Vec::new(),
