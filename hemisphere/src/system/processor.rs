@@ -1,10 +1,7 @@
 //! Processor interface.
 
 use crate::system::{Event, System};
-use bitos::{
-    bitos,
-    integer::{u25, u26},
-};
+use bitos::{bitos, integer::u26};
 use common::{Address, arch::Exception};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -70,7 +67,7 @@ pub struct InterruptMask {
 pub struct FifoCurrent {
     #[bits(0..26)]
     pub base: u26,
-    #[bits(26)]
+    #[bits(29)]
     pub wrapped: bool,
 }
 
@@ -144,8 +141,6 @@ impl System {
             return;
         }
 
-        tracing::trace!("flushing PI fifo");
-
         let data = std::mem::replace(&mut self.processor.fifo_buffer, Vec::with_capacity(32));
         for byte in data {
             let current = self.processor.fifo_current.address();
@@ -157,10 +152,10 @@ impl System {
             }
 
             if self.processor.fifo_current.address() > self.processor.fifo_end {
+                self.processor.fifo_current.set_wrapped(true);
                 self.processor
                     .fifo_current
                     .set_address(self.processor.fifo_start);
-                self.processor.fifo_current.set_wrapped(true);
             }
         }
 
