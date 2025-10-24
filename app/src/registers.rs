@@ -1,22 +1,25 @@
-use crate::{Ctx, WindowUi};
+use crate::{Ctx, windows::AppWindow};
 use eframe::egui::{self, Color32};
 use egui_extras::{Column, TableBuilder};
-use hemisphere::runner::State;
+use hemisphere::{arch::Cpu, runner::State};
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 enum Group {
     #[default]
     Gpr,
     Fpr,
 }
 
-#[derive(Default)]
+#[derive(Default, Serialize, Deserialize)]
 pub struct Window {
     group: Group,
+    #[serde(skip)]
+    cpu: Cpu,
 }
 
 impl Window {
-    fn gpr(&self, ui: &mut egui::Ui, state: &mut State) {
+    fn gpr(&self, ui: &mut egui::Ui) {
         let builder = TableBuilder::new(ui)
             .auto_shrink(egui::Vec2b::new(false, true))
             .striped(true)
@@ -35,7 +38,7 @@ impl Window {
         });
 
         table.body(|mut body| {
-            for (gpr, value) in state.core().system.cpu.user.gpr.iter().copied().enumerate() {
+            for (gpr, value) in self.cpu.user.gpr.iter().copied().enumerate() {
                 body.row(20.0, |mut row| {
                     row.col(|ui| {
                         let text = egui::RichText::new(format!("R{gpr:02}"))
@@ -57,7 +60,7 @@ impl Window {
         });
     }
 
-    fn fpr(&self, ui: &mut egui::Ui, state: &mut State) {
+    fn fpr(&self, ui: &mut egui::Ui) {
         let builder = TableBuilder::new(ui)
             .auto_shrink(egui::Vec2b::new(false, true))
             .striped(true)
@@ -80,7 +83,7 @@ impl Window {
         });
 
         table.body(|mut body| {
-            for (fpr, value) in state.core().system.cpu.user.fpr.iter().copied().enumerate() {
+            for (fpr, value) in self.cpu.user.fpr.iter().copied().enumerate() {
                 body.row(20.0, |mut row| {
                     row.col(|ui| {
                         let text = egui::RichText::new(format!("F{fpr:02}"))
@@ -111,12 +114,17 @@ impl Window {
     }
 }
 
-impl WindowUi for Window {
+#[typetag::serde(name = "registers")]
+impl AppWindow for Window {
     fn title(&self) -> &str {
         "Registers"
     }
 
-    fn show(&mut self, ui: &mut egui::Ui, _: &mut Ctx, state: &mut State) {
+    fn prepare(&mut self, state: &mut State) {
+        self.cpu = state.core().system.cpu.clone();
+    }
+
+    fn show(&mut self, ui: &mut egui::Ui, _: &mut Ctx) {
         egui::ScrollArea::both().auto_shrink(false).show(ui, |ui| {
             egui::ComboBox::from_label("Group")
                 .selected_text(format!("{:?}", self.group))
@@ -128,8 +136,8 @@ impl WindowUi for Window {
             ui.separator();
 
             match self.group {
-                Group::Gpr => self.gpr(ui, state),
-                Group::Fpr => self.fpr(ui, state),
+                Group::Gpr => self.gpr(ui),
+                Group::Fpr => self.fpr(ui),
             }
         });
     }

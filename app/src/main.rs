@@ -5,8 +5,8 @@ mod control;
 mod debug;
 mod disasm;
 mod efb;
-// mod registers;
-// mod subsystem;
+mod registers;
+mod subsystem;
 mod windows;
 mod xfb;
 
@@ -167,6 +167,10 @@ impl eframe::App for App {
                         self.create_window(disasm::Window::default());
                     }
 
+                    if ui.button("Registers").clicked() {
+                        self.create_window(registers::Window::default());
+                    }
+
                     if ui.button("Call Stack").clicked() {
                         self.create_window(debug::Window::default());
                     }
@@ -178,6 +182,16 @@ impl eframe::App for App {
                     if ui.button("EFB").clicked() {
                         self.create_window(efb::Window::default());
                     }
+
+                    ui.menu_button("Subsystems", |ui| {
+                        if ui.button("Command Processor").clicked() {
+                            self.create_window(subsystem::cp::Window::default());
+                        }
+
+                        if ui.button("Processor Interface").clicked() {
+                            self.create_window(subsystem::pi::Window::default());
+                        }
+                    });
                 });
             });
         });
@@ -202,6 +216,8 @@ impl eframe::App for App {
                 egui::Window::new(window_state.window.title())
                     .id(window_state.id)
                     .open(&mut open)
+                    .resizable(true)
+                    .min_size(egui::Vec2::ZERO)
                     .show(ctx, |ui| {
                         window_state.window.show(ui, &mut context);
                     });

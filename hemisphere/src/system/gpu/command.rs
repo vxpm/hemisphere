@@ -194,7 +194,7 @@ impl Default for Control {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct Fifo {
     pub start: Address,
     pub end: Address,
