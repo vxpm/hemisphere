@@ -707,6 +707,12 @@ impl System {
         });
     }
 
+    pub fn gx_call(&mut self, address: Address, length: u32) {
+        tracing::debug!("called {} with length 0x{:08X}", address, length);
+        let data = &self.mem.ram[address.value() as usize..][..length as usize];
+        self.gpu.command.queue.push_front_bytes(data);
+    }
+
     pub fn gx_draw(&mut self, topology: Topology, stream: &VertexAttributeStream) {
         for map in 0..8 {
             if !self.gpu.texture.maps[map].dirty {

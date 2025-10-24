@@ -137,7 +137,7 @@ pub enum Command {
     Nop,
     InvalidateVertexCache,
     Call {
-        address: u32,
+        address: Address,
         length: u32,
     },
     SetCP {
@@ -458,7 +458,7 @@ impl Interface {
     pub fn fifo_push(&mut self) {
         self.fifo.write_ptr += 1;
 
-        if self.fifo.write_ptr > self.fifo.end {
+        if self.fifo.write_ptr == self.fifo.end {
             self.fifo.write_ptr = self.fifo.start;
         }
 
@@ -469,7 +469,7 @@ impl Interface {
     pub fn fifo_pop(&mut self) {
         self.fifo.read_ptr += 1;
 
-        if self.fifo.read_ptr > self.fifo.end {
+        if self.fifo.read_ptr == self.fifo.end {
             self.fifo.read_ptr = self.fifo.start;
         }
 
@@ -515,7 +515,7 @@ impl Gpu {
             Operation::IndexedSetXFC => todo!(),
             Operation::IndexedSetXFD => todo!(),
             Operation::Call => {
-                let address = reader.read_be::<u32>()?;
+                let address = Address(reader.read_be::<u32>()?);
                 let length = reader.read_be::<u32>()?;
 
                 Command::Call { address, length }
@@ -711,7 +711,7 @@ impl System {
             match cmd {
                 Command::Nop => (),
                 Command::InvalidateVertexCache => (),
-                Command::Call { .. } => (),
+                Command::Call { address, length } => self.gx_call(address, length),
                 Command::SetCP { register, value } => self.cp_set(register, value),
                 Command::SetBP { register, value } => self.gx_set(register, value),
                 Command::SetXF { start, values } => {
