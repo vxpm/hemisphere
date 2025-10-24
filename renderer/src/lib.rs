@@ -12,30 +12,52 @@ use hemisphere::{
 };
 use std::sync::{Arc, Mutex};
 
+struct Shared {
+    blitter: Blitter,
+    frontbuffer: wgpu::TextureView,
+}
+
 struct Inner {
     _device: wgpu::Device,
     _queue: wgpu::Queue,
-    blitter: Blitter,
+    shared: Arc<Mutex<Shared>>,
     renderer: Renderer,
 }
 
 impl Inner {
-    pub fn new(device: wgpu::Device, queue: wgpu::Queue, format: wgpu::TextureFormat) -> Self {
+    pub fn new(
+        device: wgpu::Device,
+        queue: wgpu::Queue,
+        format: wgpu::TextureFormat,
+    ) -> (Self, Arc<Mutex<Shared>>) {
         let blitter = Blitter::new(device.clone(), format);
         let renderer = Renderer::new(device.clone(), queue.clone());
 
-        Self {
-            _device: device,
-            _queue: queue,
-
+        let shared = Shared {
             blitter,
-            renderer,
-        }
+            frontbuffer: renderer.frontbuffer(),
+        };
+        let shared = Arc::new(Mutex::new(shared));
+
+        (
+            Self {
+                _device: device,
+                _queue: queue,
+
+                shared: shared.clone(),
+                renderer,
+            },
+            shared,
+        )
     }
 
     fn exec(&mut self, action: Action) {
         match action {
-            Action::SetViewport(viewport) => self.renderer.resize_viewport(viewport),
+            Action::SetViewport(viewport) => {
+                self.renderer.resize_viewport(viewport);
+                let mut lock = self.shared.lock().unwrap();
+                lock.frontbuffer = self.renderer.frontbuffer().clone();
+            }
             Action::SetClearColor(color) => self.renderer.set_clear_color(color),
             Action::SetBlendMode(mode) => self.renderer.set_blend_mode(mode),
             Action::SetDepthMode(mode) => self.renderer.set_depth_mode(mode),
@@ -71,26 +93,9 @@ impl Inner {
 }
 
 #[expect(clippy::needless_pass_by_value, reason = "makes it clearer")]
-fn worker(inner: Arc<Mutex<Inner>>, receiver: Receiver<Action>) {
-    loop {
-        std::thread::yield_now();
-        let Ok(action) = receiver.recv() else {
-            // sender has been dropped
-            return;
-        };
-
-        {
-            let mut renderer = inner.lock().unwrap();
-            renderer.exec(action);
-
-            let mut count = 0;
-            while let Ok(action) = receiver.try_recv()
-                && count < 256
-            {
-                renderer.exec(action);
-                count += 1;
-            }
-        }
+fn worker(mut renderer: Inner, receiver: Receiver<Action>) {
+    while let Ok(action) = receiver.recv() {
+        renderer.exec(action);
     }
 }
 
@@ -99,31 +104,27 @@ fn worker(inner: Arc<Mutex<Inner>>, receiver: Receiver<Action>) {
 /// This type is reference counted and therefore cheaply clonable.
 #[derive(Clone)]
 pub struct WgpuRenderer {
-    inner: Arc<Mutex<Inner>>,
+    shared: Arc<Mutex<Shared>>,
     sender: Sender<Action>,
 }
 
 impl WgpuRenderer {
     pub fn new(device: wgpu::Device, queue: wgpu::Queue, format: wgpu::TextureFormat) -> Self {
-        let inner = Arc::new(Mutex::new(Inner::new(device, queue, format)));
+        let (inner, shared) = Inner::new(device, queue, format);
         let (sender, receiver) = flume::bounded(512);
 
         std::thread::Builder::new()
             .name("hemisphere wgpu renderer".into())
-            .spawn({
-                let inner = inner.clone();
-                move || worker(inner, receiver)
-            })
+            .spawn(move || worker(inner, receiver))
             .unwrap();
 
-        Self { inner, sender }
+        Self { shared, sender }
     }
 
     pub fn render(&self, pass: &mut wgpu::RenderPass<'_>) {
-        let mut guard = self.inner.lock().unwrap();
-        let inner = &mut *guard;
-
-        inner.blitter.blit(&inner.renderer.framebuffer(), pass);
+        let mut shared = self.shared.lock().unwrap();
+        let front = shared.frontbuffer.clone();
+        shared.blitter.blit(&front, pass);
     }
 }
 

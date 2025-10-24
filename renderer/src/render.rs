@@ -1,11 +1,11 @@
 mod buffers;
 mod data;
+mod framebuffer;
 mod pipeline;
 mod textures;
-mod viewport;
 
 use crate::render::{
-    buffers::Buffers, pipeline::Pipeline, textures::Textures, viewport::Framebuffer,
+    buffers::Buffers, framebuffer::Framebuffer, pipeline::Pipeline, textures::Textures,
 };
 use glam::Mat4;
 use hemisphere::{
@@ -181,8 +181,8 @@ impl Renderer {
         self.configs.push((*self.current_config).clone());
     }
 
-    pub fn framebuffer(&self) -> wgpu::TextureView {
-        self.framebuffer.color().create_view(&Default::default())
+    pub fn frontbuffer(&self) -> wgpu::TextureView {
+        self.framebuffer.front().create_view(&Default::default())
     }
 
     pub fn resize_viewport(&mut self, viewport: Viewport) {
@@ -426,6 +426,7 @@ impl Renderer {
     pub fn next_pass(&mut self, clear: bool) {
         self.flush();
 
+        let front = self.framebuffer.front().create_view(&Default::default());
         let color = self.framebuffer.color().create_view(&Default::default());
         let depth = self.framebuffer.depth().create_view(&Default::default());
 
@@ -467,24 +468,30 @@ impl Renderer {
             })
             .forget_lifetime();
 
-        let previous_encoder = std::mem::replace(&mut self.current_encoder, encoder);
+        let mut previous_encoder = std::mem::replace(&mut self.current_encoder, encoder);
         let previous_pass = std::mem::replace(&mut self.current_pass, pass);
 
         std::mem::drop(previous_pass);
+
+        previous_encoder.copy_texture_to_texture(
+            wgpu::TexelCopyTextureInfoBase {
+                texture: color.texture(),
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::TexelCopyTextureInfoBase {
+                texture: front.texture(),
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            front.texture().size(),
+        );
 
         let buffer = previous_encoder.finish();
         self.queue.submit([buffer]);
         self.index_buffers.recall();
         self.storage_buffers.recall();
-        // println!(
-        //     "index: {} ({})",
-        //     self.index_buffers.count(),
-        //     self.index_buffers.total_size() / 1024
-        // );
-        // println!(
-        //     "storage: {} ({})",
-        //     self.storage_buffers.count(),
-        //     self.storage_buffers.total_size() / 1024
-        // );
     }
 }
