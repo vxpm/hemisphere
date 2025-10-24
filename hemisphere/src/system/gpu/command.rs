@@ -136,6 +136,10 @@ pub struct Opcode {
 pub enum Command {
     Nop,
     InvalidateVertexCache,
+    Call {
+        address: u32,
+        length: u32,
+    },
     SetCP {
         register: Reg,
         value: u32,
@@ -510,7 +514,12 @@ impl Gpu {
             Operation::IndexedSetXFB => todo!(),
             Operation::IndexedSetXFC => todo!(),
             Operation::IndexedSetXFD => todo!(),
-            Operation::Call => todo!(),
+            Operation::Call => {
+                let address = reader.read_be::<u32>()?;
+                let length = reader.read_be::<u32>()?;
+
+                Command::Call { address, length }
+            }
             Operation::InvalidateVertexCache => Command::InvalidateVertexCache,
             Operation::SetBP => {
                 let register = reader.read_be::<u8>()?;
@@ -702,6 +711,7 @@ impl System {
             match cmd {
                 Command::Nop => (),
                 Command::InvalidateVertexCache => (),
+                Command::Call { .. } => (),
                 Command::SetCP { register, value } => self.cp_set(register, value),
                 Command::SetBP { register, value } => self.gx_set(register, value),
                 Command::SetXF { start, values } => {
