@@ -20,7 +20,7 @@ use zerocopy::IntoBytes;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, FromRepr)]
 #[repr(u8)]
 pub enum Reg {
-    Unknown = 0x20,
+    Unknown20 = 0x20,
 
     MatIndexLow = 0x30,
     MatIndexHigh = 0x40,
@@ -151,6 +151,26 @@ pub enum Command {
     SetXF {
         start: u16,
         values: Vec<u32>,
+    },
+    IndexedSetXFA {
+        base: u16,
+        length: u8,
+        index: u16,
+    },
+    IndexedSetXFB {
+        base: u16,
+        length: u8,
+        index: u16,
+    },
+    IndexedSetXFC {
+        base: u16,
+        length: u8,
+        index: u16,
+    },
+    IndexedSetXFD {
+        base: u16,
+        length: u8,
+        index: u16,
     },
     Draw {
         topology: Topology,
@@ -338,6 +358,7 @@ pub struct Arrays {
     pub normal: ArrayDescriptor,
     pub diffuse: ArrayDescriptor,
     pub tex_coords: [ArrayDescriptor; 8],
+    pub general_purpose: [ArrayDescriptor; 4],
 }
 
 #[bitos(64)]
@@ -490,10 +511,54 @@ impl Gpu {
 
                 Command::SetXF { start, values }
             }
-            Operation::IndexedSetXFA => todo!(),
-            Operation::IndexedSetXFB => todo!(),
-            Operation::IndexedSetXFC => todo!(),
-            Operation::IndexedSetXFD => todo!(),
+            Operation::IndexedSetXFA => {
+                let config = reader.read_be::<u32>()?;
+                let base = config.bits(0, 12) as u16;
+                let length = config.bits(12, 16) as u8 + 1;
+                let index = config.bits(16, 32) as u16;
+
+                Command::IndexedSetXFA {
+                    base,
+                    length,
+                    index,
+                }
+            }
+            Operation::IndexedSetXFB => {
+                let config = reader.read_be::<u32>()?;
+                let base = config.bits(0, 12) as u16;
+                let length = config.bits(12, 16) as u8 + 1;
+                let index = config.bits(16, 32) as u16;
+
+                Command::IndexedSetXFB {
+                    base,
+                    length,
+                    index,
+                }
+            }
+            Operation::IndexedSetXFC => {
+                let config = reader.read_be::<u32>()?;
+                let base = config.bits(0, 12) as u16;
+                let length = config.bits(12, 16) as u8 + 1;
+                let index = config.bits(16, 32) as u16;
+
+                Command::IndexedSetXFC {
+                    base,
+                    length,
+                    index,
+                }
+            }
+            Operation::IndexedSetXFD => {
+                let config = reader.read_be::<u32>()?;
+                let base = config.bits(0, 12) as u16;
+                let length = config.bits(12, 16) as u8 + 1;
+                let index = config.bits(16, 32) as u16;
+
+                Command::IndexedSetXFD {
+                    base,
+                    length,
+                    index,
+                }
+            }
             Operation::Call => {
                 let address = Address(reader.read_be::<u32>()?);
                 let length = reader.read_be::<u32>()?;
@@ -701,6 +766,38 @@ impl System {
                     for (offset, value) in values.into_iter().enumerate() {
                         self.xf_write(start + offset as u16, value);
                     }
+                }
+                Command::IndexedSetXFA {
+                    base,
+                    length,
+                    index,
+                } => {
+                    let array = self.gpu.command.internal.arrays.general_purpose[0];
+                    self.xf_write_indexed(array, base, length, index);
+                }
+                Command::IndexedSetXFB {
+                    base,
+                    length,
+                    index,
+                } => {
+                    let array = self.gpu.command.internal.arrays.general_purpose[1];
+                    self.xf_write_indexed(array, base, length, index);
+                }
+                Command::IndexedSetXFC {
+                    base,
+                    length,
+                    index,
+                } => {
+                    let array = self.gpu.command.internal.arrays.general_purpose[2];
+                    self.xf_write_indexed(array, base, length, index);
+                }
+                Command::IndexedSetXFD {
+                    base,
+                    length,
+                    index,
+                } => {
+                    let array = self.gpu.command.internal.arrays.general_purpose[3];
+                    self.xf_write_indexed(array, base, length, index);
                 }
                 Command::Draw {
                     topology,
