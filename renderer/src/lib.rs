@@ -1,4 +1,5 @@
 #![feature(iter_array_chunks)]
+#![feature(btree_cursors)]
 
 mod blit;
 mod render;

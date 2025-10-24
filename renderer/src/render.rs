@@ -1,9 +1,12 @@
+mod buffers;
 mod data;
 mod pipeline;
 mod textures;
 mod viewport;
 
-use crate::render::{pipeline::Pipeline, textures::Textures, viewport::Framebuffer};
+use crate::render::{
+    buffers::Buffers, pipeline::Pipeline, textures::Textures, viewport::Framebuffer,
+};
 use glam::Mat4;
 use hemisphere::{
     render::{self, Viewport},
@@ -16,8 +19,7 @@ use hemisphere::{
 };
 use ordered_float::OrderedFloat;
 use rustc_hash::FxHashMap;
-use std::collections::hash_map::Entry;
-use wgpu::util::DeviceExt;
+use std::{collections::hash_map::Entry, num::NonZero};
 use zerocopy::IntoBytes;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -42,6 +44,8 @@ pub struct Renderer {
     pipeline: Pipeline,
     framebuffer: Framebuffer,
     textures: Textures,
+    index_buffers: Buffers,
+    storage_buffers: Buffers,
 
     clear_color: wgpu::Color,
     current_config: Box<data::Config>,
@@ -60,6 +64,8 @@ impl Renderer {
         let framebuffer = Framebuffer::new(&device);
         let pipeline = Pipeline::new(&device);
         let textures = Textures::new(&device);
+        let index_buffers = Buffers::new(wgpu::BufferUsages::INDEX);
+        let storage_buffers = Buffers::new(wgpu::BufferUsages::STORAGE);
 
         let color = framebuffer.color().create_view(&Default::default());
         let depth = framebuffer.depth().create_view(&Default::default());
@@ -100,6 +106,8 @@ impl Renderer {
             pipeline,
             framebuffer,
             textures,
+            index_buffers,
+            storage_buffers,
 
             clear_color: wgpu::Color::BLACK,
             current_config: Default::default(),
@@ -328,44 +336,25 @@ impl Renderer {
             return;
         }
 
-        let index_buf = self
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("hemisphere index buffer"),
-                contents: self.indices.as_bytes(),
-                usage: wgpu::BufferUsages::INDEX,
-            });
+        let index_buf =
+            self.index_buffers
+                .allocate(&self.device, &self.queue, self.indices.as_bytes());
+        let configs_buf =
+            self.storage_buffers
+                .allocate(&self.device, &self.queue, self.configs.as_bytes());
+        let matrices_buf =
+            self.storage_buffers
+                .allocate(&self.device, &self.queue, self.matrices.as_bytes());
+        let vertices_buf =
+            self.storage_buffers
+                .allocate(&self.device, &self.queue, self.vertices.as_bytes());
 
-        let configs_buf = self
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("hemisphere configs buffer"),
-                contents: self.configs.as_bytes(),
-                usage: wgpu::BufferUsages::STORAGE,
-            });
-
-        let matrices_buf = self
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("hemisphere matrices buffer"),
-                contents: self.matrices.as_bytes(),
-                usage: wgpu::BufferUsages::STORAGE,
-            });
-
-        let vertices_buf = self
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("hemisphere vertices buffer"),
-                contents: self.vertices.as_bytes(),
-                usage: wgpu::BufferUsages::STORAGE,
-            });
-
+        let samplers = self.textures.samplers();
         let textures = self
             .textures
             .textures()
             .clone()
             .map(|tex| tex.create_view(&Default::default()));
-        let samplers = self.textures.samplers();
 
         let primitives_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: None,
@@ -376,7 +365,7 @@ impl Renderer {
                     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
                         buffer: &configs_buf,
                         offset: 0,
-                        size: None,
+                        size: NonZero::new(self.configs.as_bytes().len() as u64),
                     }),
                 },
                 wgpu::BindGroupEntry {
@@ -384,7 +373,7 @@ impl Renderer {
                     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
                         buffer: &matrices_buf,
                         offset: 0,
-                        size: None,
+                        size: NonZero::new(self.matrices.as_bytes().len() as u64),
                     }),
                 },
                 wgpu::BindGroupEntry {
@@ -392,7 +381,7 @@ impl Renderer {
                     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
                         buffer: &vertices_buf,
                         offset: 0,
-                        size: None,
+                        size: NonZero::new(self.vertices.as_bytes().len() as u64),
                     }),
                 },
             ],
@@ -423,8 +412,10 @@ impl Renderer {
             .set_bind_group(0, Some(&primitives_group), &[]);
         self.current_pass
             .set_bind_group(1, Some(&textures_group), &[]);
-        self.current_pass
-            .set_index_buffer(index_buf.slice(..), wgpu::IndexFormat::Uint32);
+        self.current_pass.set_index_buffer(
+            index_buf.slice(..self.indices.as_bytes().len() as u64),
+            wgpu::IndexFormat::Uint32,
+        );
         self.current_pass
             .draw_indexed(0..self.indices.len() as u32, 0, 0..1);
 
@@ -483,5 +474,7 @@ impl Renderer {
 
         let buffer = previous_encoder.finish();
         self.queue.submit([buffer]);
+        self.index_buffers.recall();
+        self.storage_buffers.recall();
     }
 }
