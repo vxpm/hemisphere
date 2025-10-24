@@ -151,7 +151,7 @@ impl System {
                 self.gpu.command.fifo_push();
             }
 
-            if self.processor.fifo_current.address() > self.processor.fifo_end {
+            if self.processor.fifo_current.address() > self.processor.fifo_end + 4 {
                 self.processor.fifo_current.set_wrapped(true);
                 self.processor
                     .fifo_current
