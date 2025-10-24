@@ -19,3 +19,4 @@ wesl.workspace = true
 glam.workspace = true
 rustc-hash.workspace = true
 ordered-float = "5"
+flume = "0.11"

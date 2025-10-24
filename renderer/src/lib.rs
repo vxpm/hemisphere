@@ -5,14 +5,12 @@ mod blit;
 mod render;
 
 use crate::{blit::Blitter, render::Renderer};
+use flume::{Receiver, Sender};
 use hemisphere::{
     render::{Action, Renderer as RendererInterface},
     system::gpu::Topology,
 };
-use std::sync::{
-    Arc, Mutex,
-    mpsc::{Receiver, Sender, channel},
-};
+use std::sync::{Arc, Mutex};
 
 struct Inner {
     _device: wgpu::Device,
@@ -75,17 +73,22 @@ impl Inner {
 #[expect(clippy::needless_pass_by_value, reason = "makes it clearer")]
 fn worker(inner: Arc<Mutex<Inner>>, receiver: Receiver<Action>) {
     loop {
-        let Ok(command) = receiver.recv() else {
+        std::thread::yield_now();
+        let Ok(action) = receiver.recv() else {
             // sender has been dropped
             return;
         };
 
         {
             let mut renderer = inner.lock().unwrap();
-            renderer.exec(command);
+            renderer.exec(action);
 
-            while let Ok(action) = receiver.try_recv() {
+            let mut count = 0;
+            while let Ok(action) = receiver.try_recv()
+                && count < 256
+            {
                 renderer.exec(action);
+                count += 1;
             }
         }
     }
@@ -103,7 +106,7 @@ pub struct WgpuRenderer {
 impl WgpuRenderer {
     pub fn new(device: wgpu::Device, queue: wgpu::Queue, format: wgpu::TextureFormat) -> Self {
         let inner = Arc::new(Mutex::new(Inner::new(device, queue, format)));
-        let (sender, receiver) = channel();
+        let (sender, receiver) = flume::bounded(512);
 
         std::thread::Builder::new()
             .name("hemisphere wgpu renderer".into())

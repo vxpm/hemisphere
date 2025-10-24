@@ -476,5 +476,15 @@ impl Renderer {
         self.queue.submit([buffer]);
         self.index_buffers.recall();
         self.storage_buffers.recall();
+        // println!(
+        //     "index: {} ({})",
+        //     self.index_buffers.count(),
+        //     self.index_buffers.total_size() / 1024
+        // );
+        // println!(
+        //     "storage: {} ({})",
+        //     self.storage_buffers.count(),
+        //     self.storage_buffers.total_size() / 1024
+        // );
     }
 }
