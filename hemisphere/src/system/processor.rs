@@ -1,7 +1,10 @@
 //! Processor interface.
 
 use crate::system::{Event, System};
-use bitos::bitos;
+use bitos::{
+    bitos,
+    integer::{u25, u26},
+};
 use common::{Address, arch::Exception};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -62,6 +65,25 @@ pub struct InterruptMask {
     pub sources: InterruptSources,
 }
 
+#[bitos(32)]
+#[derive(Default, Debug, Clone, Copy)]
+pub struct FifoCurrent {
+    #[bits(0..26)]
+    pub base: u26,
+    #[bits(26)]
+    pub wrapped: bool,
+}
+
+impl FifoCurrent {
+    pub fn address(&self) -> Address {
+        Address(self.base().value())
+    }
+
+    pub fn set_address(&mut self, value: Address) {
+        self.set_base(u26::new(value.value()));
+    }
+}
+
 #[derive(Default)]
 pub struct Interface {
     // interrupts
@@ -70,7 +92,7 @@ pub struct Interface {
     // fifo
     pub fifo_start: Address,
     pub fifo_end: Address,
-    pub fifo_current: Address,
+    pub fifo_current: FifoCurrent,
     pub fifo_buffer: Vec<u8>,
 }
 
@@ -126,15 +148,19 @@ impl System {
 
         let data = std::mem::replace(&mut self.processor.fifo_buffer, Vec::with_capacity(32));
         for byte in data {
-            self.write(self.processor.fifo_current, byte);
-            self.processor.fifo_current += 1;
+            let current = self.processor.fifo_current.address();
+            self.write(current, byte);
+            self.processor.fifo_current.set_address(current + 1);
 
             if self.gpu.command.control.linked_mode() {
                 self.gpu.command.fifo_push();
             }
 
-            if self.processor.fifo_current > self.processor.fifo_end {
-                self.processor.fifo_current = self.processor.fifo_start;
+            if self.processor.fifo_current.address() > self.processor.fifo_end {
+                self.processor
+                    .fifo_current
+                    .set_address(self.processor.fifo_start);
+                self.processor.fifo_current.set_wrapped(true);
             }
         }
 

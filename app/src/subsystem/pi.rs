@@ -24,7 +24,7 @@ impl AppWindow for Window {
         let pi = &core.system.processor;
         self.fifo_start = pi.fifo_start;
         self.fifo_end = pi.fifo_end;
-        self.fifo_current = pi.fifo_current;
+        self.fifo_current = pi.fifo_current.address();
     }
 
     fn show(&mut self, ui: &mut egui::Ui, _: &mut Ctx) {
