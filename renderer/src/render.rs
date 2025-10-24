@@ -9,9 +9,9 @@ use crate::render::{
 };
 use glam::Mat4;
 use hemisphere::{
-    render::{self, Viewport},
+    render::{self, Action, Viewport},
     system::gpu::{
-        VertexAttributes,
+        Topology, VertexAttributes,
         command::attributes::Rgba,
         pixel::{BlendFactor, BlendMode, CompareMode, DepthMode},
         transform::TexGen,
@@ -19,7 +19,11 @@ use hemisphere::{
 };
 use ordered_float::OrderedFloat;
 use rustc_hash::FxHashMap;
-use std::{collections::hash_map::Entry, num::NonZero};
+use std::{
+    collections::hash_map::Entry,
+    num::NonZero,
+    sync::{Arc, Mutex},
+};
 use zerocopy::IntoBytes;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -34,9 +38,14 @@ impl From<Mat4> for HashableMat4 {
     }
 }
 
+pub struct Shared {
+    pub frontbuffer: wgpu::TextureView,
+}
+
 pub struct Renderer {
     device: wgpu::Device,
     queue: wgpu::Queue,
+    shared: Arc<Mutex<Shared>>,
 
     current_encoder: wgpu::CommandEncoder,
     current_pass: wgpu::RenderPass<'static>,
@@ -60,15 +69,18 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    pub fn new(device: wgpu::Device, queue: wgpu::Queue) -> Self {
+    pub fn new(device: wgpu::Device, queue: wgpu::Queue) -> (Self, Arc<Mutex<Shared>>) {
         let framebuffer = Framebuffer::new(&device);
         let pipeline = Pipeline::new(&device);
         let textures = Textures::new(&device);
         let index_buffers = Buffers::new(wgpu::BufferUsages::INDEX);
         let storage_buffers = Buffers::new(wgpu::BufferUsages::STORAGE);
 
+        let front = framebuffer.front().create_view(&Default::default());
         let color = framebuffer.color().create_view(&Default::default());
         let depth = framebuffer.depth().create_view(&Default::default());
+
+        let shared = Arc::new(Mutex::new(Shared { frontbuffer: front }));
 
         let mut encoder = device.create_command_encoder(&Default::default());
         let pass = encoder
@@ -99,6 +111,7 @@ impl Renderer {
         let mut value = Self {
             device,
             queue,
+            shared: shared.clone(),
 
             current_encoder: encoder,
             current_pass: pass,
@@ -122,7 +135,42 @@ impl Renderer {
         };
 
         value.reset();
-        value
+        (value, shared)
+    }
+
+    pub fn exec(&mut self, action: Action) {
+        match action {
+            Action::SetViewport(viewport) => {
+                self.resize_viewport(viewport);
+                let mut lock = self.shared.lock().unwrap();
+                lock.frontbuffer = self.frontbuffer().clone();
+            }
+            Action::SetClearColor(color) => self.set_clear_color(color),
+            Action::SetBlendMode(mode) => self.set_blend_mode(mode),
+            Action::SetDepthMode(mode) => self.set_depth_mode(mode),
+            Action::SetProjectionMatrix(mat) => self.set_projection_mat(mat),
+            Action::SetTevStages(stages) => self.set_tev_stages(stages),
+            Action::SetTexGens(texgens) => self.set_texgens(texgens),
+            Action::LoadTexture {
+                id,
+                width,
+                height,
+                data,
+            } => self.load_texture(id, width, height, zerocopy::transmute_ref!(data.as_slice())),
+            Action::SetTexture { index, id } => self.set_texture(index, id),
+            Action::Draw(topology, attributes) => match topology {
+                Topology::QuadList => self.draw_quad_list(&attributes),
+                Topology::TriangleList => self.draw_triangle_list(&attributes),
+                Topology::TriangleStrip => self.draw_triangle_strip(&attributes),
+                Topology::TriangleFan => todo!(),
+                Topology::LineList => todo!(),
+                Topology::LineStrip => todo!(),
+                Topology::PointList => todo!(),
+            },
+            Action::EfbCopy { clear } => {
+                self.next_pass(clear);
+            }
+        }
     }
 
     pub fn insert_matrix(&mut self, mat: Mat4) -> u32 {
