@@ -11,6 +11,7 @@ mod windows;
 mod xfb;
 
 use crate::windows::AppWindow;
+use addr2line::gimli;
 use clap::Parser;
 use eframe::{
     egui,
@@ -18,14 +19,18 @@ use eframe::{
 };
 use eyre_pretty::{ContextCompat, bail, eyre::Result};
 use hemisphere::{
-    Config, iso, jit,
+    Address, Config, iso, jit,
     runner::Runner,
-    system::{self, executable::Executable},
+    system::{
+        self,
+        executable::{DebugInfo, Executable, Location},
+    },
 };
 use nanorand::Rng;
 use renderer::WgpuRenderer;
 use serde::{Deserialize, Serialize};
 use std::{
+    borrow::Cow,
     io::BufReader,
     sync::{
         Arc,
@@ -33,6 +38,29 @@ use std::{
     },
     time::{Duration, Instant},
 };
+
+struct Addr2LineDebug(addr2line::Loader);
+
+impl DebugInfo for Addr2LineDebug {
+    fn find_symbol(&self, addr: Address) -> Option<String> {
+        self.0
+            .find_symbol(addr.value() as u64)
+            .map(|s| addr2line::demangle_auto(Cow::Borrowed(s), Some(gimli::DW_LANG_C_plus_plus)))
+            .map(|s| s.into_owned())
+    }
+
+    fn find_location(&self, addr: Address) -> Option<Location<'_>> {
+        self.0
+            .find_location(addr.value() as u64)
+            .ok()
+            .flatten()
+            .map(|l| Location {
+                file: l.file,
+                line: l.line,
+                column: l.column,
+            })
+    }
+}
 
 struct Ctx<'a> {
     step: bool,
@@ -80,19 +108,16 @@ impl App {
                 iso = Some(iso::Iso::new(Box::new(reader) as _)?);
             }
             "dol" => {
-                let dwarf = match args.dwarf.as_deref() {
-                    Some(debug) => Some(debug.to_path_buf()),
-                    None => {
-                        let mut elf = args.input.clone();
-                        elf.set_extension("elf");
-                        elf.exists().then_some(elf)
-                    }
-                };
-
-                executable = Some(Executable::open(&args.input, dwarf.as_deref())?);
+                executable = Some(Executable::open(&args.input)?);
             }
             _ => bail!("unknown input file extension"),
         }
+
+        let debug_info = args
+            .dwarf
+            .as_deref()
+            .and_then(|p| addr2line::Loader::new(p).ok())
+            .map(|l| Box::new(Addr2LineDebug(l)) as _);
 
         let vsync_count = Arc::new(AtomicU64::new(0));
         let vsync_callback = {
@@ -116,7 +141,8 @@ impl App {
                 renderer: Box::new(renderer.clone()),
                 ipl,
                 iso,
-                executable,
+                sideload: executable,
+                debug_info,
                 vsync_callback: Some(vsync_callback),
             },
             jit: jit::Config {

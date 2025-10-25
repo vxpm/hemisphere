@@ -22,10 +22,6 @@ strum.workspace = true
 glam.workspace = true
 rustc-hash.workspace = true
 
-addr2line = { version = "0.25", features = [
-    "cpp_demangle",
-    "loader",
-], default-features = false }
 backtrace = "0.3"
 color-backtrace = "0.7"
 parking_lot = "0.12"

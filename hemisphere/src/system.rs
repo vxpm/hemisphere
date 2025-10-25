@@ -19,7 +19,7 @@ use crate::{
     render::Renderer,
     system::{
         dsp::Dsp,
-        executable::{Code, Executable},
+        executable::{DebugInfo, Executable},
         gpu::Gpu,
         lazy::Lazy,
         mem::Memory,
@@ -45,7 +45,8 @@ pub struct Config {
     pub renderer: Box<dyn Renderer>,
     pub ipl: Option<Vec<u8>>,
     pub iso: Option<Iso<Box<dyn ReadAndSeek>>>,
-    pub executable: Option<Executable>,
+    pub sideload: Option<Executable>,
+    pub debug_info: Option<Box<dyn DebugInfo>>,
     pub vsync_callback: Option<Callback>,
 }
 
@@ -104,12 +105,12 @@ impl System {
     }
 
     fn load_executable(&mut self) {
-        let Some(exec) = self.config.executable.take() else {
+        let Some(exec) = self.config.sideload.take() else {
             return;
         };
 
-        match exec.code() {
-            Code::Dol(dol) => {
+        match &exec {
+            Executable::Dol(dol) => {
                 self.cpu.pc = Address(dol.entrypoint());
                 self.cpu.supervisor.memory.setup_default_bats();
                 self.mmu.build_bat_lut(&self.cpu.supervisor.memory);
@@ -153,7 +154,7 @@ impl System {
             }
         }
 
-        self.config.executable = Some(exec);
+        self.config.sideload = Some(exec);
         tracing::debug!("finished loading executable");
     }
 
@@ -167,7 +168,7 @@ impl System {
         // load fake-ipl
         let mut cursor = Cursor::new(include_bytes!("../../resources/fake-ipl.dol"));
         let ipl = dol::Dol::read(&mut cursor).unwrap();
-        self.config.executable = Some(Executable::new(Code::Dol(ipl)));
+        self.config.sideload = Some(Executable::Dol(ipl));
         self.load_executable();
 
         // setup apploader entrypoint for fake-ipl
@@ -215,7 +216,7 @@ impl System {
 
         if system.config.iso.is_some() {
             system.load_iso();
-        } else if system.config.executable.is_some() {
+        } else if system.config.sideload.is_some() {
             system.load_executable();
         }
 
