@@ -642,7 +642,7 @@ impl BlockBuilder<'_> {
         STORE_INFO
     }
 
-    fn store_indexed<P: ReadWriteAble>(&mut self, ins: Ins, update: bool) -> Info {
+    fn store_indexed<P: ReadWriteAble>(&mut self, ins: Ins, update: bool, reverse: bool) -> Info {
         let rb = self.get(ins.gpr_b());
         let addr = if !update && ins.field_ra() == 0 {
             rb
@@ -654,6 +654,10 @@ impl BlockBuilder<'_> {
         let mut value = self.get(ins.gpr_s());
         if P::IR_TYPE != ir::types::I32 {
             value = self.bd.ins().ireduce(P::IR_TYPE, value);
+        }
+
+        if reverse {
+            value = self.bd.ins().bswap(value);
         }
 
         if update {
@@ -670,7 +674,7 @@ impl BlockBuilder<'_> {
     }
 
     pub fn stbx(&mut self, ins: Ins) -> Info {
-        self.store_indexed::<i8>(ins, false)
+        self.store_indexed::<i8>(ins, false, false)
     }
 
     pub fn stbu(&mut self, ins: Ins) -> Info {
@@ -678,7 +682,7 @@ impl BlockBuilder<'_> {
     }
 
     pub fn stbux(&mut self, ins: Ins) -> Info {
-        self.store_indexed::<i8>(ins, true)
+        self.store_indexed::<i8>(ins, true, false)
     }
 
     pub fn sth(&mut self, ins: Ins) -> Info {
@@ -686,7 +690,11 @@ impl BlockBuilder<'_> {
     }
 
     pub fn sthx(&mut self, ins: Ins) -> Info {
-        self.store_indexed::<i16>(ins, false)
+        self.store_indexed::<i16>(ins, false, false)
+    }
+
+    pub fn sthbrx(&mut self, ins: Ins) -> Info {
+        self.store_indexed::<i16>(ins, false, true)
     }
 
     pub fn sthu(&mut self, ins: Ins) -> Info {
@@ -694,7 +702,7 @@ impl BlockBuilder<'_> {
     }
 
     pub fn sthux(&mut self, ins: Ins) -> Info {
-        self.store_indexed::<i8>(ins, true)
+        self.store_indexed::<i8>(ins, true, false)
     }
 
     pub fn stw(&mut self, ins: Ins) -> Info {
@@ -702,7 +710,11 @@ impl BlockBuilder<'_> {
     }
 
     pub fn stwx(&mut self, ins: Ins) -> Info {
-        self.store_indexed::<i32>(ins, false)
+        self.store_indexed::<i32>(ins, false, false)
+    }
+
+    pub fn stwbrx(&mut self, ins: Ins) -> Info {
+        self.store_indexed::<i32>(ins, false, true)
     }
 
     pub fn stwu(&mut self, ins: Ins) -> Info {
@@ -710,7 +722,7 @@ impl BlockBuilder<'_> {
     }
 
     pub fn stwux(&mut self, ins: Ins) -> Info {
-        self.store_indexed::<i32>(ins, true)
+        self.store_indexed::<i32>(ins, true, false)
     }
 
     pub fn stmw(&mut self, ins: Ins) -> Info {
