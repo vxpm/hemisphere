@@ -204,9 +204,40 @@ pub struct Fifo {
     pub end: Address,
     pub high_mark: u32,
     pub low_mark: u32,
-    pub count: u32,
     pub write_ptr: Address,
     pub read_ptr: Address,
+}
+
+impl Fifo {
+    /// The FIFO count.
+    pub fn count(&self) -> u32 {
+        let count = if self.write_ptr >= self.read_ptr {
+            self.write_ptr - self.read_ptr
+        } else {
+            let start = self.write_ptr - self.start;
+            let end = self.end - self.read_ptr;
+            start + end
+        };
+
+        assert!(
+            count >= 0,
+            "start: {}, end: {}; write: {}, read: {}",
+            self.start,
+            self.end,
+            self.write_ptr,
+            self.read_ptr,
+        );
+
+        count as u32
+    }
+
+    /// Signals a value has been popped from the CP FIFO.
+    pub fn pop(&mut self) {
+        self.read_ptr += 1;
+        if self.read_ptr > self.end {
+            self.read_ptr = self.start;
+        }
+    }
 }
 
 #[bitos[2]]
@@ -432,49 +463,6 @@ impl Interface {
             self.status.set_fifo_underflow(false);
         }
     }
-
-    /// Updates the FIFO count.
-    pub fn update_count(&mut self) {
-        let count = if self.fifo.write_ptr >= self.fifo.read_ptr {
-            self.fifo.write_ptr - self.fifo.read_ptr
-        } else {
-            let start = self.fifo.write_ptr - self.fifo.start;
-            let end = self.fifo.end - self.fifo.read_ptr;
-            start + end
-        };
-
-        assert!(
-            count >= 0,
-            "start: {}, end: {}; write: {}, read: {}",
-            self.fifo.start,
-            self.fifo.end,
-            self.fifo.write_ptr,
-            self.fifo.read_ptr
-        );
-        self.fifo.count = count as u32;
-    }
-
-    /// Signals a value has been pushed to the CP FIFO.
-    pub fn fifo_push(&mut self) {
-        self.fifo.write_ptr += 1;
-
-        if self.fifo.write_ptr == self.fifo.end {
-            self.fifo.write_ptr = self.fifo.start;
-        }
-
-        self.update_count();
-    }
-
-    /// Signals a value has been popped from the CP FIFO.
-    pub fn fifo_pop(&mut self) {
-        self.fifo.read_ptr += 1;
-
-        if self.fifo.read_ptr == self.fifo.end {
-            self.fifo.read_ptr = self.fifo.start;
-        }
-
-        self.update_count();
-    }
 }
 
 impl Gpu {
@@ -687,10 +675,10 @@ impl System {
 
     /// Pops a value from the CP FIFO in memory.
     fn cp_fifo_pop(&mut self) -> u8 {
-        assert!(self.gpu.command.fifo.count > 0);
+        assert!(self.gpu.command.fifo.count() > 0);
 
         let data = self.read::<u8>(self.gpu.command.fifo.read_ptr);
-        self.gpu.command.fifo_pop();
+        self.gpu.command.fifo.pop();
 
         data
     }
@@ -731,7 +719,11 @@ impl System {
 
     /// Consumes commands available in the CP FIFO and processes them.
     pub fn cp_update(&mut self) {
-        while self.gpu.command.fifo.count > 0 {
+        if !self.gpu.command.control.fifo_read_enable() {
+            return;
+        }
+
+        while self.gpu.command.fifo.count() > 0 {
             let data = self.cp_fifo_pop();
             self.gpu.command.queue.push_be(data);
         }

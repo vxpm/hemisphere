@@ -56,8 +56,6 @@ pub enum Event {
     Decrementer,
     /// Check external interrupts.
     CheckInterrupts,
-    /// Process commands in the CP FIFO.
-    CommandProcessor,
     /// A video interface event.
     Video(video::Event),
 }
@@ -255,7 +253,6 @@ impl System {
                 }
             }
             Event::CheckInterrupts => self.check_interrupts(),
-            Event::CommandProcessor => self.cp_update(),
             Event::Video(video::Event::VerticalCount) => {
                 self.update_display_interrupts();
 

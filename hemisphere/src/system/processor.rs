@@ -1,6 +1,6 @@
 //! Processor interface.
 
-use crate::system::{Event, System};
+use crate::system::System;
 use bitos::{bitos, integer::u26};
 use common::{Address, arch::Exception};
 
@@ -131,10 +131,14 @@ impl System {
         }
     }
 
+    pub fn cp_sync_to_pi(&mut self) {
+        self.gpu.command.fifo.start = self.processor.fifo_start;
+        self.gpu.command.fifo.end = self.processor.fifo_end;
+        self.gpu.command.fifo.write_ptr = self.processor.fifo_current.address();
+    }
+
     /// Pushes a value into the PI FIFO. Values are queued up until 32 bytes are available, then
     /// written all at once.
-    ///
-    /// If the CP FIFO is linked wth the PI FIFO, this will also schedule a CP update.
     pub fn pi_fifo_push(&mut self, value: u8) {
         self.processor.fifo_buffer.push(value);
         if self.processor.fifo_buffer.len() < 32 {
@@ -146,12 +150,7 @@ impl System {
             let current = self.processor.fifo_current.address();
             self.write(current, byte);
             self.processor.fifo_current.set_address(current + 1);
-
-            if self.gpu.command.control.linked_mode() {
-                self.gpu.command.fifo_push();
-            }
-
-            if self.processor.fifo_current.address() > self.processor.fifo_end + 4 {
+            if self.processor.fifo_current.address() > self.processor.fifo_end {
                 self.processor.fifo_current.set_wrapped(true);
                 self.processor
                     .fifo_current
@@ -160,7 +159,8 @@ impl System {
         }
 
         if self.gpu.command.control.linked_mode() {
-            self.scheduler.schedule_now(Event::CommandProcessor);
+            self.cp_sync_to_pi();
+            self.cp_update();
         }
     }
 }

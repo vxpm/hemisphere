@@ -39,7 +39,7 @@ impl AppWindow for Window {
             mmio_dbg(ui, "FIFO end", &self.fifo.end);
             mmio_dbg(ui, "FIFO high watermark", &self.fifo.high_mark);
             mmio_dbg(ui, "FIFO low watermark", &self.fifo.low_mark);
-            mmio_dbg(ui, "FIFO count", &self.fifo.count);
+            mmio_dbg(ui, "FIFO count", &self.fifo.count());
             mmio_dbg(ui, "FIFO write ptr", &self.fifo.write_ptr);
             mmio_dbg(ui, "FIFO read ptr", &self.fifo.read_ptr);
         });
