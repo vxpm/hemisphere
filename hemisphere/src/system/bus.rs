@@ -93,6 +93,7 @@ impl System {
 
             // === Pixel Engine ===
             Mmio::PixelInterruptStatus => ne!(self.gpu.pixel.interrupt.as_bytes()),
+            Mmio::PixelToken => ne!((self.gpu.pixel.token as u16).as_bytes()),
 
             // === Video Interface ===
             Mmio::VideoVerticalTiming => ne!(self.video.vertical_timing.as_bytes()),

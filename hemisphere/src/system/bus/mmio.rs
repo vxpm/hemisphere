@@ -67,6 +67,7 @@ mmio! {
 
     // === Pixel Engine ===
     0x100A, 2, PixelInterruptStatus;
+    0x100E, 2, PixelToken;
 
     // === Video Interface ===
     0x2000, 2, VideoVerticalTiming;

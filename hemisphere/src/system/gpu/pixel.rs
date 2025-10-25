@@ -1,7 +1,4 @@
-use bitos::{
-    bitos,
-    integer::{u2, u3},
-};
+use bitos::{bitos, integer::u2};
 
 // NOTE: might be wrong
 #[bitos(3)]
@@ -141,6 +138,7 @@ pub struct BlendMode {
 
 #[derive(Debug, Default)]
 pub struct Interface {
+    pub token: u32,
     pub interrupt: InterruptStatus,
     pub clear_color: Argb8,
     pub clear_depth: u32,

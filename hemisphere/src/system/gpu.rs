@@ -414,6 +414,13 @@ impl System {
                 self.gpu.pixel.interrupt.set_finish(true);
                 self.check_interrupts();
             }
+            Reg::PixelToken => {
+                self.gpu.pixel.token = value;
+            }
+            Reg::PixelTokenInt => {
+                self.gpu.pixel.interrupt.set_token(true);
+                self.check_interrupts();
+            }
             Reg::PixelCopyClearAr => {
                 value.write_be_bytes(&mut self.gpu.pixel.clear_color.as_mut_bytes()[0..2])
             }
