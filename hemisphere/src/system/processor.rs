@@ -131,12 +131,6 @@ impl System {
         }
     }
 
-    pub fn cp_sync_to_pi(&mut self) {
-        self.gpu.command.fifo.start = self.processor.fifo_start;
-        self.gpu.command.fifo.end = self.processor.fifo_end;
-        self.gpu.command.fifo.write_ptr = self.processor.fifo_current.address();
-    }
-
     /// Pushes a value into the PI FIFO. Values are queued up until 32 bytes are available, then
     /// written all at once.
     pub fn pi_fifo_push(&mut self, value: u8) {

@@ -230,14 +230,6 @@ impl Fifo {
 
         count as u32
     }
-
-    /// Signals a value has been popped from the CP FIFO.
-    pub fn pop(&mut self) {
-        self.read_ptr += 1;
-        if self.read_ptr > self.end {
-            self.read_ptr = self.start;
-        }
-    }
 }
 
 #[bitos[2]]
@@ -678,7 +670,10 @@ impl System {
         assert!(self.gpu.command.fifo.count() > 0);
 
         let data = self.read::<u8>(self.gpu.command.fifo.read_ptr);
-        self.gpu.command.fifo.pop();
+        self.gpu.command.fifo.read_ptr += 1;
+        if self.gpu.command.fifo.read_ptr > self.gpu.command.fifo.end {
+            self.gpu.command.fifo.read_ptr = self.gpu.command.fifo.start;
+        }
 
         data
     }
@@ -715,6 +710,13 @@ impl System {
                 }
             }
         }
+    }
+
+    /// Synchronizes the CP fifo to the PI fifo.
+    pub fn cp_sync_to_pi(&mut self) {
+        self.gpu.command.fifo.start = self.processor.fifo_start;
+        self.gpu.command.fifo.end = self.processor.fifo_end;
+        self.gpu.command.fifo.write_ptr = self.processor.fifo_current.address();
     }
 
     /// Consumes commands available in the CP FIFO and processes them.
