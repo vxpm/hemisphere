@@ -367,7 +367,7 @@ impl BlockBuilder<'_> {
             ShiftKind::RightArithmetic => {
                 // xer ca is set if:
                 // - rs is negative, and
-                // - shift_by >= trailing zeros of rs
+                // - shift_by > trailing zeros of rs
                 let trailing_zeros = self.bd.ins().ctz(lhs);
                 let trailing_zeros = self.bd.ins().ireduce(ir::types::I32, trailing_zeros);
 
@@ -375,9 +375,9 @@ impl BlockBuilder<'_> {
                 let is_shift_by_gt_tz =
                     self.bd
                         .ins()
-                        .icmp(IntCC::UnsignedGreaterThanOrEqual, rhs, trailing_zeros);
+                        .icmp(IntCC::UnsignedGreaterThan, rhs, trailing_zeros);
 
-                let carry = self.bd.ins().bor(is_rs_neg, is_shift_by_gt_tz);
+                let carry = self.bd.ins().band(is_rs_neg, is_shift_by_gt_tz);
                 self.update_xer_ca(carry);
 
                 self.bd.ins().sshr(lhs, rhs)

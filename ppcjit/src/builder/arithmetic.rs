@@ -29,7 +29,7 @@ enum AddRhs {
     RB,
     Imm,
     ShiftedImm,
-    Carry,
+    Zero,
     MinusOne,
 }
 
@@ -63,11 +63,7 @@ impl BlockBuilder<'_> {
             AddRhs::RB => self.get(ins.gpr_b()),
             AddRhs::Imm => self.ir_value(ins.field_simm() as i32),
             AddRhs::ShiftedImm => self.ir_value((ins.field_simm() as i32) << 16),
-            AddRhs::Carry => {
-                let xer = self.get(SPR::XER);
-                let ca = self.get_bit(xer, 29);
-                self.bd.ins().uextend(ir::types::I32, ca)
-            }
+            AddRhs::Zero => self.ir_value(0),
             AddRhs::MinusOne => self.ir_value(-1i32),
         }
     }
@@ -169,7 +165,7 @@ impl BlockBuilder<'_> {
             ins,
             AddOp {
                 lhs: AddLhs::RA,
-                rhs: AddRhs::Carry,
+                rhs: AddRhs::Zero,
                 extend: true,
                 record: ins.field_rc(),
                 carry: true,
