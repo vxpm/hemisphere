@@ -77,10 +77,9 @@ impl BlockBuilder<'_> {
         let exit_block = self.bd.create_block();
         let continue_block = self.bd.create_block();
 
+        let t = self.ir_value(true);
         self.bd.set_cold_block(exit_block);
-        self.bd
-            .ins()
-            .brif(success, continue_block, &[], exit_block, &[]);
+        self.bd.ins().brif(t, continue_block, &[], exit_block, &[]);
 
         self.bd.seal_block(exit_block);
         self.bd.seal_block(continue_block);
