@@ -230,6 +230,7 @@ const LOAD_INFO: Info = Info {
 struct LoadOp {
     update: bool,
     signed: bool,
+    reverse: bool,
 }
 
 /// GPR load operations
@@ -270,6 +271,11 @@ impl BlockBuilder<'_> {
         };
 
         let mut value = self.read::<P>(addr);
+
+        if op.reverse {
+            value = self.bd.ins().bswap(value);
+        }
+
         if P::IR_TYPE != ir::types::I32 {
             value = if op.signed {
                 self.bd.ins().sextend(ir::types::I32, value)
@@ -293,6 +299,7 @@ impl BlockBuilder<'_> {
             LoadOp {
                 update: false,
                 signed: false,
+                reverse: false,
             },
         )
     }
@@ -303,6 +310,7 @@ impl BlockBuilder<'_> {
             LoadOp {
                 update: false,
                 signed: false,
+                reverse: false,
             },
         )
     }
@@ -313,6 +321,7 @@ impl BlockBuilder<'_> {
             LoadOp {
                 update: true,
                 signed: false,
+                reverse: false,
             },
         )
     }
@@ -323,6 +332,7 @@ impl BlockBuilder<'_> {
             LoadOp {
                 update: true,
                 signed: false,
+                reverse: false,
             },
         )
     }
@@ -333,6 +343,7 @@ impl BlockBuilder<'_> {
             LoadOp {
                 update: false,
                 signed: false,
+                reverse: false,
             },
         )
     }
@@ -343,6 +354,7 @@ impl BlockBuilder<'_> {
             LoadOp {
                 update: false,
                 signed: false,
+                reverse: false,
             },
         )
     }
@@ -353,6 +365,7 @@ impl BlockBuilder<'_> {
             LoadOp {
                 update: true,
                 signed: false,
+                reverse: false,
             },
         )
     }
@@ -363,6 +376,7 @@ impl BlockBuilder<'_> {
             LoadOp {
                 update: true,
                 signed: false,
+                reverse: false,
             },
         )
     }
@@ -373,6 +387,7 @@ impl BlockBuilder<'_> {
             LoadOp {
                 update: false,
                 signed: true,
+                reverse: false,
             },
         )
     }
@@ -383,6 +398,7 @@ impl BlockBuilder<'_> {
             LoadOp {
                 update: false,
                 signed: true,
+                reverse: false,
             },
         )
     }
@@ -393,6 +409,7 @@ impl BlockBuilder<'_> {
             LoadOp {
                 update: true,
                 signed: true,
+                reverse: false,
             },
         )
     }
@@ -403,6 +420,18 @@ impl BlockBuilder<'_> {
             LoadOp {
                 update: true,
                 signed: true,
+                reverse: false,
+            },
+        )
+    }
+
+    pub fn lhbrx(&mut self, ins: Ins) -> Info {
+        self.load_indexed::<i16>(
+            ins,
+            LoadOp {
+                update: false,
+                signed: false,
+                reverse: true,
             },
         )
     }
@@ -413,6 +442,7 @@ impl BlockBuilder<'_> {
             LoadOp {
                 update: false,
                 signed: false,
+                reverse: false,
             },
         )
     }
@@ -423,6 +453,7 @@ impl BlockBuilder<'_> {
             LoadOp {
                 update: false,
                 signed: false,
+                reverse: false,
             },
         )
     }
@@ -433,6 +464,7 @@ impl BlockBuilder<'_> {
             LoadOp {
                 update: true,
                 signed: false,
+                reverse: false,
             },
         )
     }
@@ -443,6 +475,18 @@ impl BlockBuilder<'_> {
             LoadOp {
                 update: true,
                 signed: false,
+                reverse: false,
+            },
+        )
+    }
+
+    pub fn lwbrx(&mut self, ins: Ins) -> Info {
+        self.load_indexed::<i32>(
+            ins,
+            LoadOp {
+                update: false,
+                signed: false,
+                reverse: true,
             },
         )
     }
@@ -701,7 +745,7 @@ impl BlockBuilder<'_> {
     }
 
     pub fn sthux(&mut self, ins: Ins) -> Info {
-        self.store_indexed::<i8>(ins, true, false)
+        self.store_indexed::<i16>(ins, true, false)
     }
 
     pub fn stw(&mut self, ins: Ins) -> Info {

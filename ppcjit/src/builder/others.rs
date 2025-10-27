@@ -286,7 +286,6 @@ impl BlockBuilder<'_> {
         let bit_a = 31 - ins.field_crba();
         let bit_b = 31 - ins.field_crbb();
         let bit_dest = 31 - ins.field_crbd();
-        println!("generating CRNAND dest={bit_dest} bit_a={bit_a} bit_b={bit_b}");
 
         let cr = self.get(Reg::CR);
         let bit_a = self.get_bit(cr, bit_a);
