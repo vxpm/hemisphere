@@ -6,7 +6,7 @@ pub mod transform;
 
 use super::System;
 use crate::{
-    render::{Action, TevStage},
+    render::{Action, TevConfig, TevStage},
     system::gpu::command::{
         ArrayDescriptor, AttributeMode, VertexAttributeStream,
         attributes::{self, Attribute, AttributeDescriptor, Rgba},
@@ -225,14 +225,14 @@ pub enum Reg {
     TevColor15 = 0xDE,
     TevAlpha15 = 0xDF,
 
-    TevConstant0Low = 0xE0,
-    TevConstant0High = 0xE1,
-    TevConstant1Low = 0xE2,
-    TevConstant1High = 0xE3,
-    TevConstant2Low = 0xE4,
-    TevConstant2High = 0xE5,
-    TevConstant3Low = 0xE6,
-    TevConstant3High = 0xE7,
+    TevConstant3AR = 0xE0,
+    TevConstant3GB = 0xE1,
+    TevConstant0AR = 0xE2,
+    TevConstant0GB = 0xE3,
+    TevConstant1AR = 0xE4,
+    TevConstant1GB = 0xE5,
+    TevConstant2AR = 0xE6,
+    TevConstant2GB = 0xE7,
 
     TevFogRange = 0xE8,
     TevFog0 = 0xEE,
@@ -293,6 +293,14 @@ impl Reg {
                 | Self::TevAlpha14
                 | Self::TevColor15
                 | Self::TevAlpha15
+                | Self::TevConstant3AR
+                | Self::TevConstant3GB
+                | Self::TevConstant0AR
+                | Self::TevConstant0GB
+                | Self::TevConstant1AR
+                | Self::TevConstant1GB
+                | Self::TevConstant2AR
+                | Self::TevConstant2GB
         )
     }
 
@@ -556,6 +564,55 @@ impl System {
             Reg::TevAlpha15 => {
                 value.write_ne_bytes(self.gpu.environment.stage_ops[15].alpha.as_mut_bytes());
             }
+            Reg::TevConstant3AR => {
+                let r = ((value.bits(0, 11) as i16) << 5) >> 5;
+                let a = ((value.bits(12, 23) as i16) << 5) >> 5;
+                self.gpu.environment.constants[3].a = a as f32 / 255.0;
+                self.gpu.environment.constants[3].r = r as f32 / 255.0;
+            }
+            Reg::TevConstant3GB => {
+                let b = ((value.bits(0, 11) as i16) << 5) >> 5;
+                let g = ((value.bits(12, 23) as i16) << 5) >> 5;
+                self.gpu.environment.constants[3].b = b as f32 / 255.0;
+                self.gpu.environment.constants[3].g = g as f32 / 255.0;
+            }
+            Reg::TevConstant0AR => {
+                let r = ((value.bits(0, 11) as i16) << 5) >> 5;
+                let a = ((value.bits(12, 23) as i16) << 5) >> 5;
+                self.gpu.environment.constants[0].a = a as f32 / 255.0;
+                self.gpu.environment.constants[0].r = r as f32 / 255.0;
+            }
+            Reg::TevConstant0GB => {
+                let b = ((value.bits(0, 11) as i16) << 5) >> 5;
+                let g = ((value.bits(12, 23) as i16) << 5) >> 5;
+                self.gpu.environment.constants[0].b = b as f32 / 255.0;
+                self.gpu.environment.constants[0].g = g as f32 / 255.0;
+            }
+            Reg::TevConstant1AR => {
+                let r = ((value.bits(0, 11) as i16) << 5) >> 5;
+                let a = ((value.bits(12, 23) as i16) << 5) >> 5;
+                self.gpu.environment.constants[1].a = a as f32 / 255.0;
+                self.gpu.environment.constants[1].r = r as f32 / 255.0;
+            }
+            Reg::TevConstant1GB => {
+                let b = ((value.bits(0, 11) as i16) << 5) >> 5;
+                let g = ((value.bits(12, 23) as i16) << 5) >> 5;
+                self.gpu.environment.constants[1].b = b as f32 / 255.0;
+                self.gpu.environment.constants[1].g = g as f32 / 255.0;
+            }
+            Reg::TevConstant2AR => {
+                let r = ((value.bits(0, 11) as i16) << 5) >> 5;
+                let a = ((value.bits(12, 23) as i16) << 5) >> 5;
+                self.gpu.environment.constants[2].a = a as f32 / 255.0;
+                self.gpu.environment.constants[2].r = r as f32 / 255.0;
+            }
+            Reg::TevConstant2GB => {
+                let b = ((value.bits(0, 11) as i16) << 5) >> 5;
+                let g = ((value.bits(12, 23) as i16) << 5) >> 5;
+                self.gpu.environment.constants[2].b = b as f32 / 255.0;
+                self.gpu.environment.constants[2].g = g as f32 / 255.0;
+            }
+
             _ => tracing::warn!("unimplemented write to internal GX register {reg:?}"),
         }
 
@@ -577,7 +634,12 @@ impl System {
                 })
                 .collect::<Vec<_>>();
 
-            self.config.renderer.exec(Action::SetTevStages(stages));
+            let config = TevConfig {
+                stages,
+                constants: self.gpu.environment.constants,
+            };
+
+            self.config.renderer.exec(Action::SetTevConfig(config));
         }
 
         if reg.is_pixel_clear() {

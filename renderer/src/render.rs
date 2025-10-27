@@ -9,7 +9,7 @@ use crate::render::{
 };
 use glam::Mat4;
 use hemisphere::{
-    render::{self, Action, Viewport},
+    render::{self, Action, TevConfig, Viewport},
     system::gpu::{
         Topology, VertexAttributes,
         command::attributes::Rgba,
@@ -149,7 +149,7 @@ impl Renderer {
             Action::SetBlendMode(mode) => self.set_blend_mode(mode),
             Action::SetDepthMode(mode) => self.set_depth_mode(mode),
             Action::SetProjectionMatrix(mat) => self.set_projection_mat(mat),
-            Action::SetTevStages(stages) => self.set_tev_stages(stages),
+            Action::SetTevConfig(config) => self.set_tev_config(config),
             Action::SetTexGens(texgens) => self.set_texgens(texgens),
             Action::LoadTexture {
                 id,
@@ -303,13 +303,13 @@ impl Renderer {
         self.current_projection_mat_idx = id;
     }
 
-    pub fn set_tev_stages(&mut self, stages: Vec<render::TevStage>) {
-        let new = data::TevConfig::new(stages.clone());
+    pub fn set_tev_config(&mut self, config: TevConfig) {
+        let new = data::TevConfig::new(config.clone());
         if self.current_config.tev == new {
             return;
         }
 
-        // println!("stages: {stages:#?}");
+        println!("config: {config:#?}");
 
         self.current_config.tev = new;
         self.update_config();

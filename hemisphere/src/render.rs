@@ -22,13 +22,19 @@ pub struct TevStage {
     pub refs: StageRefs,
 }
 
+#[derive(Debug, Clone)]
+pub struct TevConfig {
+    pub stages: Vec<TevStage>,
+    pub constants: [Rgba; 4],
+}
+
 pub enum Action {
     SetViewport(Viewport),
     SetClearColor(Rgba),
     SetDepthMode(DepthMode),
     SetBlendMode(BlendMode),
     SetProjectionMatrix(Mat4),
-    SetTevStages(Vec<TevStage>),
+    SetTevConfig(TevConfig),
     SetTexGens(Vec<TexGen>),
     LoadTexture {
         id: u32,

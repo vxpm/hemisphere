@@ -45,12 +45,20 @@ struct Stage {
     refs: Refs,
 };
 
+struct Constants {
+    color0: vec4f,
+    color1: vec4f, 
+    color2: vec4f, 
+    color3: vec4f, 
+};
+
 /// All TEV stage configurations.
 struct Config {
     count: u32,
     _pad0: u32,
     _pad1: u32,
     _pad2: u32,
+    constants: Constants,
     stages: array<Stage, 16>,
 };
 
@@ -265,6 +273,12 @@ fn compute_stage_alpha(a: f32, b: f32, c: f32, d: f32, sign: f32, bias: f32, sca
 
 fn compute(config: Config, diffuse: vec4f, specular: vec4f, coords: array<vec3f, 8>) -> vec4f {
     var state: State;
+    state.regs = array(
+        config.constants.color0,
+        config.constants.color1,
+        config.constants.color2,
+        config.constants.color3,
+    );
     state.diffuse = diffuse;
     state.specular = specular;
     state.coords = coords;
