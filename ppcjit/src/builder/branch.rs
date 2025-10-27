@@ -94,7 +94,7 @@ impl BlockBuilder<'_> {
                 let cond_ok = if options.desired_cr() {
                     bit
                 } else {
-                    self.bd.ins().bnot(bit)
+                    self.bd.ins().bxor_imm(bit, 1)
                 };
 
                 branch = self.bd.ins().band(branch, cond_ok);

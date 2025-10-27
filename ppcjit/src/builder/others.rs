@@ -191,9 +191,9 @@ impl BlockBuilder<'_> {
         let bit_a = self.get_bit(cr, bit_a);
         let bit_b = self.get_bit(cr, bit_b);
         let xored = self.bd.ins().bxor(bit_a, bit_b);
-        let compl = self.bd.ins().bnot(xored);
+        let not = self.bd.ins().bxor_imm(xored, 1);
 
-        let value = self.set_bit(cr, bit_dest, compl);
+        let value = self.set_bit(cr, bit_dest, not);
         self.set(Reg::CR, value);
 
         CR_INFO
@@ -223,7 +223,7 @@ impl BlockBuilder<'_> {
         let cr = self.get(Reg::CR);
         let bit_a = self.get_bit(cr, bit_a);
         let bit_b = self.get_bit(cr, bit_b);
-        let not_b = self.bd.ins().bnot(bit_b);
+        let not_b = self.bd.ins().bxor_imm(bit_b, 1);
         let ored = self.bd.ins().bor(bit_a, not_b);
 
         let value = self.set_bit(cr, bit_dest, ored);
@@ -241,7 +241,7 @@ impl BlockBuilder<'_> {
         let bit_a = self.get_bit(cr, bit_a);
         let bit_b = self.get_bit(cr, bit_b);
         let ored = self.bd.ins().bor(bit_a, bit_b);
-        let nored = self.bd.ins().bnot(ored);
+        let nored = self.bd.ins().bxor_imm(ored, 1);
 
         let value = self.set_bit(cr, bit_dest, nored);
         self.set(Reg::CR, value);
@@ -273,7 +273,7 @@ impl BlockBuilder<'_> {
         let cr = self.get(Reg::CR);
         let bit_a = self.get_bit(cr, bit_a);
         let bit_b = self.get_bit(cr, bit_b);
-        let not_b = self.bd.ins().bnot(bit_b);
+        let not_b = self.bd.ins().bxor_imm(bit_b, 1);
         let anded = self.bd.ins().band(bit_a, not_b);
 
         let value = self.set_bit(cr, bit_dest, anded);
@@ -286,12 +286,13 @@ impl BlockBuilder<'_> {
         let bit_a = 31 - ins.field_crba();
         let bit_b = 31 - ins.field_crbb();
         let bit_dest = 31 - ins.field_crbd();
+        println!("generating CRNAND dest={bit_dest} bit_a={bit_a} bit_b={bit_b}");
 
         let cr = self.get(Reg::CR);
         let bit_a = self.get_bit(cr, bit_a);
         let bit_b = self.get_bit(cr, bit_b);
         let anded = self.bd.ins().band(bit_a, bit_b);
-        let nanded = self.bd.ins().bnot(anded);
+        let nanded = self.bd.ins().bxor_imm(anded, 1);
 
         let value = self.set_bit(cr, bit_dest, nanded);
         self.set(Reg::CR, value);

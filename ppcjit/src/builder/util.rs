@@ -123,12 +123,12 @@ impl BlockBuilder<'_> {
         &mut self,
         value: ir::Value,
         index: impl IntoIrValue,
-        set: impl IntoIrValue,
+        should_set: impl IntoIrValue,
     ) -> ir::Value {
         let zero = self.ir_value(0i32);
         let one = self.ir_value(1i32);
         let index = self.ir_value(index);
-        let set = self.ir_value(set);
+        let should_set = self.ir_value(should_set);
 
         // create mask for the bit
         let shifted = self.bd.ins().ishl(one, index);
@@ -137,8 +137,8 @@ impl BlockBuilder<'_> {
         // unset bit
         let value = self.bd.ins().band(value, mask);
 
-        // set bit if `set` is true
-        let rhs = self.bd.ins().select(set, shifted, zero);
+        // set bit if `should_set` is true
+        let rhs = self.bd.ins().select(should_set, shifted, zero);
 
         self.bd.ins().bor(value, rhs)
     }
