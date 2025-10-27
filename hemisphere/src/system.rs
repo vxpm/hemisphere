@@ -174,7 +174,16 @@ impl System {
         // setup apploader entrypoint for fake-ipl
         self.cpu.user.gpr[3] = entry.value();
 
-        // load dolphin-os constans
+        // load dolphin-os globals
+        let header = self.config.iso.as_ref().unwrap().header().clone();
+        self.write::<u32>(Address(0x00), header.game_code());
+        self.write::<u16>(Address(0x04), header.maker_code);
+        self.write::<u8>(Address(0x06), header.disk_id);
+        self.write::<u8>(Address(0x07), header.version);
+        self.write::<u8>(Address(0x08), header.audio_streaming);
+        self.write::<u8>(Address(0x09), header.stream_buffer_size);
+
+        self.write::<u32>(Address(0x1C), 0xC2339F3D); // DVD Magic Word
         self.write::<u32>(Address(0x20), 0x0D15EA5E); // Boot kind
         self.write::<u32>(Address(0x24), 0x1); // Version
         self.write::<u32>(Address(0x28), 0x01800000); // Physical Memory Size

@@ -10,12 +10,12 @@ pub use binrw;
 
 use crate::filesystem::FileSystem;
 
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, Clone, Copy, BinRead, BinWrite)]
 #[brw(big, magic = 0xC233_9F3D_u32)]
 pub struct MagicWord;
 
 // The header of a GameCube .iso file.
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, Clone, BinRead, BinWrite)]
 #[brw(big)]
 pub struct Header {
     pub console_id: u8,
