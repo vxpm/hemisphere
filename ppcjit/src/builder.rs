@@ -577,6 +577,8 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Xoris => self.xoris(ins),
             Opcode::Lhbrx => self.lhbrx(ins),
             Opcode::Lwbrx => self.lwbrx(ins),
+            Opcode::Lswi => self.lswi(ins),
+            Opcode::Stswi => self.stswi(ins),
             Opcode::Illegal => {
                 self.stub(ins)
                 // return Err(BuilderError::Illegal(ins));

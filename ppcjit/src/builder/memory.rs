@@ -3,7 +3,7 @@ use crate::{
     block::Hooks,
     builder::{Action, Info},
 };
-use common::arch::{Exception, GPR, InsExt, Reg, disasm::Ins};
+use common::arch::{Exception, GPR, InsExt, Reg, SPR, disasm::Ins};
 use cranelift::{codegen::ir, prelude::InstBuilder};
 use std::mem::offset_of;
 
@@ -511,10 +511,47 @@ impl BlockBuilder<'_> {
             ..LOAD_INFO
         }
     }
-}
 
-/// FPR load operations
-impl BlockBuilder<'_> {
+    pub fn lswi(&mut self, ins: Ins) -> Info {
+        let mut addr = if ins.field_ra() == 0 {
+            self.ir_value(0)
+        } else {
+            self.get(ins.gpr_a())
+        };
+
+        let byte_count = if ins.field_nb() != 0 {
+            ins.field_nb()
+        } else {
+            32
+        };
+
+        let zero = self.ir_value(0);
+        let start_reg = ins.field_rd();
+        for i in 0..byte_count {
+            let reg = GPR::new((start_reg + i / 4) % 32);
+            let shift_count = 8 * (3 - (i as u32 % 4));
+
+            let value = self.read::<i8>(addr);
+            let value = self.bd.ins().uextend(ir::types::I32, value);
+            let value = self.bd.ins().ishl_imm(value, shift_count as u64 as i64);
+
+            let current = self.get(reg);
+            let mask = self.ir_value(0xFFu32 << shift_count);
+            let loaded = self.bd.ins().bitselect(mask, value, current);
+
+            let clear_mask = self.ir_value(0xFFFF_FFFFu32 << shift_count);
+            let new = self.bd.ins().bitselect(clear_mask, loaded, zero);
+
+            self.set(reg, new);
+            addr = self.bd.ins().iadd_imm(addr, 1);
+        }
+
+        Info {
+            cycles: 10, // random, chosen by fair dice roll
+            ..LOAD_INFO
+        }
+    }
+
     pub fn lfd(&mut self, ins: Ins) -> Info {
         self.check_floats();
 
@@ -786,6 +823,38 @@ impl BlockBuilder<'_> {
         Info {
             cycles: 10, // random, chosen by fair dice roll
             ..STORE_INFO
+        }
+    }
+
+    pub fn stswi(&mut self, ins: Ins) -> Info {
+        let mut addr = if ins.field_ra() == 0 {
+            self.ir_value(0)
+        } else {
+            self.get(ins.gpr_a())
+        };
+
+        let byte_count = if ins.field_nb() != 0 {
+            ins.field_nb()
+        } else {
+            32
+        };
+
+        let start_reg = ins.field_rd();
+        for i in 0..byte_count {
+            let reg = GPR::new((start_reg + i / 4) % 32);
+            let shift_count = 8 * (3 - (i as u32 % 4));
+
+            let reg = self.get(reg);
+            let value = self.bd.ins().ushr_imm(reg, shift_count as u64 as i64);
+            let value = self.bd.ins().ireduce(ir::types::I8, value);
+
+            self.write::<i8>(addr, value);
+            addr = self.bd.ins().iadd_imm(addr, 1);
+        }
+
+        Info {
+            cycles: 10, // random, chosen by fair dice roll
+            ..LOAD_INFO
         }
     }
 
