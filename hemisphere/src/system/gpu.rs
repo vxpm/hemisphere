@@ -129,6 +129,8 @@ pub enum Reg {
     ScissorOffset = 0x59,
 
     // TX
+    TexLoadLut0 = 0x64,
+    TexLoadLut1 = 0x65,
     TexInvTags = 0x66,
     TexPerfMode = 0x67,
     TexFieldMode = 0x68,
@@ -158,6 +160,11 @@ pub enum Reg {
     TexAddress1 = 0x95,
     TexAddress2 = 0x96,
     TexAddress3 = 0x97,
+
+    TexSetLut0 = 0x98,
+    TexSetLut1 = 0x99,
+    TexSetLut2 = 0x9A,
+    TexSetLut3 = 0x9B,
 
     TexMode4 = 0xA0,
     TexMode5 = 0xA1,
