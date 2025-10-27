@@ -313,7 +313,7 @@ pub fn decode_texture(data: &[u8], format: Format) -> Vec<Rgba8> {
                     r: intensity,
                     g: intensity,
                     b: intensity,
-                    a: 255,
+                    a: intensity,
                 }
             })
         }
@@ -338,7 +338,7 @@ pub fn decode_texture(data: &[u8], format: Format) -> Vec<Rgba8> {
                     r: intensity,
                     g: intensity,
                     b: intensity,
-                    a: 255,
+                    a: intensity,
                 }
             })
         }
