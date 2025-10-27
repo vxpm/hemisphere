@@ -9,6 +9,7 @@ enum Group {
     #[default]
     Gpr,
     Fpr,
+    Cr,
 }
 
 #[derive(Default, Serialize, Deserialize)]
@@ -50,6 +51,67 @@ impl Window {
 
                     row.col(|ui| {
                         let text = egui::RichText::new(format!("{value:08X}"))
+                            .family(egui::FontFamily::Monospace)
+                            .color(Color32::LIGHT_GREEN);
+
+                        ui.label(text);
+                    });
+                })
+            }
+        });
+    }
+
+    fn cr(&self, ui: &mut egui::Ui) {
+        let builder = TableBuilder::new(ui)
+            .auto_shrink(egui::Vec2b::new(false, true))
+            .striped(true)
+            .resizable(false)
+            .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+            .column(Column::auto())
+            .column(Column::remainder());
+
+        let table = builder.header(20.0, |mut header| {
+            header.col(|ui| {
+                ui.label("Others");
+            });
+            header.col(|ui| {
+                ui.label("Hex");
+            });
+        });
+
+        table.body(|mut body| {
+            body.row(20.0, |mut row| {
+                let cr = self.cpu.user.cr.to_bits();
+                row.col(|ui| {
+                    let text = egui::RichText::new(format!("CR"))
+                        .family(egui::FontFamily::Monospace)
+                        .color(Color32::LIGHT_BLUE);
+
+                    ui.label(text);
+                });
+
+                row.col(|ui| {
+                    let text = egui::RichText::new(format!("0x{cr:08X}"))
+                        .family(egui::FontFamily::Monospace)
+                        .color(Color32::LIGHT_GREEN);
+
+                    ui.label(text);
+                });
+            });
+
+            for index in 0..8 {
+                let cr = self.cpu.user.cr.fields_at(7 - index).unwrap();
+                body.row(20.0, |mut row| {
+                    row.col(|ui| {
+                        let text = egui::RichText::new(format!("CR{index:02}"))
+                            .family(egui::FontFamily::Monospace)
+                            .color(Color32::LIGHT_BLUE);
+
+                        ui.label(text);
+                    });
+
+                    row.col(|ui| {
+                        let text = egui::RichText::new(format!("{cr:?}"))
                             .family(egui::FontFamily::Monospace)
                             .color(Color32::LIGHT_GREEN);
 
@@ -131,6 +193,7 @@ impl AppWindow for Window {
                 .show_ui(ui, |ui| {
                     ui.selectable_value(&mut self.group, Group::Gpr, "GPR");
                     ui.selectable_value(&mut self.group, Group::Fpr, "FPR");
+                    ui.selectable_value(&mut self.group, Group::Cr, "CR");
                 });
 
             ui.separator();
@@ -138,6 +201,7 @@ impl AppWindow for Window {
             match self.group {
                 Group::Gpr => self.gpr(ui),
                 Group::Fpr => self.fpr(ui),
+                Group::Cr => self.cr(ui),
             }
         });
     }
