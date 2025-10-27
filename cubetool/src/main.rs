@@ -11,8 +11,8 @@ use std::{
 
 #[derive(Debug, Subcommand)]
 enum Command {
-    /// Assemble a PowerPC instruction.
-    Assemble { code: String },
+    /// Disassemble a PowerPC instruction.
+    Disassemble { code: String },
     /// Inspect a file
     ///
     /// Supported formats: .dol, .iso
@@ -112,7 +112,7 @@ fn main() -> Result<()> {
 
     let config = Args::parse();
     match config.command {
-        Command::Assemble { code } => {
+        Command::Disassemble { code } => {
             let code = code.replace("_", "");
             let code = if let Some(code) = code.strip_prefix("0x") {
                 u32::from_str_radix(code, 16).context("parsing instruction code")?
