@@ -620,6 +620,26 @@ impl BlockBuilder<'_> {
         LOAD_INFO
     }
 
+    pub fn lfdux(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let ra = self.get(ins.gpr_a());
+        let rb = self.get(ins.gpr_b());
+        let addr = self.bd.ins().iadd(ra, rb);
+
+        let value = self.read::<i64>(addr);
+        let value = self
+            .bd
+            .ins()
+            .bitcast(ir::types::F64, ir::MemFlags::new(), value);
+
+        let paired = self.bd.ins().splat(ir::types::F64X2, value);
+        self.set_ps(ins.fpr_d(), paired);
+        self.set(ins.gpr_a(), addr);
+
+        LOAD_INFO
+    }
+
     pub fn lfs(&mut self, ins: Ins) -> Info {
         self.check_floats();
 
@@ -687,6 +707,27 @@ impl BlockBuilder<'_> {
         let double = self.bd.ins().fpromote(ir::types::F64, value);
         let paired = self.bd.ins().splat(ir::types::F64X2, double);
         self.set_ps(ins.fpr_d(), paired);
+
+        LOAD_INFO
+    }
+
+    pub fn lfsux(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let ra = self.get(ins.gpr_a());
+        let rb = self.get(ins.gpr_b());
+        let addr = self.bd.ins().iadd(ra, rb);
+
+        let value = self.read::<i32>(addr);
+        let value = self
+            .bd
+            .ins()
+            .bitcast(ir::types::F32, ir::MemFlags::new(), value);
+
+        let double = self.bd.ins().fpromote(ir::types::F64, value);
+        let paired = self.bd.ins().splat(ir::types::F64X2, double);
+        self.set_ps(ins.fpr_d(), paired);
+        self.set(ins.gpr_a(), addr);
 
         LOAD_INFO
     }
