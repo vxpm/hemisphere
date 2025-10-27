@@ -81,6 +81,25 @@ impl Window {
 
         table.body(|mut body| {
             body.row(20.0, |mut row| {
+                let xer = self.cpu.user.xer.clone();
+                row.col(|ui| {
+                    let text = egui::RichText::new(format!("XER"))
+                        .family(egui::FontFamily::Monospace)
+                        .color(Color32::LIGHT_BLUE);
+
+                    ui.label(text);
+                });
+
+                row.col(|ui| {
+                    let text = egui::RichText::new(format!("{xer:?}"))
+                        .family(egui::FontFamily::Monospace)
+                        .color(Color32::LIGHT_GREEN);
+
+                    ui.label(text);
+                });
+            });
+
+            body.row(20.0, |mut row| {
                 let cr = self.cpu.user.cr.to_bits();
                 row.col(|ui| {
                     let text = egui::RichText::new(format!("CR"))

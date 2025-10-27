@@ -447,13 +447,14 @@ impl BlockBuilder<'_> {
         // special case: if dividing 0x8000_0000 by -1, replace the denom with 1 too
         let is_min_neg = self.bd.ins().icmp_imm(IntCC::Equal, ra, 0x8000_0000);
         let is_div_by_minus_one = self.bd.ins().icmp_imm(IntCC::Equal, rb, -1);
-        let is_special_case = self.bd.ins().bor(is_min_neg, is_div_by_minus_one);
+        let is_special_case = self.bd.ins().band(is_min_neg, is_div_by_minus_one);
         let denom = self.bd.ins().select(is_special_case, one, denom);
 
         let result = self.bd.ins().sdiv(ra, denom);
 
         if ins.field_oe() {
-            self.update_xer_ov(is_div_by_zero);
+            let overflow = self.bd.ins().bor(is_div_by_zero, is_special_case);
+            self.update_xer_ov(overflow);
         }
 
         if ins.field_rc() {
