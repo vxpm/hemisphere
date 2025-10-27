@@ -66,7 +66,6 @@ impl BlockBuilder<'_> {
 
     /// Checks whether floating point operations are enabled in MSR and raises an exception if not.
     pub fn check_floats(&mut self) {
-        return;
         if self.floats_checked {
             return;
         }
