@@ -309,8 +309,6 @@ impl Renderer {
             return;
         }
 
-        println!("config: {config:#?}");
-
         self.current_config.tev = new;
         self.update_config();
     }

@@ -279,6 +279,7 @@ fn compute(config: Config, diffuse: vec4f, specular: vec4f, coords: array<vec3f,
         config.constants.color2,
         config.constants.color3,
     );
+
     state.diffuse = diffuse;
     state.specular = specular;
     state.coords = coords;
