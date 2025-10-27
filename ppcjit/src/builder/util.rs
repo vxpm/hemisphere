@@ -213,7 +213,7 @@ impl BlockBuilder<'_> {
         let eq = self.bd.ins().icmp_imm(IntCC::Equal, value, 0);
 
         let xer = self.get(SPR::XER);
-        let ov = self.get_bit(xer, 30);
+        let ov = self.get_bit(xer, 31);
 
         self.update_cr(0, lt, gt, eq, ov);
     }

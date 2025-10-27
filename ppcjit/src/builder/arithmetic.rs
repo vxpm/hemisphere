@@ -99,8 +99,9 @@ impl BlockBuilder<'_> {
         let (value, cout_a) = self.bd.ins().uadd_overflow(lhs, rhs);
         let (value, cout_b) = self.bd.ins().uadd_overflow(value, cin);
 
-        if op.record {
-            self.update_cr0_cmpz(value);
+        if op.overflow {
+            let overflowed = self.addition_overflow(lhs, rhs, value);
+            self.update_xer_ov(overflowed);
         }
 
         if op.carry {
@@ -108,9 +109,8 @@ impl BlockBuilder<'_> {
             self.update_xer_ca(carry);
         }
 
-        if op.overflow {
-            let overflowed = self.addition_overflow(lhs, rhs, value);
-            self.update_xer_ov(overflowed);
+        if op.record {
+            self.update_cr0_cmpz(value);
         }
 
         self.set(ins.gpr_d(), value);
@@ -305,10 +305,6 @@ impl BlockBuilder<'_> {
         let (value, cout_a) = self.bd.ins().uadd_overflow(lhs, not_rhs);
         let (value, cout_b) = self.bd.ins().uadd_overflow(value, cin);
 
-        if op.record {
-            self.update_cr0_cmpz(value);
-        }
-
         if op.carry {
             let carry = self.bd.ins().bor(cout_a, cout_b);
             self.update_xer_ca(carry);
@@ -317,6 +313,10 @@ impl BlockBuilder<'_> {
         if op.overflow {
             let overflowed = self.subtraction_overflow(lhs, rhs, value);
             self.update_xer_ov(overflowed);
+        }
+
+        if op.record {
+            self.update_cr0_cmpz(value);
         }
 
         self.set(ins.gpr_d(), value);
@@ -422,12 +422,12 @@ impl BlockBuilder<'_> {
         let value = self.bd.ins().ineg(ra);
         let overflowed = self.bd.ins().icmp_imm(IntCC::Equal, ra, i32::MIN as i64);
 
-        if ins.field_rc() {
-            self.update_cr0_cmpz(value);
-        }
-
         if ins.field_oe() {
             self.update_xer_ov(overflowed);
+        }
+
+        if ins.field_rc() {
+            self.update_cr0_cmpz(value);
         }
 
         self.set(ins.gpr_d(), value);
