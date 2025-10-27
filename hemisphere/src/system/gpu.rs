@@ -13,7 +13,7 @@ use crate::{
     },
 };
 use bitos::{
-    bitos,
+    BitUtils, bitos,
     integer::{UnsignedInt, u3, u4},
 };
 use common::{
@@ -429,10 +429,12 @@ impl System {
                 self.check_interrupts();
             }
             Reg::PixelCopyClearAr => {
-                value.write_be_bytes(&mut self.gpu.pixel.clear_color.as_mut_bytes()[0..2])
+                self.gpu.pixel.clear_color.set_r(value.bits(0, 8) as u8);
+                self.gpu.pixel.clear_color.set_a(value.bits(8, 16) as u8);
             }
             Reg::PixelCopyClearGb => {
-                value.write_be_bytes(&mut self.gpu.pixel.clear_color.as_mut_bytes()[2..4])
+                self.gpu.pixel.clear_color.set_b(value.bits(0, 8) as u8);
+                self.gpu.pixel.clear_color.set_g(value.bits(8, 16) as u8);
             }
             Reg::PixelCopyClearZ => value.write_be_bytes(self.gpu.pixel.clear_depth.as_mut_bytes()),
             Reg::PixelCopyCmd => {
@@ -723,6 +725,7 @@ impl System {
 
     pub fn gx_call(&mut self, address: Address, length: u32) {
         tracing::debug!("called {} with length 0x{:08X}", address, length);
+        let address = self.translate_data_addr(address).unwrap_or(address);
         let data = &self.mem.ram[address.value() as usize..][..length as usize];
         self.gpu.command.queue.push_front_bytes(data);
     }
