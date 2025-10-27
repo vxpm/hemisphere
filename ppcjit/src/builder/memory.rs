@@ -900,6 +900,8 @@ impl BlockBuilder<'_> {
     }
 
     pub fn stfd(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
         let addr = if ins.field_ra() == 0 {
             self.ir_value(ins.field_offset() as i32)
         } else {
@@ -919,12 +921,55 @@ impl BlockBuilder<'_> {
     }
 
     pub fn stfdu(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
         let addr = if ins.field_ra() == 0 {
             self.ir_value(ins.field_offset() as i32)
         } else {
             let ra = self.get(ins.gpr_a());
             self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
         };
+
+        let value = self.get(ins.fpr_s());
+        let value = self
+            .bd
+            .ins()
+            .bitcast(ir::types::I64, ir::MemFlags::new(), value);
+
+        self.write::<i64>(addr, value);
+        self.set(ins.gpr_a(), addr);
+
+        STORE_INFO
+    }
+
+    pub fn stfdx(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let rb = self.get(ins.gpr_b());
+        let addr = if ins.field_ra() == 0 {
+            rb
+        } else {
+            let ra = self.get(ins.gpr_a());
+            self.bd.ins().iadd(ra, rb)
+        };
+
+        let value = self.get(ins.fpr_s());
+        let value = self
+            .bd
+            .ins()
+            .bitcast(ir::types::I64, ir::MemFlags::new(), value);
+
+        self.write::<i64>(addr, value);
+
+        STORE_INFO
+    }
+
+    pub fn stfdux(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let ra = self.get(ins.gpr_a());
+        let rb = self.get(ins.gpr_b());
+        let addr = self.bd.ins().iadd(ra, rb);
 
         let value = self.get(ins.fpr_s());
         let value = self
@@ -946,29 +991,6 @@ impl BlockBuilder<'_> {
         } else {
             let ra = self.get(ins.gpr_a());
             self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
-        };
-
-        let value = self.get(ins.fpr_s());
-        let value = self.bd.ins().fdemote(ir::types::F32, value);
-        let value = self
-            .bd
-            .ins()
-            .bitcast(ir::types::I32, ir::MemFlags::new(), value);
-
-        self.write::<i32>(addr, value);
-
-        STORE_INFO
-    }
-
-    pub fn stfsx(&mut self, ins: Ins) -> Info {
-        self.check_floats();
-
-        let rb = self.get(ins.gpr_b());
-        let addr = if ins.field_ra() == 0 {
-            rb
-        } else {
-            let ra = self.get(ins.gpr_a());
-            self.bd.ins().iadd(ra, rb)
         };
 
         let value = self.get(ins.fpr_s());
@@ -1005,10 +1027,50 @@ impl BlockBuilder<'_> {
 
         STORE_INFO
     }
-}
 
-/// FPR store operations
-impl BlockBuilder<'_> {
+    pub fn stfsx(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let rb = self.get(ins.gpr_b());
+        let addr = if ins.field_ra() == 0 {
+            rb
+        } else {
+            let ra = self.get(ins.gpr_a());
+            self.bd.ins().iadd(ra, rb)
+        };
+
+        let value = self.get(ins.fpr_s());
+        let value = self.bd.ins().fdemote(ir::types::F32, value);
+        let value = self
+            .bd
+            .ins()
+            .bitcast(ir::types::I32, ir::MemFlags::new(), value);
+
+        self.write::<i32>(addr, value);
+
+        STORE_INFO
+    }
+
+    pub fn stfsux(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let ra = self.get(ins.gpr_a());
+        let rb = self.get(ins.gpr_b());
+        let addr = self.bd.ins().iadd(ra, rb);
+
+        let value = self.get(ins.fpr_s());
+        let value = self.bd.ins().fdemote(ir::types::F32, value);
+        let value = self
+            .bd
+            .ins()
+            .bitcast(ir::types::I32, ir::MemFlags::new(), value);
+
+        self.write::<i32>(addr, value);
+        self.set(ins.gpr_a(), addr);
+
+        STORE_INFO
+    }
+
     pub fn stfiwx(&mut self, ins: Ins) -> Info {
         self.check_floats();
 
