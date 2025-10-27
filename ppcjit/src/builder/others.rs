@@ -132,11 +132,10 @@ impl BlockBuilder<'_> {
         let mask = self.ir_value(generate_mask(ins.field_mtfsf_fm()));
 
         let fpscr = self.get(Reg::FPSCR);
-        let bits = self.bd.ins().bitcast(
-            ir::types::I64,
-            ir::MemFlags::new().with_endianness(ir::Endianness::Little),
-            fpr_b,
-        );
+        let bits = self
+            .bd
+            .ins()
+            .bitcast(ir::types::I64, ir::MemFlags::new(), fpr_b);
         let low = self.bd.ins().ireduce(ir::types::I32, bits);
 
         let value = self.bd.ins().bitselect(mask, low, fpscr);
