@@ -452,12 +452,12 @@ impl BlockBuilder<'_> {
 
         let result = self.bd.ins().sdiv(ra, denom);
 
-        if ins.field_rc() {
-            self.update_cr0_cmpz_ov(result, is_div_by_zero);
-        }
-
         if ins.field_oe() {
             self.update_xer_ov(is_div_by_zero);
+        }
+
+        if ins.field_rc() {
+            self.update_cr0_cmpz(result);
         }
 
         self.set(ins.gpr_d(), result);
@@ -476,12 +476,12 @@ impl BlockBuilder<'_> {
 
         let result = self.bd.ins().udiv(ra, denom);
 
-        if ins.field_rc() {
-            self.update_cr0_cmpz_ov(result, is_div_by_zero);
-        }
-
         if ins.field_oe() {
             self.update_xer_ov(is_div_by_zero);
+        }
+
+        if ins.field_rc() {
+            self.update_cr0_cmpz(result);
         }
 
         self.set(ins.gpr_d(), result);
@@ -495,12 +495,12 @@ impl BlockBuilder<'_> {
 
         let (result, overflowed) = self.bd.ins().smul_overflow(ra, rb);
 
-        if ins.field_rc() {
-            self.update_cr0_cmpz_ov(result, overflowed);
-        }
-
         if ins.field_oe() {
             self.update_xer_ov(overflowed);
+        }
+
+        if ins.field_rc() {
+            self.update_cr0_cmpz(result);
         }
 
         self.set(ins.gpr_d(), result);

@@ -218,15 +218,15 @@ impl BlockBuilder<'_> {
         self.update_cr(0, lt, gt, eq, ov);
     }
 
-    /// Updates CR0 by signed comparison of the given value with 0 and withe the given overflow
-    /// flag. Value must be an I32.
-    pub fn update_cr0_cmpz_ov(&mut self, value: ir::Value, ov: ir::Value) {
-        let lt = self.bd.ins().icmp_imm(IntCC::SignedLessThan, value, 0);
-        let gt = self.bd.ins().icmp_imm(IntCC::SignedGreaterThan, value, 0);
-        let eq = self.bd.ins().icmp_imm(IntCC::Equal, value, 0);
-
-        self.update_cr(0, lt, gt, eq, ov);
-    }
+    ///// Updates CR0 by signed comparison of the given value with 0 and withe the given overflow
+    ///// flag. Value must be an I32.
+    //pub fn update_cr0_cmpz_ov(&mut self, value: ir::Value, ov: ir::Value) {
+    //    let lt = self.bd.ins().icmp_imm(IntCC::SignedLessThan, value, 0);
+    //    let gt = self.bd.ins().icmp_imm(IntCC::SignedGreaterThan, value, 0);
+    //    let eq = self.bd.ins().icmp_imm(IntCC::Equal, value, 0);
+    //
+    //    self.update_cr(0, lt, gt, eq, ov);
+    //}
 
     /// All IR values must be booleans (i.e. I8).
     pub fn update_fprf(&mut self, lt: ir::Value, gt: ir::Value, eq: ir::Value, un: ir::Value) {
