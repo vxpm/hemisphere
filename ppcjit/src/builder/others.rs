@@ -41,8 +41,7 @@ const TB_INFO: Info = Info {
 fn generate_mask(control: u8) -> u32 {
     let mut mask = 0;
     for i in 0..8 {
-        // 0 is the higher one
-        if control.bit(7 - i) {
+        if control.bit(i) {
             mask |= (0xF) << (4 * i);
         }
     }
