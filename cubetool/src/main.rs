@@ -11,6 +11,8 @@ use std::{
 
 #[derive(Debug, Subcommand)]
 enum Command {
+    /// Assemble a PowerPC instruction.
+    Assemble { code: String },
     /// Inspect a file
     ///
     /// Supported formats: .dol, .iso
@@ -110,6 +112,23 @@ fn main() -> Result<()> {
 
     let config = Args::parse();
     match config.command {
+        Command::Assemble { code } => {
+            let code = code.replace("_", "");
+            let code = if let Some(code) = code.strip_prefix("0x") {
+                u32::from_str_radix(code, 16).context("parsing instruction code")?
+            } else if let Some(code) = code.strip_prefix("0b") {
+                u32::from_str_radix(code, 2).context("parsing instruction code")?
+            } else {
+                u32::from_str_radix(&code, 10).context("parsing instruction code")?
+            };
+
+            let ins = powerpc::Ins::new(code, powerpc::Extensions::gekko_broadway());
+            let mut parsed = powerpc::ParsedIns::new();
+            ins.parse_basic(&mut parsed);
+            println!("{parsed}");
+
+            Ok(())
+        }
         Command::Inspect { input, filesystem } => {
             let extension = input
                 .extension()

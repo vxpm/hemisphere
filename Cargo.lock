@@ -932,7 +932,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "cubefile"
+name = "cubetool"
 version = "0.1.0"
 dependencies = [
  "binrw",
@@ -943,6 +943,7 @@ dependencies = [
  "eyre-pretty",
  "iso",
  "petgraph 0.8.3",
+ "powerpc",
 ]
 
 [[package]]

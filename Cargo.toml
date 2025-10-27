@@ -5,7 +5,7 @@ members = [
     "ppcjit",
     "dol",
     "iso",
-    "cubefile",
+    "cubetool",
     "fake-ipl",
     "hemisphere",
     "renderer",
