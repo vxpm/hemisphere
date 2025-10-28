@@ -1,8 +1,7 @@
-use std::io::SeekFrom;
-
 use crate::system::{Event, System};
 use bitos::bitos;
 use common::Address;
+use std::io::SeekFrom;
 
 #[bitos(32)]
 #[derive(Debug, Clone, Copy, Default)]
@@ -25,9 +24,9 @@ pub struct Status {
 
 impl Status {
     pub fn any_interrupt(&self) -> bool {
-        let device_err = self.transfer_interrupt() && self.transfer_interrupt_mask();
+        let device_err = self.device_err_interrupt() && self.device_err_interrupt();
         let transfer = self.transfer_interrupt() && self.transfer_interrupt_mask();
-        let break_ = self.transfer_interrupt() && self.transfer_interrupt_mask();
+        let break_ = self.break_interrupt() && self.break_interrupt_mask();
         device_err || transfer || break_
     }
 }
@@ -99,8 +98,14 @@ impl Interface {
 }
 
 impl System {
-    pub fn di_update(&mut self) {
-        if self.disk.control.transfer_ongoing() {
+    pub fn di_write_control(&mut self, value: Control) {
+        self.disk.control.set_dma(value.dma());
+        self.disk.control.set_mode(value.mode());
+
+        if value.transfer_ongoing() && !self.disk.control.transfer_ongoing() {
+            tracing::debug!("starting DI transfer");
+            self.disk.control.set_transfer_ongoing(true);
+
             let command = self.disk.command[0];
             match command {
                 0xA800_0000 => {
@@ -134,6 +139,37 @@ impl System {
 
                     self.scheduler.schedule(Event::DiskTransferComplete, 10000);
                 }
+                0xA800_0040 => {
+                    assert!(self.disk.control.dma());
+
+                    // load from disk!
+                    let target = self.disk.dma_base;
+                    let offset = 0;
+                    let length = self.disk.dma_length;
+
+                    if length == 0 {
+                        tracing::warn!(
+                            "ignoring zero sized disk read from 0x{offset:08X} into {target}"
+                        );
+                        self.disk.control.set_transfer_ongoing(false);
+                        return;
+                    }
+
+                    tracing::debug!(
+                        "reading 0x{length:08X} bytes from disk at 0x{offset:08X} into {target}"
+                    );
+
+                    let iso = self.config.iso.as_mut().unwrap();
+                    let reader = iso.reader();
+
+                    let target = self.mmu.translate_instr_addr(target).unwrap();
+                    reader.seek(SeekFrom::Start(offset as u64)).unwrap();
+                    reader
+                        .read_exact(&mut self.mem.ram[target.value() as usize..][..length as usize])
+                        .unwrap();
+
+                    self.scheduler.schedule(Event::DiskTransferComplete, 10000);
+                }
                 0x1200_0000 => {
                     let target = self.mmu.translate_data_addr(self.disk.dma_base).unwrap();
                     let length = self.disk.dma_length;
@@ -141,7 +177,7 @@ impl System {
 
                     self.scheduler.schedule(Event::DiskTransferComplete, 10000);
                 }
-                _ => todo!("{}", command),
+                _ => todo!("{:08X}", command),
             }
         }
     }

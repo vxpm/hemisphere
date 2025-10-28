@@ -196,7 +196,7 @@ impl System {
         self.write::<u32>(Address(0x3C), 0x00000024); // FST max length
         self.write::<u32>(Address(0xD0), 16 * 1024 * 1024); // ARAM size
         self.write::<u32>(Address(0xF8), 0x09A7EC80); // Bus clock
-        self.write::<u32>(Address(0xFC), 0x1cf7c580); // CPU clock
+        self.write::<u32>(Address(0xFC), 0x1CF7C580); // CPU clock
 
         // setup MSR
         self.cpu.supervisor.config.msr.set_exception_prefix(false);
@@ -227,10 +227,10 @@ impl System {
             config,
         };
 
-        if system.config.iso.is_some() {
-            system.load_iso();
-        } else if system.config.sideload.is_some() {
+        if system.config.sideload.is_some() {
             system.load_executable();
+        } else if system.config.iso.is_some() {
+            system.load_iso();
         }
 
         system
@@ -260,7 +260,9 @@ impl System {
             Event::DiskTransferComplete => {
                 self.disk.status.set_transfer_interrupt(true);
                 self.disk.control.set_transfer_ongoing(false);
+                self.disk.dma_length = 0;
                 self.scheduler.schedule_now(Event::CheckInterrupts);
+                tracing::debug!("completed DI transfer");
             }
             Event::Decrementer => {
                 self.update_decrementer();

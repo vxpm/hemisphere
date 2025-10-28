@@ -17,7 +17,7 @@ use eframe::{
     egui,
     egui_wgpu::{WgpuConfiguration, WgpuSetup, WgpuSetupCreateNew},
 };
-use eyre_pretty::{ContextCompat, bail, eyre::Result};
+use eyre_pretty::eyre::Result;
 use hemisphere::{
     Address, Config, iso, jit,
     runner::Runner,
@@ -88,30 +88,25 @@ impl App {
     fn new(cc: &eframe::CreationContext<'_>, args: &cli::Args) -> Result<Self> {
         tracing::info!("loading executable");
 
-        let input_extension = args
-            .input
-            .extension()
-            .and_then(|e| e.to_str())
-            .context("unknown input file extension")?;
+        let ipl = if let Some(path) = &args.ipl {
+            Some(std::fs::read(path)?)
+        } else {
+            None
+        };
 
-        let mut ipl = None;
-        if let Some(path) = &args.ipl {
-            ipl = Some(std::fs::read(path)?);
-        }
+        let iso = if let Some(path) = &args.iso {
+            let file = std::fs::File::open(path)?;
+            let reader = BufReader::new(file);
+            Some(iso::Iso::new(Box::new(reader) as _)?)
+        } else {
+            None
+        };
 
-        let mut iso = None;
-        let mut executable = None;
-        match input_extension {
-            "iso" => {
-                let file = std::fs::File::open(&args.input)?;
-                let reader = BufReader::new(file);
-                iso = Some(iso::Iso::new(Box::new(reader) as _)?);
-            }
-            "dol" => {
-                executable = Some(Executable::open(&args.input)?);
-            }
-            _ => bail!("unknown input file extension"),
-        }
+        let executable = if let Some(path) = &args.exec {
+            Some(Executable::open(path)?)
+        } else {
+            None
+        };
 
         let debug_info = args
             .dwarf

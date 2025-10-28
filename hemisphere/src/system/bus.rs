@@ -245,7 +245,13 @@ impl System {
         };
 
         if !matches!(reg, Mmio::FakeStdout | Mmio::ProcessorFifo) {
-            tracing::debug!("writing 0x{:08X} to {:?}[{:?}]", value, reg, range,);
+            tracing::debug!(
+                pc = ?self.cpu.pc,
+                "writing 0x{:08X} to {:?}[{:?}]",
+                value,
+                reg,
+                range,
+            );
         }
 
         // write to native endian bytes
@@ -453,8 +459,9 @@ impl System {
             Mmio::DiskDmaBase => ne!(self.disk.dma_base.as_mut_bytes()),
             Mmio::DiskDmaLength => ne!(self.disk.dma_length.as_mut_bytes()),
             Mmio::DiskControl => {
-                ne!(self.disk.control.as_mut_bytes());
-                self.di_update();
+                let mut written = disk::Control::from_bits(0);
+                ne!(written.as_mut_bytes());
+                self.di_write_control(written);
             }
             Mmio::DiskConfiguration => {
                 ne!(self.disk.config.as_mut_bytes());

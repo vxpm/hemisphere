@@ -4,24 +4,6 @@ use crate::system::System;
 use bitos::{bitos, integer::u26};
 use common::{Address, arch::Exception};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Interrupt {
-    GpError,
-    Reset,
-    DVD,
-    Serial,
-    External,
-    Audio,
-    DSP,
-    Memory,
-    Video,
-    PeToken,
-    PeFinish,
-    CommandProcessor,
-    Debug,
-    HighSpeedPort,
-}
-
 #[bitos(14)]
 #[derive(Default, Debug, Clone, Copy)]
 pub struct InterruptSources {
