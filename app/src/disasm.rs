@@ -110,7 +110,7 @@ impl AppWindow for Window {
                 .resizable(false)
                 .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
                 .column(Column::auto())
-                .column(Column::remainder());
+                .column(Column::exact(250.0));
 
             let table = builder.header(20.0, |mut header| {
                 header.col(|ui| {
