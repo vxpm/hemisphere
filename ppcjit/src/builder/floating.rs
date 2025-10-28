@@ -100,6 +100,43 @@ impl BlockBuilder<'_> {
         FLOAT_INFO
     }
 
+    pub fn fabs(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let fpr_b = self.get(ins.fpr_b());
+        let value = self.bd.ins().fabs(fpr_b);
+
+        self.set(ins.fpr_d(), value);
+
+        if ins.field_rc() {
+            self.update_cr1_float();
+        }
+
+        FLOAT_INFO
+    }
+
+    pub fn ps_rsqrte(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let ps_b = self.get_ps(ins.fpr_b());
+        let one = self.ir_value(1.0f64);
+        let ps_one = self.bd.ins().splat(ir::types::F64X2, one);
+
+        let sqrt = self.bd.ins().sqrt(ps_b);
+        let recip = self.bd.ins().fdiv(ps_one, sqrt);
+
+        self.set_ps(ins.fpr_d(), recip);
+
+        let ps0 = self.get(ins.fpr_b());
+        self.update_fprf_cmpz(ps0);
+
+        if ins.field_rc() {
+            self.update_cr1_float();
+        }
+
+        FLOAT_INFO
+    }
+
     pub fn ps_mr(&mut self, ins: Ins) -> Info {
         self.check_floats();
 
@@ -209,6 +246,25 @@ impl BlockBuilder<'_> {
 
         self.set(ins.fpr_d(), ps1_a);
         self.set(Reg::PS1(ins.fpr_d()), ps1_b);
+
+        if ins.field_rc() {
+            self.update_cr1_float();
+        }
+
+        FLOAT_INFO
+    }
+
+    pub fn mffs(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let fpscr = self.get(Reg::FPSCR);
+        let extended = self.bd.ins().uextend(ir::types::I64, fpscr);
+        let float = self
+            .bd
+            .ins()
+            .bitcast(ir::types::F64, ir::MemFlags::new(), extended);
+
+        self.set(ins.fpr_d(), float);
 
         if ins.field_rc() {
             self.update_cr1_float();

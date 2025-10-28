@@ -59,22 +59,37 @@ pub struct TevStage {
 
 #[derive(Debug, Clone, Immutable, IntoBytes, Default, PartialEq)]
 #[repr(C)]
+pub struct Constants {
+    pub color0: Rgba,
+    pub color1: Rgba,
+    pub color2: Rgba,
+    pub color3: Rgba,
+}
+
+#[derive(Debug, Clone, Immutable, IntoBytes, Default, PartialEq)]
+#[repr(C)]
 pub struct TevConfig {
     pub count: u32,
-
     pub _pad0: u32,
     pub _pad1: u32,
     pub _pad2: u32,
 
+    pub constants: Constants,
     pub stages: [TevStage; 16],
 }
 
 impl TevConfig {
-    pub fn new(stages: Vec<render::TevStage>) -> Self {
-        let count = stages.len() as u32;
-        let mut data = std::array::from_fn::<TevStage, 16, _>(|_| TevStage::default());
+    pub fn new(config: render::TevConfig) -> Self {
+        let count = config.stages.len() as u32;
+        let constants = Constants {
+            color0: config.constants[0],
+            color1: config.constants[1],
+            color2: config.constants[2],
+            color3: config.constants[3],
+        };
 
-        for (stage, data) in stages.into_iter().zip(data.iter_mut()) {
+        let mut data = std::array::from_fn::<TevStage, 16, _>(|_| TevStage::default());
+        for (stage, data) in config.stages.into_iter().zip(data.iter_mut()) {
             data.color.input_a = stage.ops.color.input_a() as u32;
             data.color.input_b = stage.ops.color.input_b() as u32;
             data.color.input_c = stage.ops.color.input_c() as u32;
@@ -104,6 +119,7 @@ impl TevConfig {
 
         Self {
             count,
+            constants,
             _pad0: 0,
             _pad1: 0,
             _pad2: 0,

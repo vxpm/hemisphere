@@ -1,3 +1,5 @@
+mod fake-ipl
+
 export RUSTDOCFLAGS := "-Zunstable-options --show-type-layout --generate-link-to-definition --default-theme dark"
 
 # Lists all recipes

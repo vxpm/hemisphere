@@ -1,0 +1,14 @@
+# Lists all recipes
+list:
+    @just --list
+
+# Builds the fake-ipl binary, copies it to the resources folder and converts it to a .dol
+build:
+    @echo -e "=> Building fake-ipl.elf ..."
+    @cargo build --release
+    @echo -e "=> Copying fake-ipl.elf to resources folder ..."
+    @cp ../target/powerpc-nintendo-gamecube-eabi/release/fake-ipl.elf ../resources/fake-ipl.elf
+    @echo -e "=> Converting fake-ipl.elf to fake-ipl.dol ..."
+    @cd .. && cargo run -p cubefile convert -i resources/fake-ipl.elf -o resources/fake-ipl.dol
+    @echo -e "=> Done!"
+    @cd .. && cargo run -p cubefile inspect -i resources/fake-ipl.dol

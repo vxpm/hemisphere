@@ -8,4 +8,6 @@ edition = "2024"
 workspace = true
 
 [dependencies]
+elf = "0.8"
+easyerr.workspace = true
 binrw.workspace = true

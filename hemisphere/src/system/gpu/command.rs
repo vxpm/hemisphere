@@ -20,7 +20,7 @@ use zerocopy::IntoBytes;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, FromRepr)]
 #[repr(u8)]
 pub enum Reg {
-    Unknown = 0x20,
+    Unknown20 = 0x20,
 
     MatIndexLow = 0x30,
     MatIndexHigh = 0x40,
@@ -136,6 +136,10 @@ pub struct Opcode {
 pub enum Command {
     Nop,
     InvalidateVertexCache,
+    Call {
+        address: Address,
+        length: u32,
+    },
     SetCP {
         register: Reg,
         value: u32,
@@ -147,6 +151,26 @@ pub enum Command {
     SetXF {
         start: u16,
         values: Vec<u32>,
+    },
+    IndexedSetXFA {
+        base: u16,
+        length: u8,
+        index: u16,
+    },
+    IndexedSetXFB {
+        base: u16,
+        length: u8,
+        index: u16,
+    },
+    IndexedSetXFC {
+        base: u16,
+        length: u8,
+        index: u16,
+    },
+    IndexedSetXFD {
+        base: u16,
+        length: u8,
+        index: u16,
     },
     Draw {
         topology: Topology,
@@ -194,15 +218,38 @@ impl Default for Control {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct Fifo {
     pub start: Address,
     pub end: Address,
     pub high_mark: u32,
     pub low_mark: u32,
-    pub count: u32,
     pub write_ptr: Address,
     pub read_ptr: Address,
+}
+
+impl Fifo {
+    /// The FIFO count.
+    pub fn count(&self) -> u32 {
+        let count = if self.write_ptr >= self.read_ptr {
+            self.write_ptr - self.read_ptr
+        } else {
+            let start = self.write_ptr - self.start;
+            let end = self.end - self.read_ptr;
+            start + end
+        };
+
+        assert!(
+            count >= 0,
+            "start: {}, end: {}; write: {}, read: {}",
+            self.start,
+            self.end,
+            self.write_ptr,
+            self.read_ptr,
+        );
+
+        count as u32
+    }
 }
 
 #[bitos[2]]
@@ -311,6 +358,7 @@ pub struct Arrays {
     pub normal: ArrayDescriptor,
     pub diffuse: ArrayDescriptor,
     pub tex_coords: [ArrayDescriptor; 8],
+    pub general_purpose: [ArrayDescriptor; 4],
 }
 
 #[bitos(64)]
@@ -428,49 +476,6 @@ impl Interface {
             self.status.set_fifo_underflow(false);
         }
     }
-
-    /// Updates the FIFO count.
-    pub fn update_count(&mut self) {
-        let count = if self.fifo.write_ptr >= self.fifo.read_ptr {
-            self.fifo.write_ptr - self.fifo.read_ptr
-        } else {
-            let start = self.fifo.write_ptr - self.fifo.start;
-            let end = self.fifo.end - self.fifo.read_ptr;
-            start + end
-        };
-
-        assert!(
-            count >= 0,
-            "start: {}, end: {}; write: {}, read: {}",
-            self.fifo.start,
-            self.fifo.end,
-            self.fifo.write_ptr,
-            self.fifo.read_ptr
-        );
-        self.fifo.count = count as u32;
-    }
-
-    /// Signals a value has been pushed to the CP FIFO.
-    pub fn fifo_push(&mut self) {
-        self.fifo.write_ptr += 1;
-
-        if self.fifo.write_ptr > self.fifo.end {
-            self.fifo.write_ptr = self.fifo.start;
-        }
-
-        self.update_count();
-    }
-
-    /// Signals a value has been popped from the CP FIFO.
-    pub fn fifo_pop(&mut self) {
-        self.fifo.read_ptr += 1;
-
-        if self.fifo.read_ptr > self.fifo.end {
-            self.fifo.read_ptr = self.fifo.start;
-        }
-
-        self.update_count();
-    }
 }
 
 impl Gpu {
@@ -506,11 +511,60 @@ impl Gpu {
 
                 Command::SetXF { start, values }
             }
-            Operation::IndexedSetXFA => todo!(),
-            Operation::IndexedSetXFB => todo!(),
-            Operation::IndexedSetXFC => todo!(),
-            Operation::IndexedSetXFD => todo!(),
-            Operation::Call => todo!(),
+            Operation::IndexedSetXFA => {
+                let config = reader.read_be::<u32>()?;
+                let base = config.bits(0, 12) as u16;
+                let length = config.bits(12, 16) as u8 + 1;
+                let index = config.bits(16, 32) as u16;
+
+                Command::IndexedSetXFA {
+                    base,
+                    length,
+                    index,
+                }
+            }
+            Operation::IndexedSetXFB => {
+                let config = reader.read_be::<u32>()?;
+                let base = config.bits(0, 12) as u16;
+                let length = config.bits(12, 16) as u8 + 1;
+                let index = config.bits(16, 32) as u16;
+
+                Command::IndexedSetXFB {
+                    base,
+                    length,
+                    index,
+                }
+            }
+            Operation::IndexedSetXFC => {
+                let config = reader.read_be::<u32>()?;
+                let base = config.bits(0, 12) as u16;
+                let length = config.bits(12, 16) as u8 + 1;
+                let index = config.bits(16, 32) as u16;
+
+                Command::IndexedSetXFC {
+                    base,
+                    length,
+                    index,
+                }
+            }
+            Operation::IndexedSetXFD => {
+                let config = reader.read_be::<u32>()?;
+                let base = config.bits(0, 12) as u16;
+                let length = config.bits(12, 16) as u8 + 1;
+                let index = config.bits(16, 32) as u16;
+
+                Command::IndexedSetXFD {
+                    base,
+                    length,
+                    index,
+                }
+            }
+            Operation::Call => {
+                let address = Address(reader.read_be::<u32>()?);
+                let length = reader.read_be::<u32>()?;
+
+                Command::Call { address, length }
+            }
             Operation::InvalidateVertexCache => Command::InvalidateVertexCache,
             Operation::SetBP => {
                 let register = reader.read_be::<u8>()?;
@@ -678,10 +732,13 @@ impl System {
 
     /// Pops a value from the CP FIFO in memory.
     fn cp_fifo_pop(&mut self) -> u8 {
-        assert!(self.gpu.command.fifo.count > 0);
+        assert!(self.gpu.command.fifo.count() > 0);
 
         let data = self.read::<u8>(self.gpu.command.fifo.read_ptr);
-        self.gpu.command.fifo_pop();
+        self.gpu.command.fifo.read_ptr += 1;
+        if self.gpu.command.fifo.read_ptr > self.gpu.command.fifo.end {
+            self.gpu.command.fifo.read_ptr = self.gpu.command.fifo.start;
+        }
 
         data
     }
@@ -697,17 +754,52 @@ impl System {
                 return;
             };
 
-            tracing::debug!("processing {:02X?}", cmd);
+            if !matches!(cmd, Command::Nop | Command::InvalidateVertexCache) {
+                tracing::debug!("processing {:02X?}", cmd);
+            }
 
             match cmd {
                 Command::Nop => (),
                 Command::InvalidateVertexCache => (),
+                Command::Call { address, length } => self.gx_call(address, length),
                 Command::SetCP { register, value } => self.cp_set(register, value),
                 Command::SetBP { register, value } => self.gx_set(register, value),
                 Command::SetXF { start, values } => {
                     for (offset, value) in values.into_iter().enumerate() {
                         self.xf_write(start + offset as u16, value);
                     }
+                }
+                Command::IndexedSetXFA {
+                    base,
+                    length,
+                    index,
+                } => {
+                    let array = self.gpu.command.internal.arrays.general_purpose[0];
+                    self.xf_write_indexed(array, base, length, index);
+                }
+                Command::IndexedSetXFB {
+                    base,
+                    length,
+                    index,
+                } => {
+                    let array = self.gpu.command.internal.arrays.general_purpose[1];
+                    self.xf_write_indexed(array, base, length, index);
+                }
+                Command::IndexedSetXFC {
+                    base,
+                    length,
+                    index,
+                } => {
+                    let array = self.gpu.command.internal.arrays.general_purpose[2];
+                    self.xf_write_indexed(array, base, length, index);
+                }
+                Command::IndexedSetXFD {
+                    base,
+                    length,
+                    index,
+                } => {
+                    let array = self.gpu.command.internal.arrays.general_purpose[3];
+                    self.xf_write_indexed(array, base, length, index);
                 }
                 Command::Draw {
                     topology,
@@ -719,9 +811,20 @@ impl System {
         }
     }
 
+    /// Synchronizes the CP fifo to the PI fifo.
+    pub fn cp_sync_to_pi(&mut self) {
+        self.gpu.command.fifo.start = self.processor.fifo_start;
+        self.gpu.command.fifo.end = self.processor.fifo_end;
+        self.gpu.command.fifo.write_ptr = self.processor.fifo_current.address();
+    }
+
     /// Consumes commands available in the CP FIFO and processes them.
     pub fn cp_update(&mut self) {
-        while self.gpu.command.fifo.count > 0 {
+        if !self.gpu.command.control.fifo_read_enable() {
+            return;
+        }
+
+        while self.gpu.command.fifo.count() > 0 {
             let data = self.cp_fifo_pop();
             self.gpu.command.queue.push_be(data);
         }

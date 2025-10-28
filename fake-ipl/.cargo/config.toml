@@ -1,0 +1,12 @@
+[build]
+target = "powerpc-nintendo-gamecube-eabi.json"
+
+[profile.dev]
+opt-level = 0
+
+[profile.release]
+opt-level = 'z'
+
+[unstable]
+build-std = ["core"]
+build-std-features = ["compiler-builtins-mem"]

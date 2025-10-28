@@ -1,27 +1,29 @@
+mod buffers;
 mod data;
+mod framebuffer;
 mod pipeline;
 mod textures;
-mod viewport;
 
 use crate::render::{
-    pipeline::{Pipeline, PipelineSettings},
-    textures::Textures,
-    viewport::Framebuffer,
+    buffers::Buffers, framebuffer::Framebuffer, pipeline::Pipeline, textures::Textures,
 };
 use glam::Mat4;
 use hemisphere::{
-    render::{self, Viewport},
+    render::{self, Action, TevConfig, Viewport},
     system::gpu::{
-        VertexAttributes,
+        Topology, VertexAttributes,
         command::attributes::Rgba,
-        pixel::{CompareMode, DepthMode},
+        pixel::{BlendFactor, BlendMode, CompareMode, DepthMode},
         transform::TexGen,
     },
 };
 use ordered_float::OrderedFloat;
 use rustc_hash::FxHashMap;
-use std::collections::hash_map::Entry;
-use wgpu::util::DeviceExt;
+use std::{
+    collections::hash_map::Entry,
+    num::NonZero,
+    sync::{Arc, Mutex},
+};
 use zerocopy::IntoBytes;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -36,15 +38,24 @@ impl From<Mat4> for HashableMat4 {
     }
 }
 
+pub struct Shared {
+    pub frontbuffer: wgpu::TextureView,
+}
+
 pub struct Renderer {
     device: wgpu::Device,
     queue: wgpu::Queue,
+    shared: Arc<Mutex<Shared>>,
+
+    current_encoder: wgpu::CommandEncoder,
+    current_pass: wgpu::RenderPass<'static>,
 
     pipeline: Pipeline,
     framebuffer: Framebuffer,
     textures: Textures,
+    index_buffers: Buffers,
+    storage_buffers: Buffers,
 
-    queued_clear: bool,
     clear_color: wgpu::Color,
     current_config: Box<data::Config>,
     current_projection_mat: Mat4,
@@ -58,24 +69,64 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    pub fn new(device: wgpu::Device, queue: wgpu::Queue) -> Self {
+    pub fn new(device: wgpu::Device, queue: wgpu::Queue) -> (Self, Arc<Mutex<Shared>>) {
         let framebuffer = Framebuffer::new(&device);
         let pipeline = Pipeline::new(&device);
         let textures = Textures::new(&device);
+        let index_buffers = Buffers::new(wgpu::BufferUsages::INDEX);
+        let storage_buffers = Buffers::new(wgpu::BufferUsages::STORAGE);
+
+        let front = framebuffer.front().create_view(&Default::default());
+        let color = framebuffer.color().create_view(&Default::default());
+        let depth = framebuffer.depth().create_view(&Default::default());
+
+        let shared = Arc::new(Mutex::new(Shared { frontbuffer: front }));
+
+        let mut encoder = device.create_command_encoder(&Default::default());
+        let pass = encoder
+            .begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("hemisphere render pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &color,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &depth,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            })
+            .forget_lifetime();
+
         let mut value = Self {
             device,
             queue,
+            shared: shared.clone(),
+
+            current_encoder: encoder,
+            current_pass: pass,
 
             pipeline,
             framebuffer,
             textures,
+            index_buffers,
+            storage_buffers,
 
             clear_color: wgpu::Color::BLACK,
             current_config: Default::default(),
             current_projection_mat: Default::default(),
             current_projection_mat_idx: 0,
 
-            queued_clear: false,
             configs: Vec::new(),
             vertices: Vec::new(),
             indices: Vec::new(),
@@ -84,7 +135,42 @@ impl Renderer {
         };
 
         value.reset();
-        value
+        (value, shared)
+    }
+
+    pub fn exec(&mut self, action: Action) {
+        match action {
+            Action::SetViewport(viewport) => {
+                self.resize_viewport(viewport);
+                let mut lock = self.shared.lock().unwrap();
+                lock.frontbuffer = self.frontbuffer().clone();
+            }
+            Action::SetClearColor(color) => self.set_clear_color(color),
+            Action::SetBlendMode(mode) => self.set_blend_mode(mode),
+            Action::SetDepthMode(mode) => self.set_depth_mode(mode),
+            Action::SetProjectionMatrix(mat) => self.set_projection_mat(mat),
+            Action::SetTevConfig(config) => self.set_tev_config(config),
+            Action::SetTexGens(texgens) => self.set_texgens(texgens),
+            Action::LoadTexture {
+                id,
+                width,
+                height,
+                data,
+            } => self.load_texture(id, width, height, zerocopy::transmute_ref!(data.as_slice())),
+            Action::SetTexture { index, id } => self.set_texture(index, id),
+            Action::Draw(topology, attributes) => match topology {
+                Topology::QuadList => self.draw_quad_list(&attributes),
+                Topology::TriangleList => self.draw_triangle_list(&attributes),
+                Topology::TriangleStrip => self.draw_triangle_strip(&attributes),
+                Topology::TriangleFan => todo!(),
+                Topology::LineList => todo!(),
+                Topology::LineStrip => todo!(),
+                Topology::PointList => todo!(),
+            },
+            Action::EfbCopy { clear } => {
+                self.next_pass(clear);
+            }
+        }
     }
 
     pub fn insert_matrix(&mut self, mat: Mat4) -> u32 {
@@ -143,16 +229,8 @@ impl Renderer {
         self.configs.push((*self.current_config).clone());
     }
 
-    pub fn front_buffer(&self) -> wgpu::TextureView {
-        self.framebuffer
-            .front()
-            .color
-            .create_view(&Default::default())
-    }
-
-    pub fn swap(&mut self) {
-        self.flush(false);
-        self.framebuffer.swap();
+    pub fn frontbuffer(&self) -> wgpu::TextureView {
+        self.framebuffer.front().create_view(&Default::default())
     }
 
     pub fn resize_viewport(&mut self, viewport: Viewport) {
@@ -168,8 +246,39 @@ impl Renderer {
         };
     }
 
+    pub fn set_blend_mode(&mut self, mode: BlendMode) {
+        self.flush();
+
+        let factor = |factor: BlendFactor| match factor {
+            BlendFactor::Zero => wgpu::BlendFactor::Zero,
+            BlendFactor::One => wgpu::BlendFactor::One,
+            BlendFactor::SrcColor => wgpu::BlendFactor::Src,
+            BlendFactor::InverseSrcColor => wgpu::BlendFactor::OneMinusSrc,
+            BlendFactor::SrcAlpha => wgpu::BlendFactor::SrcAlpha,
+            BlendFactor::InverseSrcAlpha => wgpu::BlendFactor::OneMinusSrcAlpha,
+            BlendFactor::DstAlpha => wgpu::BlendFactor::DstAlpha,
+            BlendFactor::InverseDstAlpha => wgpu::BlendFactor::OneMinusDstAlpha,
+        };
+
+        let src = factor(mode.src_factor());
+        let dst = factor(mode.dst_factor());
+        let op = if mode.blend_subtract() {
+            wgpu::BlendOperation::Subtract
+        } else {
+            wgpu::BlendOperation::Add
+        };
+
+        self.pipeline.settings.color_write = mode.color_mask();
+        self.pipeline.settings.alpha_write = mode.alpha_mask();
+        self.pipeline.settings.blend_enabled = mode.enable();
+        self.pipeline.settings.blend_src = src;
+        self.pipeline.settings.blend_dst = dst;
+        self.pipeline.settings.blend_op = op;
+        self.pipeline.update(&self.device);
+    }
+
     pub fn set_depth_mode(&mut self, mode: DepthMode) {
-        self.flush(false);
+        self.flush();
 
         let compare = match mode.compare() {
             CompareMode::Never => wgpu::CompareFunction::Never,
@@ -182,13 +291,10 @@ impl Renderer {
             CompareMode::Always => wgpu::CompareFunction::Always,
         };
 
-        self.pipeline.switch(
-            &self.device,
-            &PipelineSettings {
-                depth_write: mode.update(),
-                depth_compare: compare,
-            },
-        );
+        self.pipeline.settings.depth_enabled = mode.enable();
+        self.pipeline.settings.depth_write = mode.update();
+        self.pipeline.settings.depth_compare = compare;
+        self.pipeline.update(&self.device);
     }
 
     pub fn set_projection_mat(&mut self, mat: Mat4) {
@@ -197,8 +303,8 @@ impl Renderer {
         self.current_projection_mat_idx = id;
     }
 
-    pub fn set_tev_stages(&mut self, stages: Vec<render::TevStage>) {
-        let new = data::TevConfig::new(stages);
+    pub fn set_tev_config(&mut self, config: TevConfig) {
+        let new = data::TevConfig::new(config.clone());
         if self.current_config.tev == new {
             return;
         }
@@ -217,10 +323,18 @@ impl Renderer {
         self.update_config();
     }
 
-    pub fn set_texture(&mut self, index: usize, width: u32, height: u32, data: &[u8]) {
-        self.flush(false);
+    pub fn load_texture(&mut self, id: u32, width: u32, height: u32, data: &[u8]) {
+        self.flush();
         self.textures
-            .update_texture(&self.device, &self.queue, index, width, height, data);
+            .update_texture(&self.device, &self.queue, id, width, height, data);
+    }
+
+    pub fn set_texture(&mut self, index: usize, id: u32) {
+        let current = self.textures.get_texture_id(index);
+        if current != id {
+            self.flush();
+            self.textures.set_texture(index, id);
+        }
     }
 
     pub fn draw_quad_list(&mut self, vertices: &[VertexAttributes]) {
@@ -263,53 +377,30 @@ impl Renderer {
         self.set_projection_mat(self.current_projection_mat);
     }
 
-    pub fn flush(&mut self, clear: bool) {
+    pub fn flush(&mut self) {
         if self.vertices.is_empty() {
-            self.queued_clear = true;
             return;
         }
 
-        let clear = clear || self.queued_clear;
-        self.queued_clear = false;
+        let index_buf =
+            self.index_buffers
+                .allocate(&self.device, &self.queue, self.indices.as_bytes());
+        let configs_buf =
+            self.storage_buffers
+                .allocate(&self.device, &self.queue, self.configs.as_bytes());
+        let matrices_buf =
+            self.storage_buffers
+                .allocate(&self.device, &self.queue, self.matrices.as_bytes());
+        let vertices_buf =
+            self.storage_buffers
+                .allocate(&self.device, &self.queue, self.vertices.as_bytes());
 
-        let index_buf = self
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("hemisphere index buffer"),
-                contents: self.indices.as_bytes(),
-                usage: wgpu::BufferUsages::INDEX,
-            });
-
-        let configs_buf = self
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("hemisphere configs buffer"),
-                contents: self.configs.as_bytes(),
-                usage: wgpu::BufferUsages::STORAGE,
-            });
-
-        let matrices_buf = self
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("hemisphere matrices buffer"),
-                contents: self.matrices.as_bytes(),
-                usage: wgpu::BufferUsages::STORAGE,
-            });
-
-        let vertices_buf = self
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("hemisphere vertices buffer"),
-                contents: self.vertices.as_bytes(),
-                usage: wgpu::BufferUsages::STORAGE,
-            });
-
+        let samplers = self.textures.samplers();
         let textures = self
             .textures
             .textures()
             .clone()
             .map(|tex| tex.create_view(&Default::default()));
-        let samplers = self.textures.samplers();
 
         let primitives_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: None,
@@ -320,7 +411,7 @@ impl Renderer {
                     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
                         buffer: &configs_buf,
                         offset: 0,
-                        size: None,
+                        size: NonZero::new(self.configs.as_bytes().len() as u64),
                     }),
                 },
                 wgpu::BindGroupEntry {
@@ -328,7 +419,7 @@ impl Renderer {
                     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
                         buffer: &matrices_buf,
                         offset: 0,
-                        size: None,
+                        size: NonZero::new(self.matrices.as_bytes().len() as u64),
                     }),
                 },
                 wgpu::BindGroupEntry {
@@ -336,7 +427,7 @@ impl Renderer {
                     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
                         buffer: &vertices_buf,
                         offset: 0,
-                        size: None,
+                        size: NonZero::new(self.vertices.as_bytes().len() as u64),
                     }),
                 },
             ],
@@ -362,57 +453,91 @@ impl Renderer {
             entries: &textures_group_entries,
         });
 
-        let framebuffer = self.framebuffer.back();
-        let color = framebuffer.color.create_view(&Default::default());
-        let depth = framebuffer.depth.create_view(&Default::default());
+        self.current_pass.set_pipeline(self.pipeline.pipeline());
+        self.current_pass
+            .set_bind_group(0, Some(&primitives_group), &[]);
+        self.current_pass
+            .set_bind_group(1, Some(&textures_group), &[]);
+        self.current_pass.set_index_buffer(
+            index_buf.slice(..self.indices.as_bytes().len() as u64),
+            wgpu::IndexFormat::Uint32,
+        );
+        self.current_pass
+            .draw_indexed(0..self.indices.len() as u32, 0, 0..1);
 
-        let color_load_op = if clear {
+        self.reset();
+    }
+
+    // Finishes the current render pass and starts the next one.
+    pub fn next_pass(&mut self, clear: bool) {
+        self.flush();
+
+        let front = self.framebuffer.front().create_view(&Default::default());
+        let color = self.framebuffer.color().create_view(&Default::default());
+        let depth = self.framebuffer.depth().create_view(&Default::default());
+
+        let color_op = if clear {
             wgpu::LoadOp::Clear(self.clear_color)
         } else {
             wgpu::LoadOp::Load
         };
 
-        let depth_load_op = if clear {
+        let depth_op = if clear {
             wgpu::LoadOp::Clear(1.0)
         } else {
             wgpu::LoadOp::Load
         };
 
         let mut encoder = self.device.create_command_encoder(&Default::default());
-        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("hemisphere render pass"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &color,
-                depth_slice: None,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: color_load_op,
-                    store: wgpu::StoreOp::Store,
-                },
-            })],
-            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &depth,
-                depth_ops: Some(wgpu::Operations {
-                    load: depth_load_op,
-                    store: wgpu::StoreOp::Store,
+        let pass = encoder
+            .begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("hemisphere render pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &color,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: color_op,
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &depth,
+                    depth_ops: Some(wgpu::Operations {
+                        load: depth_op,
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
                 }),
-                stencil_ops: None,
-            }),
-            timestamp_writes: None,
-            occlusion_query_set: None,
-        });
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            })
+            .forget_lifetime();
 
-        pass.set_pipeline(self.pipeline.pipeline());
-        pass.set_bind_group(0, Some(&primitives_group), &[]);
-        pass.set_bind_group(1, Some(&textures_group), &[]);
-        pass.set_index_buffer(index_buf.slice(..), wgpu::IndexFormat::Uint32);
-        pass.draw_indexed(0..self.indices.len() as u32, 0, 0..1);
+        let mut previous_encoder = std::mem::replace(&mut self.current_encoder, encoder);
+        let previous_pass = std::mem::replace(&mut self.current_pass, pass);
 
-        std::mem::drop(pass);
+        std::mem::drop(previous_pass);
 
-        let buffer = encoder.finish();
+        previous_encoder.copy_texture_to_texture(
+            wgpu::TexelCopyTextureInfoBase {
+                texture: color.texture(),
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::TexelCopyTextureInfoBase {
+                texture: front.texture(),
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            front.texture().size(),
+        );
+
+        let buffer = previous_encoder.finish();
         self.queue.submit([buffer]);
-
-        self.reset();
+        self.index_buffers.recall();
+        self.storage_buffers.recall();
     }
 }

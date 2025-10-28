@@ -5,8 +5,20 @@ use std::path::PathBuf;
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 pub struct Args {
-    /// Path to a .dol file to load and execute
-    pub input: PathBuf,
+    /// Path to the ROM to load and execute.
+    ///
+    /// Supported format is .iso. To sideload executables, use the `exec` argument.
+    #[arg(short, long)]
+    pub iso: Option<PathBuf>,
+    /// Path to the executable to sideload and execute.
+    ///
+    /// Supported format is .dol.
+    #[arg(long)]
+    pub exec: Option<PathBuf>,
+    /// Path to the IPL ROM.
+    #[arg(long)]
+    pub ipl: Option<PathBuf>,
+    /// Path to a file to use as a debug info provider.
     #[arg(long)]
     pub dwarf: Option<PathBuf>,
     /// Whether to start running right away

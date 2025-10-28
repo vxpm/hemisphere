@@ -1,6 +1,6 @@
 [package]
-name = "dolinfo"
-description = "A small utility to print information about a .dol executable"
+name = "cubetool"
+description = "A CLI tool for GameCube stuff"
 version = "0.1.0"
 edition = "2024"
 
@@ -9,7 +9,12 @@ workspace = true
 
 [dependencies]
 dol = { path = "../dol" }
+iso = { path = "../iso" }
 bytesize.workspace = true
 clap.workspace = true
 eyre-pretty.workspace = true
+binrw.workspace = true
+powerpc.workspace = true
+
 comfy-table = { version = "7.1", default-features = false }
+petgraph = "0.8"

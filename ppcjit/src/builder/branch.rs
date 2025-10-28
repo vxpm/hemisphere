@@ -89,15 +89,12 @@ impl BlockBuilder<'_> {
             let mut branch = self.ir_value(true);
             if !options.ignore_cr() {
                 let cr = self.get(Reg::CR);
-                let cond = self.bd.ins().band_imm(cr, 1 << cond_bit);
 
-                // TODO: revisit
+                let bit = self.get_bit(cr, cond_bit);
                 let cond_ok = if options.desired_cr() {
-                    self.bd
-                        .ins()
-                        .icmp_imm(ir::condcodes::IntCC::UnsignedGreaterThan, cond, 0)
+                    bit
                 } else {
-                    self.bd.ins().icmp_imm(ir::condcodes::IntCC::Equal, cond, 0)
+                    self.bd.ins().bxor_imm(bit, 1)
                 };
 
                 branch = self.bd.ins().band(branch, cond_ok);

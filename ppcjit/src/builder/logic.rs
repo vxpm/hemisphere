@@ -362,25 +362,39 @@ impl BlockBuilder<'_> {
 
     fn shift_compute(&mut self, op: ShiftKind, lhs: ir::Value, rhs: ir::Value) -> ir::Value {
         match op {
-            ShiftKind::Left => self.bd.ins().ishl(lhs, rhs),
-            ShiftKind::RightLogic => self.bd.ins().ushr(lhs, rhs),
+            ShiftKind::Left => {
+                let lhs = self.bd.ins().uextend(ir::types::I64, lhs);
+                let rhs = self.bd.ins().uextend(ir::types::I64, rhs);
+                let value = self.bd.ins().ishl(lhs, rhs);
+
+                self.bd.ins().ireduce(ir::types::I32, value)
+            }
+            ShiftKind::RightLogic => {
+                let lhs = self.bd.ins().uextend(ir::types::I64, lhs);
+                let rhs = self.bd.ins().uextend(ir::types::I64, rhs);
+                let value = self.bd.ins().ushr(lhs, rhs);
+
+                self.bd.ins().ireduce(ir::types::I32, value)
+            }
             ShiftKind::RightArithmetic => {
                 // xer ca is set if:
                 // - rs is negative, and
-                // - shift_by >= trailing zeros of rs
+                // - shift_by > trailing zeros of rs
                 let trailing_zeros = self.bd.ins().ctz(lhs);
-                let trailing_zeros = self.bd.ins().ireduce(ir::types::I32, trailing_zeros);
-
                 let is_rs_neg = self.bd.ins().icmp_imm(IntCC::SignedLessThan, lhs, 0);
                 let is_shift_by_gt_tz =
                     self.bd
                         .ins()
-                        .icmp(IntCC::UnsignedGreaterThanOrEqual, rhs, trailing_zeros);
+                        .icmp(IntCC::UnsignedGreaterThan, rhs, trailing_zeros);
 
-                let carry = self.bd.ins().bor(is_rs_neg, is_shift_by_gt_tz);
+                let carry = self.bd.ins().band(is_rs_neg, is_shift_by_gt_tz);
                 self.update_xer_ca(carry);
 
-                self.bd.ins().sshr(lhs, rhs)
+                let lhs = self.bd.ins().sextend(ir::types::I64, lhs);
+                let rhs = self.bd.ins().uextend(ir::types::I64, rhs);
+                let value = self.bd.ins().sshr(lhs, rhs);
+
+                self.bd.ins().ireduce(ir::types::I32, value)
             }
         }
     }
@@ -397,9 +411,7 @@ impl BlockBuilder<'_> {
         let rhs = self.shift_get_rhs(ins, op.rhs);
 
         let shift_by = self.bd.ins().band_imm(rhs, 0x3F);
-        let extended = self.bd.ins().uextend(ir::types::I64, lhs);
-        let shifted = self.shift_compute(op.kind, extended, shift_by);
-        let value = self.bd.ins().ireduce(ir::types::I32, shifted);
+        let value = self.shift_compute(op.kind, lhs, shift_by);
 
         if ins.field_rc() {
             self.update_cr0_cmpz(value);

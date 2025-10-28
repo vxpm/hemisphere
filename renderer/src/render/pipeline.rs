@@ -1,15 +1,46 @@
+use std::collections::{HashMap, hash_map::Entry};
 use wesl::include_wesl;
 
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct PipelineSettings {
-    pub depth_write: bool,
+    pub blend_enabled: bool,
+    pub blend_src: wgpu::BlendFactor,
+    pub blend_dst: wgpu::BlendFactor,
+    pub blend_op: wgpu::BlendOperation,
+
+    pub depth_enabled: bool,
     pub depth_compare: wgpu::CompareFunction,
+
+    pub color_write: bool,
+    pub alpha_write: bool,
+    pub depth_write: bool,
+}
+
+impl Default for PipelineSettings {
+    fn default() -> Self {
+        Self {
+            blend_enabled: false,
+            blend_src: wgpu::BlendFactor::Src,
+            blend_dst: wgpu::BlendFactor::Dst,
+            blend_op: wgpu::BlendOperation::Add,
+
+            depth_enabled: true,
+            depth_compare: wgpu::CompareFunction::Less,
+
+            color_write: true,
+            alpha_write: true,
+            depth_write: true,
+        }
+    }
 }
 
 pub struct Pipeline {
+    pub settings: PipelineSettings,
     group0_layout: wgpu::BindGroupLayout,
     group1_layout: wgpu::BindGroupLayout,
     layout: wgpu::PipelineLayout,
     module: wgpu::ShaderModule,
+    cached: HashMap<PipelineSettings, wgpu::RenderPipeline>,
     pipeline: wgpu::RenderPipeline,
 }
 
@@ -20,6 +51,43 @@ impl Pipeline {
         module: &wgpu::ShaderModule,
         settings: &PipelineSettings,
     ) -> wgpu::RenderPipeline {
+        let depth_stencil = if settings.depth_enabled {
+            wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: settings.depth_write,
+                depth_compare: settings.depth_compare,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }
+        } else {
+            wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: false,
+                depth_compare: wgpu::CompareFunction::Always,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }
+        };
+
+        let blend_component = wgpu::BlendComponent {
+            src_factor: settings.blend_src,
+            dst_factor: settings.blend_dst,
+            operation: settings.blend_op,
+        };
+
+        let blend = settings.blend_enabled.then_some(wgpu::BlendState {
+            color: blend_component,
+            alpha: blend_component,
+        });
+
+        let mut write_mask = wgpu::ColorWrites::empty();
+        if settings.color_write {
+            write_mask |= wgpu::ColorWrites::COLOR;
+        }
+        if settings.alpha_write {
+            write_mask |= wgpu::ColorWrites::ALPHA;
+        }
+
         device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("uber render pipeline"),
             layout: Some(layout),
@@ -44,18 +112,12 @@ impl Pipeline {
                 compilation_options: Default::default(),
                 targets: &[Some(wgpu::ColorTargetState {
                     format: wgpu::TextureFormat::Rgba8UnormSrgb,
-                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                    write_mask: Default::default(),
+                    blend,
+                    write_mask,
                 })],
             }),
             multisample: Default::default(),
-            depth_stencil: Some(wgpu::DepthStencilState {
-                format: wgpu::TextureFormat::Depth32Float,
-                depth_write_enabled: settings.depth_write,
-                depth_compare: settings.depth_compare,
-                stencil: wgpu::StencilState::default(),
-                bias: wgpu::DepthBiasState::default(),
-            }),
+            depth_stencil: Some(depth_stencil),
             multiview: None,
             cache: None,
         })
@@ -126,21 +188,18 @@ impl Pipeline {
             source: wgpu::ShaderSource::Wgsl(include_wesl!("uber").into()),
         });
 
-        let pipeline = Self::create_pipeline(
-            device,
-            &layout,
-            &module,
-            &PipelineSettings {
-                depth_write: true,
-                depth_compare: wgpu::CompareFunction::Less,
-            },
-        );
+        let settings = PipelineSettings::default();
+        let pipeline = Self::create_pipeline(device, &layout, &module, &settings);
+        let mut cached = HashMap::new();
+        cached.insert(settings.clone(), pipeline.clone());
 
         Self {
+            settings,
             group0_layout,
             group1_layout,
             layout,
             module,
+            cached,
             pipeline,
         }
     }
@@ -157,7 +216,17 @@ impl Pipeline {
         &self.pipeline
     }
 
-    pub fn switch(&mut self, device: &wgpu::Device, settings: &PipelineSettings) {
-        self.pipeline = Self::create_pipeline(device, &self.layout, &self.module, settings);
+    pub fn update(&mut self, device: &wgpu::Device) {
+        self.pipeline = match self.cached.entry(self.settings.clone()) {
+            Entry::Occupied(o) => o.get().clone(),
+            Entry::Vacant(v) => v
+                .insert(Self::create_pipeline(
+                    device,
+                    &self.layout,
+                    &self.module,
+                    &self.settings,
+                ))
+                .clone(),
+        };
     }
 }

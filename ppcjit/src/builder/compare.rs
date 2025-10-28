@@ -20,10 +20,9 @@ impl BlockBuilder<'_> {
         let lt = self.bd.ins().icmp(IntCC::SignedLessThan, a, b);
         let gt = self.bd.ins().icmp(IntCC::SignedGreaterThan, a, b);
         let eq = self.bd.ins().icmp(IntCC::Equal, a, b);
-        let ov = self.bd.ins().ishl_imm(xer, 31);
 
-        // reduce OV as update_cr expects a bool
-        let ov = self.bd.ins().ireduce(ir::types::I8, ov);
+        let ov = self.bd.ins().ushr_imm(xer, 31);
+        let ov = self.bd.ins().icmp_imm(IntCC::NotEqual, ov, 0);
 
         self.update_cr(index, lt, gt, eq, ov);
     }
@@ -34,10 +33,9 @@ impl BlockBuilder<'_> {
         let lt = self.bd.ins().icmp(IntCC::UnsignedLessThan, a, b);
         let gt = self.bd.ins().icmp(IntCC::UnsignedGreaterThan, a, b);
         let eq = self.bd.ins().icmp(IntCC::Equal, a, b);
-        let ov = self.bd.ins().ishl_imm(xer, 31);
 
-        // reduce OV as update_cr expects a bool
-        let ov = self.bd.ins().ireduce(ir::types::I8, ov);
+        let ov = self.bd.ins().ushr_imm(xer, 31);
+        let ov = self.bd.ins().icmp_imm(IntCC::NotEqual, ov, 0);
 
         self.update_cr(index, lt, gt, eq, ov);
     }
@@ -91,6 +89,23 @@ impl BlockBuilder<'_> {
         let gt = self.bd.ins().fcmp(FloatCC::GreaterThan, fpr_a, fpr_b);
         let eq = self.bd.ins().fcmp(FloatCC::Equal, fpr_a, fpr_b);
         let un = self.bd.ins().fcmp(FloatCC::Unordered, fpr_a, fpr_b);
+
+        self.update_fprf(lt, gt, eq, un);
+        self.update_cr(ins.field_crfd(), lt, gt, eq, un);
+
+        CMP_INFO
+    }
+
+    pub fn fcmpo(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let fpr_a = self.get(ins.fpr_a());
+        let fpr_b = self.get(ins.fpr_b());
+
+        let lt = self.bd.ins().fcmp(FloatCC::LessThan, fpr_a, fpr_b);
+        let gt = self.bd.ins().fcmp(FloatCC::GreaterThan, fpr_a, fpr_b);
+        let eq = self.bd.ins().fcmp(FloatCC::Equal, fpr_a, fpr_b);
+        let un = self.bd.ins().fcmp(FloatCC::Ordered, fpr_a, fpr_b);
 
         self.update_fprf(lt, gt, eq, un);
         self.update_cr(ins.field_crfd(), lt, gt, eq, un);

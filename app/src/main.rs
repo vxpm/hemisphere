@@ -7,8 +7,11 @@ mod disasm;
 mod efb;
 mod registers;
 mod subsystem;
+mod windows;
 mod xfb;
 
+use crate::windows::AppWindow;
+use addr2line::gimli;
 use clap::Parser;
 use eframe::{
     egui,
@@ -16,12 +19,19 @@ use eframe::{
 };
 use eyre_pretty::eyre::Result;
 use hemisphere::{
-    Config, jit,
-    runner::{Runner, State},
-    system::{self, executable::Executable},
+    Address, Config, iso, jit,
+    runner::Runner,
+    system::{
+        self,
+        executable::{DebugInfo, Executable, Location},
+    },
 };
+use nanorand::Rng;
 use renderer::WgpuRenderer;
+use serde::{Deserialize, Serialize};
 use std::{
+    borrow::Cow,
+    io::BufReader,
     sync::{
         Arc,
         atomic::{AtomicU64, Ordering},
@@ -29,35 +39,40 @@ use std::{
     time::{Duration, Instant},
 };
 
+struct Addr2LineDebug(addr2line::Loader);
+
+impl DebugInfo for Addr2LineDebug {
+    fn find_symbol(&self, addr: Address) -> Option<String> {
+        self.0
+            .find_symbol(addr.value() as u64)
+            .map(|s| addr2line::demangle_auto(Cow::Borrowed(s), Some(gimli::DW_LANG_C_plus_plus)))
+            .map(|s| s.into_owned())
+    }
+
+    fn find_location(&self, addr: Address) -> Option<Location<'_>> {
+        self.0
+            .find_location(addr.value() as u64)
+            .ok()
+            .flatten()
+            .map(|l| Location {
+                file: l.file.map(Cow::Borrowed),
+                line: l.line,
+                column: l.column,
+            })
+    }
+}
+
 struct Ctx<'a> {
     step: bool,
     running: bool,
     renderer: &'a mut WgpuRenderer,
 }
 
-trait WindowUi {
-    fn title(&self) -> &str;
-    fn show(&mut self, ui: &mut egui::Ui, ctx: &mut Ctx, state: &mut State);
-}
-
-struct Window {
+#[derive(Serialize, Deserialize)]
+struct AppWindowState {
+    id: egui::Id,
     open: bool,
-    ui: Box<dyn WindowUi>,
-}
-
-impl Window {
-    pub fn new(ui: impl WindowUi + 'static) -> Self {
-        Self {
-            open: true,
-            ui: Box::new(ui),
-        }
-    }
-}
-
-struct WindowGroup {
-    name: &'static str,
-    windows: Vec<Window>,
-    groups: Vec<WindowGroup>,
+    window: Box<dyn AppWindow>,
 }
 
 struct App {
@@ -65,22 +80,39 @@ struct App {
     renderer: WgpuRenderer,
     runner: Runner,
     vsync_count: Arc<AtomicU64>,
-    root: WindowGroup,
+    windows: Vec<AppWindowState>,
 }
 
 impl App {
     #[allow(clippy::default_constructed_unit_structs)]
     fn new(cc: &eframe::CreationContext<'_>, args: &cli::Args) -> Result<Self> {
         tracing::info!("loading executable");
-        let dwarf = match args.dwarf.as_deref() {
-            Some(debug) => Some(debug.to_path_buf()),
-            None => {
-                let mut elf = args.input.clone();
-                elf.set_extension("elf");
-                elf.exists().then_some(elf)
-            }
+
+        let ipl = if let Some(path) = &args.ipl {
+            Some(std::fs::read(path)?)
+        } else {
+            None
         };
-        let executable = Executable::open(&args.input, dwarf.as_deref())?;
+
+        let iso = if let Some(path) = &args.iso {
+            let file = std::fs::File::open(path)?;
+            let reader = BufReader::new(file);
+            Some(iso::Iso::new(Box::new(reader) as _)?)
+        } else {
+            None
+        };
+
+        let executable = if let Some(path) = &args.exec {
+            Some(Executable::open(path)?)
+        } else {
+            None
+        };
+
+        let debug_info = args
+            .dwarf
+            .as_deref()
+            .and_then(|p| addr2line::Loader::new(p).ok())
+            .map(|l| Box::new(Addr2LineDebug(l)) as _);
 
         let vsync_count = Arc::new(AtomicU64::new(0));
         let vsync_callback = {
@@ -102,7 +134,10 @@ impl App {
         let mut runner = Runner::new(Config {
             system: system::Config {
                 renderer: Box::new(renderer.clone()),
-                executable: Some(executable),
+                ipl,
+                iso,
+                sideload: executable,
+                debug_info,
                 vsync_callback: Some(vsync_callback),
             },
             jit: jit::Config {
@@ -111,27 +146,12 @@ impl App {
         });
         runner.set_run(args.run);
 
-        let subsystem = WindowGroup {
-            name: "Subsystems",
-            windows: vec![Window::new(subsystem::cp::Window::default())],
-            groups: vec![],
-        };
-
-        let root = WindowGroup {
-            name: "root",
-            windows: vec![
-                // fb
-                Window::new(xfb::Window::default()),
-                Window::new(efb::Window::default()),
-                // cpu
-                Window::new(control::Window::default()),
-                Window::new(registers::Window::default()),
-                Window::new(disasm::Window::default()),
-                // debug
-                Window::new(debug::Window::default()),
-            ],
-            groups: vec![subsystem],
-        };
+        let windows: Vec<AppWindowState> = cc
+            .storage
+            .as_ref()
+            .and_then(|s| s.get_string("windows"))
+            .and_then(|s| ron::from_str(&s).ok())
+            .unwrap_or_default();
 
         cc.egui_ctx.set_zoom_factor(1.0);
         Ok(Self {
@@ -139,50 +159,18 @@ impl App {
             renderer,
             runner,
             vsync_count,
-            root,
+            windows,
         })
     }
-}
 
-fn display_group(ui: &mut egui::Ui, group: &mut WindowGroup) {
-    for window in &mut group.windows {
-        let button = egui::Button::new(window.ui.title()).selected(window.open);
-        if ui.add(button).clicked() {
-            window.open = !window.open;
-        }
-    }
-
-    for group in &mut group.groups {
-        ui.menu_button(group.name, |ui| {
-            display_group(ui, group);
+    fn create_window(&mut self, window: impl AppWindow) {
+        let mut rng = nanorand::tls_rng();
+        let id = rng.generate::<u64>();
+        self.windows.push(AppWindowState {
+            id: egui::Id::new(id),
+            open: true,
+            window: Box::new(window),
         });
-    }
-}
-
-fn display_windows(
-    egui_ctx: &egui::Context,
-    max_rect: egui::Rect,
-    current_id: &mut u32,
-    context: &mut Ctx,
-    state: &mut State,
-    group: &mut WindowGroup,
-) {
-    for win in &mut group.windows {
-        let widget = egui::Window::new(win.ui.title())
-            .open(&mut win.open)
-            .id(egui::Id::new(*current_id))
-            .resizable(true)
-            .min_size(egui::Vec2::ZERO);
-
-        *current_id += 1;
-
-        widget
-            .constrain_to(max_rect)
-            .show(egui_ctx, |ui| win.ui.show(ui, context, state));
-    }
-
-    for group in &mut group.groups {
-        display_windows(egui_ctx, max_rect, current_id, context, state, group);
     }
 }
 
@@ -192,9 +180,47 @@ impl eframe::App for App {
             egui::MenuBar::new().ui(ui, |ui| {
                 ui.label("Hemisphere");
                 ui.menu_button("🗖 View", |ui| {
-                    display_group(ui, &mut self.root);
+                    if ui.button("Control").clicked() {
+                        self.create_window(control::Window::default());
+                    }
+
+                    if ui.button("Disassembly").clicked() {
+                        self.create_window(disasm::Window::default());
+                    }
+
+                    if ui.button("Registers").clicked() {
+                        self.create_window(registers::Window::default());
+                    }
+
+                    if ui.button("Call Stack").clicked() {
+                        self.create_window(debug::Window::default());
+                    }
+
+                    if ui.button("XFB").clicked() {
+                        self.create_window(xfb::Window::default());
+                    }
+
+                    if ui.button("EFB").clicked() {
+                        self.create_window(efb::Window::default());
+                    }
+
+                    ui.menu_button("Subsystems", |ui| {
+                        if ui.button("Command Processor").clicked() {
+                            self.create_window(subsystem::cp::Window::default());
+                        }
+
+                        if ui.button("Processor Interface").clicked() {
+                            self.create_window(subsystem::pi::Window::default());
+                        }
+                    });
                 });
             });
+        });
+
+        self.runner.with_state(|state| {
+            for window_state in &mut self.windows {
+                window_state.window.prepare(state);
+            }
         });
 
         let running = self.runner.running();
@@ -204,18 +230,27 @@ impl eframe::App for App {
             renderer: &mut self.renderer,
         };
 
-        self.runner.with_state(|state| {
-            egui::CentralPanel::default().show(ctx, |ui| {
-                let mut id = 0;
-                display_windows(
-                    ctx,
-                    ui.max_rect(),
-                    &mut id,
-                    &mut context,
-                    state,
-                    &mut self.root,
-                );
-            });
+        egui::CentralPanel::default().show(ctx, |_| {
+            let mut close = None;
+            for (index, window_state) in self.windows.iter_mut().enumerate() {
+                let mut open = true;
+                egui::Window::new(window_state.window.title())
+                    .id(window_state.id)
+                    .open(&mut open)
+                    .resizable(true)
+                    .min_size(egui::Vec2::ZERO)
+                    .show(ctx, |ui| {
+                        window_state.window.show(ui, &mut context);
+                    });
+
+                if !open {
+                    close = Some(index);
+                }
+            }
+
+            if let Some(close) = close {
+                self.windows.remove(close);
+            }
         });
 
         if context.running != running {
@@ -240,6 +275,11 @@ impl eframe::App for App {
 
         ctx.request_repaint();
         self.last_update = Instant::now();
+    }
+
+    fn save(&mut self, storage: &mut dyn eframe::Storage) {
+        let windows = self.windows.iter().collect::<Vec<_>>();
+        storage.set_string("windows", ron::to_string(&windows).unwrap());
     }
 }
 
@@ -297,7 +337,7 @@ fn main() -> Result<()> {
         wgpu_options: WgpuConfiguration {
             wgpu_setup: WgpuSetup::CreateNew(WgpuSetupCreateNew {
                 instance_descriptor: wgpu::InstanceDescriptor {
-                    backends: wgpu::Backends::GL,
+                    backends: wgpu::Backends::all(),
                     ..Default::default()
                 },
                 power_preference: wgpu::PowerPreference::HighPerformance,

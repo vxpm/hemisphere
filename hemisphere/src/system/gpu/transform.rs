@@ -1,4 +1,7 @@
-use crate::{render::Action, system::System};
+use crate::{
+    render::Action,
+    system::{System, gpu::command::ArrayDescriptor},
+};
 use bitos::{BitUtils, bitos, integer::u3};
 use common::util;
 use glam::{Mat3, Mat4};
@@ -338,6 +341,14 @@ impl System {
                 self.xf_set(register, value);
             }
             _ => tracing::debug!("writing to unknown XF memory"),
+        }
+    }
+
+    pub fn xf_write_indexed(&mut self, array: ArrayDescriptor, base: u16, length: u8, index: u16) {
+        for offset in 0..length {
+            let current = array.address + (index as u32 + offset as u32) * array.stride;
+            let value = self.read::<u32>(current);
+            self.xf_write(base as u16 + offset as u16, value);
         }
     }
 }

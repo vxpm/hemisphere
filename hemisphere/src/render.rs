@@ -4,7 +4,7 @@ use crate::system::gpu::{
     Topology, VertexAttributes,
     command::attributes::Rgba,
     environment::{StageOps, StageRefs},
-    pixel::DepthMode,
+    pixel::{BlendMode, DepthMode},
     texture::Rgba8,
     transform::TexGen,
 };
@@ -22,18 +22,29 @@ pub struct TevStage {
     pub refs: StageRefs,
 }
 
+#[derive(Debug, Clone)]
+pub struct TevConfig {
+    pub stages: Vec<TevStage>,
+    pub constants: [Rgba; 4],
+}
+
 pub enum Action {
     SetViewport(Viewport),
     SetClearColor(Rgba),
     SetDepthMode(DepthMode),
+    SetBlendMode(BlendMode),
     SetProjectionMatrix(Mat4),
-    SetTevStages(Vec<TevStage>),
+    SetTevConfig(TevConfig),
     SetTexGens(Vec<TexGen>),
-    SetTexture {
-        index: usize,
+    LoadTexture {
+        id: u32,
         width: u32,
         height: u32,
         data: Vec<Rgba8>,
+    },
+    SetTexture {
+        index: usize,
+        id: u32,
     },
     Draw(Topology, Vec<VertexAttributes>),
     EfbCopy {

@@ -1,10 +1,11 @@
-use crate::{Ctx, WindowUi};
+use crate::{Ctx, windows::AppWindow};
 use eframe::{
     egui::{self, Vec2},
     egui_wgpu::{self, CallbackTrait},
 };
 use hemisphere::runner::State;
 use renderer::WgpuRenderer;
+use serde::{Deserialize, Serialize};
 
 pub struct RendererCallback {
     renderer: WgpuRenderer,
@@ -21,15 +22,18 @@ impl CallbackTrait for RendererCallback {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Serialize, Deserialize)]
 pub struct Window;
 
-impl WindowUi for Window {
+#[typetag::serde(name = "efb")]
+impl AppWindow for Window {
     fn title(&self) -> &str {
         "🖵 EFB"
     }
 
-    fn show(&mut self, ui: &mut egui::Ui, ctx: &mut Ctx, _: &mut State) {
+    fn prepare(&mut self, _: &mut State) {}
+
+    fn show(&mut self, ui: &mut egui::Ui, ctx: &mut Ctx) {
         ui.take_available_space();
         egui::Frame::canvas(ui.style()).show(ui, |ui| {
             let aspect_ratio = 4.0 / 3.0;

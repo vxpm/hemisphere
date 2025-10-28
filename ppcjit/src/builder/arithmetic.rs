@@ -29,7 +29,7 @@ enum AddRhs {
     RB,
     Imm,
     ShiftedImm,
-    Carry,
+    Zero,
     MinusOne,
 }
 
@@ -63,11 +63,7 @@ impl BlockBuilder<'_> {
             AddRhs::RB => self.get(ins.gpr_b()),
             AddRhs::Imm => self.ir_value(ins.field_simm() as i32),
             AddRhs::ShiftedImm => self.ir_value((ins.field_simm() as i32) << 16),
-            AddRhs::Carry => {
-                let xer = self.get(SPR::XER);
-                let ca = self.get_bit(xer, 29);
-                self.bd.ins().uextend(ir::types::I32, ca)
-            }
+            AddRhs::Zero => self.ir_value(0),
             AddRhs::MinusOne => self.ir_value(-1i32),
         }
     }
@@ -103,8 +99,9 @@ impl BlockBuilder<'_> {
         let (value, cout_a) = self.bd.ins().uadd_overflow(lhs, rhs);
         let (value, cout_b) = self.bd.ins().uadd_overflow(value, cin);
 
-        if op.record {
-            self.update_cr0_cmpz(value);
+        if op.overflow {
+            let overflowed = self.addition_overflow(lhs, rhs, value);
+            self.update_xer_ov(overflowed);
         }
 
         if op.carry {
@@ -112,9 +109,8 @@ impl BlockBuilder<'_> {
             self.update_xer_ca(carry);
         }
 
-        if op.overflow {
-            let overflowed = self.addition_overflow(lhs, rhs, value);
-            self.update_xer_ov(overflowed);
+        if op.record {
+            self.update_cr0_cmpz(value);
         }
 
         self.set(ins.gpr_d(), value);
@@ -169,7 +165,7 @@ impl BlockBuilder<'_> {
             ins,
             AddOp {
                 lhs: AddLhs::RA,
-                rhs: AddRhs::Carry,
+                rhs: AddRhs::Zero,
                 extend: true,
                 record: ins.field_rc(),
                 carry: true,
@@ -309,10 +305,6 @@ impl BlockBuilder<'_> {
         let (value, cout_a) = self.bd.ins().uadd_overflow(lhs, not_rhs);
         let (value, cout_b) = self.bd.ins().uadd_overflow(value, cin);
 
-        if op.record {
-            self.update_cr0_cmpz(value);
-        }
-
         if op.carry {
             let carry = self.bd.ins().bor(cout_a, cout_b);
             self.update_xer_ca(carry);
@@ -321,6 +313,10 @@ impl BlockBuilder<'_> {
         if op.overflow {
             let overflowed = self.subtraction_overflow(lhs, rhs, value);
             self.update_xer_ov(overflowed);
+        }
+
+        if op.record {
+            self.update_cr0_cmpz(value);
         }
 
         self.set(ins.gpr_d(), value);
@@ -426,12 +422,12 @@ impl BlockBuilder<'_> {
         let value = self.bd.ins().ineg(ra);
         let overflowed = self.bd.ins().icmp_imm(IntCC::Equal, ra, i32::MIN as i64);
 
-        if ins.field_rc() {
-            self.update_cr0_cmpz(value);
-        }
-
         if ins.field_oe() {
             self.update_xer_ov(overflowed);
+        }
+
+        if ins.field_rc() {
+            self.update_cr0_cmpz(value);
         }
 
         self.set(ins.gpr_d(), value);
@@ -451,17 +447,18 @@ impl BlockBuilder<'_> {
         // special case: if dividing 0x8000_0000 by -1, replace the denom with 1 too
         let is_min_neg = self.bd.ins().icmp_imm(IntCC::Equal, ra, 0x8000_0000);
         let is_div_by_minus_one = self.bd.ins().icmp_imm(IntCC::Equal, rb, -1);
-        let is_special_case = self.bd.ins().bor(is_min_neg, is_div_by_minus_one);
+        let is_special_case = self.bd.ins().band(is_min_neg, is_div_by_minus_one);
         let denom = self.bd.ins().select(is_special_case, one, denom);
 
         let result = self.bd.ins().sdiv(ra, denom);
 
-        if ins.field_rc() {
-            self.update_cr0_cmpz_ov(result, is_div_by_zero);
+        if ins.field_oe() {
+            let overflow = self.bd.ins().bor(is_div_by_zero, is_special_case);
+            self.update_xer_ov(overflow);
         }
 
-        if ins.field_oe() {
-            self.update_xer_ov(is_div_by_zero);
+        if ins.field_rc() {
+            self.update_cr0_cmpz(result);
         }
 
         self.set(ins.gpr_d(), result);
@@ -480,12 +477,12 @@ impl BlockBuilder<'_> {
 
         let result = self.bd.ins().udiv(ra, denom);
 
-        if ins.field_rc() {
-            self.update_cr0_cmpz_ov(result, is_div_by_zero);
-        }
-
         if ins.field_oe() {
             self.update_xer_ov(is_div_by_zero);
+        }
+
+        if ins.field_rc() {
+            self.update_cr0_cmpz(result);
         }
 
         self.set(ins.gpr_d(), result);
@@ -499,12 +496,12 @@ impl BlockBuilder<'_> {
 
         let (result, overflowed) = self.bd.ins().smul_overflow(ra, rb);
 
-        if ins.field_rc() {
-            self.update_cr0_cmpz_ov(result, overflowed);
-        }
-
         if ins.field_oe() {
             self.update_xer_ov(overflowed);
+        }
+
+        if ins.field_rc() {
+            self.update_cr0_cmpz(result);
         }
 
         self.set(ins.gpr_d(), result);
@@ -555,6 +552,24 @@ impl BlockBuilder<'_> {
 
 /// Floating point addition operations
 impl BlockBuilder<'_> {
+    pub fn fadd(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let fpr_a = self.get(ins.fpr_a());
+        let fpr_b = self.get(ins.fpr_b());
+
+        let value = self.bd.ins().fadd(fpr_a, fpr_b);
+
+        self.set(ins.fpr_d(), value);
+        self.update_fprf_cmpz(value);
+
+        if ins.field_rc() {
+            self.update_cr1_float();
+        }
+
+        FLOAT_INFO
+    }
+
     pub fn fadds(&mut self, ins: Ins) -> Info {
         self.check_floats();
 
@@ -813,6 +828,27 @@ impl BlockBuilder<'_> {
         self.set(ins.fpr_d(), value);
         self.set(Reg::PS1(ins.fpr_d()), value);
 
+        self.update_fprf_cmpz(value);
+
+        if ins.field_rc() {
+            self.update_cr1_float();
+        }
+
+        FLOAT_INFO
+    }
+
+    pub fn fnmsub(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let fpr_a = self.get(ins.fpr_a());
+        let fpr_b = self.get(ins.fpr_b());
+        let fpr_c = self.get(ins.fpr_c());
+
+        let neg_fpr_b = self.bd.ins().fneg(fpr_b);
+        let value = self.bd.ins().fma(fpr_a, fpr_c, neg_fpr_b);
+        let value = self.bd.ins().fneg(value);
+
+        self.set(ins.fpr_d(), value);
         self.update_fprf_cmpz(value);
 
         if ins.field_rc() {

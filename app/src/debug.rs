@@ -1,18 +1,26 @@
-use crate::{Ctx, WindowUi};
+use crate::{Ctx, windows::AppWindow};
 use eframe::egui::{self, Color32};
 use egui_extras::{Column, TableBuilder};
-use hemisphere::runner::State;
+use hemisphere::{runner::State, system::eabi::CallStack};
+use serde::{Deserialize, Serialize};
 
-#[derive(Default)]
-pub struct Window;
+#[derive(Default, Serialize, Deserialize)]
+pub struct Window {
+    #[serde(skip)]
+    call_stack: CallStack,
+}
 
-impl WindowUi for Window {
+#[typetag::serde(name = "call_stack")]
+impl AppWindow for Window {
     fn title(&self) -> &str {
-        "🐞 Debug Info"
+        "Call Stack"
     }
 
-    fn show(&mut self, ui: &mut egui::Ui, _: &mut Ctx, state: &mut State) {
-        let call_stack = state.core().system.call_stack();
+    fn prepare(&mut self, state: &mut State) {
+        self.call_stack = state.core().system.call_stack();
+    }
+
+    fn show(&mut self, ui: &mut egui::Ui, _: &mut Ctx) {
         egui::ScrollArea::both().auto_shrink(false).show(ui, |ui| {
             let builder = TableBuilder::new(ui)
                 .auto_shrink(egui::Vec2b::new(false, true))
@@ -36,7 +44,7 @@ impl WindowUi for Window {
             });
 
             table.body(|mut body| {
-                for call in call_stack.0 {
+                for call in &self.call_stack.0 {
                     body.row(20.0, |mut row| {
                         row.col(|ui| {
                             let text = egui::RichText::new(call.address.to_string())

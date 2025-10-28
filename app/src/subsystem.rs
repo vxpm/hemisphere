@@ -1,4 +1,5 @@
 pub mod cp;
+pub mod pi;
 
 use eframe::egui;
 

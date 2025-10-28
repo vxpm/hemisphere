@@ -231,6 +231,7 @@ const LOAD_INFO: Info = Info {
 struct LoadOp {
     update: bool,
     signed: bool,
+    reverse: bool,
 }
 
 /// GPR load operations
@@ -271,6 +272,11 @@ impl BlockBuilder<'_> {
         };
 
         let mut value = self.read::<P>(addr);
+
+        if op.reverse {
+            value = self.bd.ins().bswap(value);
+        }
+
         if P::IR_TYPE != ir::types::I32 {
             value = if op.signed {
                 self.bd.ins().sextend(ir::types::I32, value)
@@ -294,6 +300,7 @@ impl BlockBuilder<'_> {
             LoadOp {
                 update: false,
                 signed: false,
+                reverse: false,
             },
         )
     }
@@ -304,6 +311,7 @@ impl BlockBuilder<'_> {
             LoadOp {
                 update: false,
                 signed: false,
+                reverse: false,
             },
         )
     }
@@ -314,6 +322,7 @@ impl BlockBuilder<'_> {
             LoadOp {
                 update: true,
                 signed: false,
+                reverse: false,
             },
         )
     }
@@ -324,6 +333,7 @@ impl BlockBuilder<'_> {
             LoadOp {
                 update: true,
                 signed: false,
+                reverse: false,
             },
         )
     }
@@ -334,6 +344,7 @@ impl BlockBuilder<'_> {
             LoadOp {
                 update: false,
                 signed: false,
+                reverse: false,
             },
         )
     }
@@ -344,6 +355,7 @@ impl BlockBuilder<'_> {
             LoadOp {
                 update: false,
                 signed: false,
+                reverse: false,
             },
         )
     }
@@ -354,6 +366,7 @@ impl BlockBuilder<'_> {
             LoadOp {
                 update: true,
                 signed: false,
+                reverse: false,
             },
         )
     }
@@ -364,6 +377,7 @@ impl BlockBuilder<'_> {
             LoadOp {
                 update: true,
                 signed: false,
+                reverse: false,
             },
         )
     }
@@ -374,6 +388,7 @@ impl BlockBuilder<'_> {
             LoadOp {
                 update: false,
                 signed: true,
+                reverse: false,
             },
         )
     }
@@ -384,6 +399,7 @@ impl BlockBuilder<'_> {
             LoadOp {
                 update: false,
                 signed: true,
+                reverse: false,
             },
         )
     }
@@ -394,6 +410,7 @@ impl BlockBuilder<'_> {
             LoadOp {
                 update: true,
                 signed: true,
+                reverse: false,
             },
         )
     }
@@ -404,6 +421,18 @@ impl BlockBuilder<'_> {
             LoadOp {
                 update: true,
                 signed: true,
+                reverse: false,
+            },
+        )
+    }
+
+    pub fn lhbrx(&mut self, ins: Ins) -> Info {
+        self.load_indexed::<i16>(
+            ins,
+            LoadOp {
+                update: false,
+                signed: false,
+                reverse: true,
             },
         )
     }
@@ -414,6 +443,7 @@ impl BlockBuilder<'_> {
             LoadOp {
                 update: false,
                 signed: false,
+                reverse: false,
             },
         )
     }
@@ -424,6 +454,7 @@ impl BlockBuilder<'_> {
             LoadOp {
                 update: false,
                 signed: false,
+                reverse: false,
             },
         )
     }
@@ -434,6 +465,7 @@ impl BlockBuilder<'_> {
             LoadOp {
                 update: true,
                 signed: false,
+                reverse: false,
             },
         )
     }
@@ -444,6 +476,18 @@ impl BlockBuilder<'_> {
             LoadOp {
                 update: true,
                 signed: false,
+                reverse: false,
+            },
+        )
+    }
+
+    pub fn lwbrx(&mut self, ins: Ins) -> Info {
+        self.load_indexed::<i32>(
+            ins,
+            LoadOp {
+                update: false,
+                signed: false,
+                reverse: true,
             },
         )
     }
@@ -468,10 +512,47 @@ impl BlockBuilder<'_> {
             ..LOAD_INFO
         }
     }
-}
 
-/// FPR load operations
-impl BlockBuilder<'_> {
+    pub fn lswi(&mut self, ins: Ins) -> Info {
+        let mut addr = if ins.field_ra() == 0 {
+            self.ir_value(0)
+        } else {
+            self.get(ins.gpr_a())
+        };
+
+        let byte_count = if ins.field_nb() != 0 {
+            ins.field_nb()
+        } else {
+            32
+        };
+
+        let zero = self.ir_value(0);
+        let start_reg = ins.field_rd();
+        for i in 0..byte_count {
+            let reg = GPR::new((start_reg + i / 4) % 32);
+            let shift_count = 8 * (3 - (i as u32 % 4));
+
+            let value = self.read::<i8>(addr);
+            let value = self.bd.ins().uextend(ir::types::I32, value);
+            let value = self.bd.ins().ishl_imm(value, shift_count as u64 as i64);
+
+            let current = self.get(reg);
+            let mask = self.ir_value(0xFFu32 << shift_count);
+            let loaded = self.bd.ins().bitselect(mask, value, current);
+
+            let clear_mask = self.ir_value(0xFFFF_FFFFu32 << shift_count);
+            let new = self.bd.ins().bitselect(clear_mask, loaded, zero);
+
+            self.set(reg, new);
+            addr = self.bd.ins().iadd_imm(addr, 1);
+        }
+
+        Info {
+            cycles: 10, // random, chosen by fair dice roll
+            ..LOAD_INFO
+        }
+    }
+
     pub fn lfd(&mut self, ins: Ins) -> Info {
         self.check_floats();
 
@@ -517,6 +598,49 @@ impl BlockBuilder<'_> {
         LOAD_INFO
     }
 
+    pub fn lfdx(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let rb = self.get(ins.gpr_b());
+        let addr = if ins.field_ra() == 0 {
+            rb
+        } else {
+            let ra = self.get(ins.gpr_a());
+            self.bd.ins().iadd(ra, rb)
+        };
+
+        let value = self.read::<i64>(addr);
+        let value = self
+            .bd
+            .ins()
+            .bitcast(ir::types::F64, ir::MemFlags::new(), value);
+
+        let paired = self.bd.ins().splat(ir::types::F64X2, value);
+        self.set_ps(ins.fpr_d(), paired);
+
+        LOAD_INFO
+    }
+
+    pub fn lfdux(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let ra = self.get(ins.gpr_a());
+        let rb = self.get(ins.gpr_b());
+        let addr = self.bd.ins().iadd(ra, rb);
+
+        let value = self.read::<i64>(addr);
+        let value = self
+            .bd
+            .ins()
+            .bitcast(ir::types::F64, ir::MemFlags::new(), value);
+
+        let paired = self.bd.ins().splat(ir::types::F64X2, value);
+        self.set_ps(ins.fpr_d(), paired);
+        self.set(ins.gpr_a(), addr);
+
+        LOAD_INFO
+    }
+
     pub fn lfs(&mut self, ins: Ins) -> Info {
         self.check_floats();
 
@@ -536,6 +660,30 @@ impl BlockBuilder<'_> {
         let double = self.bd.ins().fpromote(ir::types::F64, value);
         let paired = self.bd.ins().splat(ir::types::F64X2, double);
         self.set_ps(ins.fpr_d(), paired);
+
+        LOAD_INFO
+    }
+
+    pub fn lfsu(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let addr = if ins.field_ra() == 0 {
+            self.ir_value(ins.field_offset() as i32)
+        } else {
+            let ra = self.get(ins.gpr_a());
+            self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
+        };
+
+        let value = self.read::<i32>(addr);
+        let value = self
+            .bd
+            .ins()
+            .bitcast(ir::types::F32, ir::MemFlags::new(), value);
+
+        let double = self.bd.ins().fpromote(ir::types::F64, value);
+        let paired = self.bd.ins().splat(ir::types::F64X2, double);
+        self.set_ps(ins.fpr_d(), paired);
+        self.set(ins.gpr_a(), addr);
 
         LOAD_INFO
     }
@@ -560,6 +708,27 @@ impl BlockBuilder<'_> {
         let double = self.bd.ins().fpromote(ir::types::F64, value);
         let paired = self.bd.ins().splat(ir::types::F64X2, double);
         self.set_ps(ins.fpr_d(), paired);
+
+        LOAD_INFO
+    }
+
+    pub fn lfsux(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let ra = self.get(ins.gpr_a());
+        let rb = self.get(ins.gpr_b());
+        let addr = self.bd.ins().iadd(ra, rb);
+
+        let value = self.read::<i32>(addr);
+        let value = self
+            .bd
+            .ins()
+            .bitcast(ir::types::F32, ir::MemFlags::new(), value);
+
+        let double = self.bd.ins().fpromote(ir::types::F64, value);
+        let paired = self.bd.ins().splat(ir::types::F64X2, double);
+        self.set_ps(ins.fpr_d(), paired);
+        self.set(ins.gpr_a(), addr);
 
         LOAD_INFO
     }
@@ -595,7 +764,7 @@ impl BlockBuilder<'_> {
         STORE_INFO
     }
 
-    fn store_indexed<P: ReadWriteAble>(&mut self, ins: Ins, update: bool) -> Info {
+    fn store_indexed<P: ReadWriteAble>(&mut self, ins: Ins, update: bool, reverse: bool) -> Info {
         let rb = self.get(ins.gpr_b());
         let addr = if !update && ins.field_ra() == 0 {
             rb
@@ -607,6 +776,10 @@ impl BlockBuilder<'_> {
         let mut value = self.get(ins.gpr_s());
         if P::IR_TYPE != ir::types::I32 {
             value = self.bd.ins().ireduce(P::IR_TYPE, value);
+        }
+
+        if reverse {
+            value = self.bd.ins().bswap(value);
         }
 
         if update {
@@ -623,7 +796,7 @@ impl BlockBuilder<'_> {
     }
 
     pub fn stbx(&mut self, ins: Ins) -> Info {
-        self.store_indexed::<i8>(ins, false)
+        self.store_indexed::<i8>(ins, false, false)
     }
 
     pub fn stbu(&mut self, ins: Ins) -> Info {
@@ -631,7 +804,7 @@ impl BlockBuilder<'_> {
     }
 
     pub fn stbux(&mut self, ins: Ins) -> Info {
-        self.store_indexed::<i8>(ins, true)
+        self.store_indexed::<i8>(ins, true, false)
     }
 
     pub fn sth(&mut self, ins: Ins) -> Info {
@@ -639,7 +812,11 @@ impl BlockBuilder<'_> {
     }
 
     pub fn sthx(&mut self, ins: Ins) -> Info {
-        self.store_indexed::<i16>(ins, false)
+        self.store_indexed::<i16>(ins, false, false)
+    }
+
+    pub fn sthbrx(&mut self, ins: Ins) -> Info {
+        self.store_indexed::<i16>(ins, false, true)
     }
 
     pub fn sthu(&mut self, ins: Ins) -> Info {
@@ -647,7 +824,7 @@ impl BlockBuilder<'_> {
     }
 
     pub fn sthux(&mut self, ins: Ins) -> Info {
-        self.store_indexed::<i8>(ins, true)
+        self.store_indexed::<i16>(ins, true, false)
     }
 
     pub fn stw(&mut self, ins: Ins) -> Info {
@@ -655,7 +832,11 @@ impl BlockBuilder<'_> {
     }
 
     pub fn stwx(&mut self, ins: Ins) -> Info {
-        self.store_indexed::<i32>(ins, false)
+        self.store_indexed::<i32>(ins, false, false)
+    }
+
+    pub fn stwbrx(&mut self, ins: Ins) -> Info {
+        self.store_indexed::<i32>(ins, false, true)
     }
 
     pub fn stwu(&mut self, ins: Ins) -> Info {
@@ -663,7 +844,7 @@ impl BlockBuilder<'_> {
     }
 
     pub fn stwux(&mut self, ins: Ins) -> Info {
-        self.store_indexed::<i32>(ins, true)
+        self.store_indexed::<i32>(ins, true, false)
     }
 
     pub fn stmw(&mut self, ins: Ins) -> Info {
@@ -687,7 +868,41 @@ impl BlockBuilder<'_> {
         }
     }
 
+    pub fn stswi(&mut self, ins: Ins) -> Info {
+        let mut addr = if ins.field_ra() == 0 {
+            self.ir_value(0)
+        } else {
+            self.get(ins.gpr_a())
+        };
+
+        let byte_count = if ins.field_nb() != 0 {
+            ins.field_nb()
+        } else {
+            32
+        };
+
+        let start_reg = ins.field_rd();
+        for i in 0..byte_count {
+            let reg = GPR::new((start_reg + i / 4) % 32);
+            let shift_count = 8 * (3 - (i as u32 % 4));
+
+            let reg = self.get(reg);
+            let value = self.bd.ins().ushr_imm(reg, shift_count as u64 as i64);
+            let value = self.bd.ins().ireduce(ir::types::I8, value);
+
+            self.write::<i8>(addr, value);
+            addr = self.bd.ins().iadd_imm(addr, 1);
+        }
+
+        Info {
+            cycles: 10, // random, chosen by fair dice roll
+            ..LOAD_INFO
+        }
+    }
+
     pub fn stfd(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
         let addr = if ins.field_ra() == 0 {
             self.ir_value(ins.field_offset() as i32)
         } else {
@@ -702,6 +917,69 @@ impl BlockBuilder<'_> {
             .bitcast(ir::types::I64, ir::MemFlags::new(), value);
 
         self.write::<i64>(addr, value);
+
+        STORE_INFO
+    }
+
+    pub fn stfdu(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let addr = if ins.field_ra() == 0 {
+            self.ir_value(ins.field_offset() as i32)
+        } else {
+            let ra = self.get(ins.gpr_a());
+            self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
+        };
+
+        let value = self.get(ins.fpr_s());
+        let value = self
+            .bd
+            .ins()
+            .bitcast(ir::types::I64, ir::MemFlags::new(), value);
+
+        self.write::<i64>(addr, value);
+        self.set(ins.gpr_a(), addr);
+
+        STORE_INFO
+    }
+
+    pub fn stfdx(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let rb = self.get(ins.gpr_b());
+        let addr = if ins.field_ra() == 0 {
+            rb
+        } else {
+            let ra = self.get(ins.gpr_a());
+            self.bd.ins().iadd(ra, rb)
+        };
+
+        let value = self.get(ins.fpr_s());
+        let value = self
+            .bd
+            .ins()
+            .bitcast(ir::types::I64, ir::MemFlags::new(), value);
+
+        self.write::<i64>(addr, value);
+
+        STORE_INFO
+    }
+
+    pub fn stfdux(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let ra = self.get(ins.gpr_a());
+        let rb = self.get(ins.gpr_b());
+        let addr = self.bd.ins().iadd(ra, rb);
+
+        let value = self.get(ins.fpr_s());
+        let value = self
+            .bd
+            .ins()
+            .bitcast(ir::types::I64, ir::MemFlags::new(), value);
+
+        self.write::<i64>(addr, value);
+        self.set(ins.gpr_a(), addr);
 
         STORE_INFO
     }
@@ -727,10 +1005,73 @@ impl BlockBuilder<'_> {
 
         STORE_INFO
     }
-}
 
-/// FPR store operations
-impl BlockBuilder<'_> {
+    pub fn stfsu(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let addr = if ins.field_ra() == 0 {
+            self.ir_value(ins.field_offset() as i32)
+        } else {
+            let ra = self.get(ins.gpr_a());
+            self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
+        };
+
+        let value = self.get(ins.fpr_s());
+        let value = self.bd.ins().fdemote(ir::types::F32, value);
+        let value = self
+            .bd
+            .ins()
+            .bitcast(ir::types::I32, ir::MemFlags::new(), value);
+
+        self.write::<i32>(addr, value);
+        self.set(ins.gpr_a(), addr);
+
+        STORE_INFO
+    }
+
+    pub fn stfsx(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let rb = self.get(ins.gpr_b());
+        let addr = if ins.field_ra() == 0 {
+            rb
+        } else {
+            let ra = self.get(ins.gpr_a());
+            self.bd.ins().iadd(ra, rb)
+        };
+
+        let value = self.get(ins.fpr_s());
+        let value = self.bd.ins().fdemote(ir::types::F32, value);
+        let value = self
+            .bd
+            .ins()
+            .bitcast(ir::types::I32, ir::MemFlags::new(), value);
+
+        self.write::<i32>(addr, value);
+
+        STORE_INFO
+    }
+
+    pub fn stfsux(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let ra = self.get(ins.gpr_a());
+        let rb = self.get(ins.gpr_b());
+        let addr = self.bd.ins().iadd(ra, rb);
+
+        let value = self.get(ins.fpr_s());
+        let value = self.bd.ins().fdemote(ir::types::F32, value);
+        let value = self
+            .bd
+            .ins()
+            .bitcast(ir::types::I32, ir::MemFlags::new(), value);
+
+        self.write::<i32>(addr, value);
+        self.set(ins.gpr_a(), addr);
+
+        STORE_INFO
+    }
+
     pub fn stfiwx(&mut self, ins: Ins) -> Info {
         self.check_floats();
 

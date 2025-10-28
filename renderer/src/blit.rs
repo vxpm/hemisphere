@@ -2,14 +2,13 @@ use wesl::include_wesl;
 
 /// Utility to blit a texture on a render pass.
 pub struct Blitter {
-    device: wgpu::Device,
     group_layout: wgpu::BindGroupLayout,
     sampler: wgpu::Sampler,
     pipeline: wgpu::RenderPipeline,
 }
 
 impl Blitter {
-    pub fn new(device: wgpu::Device, format: wgpu::TextureFormat) -> Self {
+    pub fn new(device: &wgpu::Device, format: wgpu::TextureFormat) -> Self {
         let group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: None,
             entries: &[
@@ -89,15 +88,19 @@ impl Blitter {
         });
 
         Self {
-            device,
             group_layout,
             sampler,
             pipeline,
         }
     }
 
-    pub fn blit(&mut self, texture: &wgpu::TextureView, pass: &mut wgpu::RenderPass<'_>) {
-        let group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+    pub fn blit(
+        &self,
+        device: &wgpu::Device,
+        texture: &wgpu::TextureView,
+        pass: &mut wgpu::RenderPass<'_>,
+    ) {
+        let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: None,
             layout: &self.group_layout,
             entries: &[

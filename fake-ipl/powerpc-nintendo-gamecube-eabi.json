@@ -1,0 +1,22 @@
+{
+  "llvm-target": "powerpc-nintendo-gamecube-eabi",
+  "arch": "powerpc",
+  "vendor": "nintendo",
+  "os": "gamecube",
+  "abi": "eabi",
+  "cpu": "750",
+  "features": "+hard-float",
+  "data-layout": "E-m:e-p:32:32-Fn32-i64:64-n32",
+  "exe-suffix": ".elf",
+  "has-rpath": true,
+  "linker": "rust-lld",
+  "linker-flavor": "ld.lld",
+  "linker-is-gnu": false,
+  "panic-strategy": "abort",
+  "emit-debug-gdb-scripts": false,
+  "relocation-model": "static",
+  "target-endian": "big",
+  "target-mcount": "_mcount",
+  "target-c-int-width": 32,
+  "target-pointer-width": 32
+}

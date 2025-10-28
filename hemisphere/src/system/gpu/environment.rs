@@ -3,6 +3,8 @@ use bitos::{
     integer::{u2, u3},
 };
 
+use crate::system::gpu::command::attributes::Rgba;
+
 #[bitos(3)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ColorChannel {
@@ -183,4 +185,5 @@ pub struct Interface {
     pub active_channels: u8,
     pub stage_ops: [StageOps; 16],
     pub stage_refs: [StageRefsPair; 8],
+    pub constants: [Rgba; 4],
 }

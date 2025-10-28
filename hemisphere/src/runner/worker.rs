@@ -6,7 +6,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-const STEP_SIZE: u32 = FREQUENCY / 16000; // 1/16 ms
+const STEP_SIZE: u32 = 1 << 16;
 
 #[inline(always)]
 fn to_duration(cycles: u32) -> Duration {

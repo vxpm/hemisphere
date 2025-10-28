@@ -41,8 +41,7 @@ const TB_INFO: Info = Info {
 fn generate_mask(control: u8) -> u32 {
     let mut mask = 0;
     for i in 0..8 {
-        // 0 is the higher one
-        if control.bit(7 - i) {
+        if control.bit(i) {
             mask |= (0xF) << (4 * i);
         }
     }
@@ -133,11 +132,10 @@ impl BlockBuilder<'_> {
         let mask = self.ir_value(generate_mask(ins.field_mtfsf_fm()));
 
         let fpscr = self.get(Reg::FPSCR);
-        let bits = self.bd.ins().bitcast(
-            ir::types::I64,
-            ir::MemFlags::new().with_endianness(ir::Endianness::Little),
-            fpr_b,
-        );
+        let bits = self
+            .bd
+            .ins()
+            .bitcast(ir::types::I64, ir::MemFlags::new(), fpr_b);
         let low = self.bd.ins().ireduce(ir::types::I32, bits);
 
         let value = self.bd.ins().bitselect(mask, low, fpscr);
@@ -156,8 +154,8 @@ impl BlockBuilder<'_> {
         self.call_generic_hook(offset_of!(Hooks, tb_read));
 
         let tb = match ins.field_tbr() {
-            268 => Reg::TBL,
-            269 => Reg::TBU,
+            268 => SPR::TBL,
+            269 => SPR::TBU,
             _ => todo!(),
         };
 
@@ -183,6 +181,23 @@ impl BlockBuilder<'_> {
         CR_INFO
     }
 
+    pub fn creqv(&mut self, ins: Ins) -> Info {
+        let bit_a = 31 - ins.field_crba();
+        let bit_b = 31 - ins.field_crbb();
+        let bit_dest = 31 - ins.field_crbd();
+
+        let cr = self.get(Reg::CR);
+        let bit_a = self.get_bit(cr, bit_a);
+        let bit_b = self.get_bit(cr, bit_b);
+        let xored = self.bd.ins().bxor(bit_a, bit_b);
+        let not = self.bd.ins().bxor_imm(xored, 1);
+
+        let value = self.set_bit(cr, bit_dest, not);
+        self.set(Reg::CR, value);
+
+        CR_INFO
+    }
+
     pub fn cror(&mut self, ins: Ins) -> Info {
         let bit_a = 31 - ins.field_crba();
         let bit_b = 31 - ins.field_crbb();
@@ -191,9 +206,93 @@ impl BlockBuilder<'_> {
         let cr = self.get(Reg::CR);
         let bit_a = self.get_bit(cr, bit_a);
         let bit_b = self.get_bit(cr, bit_b);
-        let xored = self.bd.ins().bor(bit_a, bit_b);
+        let ored = self.bd.ins().bor(bit_a, bit_b);
 
-        let value = self.set_bit(cr, bit_dest, xored);
+        let value = self.set_bit(cr, bit_dest, ored);
+        self.set(Reg::CR, value);
+
+        CR_INFO
+    }
+
+    pub fn crorc(&mut self, ins: Ins) -> Info {
+        let bit_a = 31 - ins.field_crba();
+        let bit_b = 31 - ins.field_crbb();
+        let bit_dest = 31 - ins.field_crbd();
+
+        let cr = self.get(Reg::CR);
+        let bit_a = self.get_bit(cr, bit_a);
+        let bit_b = self.get_bit(cr, bit_b);
+        let not_b = self.bd.ins().bxor_imm(bit_b, 1);
+        let ored = self.bd.ins().bor(bit_a, not_b);
+
+        let value = self.set_bit(cr, bit_dest, ored);
+        self.set(Reg::CR, value);
+
+        CR_INFO
+    }
+
+    pub fn crnor(&mut self, ins: Ins) -> Info {
+        let bit_a = 31 - ins.field_crba();
+        let bit_b = 31 - ins.field_crbb();
+        let bit_dest = 31 - ins.field_crbd();
+
+        let cr = self.get(Reg::CR);
+        let bit_a = self.get_bit(cr, bit_a);
+        let bit_b = self.get_bit(cr, bit_b);
+        let ored = self.bd.ins().bor(bit_a, bit_b);
+        let nored = self.bd.ins().bxor_imm(ored, 1);
+
+        let value = self.set_bit(cr, bit_dest, nored);
+        self.set(Reg::CR, value);
+
+        CR_INFO
+    }
+
+    pub fn crand(&mut self, ins: Ins) -> Info {
+        let bit_a = 31 - ins.field_crba();
+        let bit_b = 31 - ins.field_crbb();
+        let bit_dest = 31 - ins.field_crbd();
+
+        let cr = self.get(Reg::CR);
+        let bit_a = self.get_bit(cr, bit_a);
+        let bit_b = self.get_bit(cr, bit_b);
+        let anded = self.bd.ins().band(bit_a, bit_b);
+
+        let value = self.set_bit(cr, bit_dest, anded);
+        self.set(Reg::CR, value);
+
+        CR_INFO
+    }
+
+    pub fn crandc(&mut self, ins: Ins) -> Info {
+        let bit_a = 31 - ins.field_crba();
+        let bit_b = 31 - ins.field_crbb();
+        let bit_dest = 31 - ins.field_crbd();
+
+        let cr = self.get(Reg::CR);
+        let bit_a = self.get_bit(cr, bit_a);
+        let bit_b = self.get_bit(cr, bit_b);
+        let not_b = self.bd.ins().bxor_imm(bit_b, 1);
+        let anded = self.bd.ins().band(bit_a, not_b);
+
+        let value = self.set_bit(cr, bit_dest, anded);
+        self.set(Reg::CR, value);
+
+        CR_INFO
+    }
+
+    pub fn crnand(&mut self, ins: Ins) -> Info {
+        let bit_a = 31 - ins.field_crba();
+        let bit_b = 31 - ins.field_crbb();
+        let bit_dest = 31 - ins.field_crbd();
+
+        let cr = self.get(Reg::CR);
+        let bit_a = self.get_bit(cr, bit_a);
+        let bit_b = self.get_bit(cr, bit_b);
+        let anded = self.bd.ins().band(bit_a, bit_b);
+        let nanded = self.bd.ins().bxor_imm(anded, 1);
+
+        let value = self.set_bit(cr, bit_dest, nanded);
         self.set(Reg::CR, value);
 
         CR_INFO

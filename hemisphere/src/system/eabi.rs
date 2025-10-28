@@ -13,6 +13,7 @@ pub struct CallFrame {
     pub returns: Address,
 }
 
+#[derive(Default)]
 pub struct CallStack(pub Vec<CallFrame>);
 
 impl std::fmt::Display for CallStack {
@@ -57,10 +58,9 @@ impl System {
             {
                 let name = self
                     .config
-                    .executable
+                    .debug_info
                     .as_ref()
-                    .and_then(|e| e.find_symbol(Address(current_routine)))
-                    .map(|s| s.into_owned());
+                    .and_then(|d| d.find_symbol(Address(current_routine)));
 
                 call_stack.push(CallFrame {
                     address: Address(current_routine),

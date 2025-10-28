@@ -123,12 +123,12 @@ impl BlockBuilder<'_> {
         &mut self,
         value: ir::Value,
         index: impl IntoIrValue,
-        set: impl IntoIrValue,
+        should_set: impl IntoIrValue,
     ) -> ir::Value {
         let zero = self.ir_value(0i32);
         let one = self.ir_value(1i32);
         let index = self.ir_value(index);
-        let set = self.ir_value(set);
+        let should_set = self.ir_value(should_set);
 
         // create mask for the bit
         let shifted = self.bd.ins().ishl(one, index);
@@ -137,8 +137,8 @@ impl BlockBuilder<'_> {
         // unset bit
         let value = self.bd.ins().band(value, mask);
 
-        // set bit if `set` is true
-        let rhs = self.bd.ins().select(set, shifted, zero);
+        // set bit if `should_set` is true
+        let rhs = self.bd.ins().select(should_set, shifted, zero);
 
         self.bd.ins().bor(value, rhs)
     }
@@ -213,20 +213,20 @@ impl BlockBuilder<'_> {
         let eq = self.bd.ins().icmp_imm(IntCC::Equal, value, 0);
 
         let xer = self.get(SPR::XER);
-        let ov = self.get_bit(xer, 30);
+        let ov = self.get_bit(xer, 31);
 
         self.update_cr(0, lt, gt, eq, ov);
     }
 
-    /// Updates CR0 by signed comparison of the given value with 0 and withe the given overflow
-    /// flag. Value must be an I32.
-    pub fn update_cr0_cmpz_ov(&mut self, value: ir::Value, ov: ir::Value) {
-        let lt = self.bd.ins().icmp_imm(IntCC::SignedLessThan, value, 0);
-        let gt = self.bd.ins().icmp_imm(IntCC::SignedGreaterThan, value, 0);
-        let eq = self.bd.ins().icmp_imm(IntCC::Equal, value, 0);
-
-        self.update_cr(0, lt, gt, eq, ov);
-    }
+    ///// Updates CR0 by signed comparison of the given value with 0 and withe the given overflow
+    ///// flag. Value must be an I32.
+    //pub fn update_cr0_cmpz_ov(&mut self, value: ir::Value, ov: ir::Value) {
+    //    let lt = self.bd.ins().icmp_imm(IntCC::SignedLessThan, value, 0);
+    //    let gt = self.bd.ins().icmp_imm(IntCC::SignedGreaterThan, value, 0);
+    //    let eq = self.bd.ins().icmp_imm(IntCC::Equal, value, 0);
+    //
+    //    self.update_cr(0, lt, gt, eq, ov);
+    //}
 
     /// All IR values must be booleans (i.e. I8).
     pub fn update_fprf(&mut self, lt: ir::Value, gt: ir::Value, eq: ir::Value, un: ir::Value) {

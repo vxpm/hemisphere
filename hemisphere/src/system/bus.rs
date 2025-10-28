@@ -1,7 +1,7 @@
 mod mmio;
 
 use crate::system::{
-    Event, System,
+    Event, System, audio, disk, external,
     mem::{IPL_LEN, RAM_LEN},
 };
 use common::{Address, Primitive};
@@ -51,7 +51,7 @@ impl System {
 
     fn read_mmio<P: Primitive>(&mut self, offset: u16) -> P {
         let Some((reg, offset)) = Mmio::find(offset) else {
-            tracing::error!("reading from unknown mmio register ({offset:04X})");
+            tracing::error!(pc = ?self.cpu.pc, "reading from unknown mmio register ({offset:04X})");
             return P::default();
         };
 
@@ -71,7 +71,9 @@ impl System {
 
         let value = match reg {
             // === Command Processor ===
-            Mmio::CpStatus => ne!(self.gpu.command.status.as_bytes()),
+            Mmio::CpStatus => {
+                ne!(self.gpu.command.status.as_bytes())
+            }
             Mmio::CpControl => ne!(self.gpu.command.control.as_bytes()),
             Mmio::CpClear => ne!(&[0, 0]),
             Mmio::CpFifoStartLow => ne!(self.gpu.command.fifo.start.as_bytes()[0..2]),
@@ -82,8 +84,8 @@ impl System {
             Mmio::CpHighWatermarkHigh => ne!(self.gpu.command.fifo.high_mark.as_bytes()[2..4]),
             Mmio::CpLowWatermarkLow => ne!(self.gpu.command.fifo.low_mark.as_bytes()[0..2]),
             Mmio::CpLowWatermarkHigh => ne!(self.gpu.command.fifo.low_mark.as_bytes()[2..4]),
-            Mmio::CpFifoCountLow => ne!(self.gpu.command.fifo.count.as_bytes()[0..2]),
-            Mmio::CpFifoCountHigh => ne!(self.gpu.command.fifo.count.as_bytes()[2..4]),
+            Mmio::CpFifoCountLow => ne!(self.gpu.command.fifo.count().as_bytes()[0..2]),
+            Mmio::CpFifoCountHigh => ne!(self.gpu.command.fifo.count().as_bytes()[2..4]),
             Mmio::CpFifoWritePtrLow => ne!(self.gpu.command.fifo.write_ptr.as_bytes()[0..2]),
             Mmio::CpFifoWritePtrHigh => ne!(self.gpu.command.fifo.write_ptr.as_bytes()[2..4]),
             Mmio::CpFifoReadPtrLow => ne!(self.gpu.command.fifo.read_ptr.as_bytes()[0..2]),
@@ -91,6 +93,7 @@ impl System {
 
             // === Pixel Engine ===
             Mmio::PixelInterruptStatus => ne!(self.gpu.pixel.interrupt.as_bytes()),
+            Mmio::PixelToken => ne!((self.gpu.pixel.token as u16).as_bytes()),
 
             // === Video Interface ===
             Mmio::VideoVerticalTiming => ne!(self.video.vertical_timing.as_bytes()),
@@ -142,23 +145,61 @@ impl System {
             Mmio::DspCpuMailbox => {
                 let data = ne!(self.dsp.cpu_mailbox.as_bytes());
                 if (2..4).contains(&offset) && self.dsp.cpu_mailbox.status() {
-                    debug!("clearing CPU mailbox");
-                    self.dsp.cpu_mailbox.set_status(false);
+                    debug!("popping CPU mailbox");
+                    self.dsp.pop_cpu_mailbox();
                 }
 
                 data
             }
             Mmio::DspControl => ne!(self.dsp.control.as_bytes()),
+            Mmio::DspAramMode => ne!((!0u64).as_mut_bytes()), // TODO: figure out this register
             Mmio::DspAramDmaRamBase => ne!(self.dsp.aram_dma_ram.as_bytes()),
             Mmio::DspAramDmaAramBase => ne!(self.dsp.aram_dma_aram.as_bytes()),
             Mmio::DspAramDmaControl => ne!(self.dsp.aram_dma_control.as_bytes()),
+
+            // === Disk Interface ===
+            Mmio::DiskStatus => ne!(self.disk.status.as_bytes()),
+            Mmio::DiskCover => ne!(self.disk.cover.as_bytes()),
+            Mmio::DiskDmaBase => ne!(self.disk.dma_base.as_bytes()),
+            Mmio::DiskDmaLength => ne!(self.disk.dma_length.as_bytes()),
+            Mmio::DiskControl => ne!(self.disk.control.as_bytes()),
+            Mmio::DiskConfiguration => ne!(self.disk.config.as_bytes()),
+
+            // === External Interface ===
+            Mmio::ExiChannel0Param => ne!(self.external.channel0.parameter.as_bytes()),
+            Mmio::ExiChannel0DmaBase => ne!(self.external.channel0.dma_base.as_bytes()),
+            Mmio::ExiChannel0DmaLength => ne!(self.external.channel0.dma_length.as_bytes()),
+            Mmio::ExiChannel0Control => ne!(self.external.channel0.control.as_bytes()),
+            Mmio::ExiChannel0Immediate => ne!(self.external.channel0.immediate.as_bytes()),
+
+            Mmio::ExiChannel1Param => ne!(self.external.channel1.parameter.as_bytes()),
+            Mmio::ExiChannel1DmaBase => ne!(self.external.channel1.dma_base.as_bytes()),
+            Mmio::ExiChannel1DmaLength => ne!(self.external.channel1.dma_length.as_bytes()),
+            Mmio::ExiChannel1Control => ne!(self.external.channel1.control.as_bytes()),
+            Mmio::ExiChannel1Immediate => ne!(self.external.channel1.immediate.as_bytes()),
+
+            Mmio::ExiChannel2Param => ne!(self.external.channel2.parameter.as_bytes()),
+            Mmio::ExiChannel2DmaBase => ne!(self.external.channel2.dma_base.as_bytes()),
+            Mmio::ExiChannel2DmaLength => ne!(self.external.channel2.dma_length.as_bytes()),
+            Mmio::ExiChannel2Control => ne!(self.external.channel2.control.as_bytes()),
+            Mmio::ExiChannel2Immediate => ne!(self.external.channel2.immediate.as_bytes()),
+
+            // === Audio Interface ===
+            Mmio::AudioSampleCounter => {
+                // HACK: allows IPL to progress further
+                self.audio.sample_counter += 1;
+                ne!(self.audio.sample_counter.as_bytes())
+            }
+            Mmio::AudioControl => ne!(self.audio.control.as_bytes()),
+
             _ => {
-                tracing::warn!("unimplemented read from known mmio register ({reg:?})");
+                tracing::warn!(pc = ?self.cpu.pc, "unimplemented read from known mmio register ({reg:?})");
                 P::default()
             }
         };
 
         tracing::debug!(
+            pc = ?self.cpu.pc,
             "reading from {:?}[{}..{}]: {:08X}",
             reg,
             offset,
@@ -203,8 +244,14 @@ impl System {
             (size as usize - offset - size_of::<P>())..(size as usize - offset)
         };
 
-        if reg != Mmio::ProcessorFifo {
-            tracing::debug!("writing 0x{:08X} to {:?}[{:?}]", value, reg, range,);
+        if !matches!(reg, Mmio::FakeStdout | Mmio::ProcessorFifo) {
+            tracing::debug!(
+                pc = ?self.cpu.pc,
+                "writing 0x{:08X} to {:?}[{:?}]",
+                value,
+                reg,
+                range,
+            );
         }
 
         // write to native endian bytes
@@ -217,38 +264,67 @@ impl System {
         match reg {
             // === Command Processor ===
             Mmio::CpStatus => ne!(self.gpu.command.status.as_mut_bytes()),
-            Mmio::CpControl => ne!(self.gpu.command.control.as_mut_bytes()),
+            Mmio::CpControl => {
+                ne!(self.gpu.command.control.as_mut_bytes());
+                if self.gpu.command.control.linked_mode() {
+                    self.cp_sync_to_pi();
+                }
+            }
             Mmio::CpClear => {
                 let mut written = 0;
                 ne!(written.as_mut_bytes());
                 self.gpu.command.write_clear(written);
             }
-            Mmio::CpFifoStartLow => ne!(self.gpu.command.fifo.start.as_mut_bytes()[0..2]),
-            Mmio::CpFifoStartHigh => ne!(self.gpu.command.fifo.start.as_mut_bytes()[2..4]),
-            Mmio::CpFifoEndLow => ne!(self.gpu.command.fifo.end.as_mut_bytes()[0..2]),
-            Mmio::CpFifoEndHigh => ne!(self.gpu.command.fifo.end.as_mut_bytes()[2..4]),
+            Mmio::CpFifoStartLow => {
+                ne!(self.gpu.command.fifo.start.as_mut_bytes()[0..2]);
+                self.cp_update();
+            }
+            Mmio::CpFifoStartHigh => {
+                ne!(self.gpu.command.fifo.start.as_mut_bytes()[2..4]);
+                self.cp_update();
+            }
+            Mmio::CpFifoEndLow => {
+                ne!(self.gpu.command.fifo.end.as_mut_bytes()[0..2]);
+                self.cp_update();
+            }
+            Mmio::CpFifoEndHigh => {
+                ne!(self.gpu.command.fifo.end.as_mut_bytes()[2..4]);
+                self.cp_update();
+            }
             Mmio::CpHighWatermarkLow => {
-                ne!(self.gpu.command.fifo.high_mark.as_mut_bytes()[0..2])
+                ne!(self.gpu.command.fifo.high_mark.as_mut_bytes()[0..2]);
+                self.cp_update();
             }
             Mmio::CpHighWatermarkHigh => {
-                ne!(self.gpu.command.fifo.high_mark.as_mut_bytes()[2..4])
+                ne!(self.gpu.command.fifo.high_mark.as_mut_bytes()[2..4]);
+                self.cp_update();
             }
             Mmio::CpLowWatermarkLow => {
-                ne!(self.gpu.command.fifo.low_mark.as_mut_bytes()[0..2])
+                ne!(self.gpu.command.fifo.low_mark.as_mut_bytes()[0..2]);
+                self.cp_update();
             }
             Mmio::CpLowWatermarkHigh => {
-                ne!(self.gpu.command.fifo.low_mark.as_mut_bytes()[2..4])
+                ne!(self.gpu.command.fifo.low_mark.as_mut_bytes()[2..4]);
+                self.cp_update();
             }
-            Mmio::CpFifoCountLow => ne!(self.gpu.command.fifo.count.as_mut_bytes()[0..2]),
-            Mmio::CpFifoCountHigh => ne!(self.gpu.command.fifo.count.as_mut_bytes()[2..4]),
+            // Mmio::CpFifoCountLow => ne!(self.gpu.command.fifo.count().as_mut_bytes()[0..2]),
+            // Mmio::CpFifoCountHigh => ne!(self.gpu.command.fifo.count().as_mut_bytes()[2..4]),
             Mmio::CpFifoWritePtrLow => {
-                ne!(self.gpu.command.fifo.write_ptr.as_mut_bytes()[0..2])
+                ne!(self.gpu.command.fifo.write_ptr.as_mut_bytes()[0..2]);
+                self.cp_update();
             }
             Mmio::CpFifoWritePtrHigh => {
-                ne!(self.gpu.command.fifo.write_ptr.as_mut_bytes()[2..4])
+                ne!(self.gpu.command.fifo.write_ptr.as_mut_bytes()[2..4]);
+                self.cp_update();
             }
-            Mmio::CpFifoReadPtrLow => ne!(self.gpu.command.fifo.read_ptr.as_mut_bytes()[0..2]),
-            Mmio::CpFifoReadPtrHigh => ne!(self.gpu.command.fifo.read_ptr.as_mut_bytes()[2..4]),
+            Mmio::CpFifoReadPtrLow => {
+                ne!(self.gpu.command.fifo.read_ptr.as_mut_bytes()[0..2]);
+                self.cp_update();
+            }
+            Mmio::CpFifoReadPtrHigh => {
+                ne!(self.gpu.command.fifo.read_ptr.as_mut_bytes()[2..4]);
+                self.cp_update();
+            }
 
             // === Pixel Engine ===
             Mmio::PixelInterruptStatus => {
@@ -320,13 +396,16 @@ impl System {
             // === Processor Interface ===
             // Interrupts
             Mmio::ProcessorInterruptMask => {
+                ne!(self.processor.mask.as_mut_bytes());
                 self.scheduler.schedule_now(Event::CheckInterrupts);
-                ne!(self.processor.mask.as_mut_bytes())
             }
 
             // FIFO
             Mmio::ProcessorFifoStart => ne!(self.processor.fifo_start.as_mut_bytes()),
-            Mmio::ProcessorFifoEnd => ne!(self.processor.fifo_end.as_mut_bytes()),
+            Mmio::ProcessorFifoEnd => {
+                ne!(self.processor.fifo_end.as_mut_bytes());
+                self.processor.fifo_end += 4;
+            }
             Mmio::ProcessorFifoCurrent => ne!(self.processor.fifo_current.as_mut_bytes()),
 
             // === DSP Interface ===
@@ -345,8 +424,100 @@ impl System {
                 // NOTE: stubbed, just set DMA as complete
                 self.dsp.control.set_aram_interrupt(true);
 
+                self.dsp.cpu_mailbox_queue.push_back(0);
+
                 // HACK: stub hack, set mailbox as having data
                 self.dsp.cpu_mailbox.set_status(true);
+            }
+            Mmio::AudioDmaControl => {
+                debug!("forcing AI DMA");
+                self.audio
+                    .control
+                    .set_interrupt(self.audio.control.interrupt_mask());
+                self.scheduler.schedule_now(Event::CheckInterrupts);
+            }
+
+            // === Disk Interface ===
+            Mmio::DiskStatus => {
+                let mut written = disk::Status::from_bits(0);
+                ne!(written.as_mut_bytes());
+                self.disk.write_status(written);
+                tracing::debug!(diskstatus = ?self.disk.status);
+                self.scheduler.schedule_now(Event::CheckInterrupts);
+            }
+            Mmio::DiskCover => {
+                let mut written = disk::Cover::from_bits(0);
+                ne!(written.as_mut_bytes());
+                self.disk.write_cover(written);
+                self.disk.cover.set_open(false);
+                tracing::debug!(diskcover = ?self.disk.cover);
+                self.scheduler.schedule_now(Event::CheckInterrupts);
+            }
+            Mmio::DiskCommand0 => ne!(self.disk.command[0].as_mut_bytes()),
+            Mmio::DiskCommand1 => ne!(self.disk.command[1].as_mut_bytes()),
+            Mmio::DiskCommand2 => ne!(self.disk.command[2].as_mut_bytes()),
+            Mmio::DiskDmaBase => ne!(self.disk.dma_base.as_mut_bytes()),
+            Mmio::DiskDmaLength => ne!(self.disk.dma_length.as_mut_bytes()),
+            Mmio::DiskControl => {
+                let mut written = disk::Control::from_bits(0);
+                ne!(written.as_mut_bytes());
+                self.di_write_control(written);
+            }
+            Mmio::DiskConfiguration => {
+                ne!(self.disk.config.as_mut_bytes());
+            }
+
+            // === External Interface ===
+            Mmio::ExiChannel0Param => {
+                let mut written = external::Parameter::from_bits(0);
+                ne!(written.as_mut_bytes());
+                self.external.channel0.parameter.write(written);
+            }
+            Mmio::ExiChannel0DmaBase => ne!(self.external.channel0.dma_base.as_mut_bytes()),
+            Mmio::ExiChannel0DmaLength => ne!(self.external.channel0.dma_length.as_mut_bytes()),
+            Mmio::ExiChannel0Control => {
+                ne!(self.external.channel0.control.as_mut_bytes());
+                tracing::debug!("{:?}", self.external.channel0.control);
+                self.exi_update();
+            }
+            Mmio::ExiChannel0Immediate => ne!(self.external.channel0.immediate.as_mut_bytes()),
+            Mmio::ExiChannel1Param => {
+                let mut written = external::Parameter::from_bits(0);
+                ne!(written.as_mut_bytes());
+                self.external.channel1.parameter.write(written);
+            }
+            Mmio::ExiChannel1DmaBase => ne!(self.external.channel1.dma_base.as_mut_bytes()),
+            Mmio::ExiChannel1DmaLength => ne!(self.external.channel1.dma_length.as_mut_bytes()),
+            Mmio::ExiChannel1Control => {
+                ne!(self.external.channel1.control.as_mut_bytes());
+                self.exi_update();
+            }
+            Mmio::ExiChannel1Immediate => ne!(self.external.channel1.immediate.as_mut_bytes()),
+            Mmio::ExiChannel2Param => {
+                let mut written = external::Parameter::from_bits(0);
+                ne!(written.as_mut_bytes());
+                self.external.channel2.parameter.write(written);
+            }
+            Mmio::ExiChannel2DmaBase => ne!(self.external.channel2.dma_base.as_mut_bytes()),
+            Mmio::ExiChannel2DmaLength => ne!(self.external.channel2.dma_length.as_mut_bytes()),
+            Mmio::ExiChannel2Control => {
+                ne!(self.external.channel2.control.as_mut_bytes());
+                self.exi_update();
+            }
+            Mmio::ExiChannel2Immediate => ne!(self.external.channel2.immediate.as_mut_bytes()),
+
+            // === Audio Interface ===
+            Mmio::AudioControl => {
+                let mut written = audio::Control::from_bits(0);
+                ne!(written.as_mut_bytes());
+                self.audio.write_control(written);
+            }
+
+            // === Fake STDOUT ===
+            Mmio::FakeStdout => {
+                let mut written = 0u8;
+                ne!(written.as_mut_bytes());
+                print!("{}", written as char);
             }
 
             // === PI FIFO ===

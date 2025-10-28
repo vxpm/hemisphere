@@ -6,14 +6,17 @@ pub mod transform;
 
 use super::System;
 use crate::{
-    render::{Action, TevStage},
-    system::gpu::command::{
-        ArrayDescriptor, AttributeMode, VertexAttributeStream,
-        attributes::{self, Attribute, AttributeDescriptor, Rgba},
+    render::{Action, TevConfig, TevStage},
+    system::{
+        Event,
+        gpu::command::{
+            ArrayDescriptor, AttributeMode, VertexAttributeStream,
+            attributes::{self, Attribute, AttributeDescriptor, Rgba},
+        },
     },
 };
 use bitos::{
-    bitos,
+    BitUtils, bitos,
     integer::{UnsignedInt, u3, u4},
 };
 use common::{
@@ -33,6 +36,17 @@ pub enum Reg {
     GenFilter1 = 0x02,
     GenFilter2 = 0x03,
     GenFilter3 = 0x04,
+
+    IndMatxA0 = 0x06,
+    IndMatxB0 = 0x07,
+    IndMatxC0 = 0x08,
+    IndMatxA1 = 0x09,
+    IndMatxB1 = 0x0A,
+    IndMatxC1 = 0x0B,
+    IndMatxA2 = 0x0C,
+    IndMatxB2 = 0x0D,
+    IndMatxC2 = 0x0E,
+
     BumpIMask = 0x0F,
 
     IndirectCmd0 = 0x10,
@@ -61,6 +75,7 @@ pub enum Reg {
     RasterPerf = 0x24,
     RasterSs0 = 0x25,
     RasterSs1 = 0x26,
+    RasterIRef = 0x27,
 
     TevRefs01 = 0x28,
     TevRefs23 = 0x29,
@@ -90,12 +105,14 @@ pub enum Reg {
 
     // Pixel Engine
     PixelZMode = 0x40,
-    PixelMode0 = 0x41,
+    PixelBlendMode = 0x41,
     PixelMode1 = 0x42,
     PixelControl = 0x43,
     PixelFieldMask = 0x44,
     PixelDone = 0x45,
     PixelRefresh = 0x46,
+    PixelToken = 0x47,
+    PixelTokenInt = 0x48,
     PixelCopySrc = 0x49,
     PixelCopySrcSize = 0x4A,
     PixelCopyDstBase0 = 0x4B,
@@ -115,6 +132,8 @@ pub enum Reg {
     ScissorOffset = 0x59,
 
     // TX
+    TexLoadLut0 = 0x64,
+    TexLoadLut1 = 0x65,
     TexInvTags = 0x66,
     TexPerfMode = 0x67,
     TexFieldMode = 0x68,
@@ -144,6 +163,11 @@ pub enum Reg {
     TexAddress1 = 0x95,
     TexAddress2 = 0x96,
     TexAddress3 = 0x97,
+
+    TexSetLut0 = 0x98,
+    TexSetLut1 = 0x99,
+    TexSetLut2 = 0x9A,
+    TexSetLut3 = 0x9B,
 
     TexMode4 = 0xA0,
     TexMode5 = 0xA1,
@@ -204,14 +228,14 @@ pub enum Reg {
     TevColor15 = 0xDE,
     TevAlpha15 = 0xDF,
 
-    TevConstant0Low = 0xE0,
-    TevConstant0High = 0xE1,
-    TevConstant1Low = 0xE2,
-    TevConstant1High = 0xE3,
-    TevConstant2Low = 0xE4,
-    TevConstant2High = 0xE5,
-    TevConstant3Low = 0xE6,
-    TevConstant3High = 0xE7,
+    TevConstant3AR = 0xE0,
+    TevConstant3GB = 0xE1,
+    TevConstant0AR = 0xE2,
+    TevConstant0GB = 0xE3,
+    TevConstant1AR = 0xE4,
+    TevConstant1GB = 0xE5,
+    TevConstant2AR = 0xE6,
+    TevConstant2GB = 0xE7,
 
     TevFogRange = 0xE8,
     TevFog0 = 0xEE,
@@ -272,6 +296,14 @@ impl Reg {
                 | Self::TevAlpha14
                 | Self::TevColor15
                 | Self::TevAlpha15
+                | Self::TevConstant3AR
+                | Self::TevConstant3GB
+                | Self::TevConstant0AR
+                | Self::TevConstant0GB
+                | Self::TevConstant1AR
+                | Self::TevConstant1GB
+                | Self::TevConstant2AR
+                | Self::TevConstant2GB
         )
     }
 
@@ -390,15 +422,30 @@ impl System {
                     .renderer
                     .exec(Action::SetDepthMode(self.gpu.pixel.depth_mode));
             }
+            Reg::PixelBlendMode => {
+                value.write_ne_bytes(self.gpu.pixel.blend_mode.as_mut_bytes());
+                self.config
+                    .renderer
+                    .exec(Action::SetBlendMode(self.gpu.pixel.blend_mode));
+            }
             Reg::PixelDone => {
                 self.gpu.pixel.interrupt.set_finish(true);
-                self.check_interrupts();
+                self.scheduler.schedule_now(Event::CheckInterrupts);
+            }
+            Reg::PixelToken => {
+                self.gpu.pixel.token = value;
+            }
+            Reg::PixelTokenInt => {
+                self.gpu.pixel.interrupt.set_token(true);
+                self.scheduler.schedule_now(Event::CheckInterrupts);
             }
             Reg::PixelCopyClearAr => {
-                value.write_be_bytes(&mut self.gpu.pixel.clear_color.as_mut_bytes()[0..2])
+                self.gpu.pixel.clear_color.set_r(value.bits(0, 8) as u8);
+                self.gpu.pixel.clear_color.set_a(value.bits(8, 16) as u8);
             }
             Reg::PixelCopyClearGb => {
-                value.write_be_bytes(&mut self.gpu.pixel.clear_color.as_mut_bytes()[2..4])
+                self.gpu.pixel.clear_color.set_b(value.bits(0, 8) as u8);
+                self.gpu.pixel.clear_color.set_g(value.bits(8, 16) as u8);
             }
             Reg::PixelCopyClearZ => value.write_be_bytes(self.gpu.pixel.clear_depth.as_mut_bytes()),
             Reg::PixelCopyCmd => {
@@ -520,6 +567,55 @@ impl System {
             Reg::TevAlpha15 => {
                 value.write_ne_bytes(self.gpu.environment.stage_ops[15].alpha.as_mut_bytes());
             }
+            Reg::TevConstant3AR => {
+                let r = ((value.bits(0, 11) as i16) << 5) >> 5;
+                let a = ((value.bits(12, 23) as i16) << 5) >> 5;
+                self.gpu.environment.constants[3].a = a as f32 / 255.0;
+                self.gpu.environment.constants[3].r = r as f32 / 255.0;
+            }
+            Reg::TevConstant3GB => {
+                let b = ((value.bits(0, 11) as i16) << 5) >> 5;
+                let g = ((value.bits(12, 23) as i16) << 5) >> 5;
+                self.gpu.environment.constants[3].b = b as f32 / 255.0;
+                self.gpu.environment.constants[3].g = g as f32 / 255.0;
+            }
+            Reg::TevConstant0AR => {
+                let r = ((value.bits(0, 11) as i16) << 5) >> 5;
+                let a = ((value.bits(12, 23) as i16) << 5) >> 5;
+                self.gpu.environment.constants[0].a = a as f32 / 255.0;
+                self.gpu.environment.constants[0].r = r as f32 / 255.0;
+            }
+            Reg::TevConstant0GB => {
+                let b = ((value.bits(0, 11) as i16) << 5) >> 5;
+                let g = ((value.bits(12, 23) as i16) << 5) >> 5;
+                self.gpu.environment.constants[0].b = b as f32 / 255.0;
+                self.gpu.environment.constants[0].g = g as f32 / 255.0;
+            }
+            Reg::TevConstant1AR => {
+                let r = ((value.bits(0, 11) as i16) << 5) >> 5;
+                let a = ((value.bits(12, 23) as i16) << 5) >> 5;
+                self.gpu.environment.constants[1].a = a as f32 / 255.0;
+                self.gpu.environment.constants[1].r = r as f32 / 255.0;
+            }
+            Reg::TevConstant1GB => {
+                let b = ((value.bits(0, 11) as i16) << 5) >> 5;
+                let g = ((value.bits(12, 23) as i16) << 5) >> 5;
+                self.gpu.environment.constants[1].b = b as f32 / 255.0;
+                self.gpu.environment.constants[1].g = g as f32 / 255.0;
+            }
+            Reg::TevConstant2AR => {
+                let r = ((value.bits(0, 11) as i16) << 5) >> 5;
+                let a = ((value.bits(12, 23) as i16) << 5) >> 5;
+                self.gpu.environment.constants[2].a = a as f32 / 255.0;
+                self.gpu.environment.constants[2].r = r as f32 / 255.0;
+            }
+            Reg::TevConstant2GB => {
+                let b = ((value.bits(0, 11) as i16) << 5) >> 5;
+                let g = ((value.bits(12, 23) as i16) << 5) >> 5;
+                self.gpu.environment.constants[2].b = b as f32 / 255.0;
+                self.gpu.environment.constants[2].g = g as f32 / 255.0;
+            }
+
             _ => tracing::warn!("unimplemented write to internal GX register {reg:?}"),
         }
 
@@ -541,7 +637,12 @@ impl System {
                 })
                 .collect::<Vec<_>>();
 
-            self.config.renderer.exec(Action::SetTevStages(stages));
+            let config = TevConfig {
+                stages,
+                constants: self.gpu.environment.constants,
+            };
+
+            self.config.renderer.exec(Action::SetTevConfig(config));
         }
 
         if reg.is_pixel_clear() {
@@ -671,13 +772,27 @@ impl System {
         let len = map.format.size().value() as usize;
         let slice = &self.mem.ram[start..][..len];
 
-        let data = texture::decode_texture(slice, map.format);
+        if !self.gpu.texture.insert_cache(map.address, slice) {
+            let data = texture::decode_texture(slice, dbg!(map.format));
+            self.config.renderer.exec(Action::LoadTexture {
+                id: map.address.value(),
+                width: map.format.width(),
+                height: map.format.height(),
+                data,
+            });
+        }
+
         self.config.renderer.exec(Action::SetTexture {
             index,
-            width: map.format.width(),
-            height: map.format.height(),
-            data,
+            id: map.address.value(),
         });
+    }
+
+    pub fn gx_call(&mut self, address: Address, length: u32) {
+        tracing::debug!("called {} with length 0x{:08X}", address, length);
+        let address = self.translate_data_addr(address).unwrap_or(address);
+        let data = &self.mem.ram[address.value() as usize..][..length as usize];
+        self.gpu.command.queue.push_front_bytes(data);
     }
 
     pub fn gx_draw(&mut self, topology: Topology, stream: &VertexAttributeStream) {

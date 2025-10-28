@@ -1,9 +1,12 @@
 //! State of the emulator.
 
+pub mod audio;
 pub mod bus;
+pub mod disk;
 pub mod dsp;
 pub mod eabi;
 pub mod executable;
+pub mod external;
 pub mod gpu;
 pub mod lazy;
 pub mod mem;
@@ -16,7 +19,7 @@ use crate::{
     render::Renderer,
     system::{
         dsp::Dsp,
-        executable::{Code, Executable},
+        executable::{DebugInfo, Executable},
         gpu::Gpu,
         lazy::Lazy,
         mem::Memory,
@@ -28,13 +31,22 @@ use common::{
     Address,
     arch::{Cpu, Exception, FREQUENCY},
 };
+use dol::binrw::BinRead;
+use iso::Iso;
+use std::io::{Cursor, Read, Seek};
 
 pub type Callback = Box<dyn FnMut() + Send + Sync + 'static>;
+
+pub trait ReadAndSeek: Read + Seek + Send + 'static {}
+impl<T> ReadAndSeek for T where T: Read + Seek + Send + 'static {}
 
 /// System configuration.
 pub struct Config {
     pub renderer: Box<dyn Renderer>,
-    pub executable: Option<Executable>,
+    pub ipl: Option<Vec<u8>>,
+    pub iso: Option<Iso<Box<dyn ReadAndSeek>>>,
+    pub sideload: Option<Executable>,
+    pub debug_info: Option<Box<dyn DebugInfo>>,
     pub vsync_callback: Option<Callback>,
 }
 
@@ -45,10 +57,10 @@ pub enum Event {
     Decrementer,
     /// Check external interrupts.
     CheckInterrupts,
-    /// Process commands in the CP FIFO.
-    CommandProcessor,
     /// A video interface event.
     Video(video::Event),
+    /// Check external interrupts.
+    DiskTransferComplete,
 }
 
 /// System state.
@@ -73,16 +85,34 @@ pub struct System {
     pub video: video::Interface,
     /// The processor interface.
     pub processor: processor::Interface,
+    /// The external interface.
+    pub external: external::Interface,
+    /// The audio interface.
+    pub audio: audio::Interface,
+    /// The disk interface.
+    pub disk: disk::Interface,
 }
 
 impl System {
+    fn load_apploader(&mut self) -> Option<Address> {
+        let Some(iso) = &mut self.config.iso else {
+            return None;
+        };
+
+        let apploader = iso.apploader().unwrap();
+        let size = apploader.size;
+        self.mem.ram[0x0120_0000..][..size as usize].copy_from_slice(&apploader.data);
+
+        Some(Address(apploader.entrypoint))
+    }
+
     fn load_executable(&mut self) {
-        let Some(exec) = self.config.executable.take() else {
+        let Some(exec) = self.config.sideload.take() else {
             return;
         };
 
-        match exec.code() {
-            Code::Dol(dol) => {
+        match &exec {
+            Executable::Dol(dol) => {
                 self.cpu.pc = Address(dol.entrypoint());
                 self.cpu.supervisor.memory.setup_default_bats();
                 self.mmu.build_bat_lut(&self.cpu.supervisor.memory);
@@ -98,7 +128,7 @@ impl System {
                     .msr
                     .set_data_addr_translation(true);
 
-                // zero bss first, let others section overwrite it if it occurs
+                // zero bss first, let other sections overwrite it if it occurs
                 for offset in 0..dol.header.bss_size {
                     let target = self
                         .translate_data_addr(Address(dol.header.bss_target + offset))
@@ -126,24 +156,83 @@ impl System {
             }
         }
 
-        self.config.executable = Some(exec);
+        self.config.sideload = Some(exec);
+        tracing::debug!("finished loading executable");
     }
 
-    pub fn new(config: Config) -> Self {
+    fn load_iso(&mut self) {
+        self.cpu.supervisor.memory.setup_default_bats();
+        self.mmu.build_bat_lut(&self.cpu.supervisor.memory);
+
+        // load apploader
+        let entry = self.load_apploader().unwrap();
+
+        // load fake-ipl
+        let mut cursor = Cursor::new(include_bytes!("../../resources/fake-ipl.dol"));
+        let ipl = dol::Dol::read(&mut cursor).unwrap();
+        self.config.sideload = Some(Executable::Dol(ipl));
+        self.load_executable();
+
+        // setup apploader entrypoint for fake-ipl
+        self.cpu.user.gpr[3] = entry.value();
+
+        // load dolphin-os globals
+        let header = self.config.iso.as_ref().unwrap().header().clone();
+        self.write::<u32>(Address(0x00), header.game_code());
+        self.write::<u16>(Address(0x04), header.maker_code);
+        self.write::<u8>(Address(0x06), header.disk_id);
+        self.write::<u8>(Address(0x07), header.version);
+        self.write::<u8>(Address(0x08), header.audio_streaming);
+        self.write::<u8>(Address(0x09), header.stream_buffer_size);
+
+        self.write::<u32>(Address(0x1C), 0xC2339F3D); // DVD Magic Word
+        self.write::<u32>(Address(0x20), 0x0D15EA5E); // Boot kind
+        self.write::<u32>(Address(0x24), 0x00000001); // Version
+        self.write::<u32>(Address(0x28), 0x01800000); // Physical Memory Size
+        self.write::<u32>(Address(0x2C), 0x00000001); // Console Type
+        self.write::<u32>(Address(0x30), 0x00000000); // Arena Low
+        self.write::<u32>(Address(0x34), 0x817fe8c0); // Arena High
+        self.write::<u32>(Address(0x38), 0x817fe8c0); // FST address
+        self.write::<u32>(Address(0x3C), 0x00000024); // FST max length
+        self.write::<u32>(Address(0xD0), 16 * 1024 * 1024); // ARAM size
+        self.write::<u32>(Address(0xF8), 0x09A7EC80); // Bus clock
+        self.write::<u32>(Address(0xFC), 0x1CF7C580); // CPU clock
+
+        // setup MSR
+        self.cpu.supervisor.config.msr.set_exception_prefix(false);
+
+        // done :)
+    }
+
+    pub fn new(mut config: Config) -> Self {
         let mut system = System {
-            config,
             scheduler: Scheduler::default(),
             cpu: Cpu::default(),
             gpu: Gpu::default(),
             dsp: Dsp::default(),
-            mem: Memory::default(),
+            mem: Memory::new(
+                config
+                    .ipl
+                    .take()
+                    .unwrap_or_else(|| vec![0; mem::IPL_LEN as usize]),
+            ),
             mmu: Mmu::default(),
             lazy: Lazy::default(),
             video: video::Interface::default(),
             processor: processor::Interface::default(),
+            external: external::Interface::default(),
+            audio: audio::Interface::default(),
+            disk: disk::Interface::default(),
+
+            config,
         };
 
-        system.load_executable();
+        if system.config.sideload.is_some() {
+            system.load_executable();
+        } else if system.config.iso.is_some() {
+            system.load_iso();
+        }
+
         system
     }
 
@@ -168,6 +257,13 @@ impl System {
     /// Processes the given event.
     pub fn process(&mut self, event: Event) {
         match event {
+            Event::DiskTransferComplete => {
+                self.disk.status.set_transfer_interrupt(true);
+                self.disk.control.set_transfer_ongoing(false);
+                self.disk.dma_length = 0;
+                self.scheduler.schedule_now(Event::CheckInterrupts);
+                tracing::debug!("completed DI transfer");
+            }
             Event::Decrementer => {
                 self.update_decrementer();
                 if self.cpu.supervisor.config.msr.interrupts() {
@@ -178,7 +274,6 @@ impl System {
                 }
             }
             Event::CheckInterrupts => self.check_interrupts(),
-            Event::CommandProcessor => self.cp_update(),
             Event::Video(video::Event::VerticalCount) => {
                 self.update_display_interrupts();
 
@@ -192,9 +287,10 @@ impl System {
 
                 if !self.video.display_config.progressive()
                     && self.video.vertical_count as u32 == self.video.lines_per_even_field() + 1
-                    && let Some(callback) = &mut self.config.vsync_callback {
-                        callback();
-                    }
+                    && let Some(callback) = &mut self.config.vsync_callback
+                {
+                    callback();
+                }
 
                 let cycles_per_frame = (FREQUENCY as f64 / self.video.refresh_rate()) as u32;
                 let cycles_per_line = cycles_per_frame

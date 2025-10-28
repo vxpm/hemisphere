@@ -4,7 +4,7 @@ use common::bin::BinReader;
 use glam::{Vec2, Vec3};
 use zerocopy::{Immutable, IntoBytes};
 
-#[derive(Clone, Copy, Immutable, IntoBytes, Default)]
+#[derive(Clone, Copy, PartialEq, Immutable, IntoBytes, Default)]
 pub struct Rgba {
     pub r: f32,
     pub g: f32,

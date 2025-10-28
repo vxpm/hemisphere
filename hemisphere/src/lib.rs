@@ -20,6 +20,7 @@ use ppcjit::block::Executed;
 
 pub use common::{self, Address, Primitive, arch};
 pub use dol;
+pub use iso;
 
 /// Represents limits for execution.
 #[derive(Debug, Clone, Copy)]
@@ -123,6 +124,8 @@ impl Hemisphere {
             mapping: &mut self.jit.blocks.mapping,
         };
 
+        // tracing::debug!("block:\n{block}");
+
         block.call(&raw mut ctx as *mut ppcjit::block::Context, &CTX_HOOKS)
     }
 
@@ -150,10 +153,17 @@ impl Hemisphere {
     }
 
     pub fn step(&mut self) -> Executed {
-        self.exec(Limits {
+        let executed = self.exec(Limits {
             instructions: 1,
             cycles: u32::MAX,
-        })
+        });
+
+        self.system.scheduler.advance(executed.cycles as u64);
+        while let Some(event) = self.system.scheduler.pop() {
+            self.system.process(event);
+        }
+
+        executed
     }
 
     fn closest_breakpoint(&self, breakpoints: &[Address]) -> Address {

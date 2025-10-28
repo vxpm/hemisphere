@@ -67,6 +67,7 @@ mmio! {
 
     // === Pixel Engine ===
     0x100A, 2, PixelInterruptStatus;
+    0x100E, 2, PixelToken;
 
     // === Video Interface ===
     0x2000, 2, VideoVerticalTiming;
@@ -120,9 +121,25 @@ mmio! {
     0x5004, 4, DspCpuMailbox;
     0x500A, 2, DspControl;
     0x5012, 2, DspAramSize;
+    0x5016, 2, DspAramMode;
+    0x501A, 2, DspAramRefresh;
     0x5020, 4, DspAramDmaRamBase;
     0x5024, 4, DspAramDmaAramBase;
     0x5028, 4, DspAramDmaControl;
+    0x5030, 4, AudioDmaBase;
+    0x5036, 2, AudioDmaControl;
+
+    // === Disk Interface ===
+    0x6000, 4, DiskStatus;
+    0x6004, 4, DiskCover;
+    0x6008, 4, DiskCommand0;
+    0x600C, 4, DiskCommand1;
+    0x6010, 4, DiskCommand2;
+    0x6014, 4, DiskDmaBase;
+    0x6018, 4, DiskDmaLength;
+    0x601C, 4, DiskControl;
+    0x6020, 4, DiskImmediateData;
+    0x6024, 4, DiskConfiguration;
 
     // === Serial Interface ===
     0x6430, 4, SerialPoll;
@@ -152,6 +169,11 @@ mmio! {
 
     // === Audio Interface ===
     0x6C00, 4, AudioControl;
+    0x6C04, 4, AudioVolume;
+    0x6C08, 4, AudioSampleCounter;
+
+    // === Fake STDOUT ===
+    0x7000, 1, FakeStdout;
 
     // === PI FIFO===
     0x8000, 32, ProcessorFifo;
