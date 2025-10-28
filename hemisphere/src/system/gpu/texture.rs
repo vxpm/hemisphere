@@ -108,6 +108,7 @@ impl Format {
             DataFormat::Rgb5A3 => pixels * 2,
             DataFormat::Rgba8 => pixels * 4,
             DataFormat::Cmp => pixels / 2,
+            DataFormat::C8 => pixels,
             _ => todo!("format {:?}", self.data_format()),
         }
     }
@@ -396,6 +397,17 @@ pub fn decode_texture(data: &[u8], format: Format) -> Vec<Rgba8> {
             })
         }
         DataFormat::Cmp => decode_cmpr_tex(data, format.width(), format.height()),
+        DataFormat::C8 => {
+            vec![
+                Rgba8 {
+                    r: 255,
+                    g: 255,
+                    b: 255,
+                    a: 255
+                };
+                (format.width() * format.height()) as usize
+            ]
+        }
         _ => todo!("format {format:?}"),
     }
 }
