@@ -2,11 +2,12 @@
 resolver = "3"
 members = [
     "common",
-    "ppcjit",
     "dol",
     "iso",
     "cubetool",
     "fake-ipl",
+    "ppcjit",
+    "dsp",
     "hemisphere",
     "renderer",
     "app",

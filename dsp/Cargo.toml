@@ -1,0 +1,15 @@
+[package]
+name = "dsp"
+description = "DSP interpreter"
+version = "0.1.0"
+edition = "2024"
+
+[lints]
+workspace = true
+
+[dependencies]
+bitos.workspace = true
+bytesize.workspace = true
+tracing.workspace = true
+zerocopy.workspace = true
+strum.workspace = true
