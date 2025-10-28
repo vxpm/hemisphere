@@ -98,15 +98,22 @@ impl System {
     pub fn get_active_interrupts(&self) -> InterruptSources {
         let mut sources = InterruptSources::default();
 
+        // VI
         let mut video = false;
         for i in &self.video.interrupts {
             video |= i.enable() && i.status();
         }
         sources.set_video_interface(video);
 
+        // PE
         sources.set_pe_token(self.gpu.pixel.interrupt.token());
         sources.set_pe_finish(self.gpu.pixel.interrupt.finish());
+
+        // AI
         sources.set_audio_interface(self.audio.control.interrupt());
+
+        // DI
+        sources.set_dvd_interface(self.disk.status.any_interrupt());
 
         sources
     }

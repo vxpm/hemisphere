@@ -154,8 +154,8 @@ impl BlockBuilder<'_> {
         self.call_generic_hook(offset_of!(Hooks, tb_read));
 
         let tb = match ins.field_tbr() {
-            268 => Reg::TBL,
-            269 => Reg::TBU,
+            268 => SPR::TBL,
+            269 => SPR::TBU,
             _ => todo!(),
         };
 

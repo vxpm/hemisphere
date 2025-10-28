@@ -390,8 +390,8 @@ impl System {
             // === Processor Interface ===
             // Interrupts
             Mmio::ProcessorInterruptMask => {
+                ne!(self.processor.mask.as_mut_bytes());
                 self.scheduler.schedule_now(Event::CheckInterrupts);
-                ne!(self.processor.mask.as_mut_bytes())
             }
 
             // FIFO
@@ -437,6 +437,7 @@ impl System {
                 ne!(written.as_mut_bytes());
                 self.disk.write_status(written);
                 tracing::debug!(diskstatus = ?self.disk.status);
+                self.scheduler.schedule_now(Event::CheckInterrupts);
             }
             Mmio::DiskCover => {
                 let mut written = disk::Cover::from_bits(0);
@@ -444,6 +445,7 @@ impl System {
                 self.disk.write_cover(written);
                 self.disk.cover.set_open(false);
                 tracing::debug!(diskcover = ?self.disk.cover);
+                self.scheduler.schedule_now(Event::CheckInterrupts);
             }
             Mmio::DiskCommand0 => ne!(self.disk.command[0].as_mut_bytes()),
             Mmio::DiskCommand1 => ne!(self.disk.command[1].as_mut_bytes()),

@@ -1,6 +1,6 @@
 use std::io::SeekFrom;
 
-use crate::system::System;
+use crate::system::{Event, System};
 use bitos::bitos;
 use common::Address;
 
@@ -21,6 +21,15 @@ pub struct Status {
     pub break_interrupt_mask: bool,
     #[bits(6)]
     pub break_interrupt: bool,
+}
+
+impl Status {
+    pub fn any_interrupt(&self) -> bool {
+        let device_err = self.transfer_interrupt() && self.transfer_interrupt_mask();
+        let transfer = self.transfer_interrupt() && self.transfer_interrupt_mask();
+        let break_ = self.transfer_interrupt() && self.transfer_interrupt_mask();
+        device_err || transfer || break_
+    }
 }
 
 #[bitos(1)]
@@ -122,13 +131,15 @@ impl System {
                     reader
                         .read_exact(&mut self.mem.ram[target.value() as usize..][..length as usize])
                         .unwrap();
-                    self.disk.control.set_transfer_ongoing(false);
+
+                    self.scheduler.schedule(Event::DiskTransferComplete, 10000);
                 }
                 0x1200_0000 => {
                     let target = self.mmu.translate_data_addr(self.disk.dma_base).unwrap();
                     let length = self.disk.dma_length;
                     self.mem.ram[target.value() as usize..][..length as usize].fill(0);
-                    self.disk.control.set_transfer_ongoing(false);
+
+                    self.scheduler.schedule(Event::DiskTransferComplete, 10000);
                 }
                 _ => todo!("{}", command),
             }

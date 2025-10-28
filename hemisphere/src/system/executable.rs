@@ -4,10 +4,10 @@ use dol::{
     binrw::{BinRead, io::BufReader},
 };
 use easyerr::{Error, ResultExt};
-use std::path::Path;
+use std::{borrow::Cow, path::Path};
 
 pub struct Location<'a> {
-    pub file: Option<&'a str>,
+    pub file: Option<Cow<'a, str>>,
     pub line: Option<u32>,
     pub column: Option<u32>,
 }

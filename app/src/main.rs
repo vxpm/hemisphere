@@ -55,7 +55,7 @@ impl DebugInfo for Addr2LineDebug {
             .ok()
             .flatten()
             .map(|l| Location {
-                file: l.file,
+                file: l.file.map(Cow::Borrowed),
                 line: l.line,
                 column: l.column,
             })

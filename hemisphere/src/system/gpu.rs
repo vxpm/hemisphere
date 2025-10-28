@@ -7,9 +7,12 @@ pub mod transform;
 use super::System;
 use crate::{
     render::{Action, TevConfig, TevStage},
-    system::gpu::command::{
-        ArrayDescriptor, AttributeMode, VertexAttributeStream,
-        attributes::{self, Attribute, AttributeDescriptor, Rgba},
+    system::{
+        Event,
+        gpu::command::{
+            ArrayDescriptor, AttributeMode, VertexAttributeStream,
+            attributes::{self, Attribute, AttributeDescriptor, Rgba},
+        },
     },
 };
 use bitos::{
@@ -427,14 +430,14 @@ impl System {
             }
             Reg::PixelDone => {
                 self.gpu.pixel.interrupt.set_finish(true);
-                self.check_interrupts();
+                self.scheduler.schedule_now(Event::CheckInterrupts);
             }
             Reg::PixelToken => {
                 self.gpu.pixel.token = value;
             }
             Reg::PixelTokenInt => {
                 self.gpu.pixel.interrupt.set_token(true);
-                self.check_interrupts();
+                self.scheduler.schedule_now(Event::CheckInterrupts);
             }
             Reg::PixelCopyClearAr => {
                 self.gpu.pixel.clear_color.set_r(value.bits(0, 8) as u8);

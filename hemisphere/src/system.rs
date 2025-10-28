@@ -59,6 +59,8 @@ pub enum Event {
     CheckInterrupts,
     /// A video interface event.
     Video(video::Event),
+    /// Check external interrupts.
+    DiskTransferComplete,
 }
 
 /// System state.
@@ -185,14 +187,16 @@ impl System {
 
         self.write::<u32>(Address(0x1C), 0xC2339F3D); // DVD Magic Word
         self.write::<u32>(Address(0x20), 0x0D15EA5E); // Boot kind
-        self.write::<u32>(Address(0x24), 0x1); // Version
+        self.write::<u32>(Address(0x24), 0x00000001); // Version
         self.write::<u32>(Address(0x28), 0x01800000); // Physical Memory Size
         self.write::<u32>(Address(0x2C), 0x00000001); // Console Type
         self.write::<u32>(Address(0x30), 0x00000000); // Arena Low
         self.write::<u32>(Address(0x34), 0x817fe8c0); // Arena High
         self.write::<u32>(Address(0x38), 0x817fe8c0); // FST address
-        self.write::<u32>(Address(0x3C), 0x24); // FST max length
+        self.write::<u32>(Address(0x3C), 0x00000024); // FST max length
         self.write::<u32>(Address(0xD0), 16 * 1024 * 1024); // ARAM size
+        self.write::<u32>(Address(0xF8), 0x09A7EC80); // Bus clock
+        self.write::<u32>(Address(0xFC), 0x1cf7c580); // CPU clock
 
         // setup MSR
         self.cpu.supervisor.config.msr.set_exception_prefix(false);
@@ -253,6 +257,11 @@ impl System {
     /// Processes the given event.
     pub fn process(&mut self, event: Event) {
         match event {
+            Event::DiskTransferComplete => {
+                self.disk.status.set_transfer_interrupt(true);
+                self.disk.control.set_transfer_ongoing(false);
+                self.scheduler.schedule_now(Event::CheckInterrupts);
+            }
             Event::Decrementer => {
                 self.update_decrementer();
                 if self.cpu.supervisor.config.msr.interrupts() {

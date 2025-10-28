@@ -754,7 +754,9 @@ impl System {
                 return;
             };
 
-            tracing::debug!("processing {:02X?}", cmd);
+            if !matches!(cmd, Command::Nop | Command::InvalidateVertexCache) {
+                tracing::debug!("processing {:02X?}", cmd);
+            }
 
             match cmd {
                 Command::Nop => (),
