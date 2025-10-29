@@ -31,10 +31,10 @@ fn run_case(case: file::TestCase) -> Result<(), Divergences> {
     let mut dsp = Dsp::default();
 
     // setup
-    dsp.pc = 62;
     dsp.regs = case.initial_regs();
+    dsp.regs.pc = 62;
     dsp.memory.iram[62..][..case.instructions.len()].copy_from_slice(&case.instructions);
-    dsp.memory.iram[case.instructions.len()] = 0x21; // HALT
+    dsp.memory.iram[62 + case.instructions.len()] = 0x21; // HALT
 
     // run until halt
     let code = parse_code(&case.instructions);

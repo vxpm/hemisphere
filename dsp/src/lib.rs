@@ -1,3 +1,5 @@
+mod exec;
+
 pub mod ins;
 
 use bitos::{BitUtils, bitos};
@@ -7,7 +9,7 @@ use tinyvec::ArrayVec;
 
 pub use ins::Ins;
 
-use crate::ins::Opcode;
+use crate::ins::{ExtensionOpcode, Opcode};
 
 const IRAM_LEN: usize = 0x1000;
 const IROM_LEN: usize = 0x1000;
@@ -135,6 +137,7 @@ impl Reg {
 
 #[derive(Debug, Clone, Default)]
 pub struct Registers {
+    pub pc: u16,
     pub addressing: [u16; 4],
     pub indexing: [u16; 4],
     pub wrapping: [u16; 4],
@@ -164,10 +167,10 @@ impl Registers {
             Reg::Wrap1 => self.wrapping[1],
             Reg::Wrap2 => self.wrapping[2],
             Reg::Wrap3 => self.wrapping[3],
-            Reg::CallStack => self.call_stack.last().copied().unwrap(),
-            Reg::DataStack => self.data_stack.last().copied().unwrap(),
-            Reg::LoopStack => self.loop_stack.last().copied().unwrap(),
-            Reg::LoopCount => self.loop_count.last().copied().unwrap(),
+            Reg::CallStack => self.call_stack.last().copied().unwrap_or_default(),
+            Reg::DataStack => self.data_stack.last().copied().unwrap_or_default(),
+            Reg::LoopStack => self.loop_stack.last().copied().unwrap_or_default(),
+            Reg::LoopCount => self.loop_count.last().copied().unwrap_or_default(),
             Reg::Acc40High0 => self.acc40[0].high as i8 as i16 as u16,
             Reg::Acc40High1 => self.acc40[1].high as i8 as i16 as u16,
             Reg::Config => self.config as u16,
@@ -208,7 +211,7 @@ impl Registers {
             Reg::Acc40High0 => self.acc40[0].high = value as u8,
             Reg::Acc40High1 => self.acc40[1].high = value as u8,
             Reg::Config => self.config = value as u8,
-            Reg::Status => self.status = Status::from_bits(value),
+            Reg::Status => self.status = Status::from_bits(value.with_bit(8, false)),
             Reg::ProdLow => self.product.low = value,
             Reg::ProdMid1 => self.product.mid1 = value,
             Reg::ProdHigh => self.product.high = value as u8,
@@ -232,7 +235,6 @@ pub struct Control {
 
 #[derive(Default)]
 pub struct Dsp {
-    pub pc: u16,
     pub regs: Registers,
     pub memory: Memory,
     pub control: Control,
@@ -240,7 +242,12 @@ pub struct Dsp {
 
 impl Dsp {
     fn check_stacks(&mut self) {
-        if self.regs.loop_stack.last().is_some_and(|v| *v == self.pc) {
+        if self
+            .regs
+            .loop_stack
+            .last()
+            .is_some_and(|v| *v == self.regs.pc)
+        {
             let counter = self.regs.loop_count.last_mut().unwrap();
             *counter -= 1;
 
@@ -250,18 +257,42 @@ impl Dsp {
                 self.regs.loop_count.pop();
             } else {
                 let offset = *self.regs.call_stack.last().unwrap();
-                self.pc = self.pc.wrapping_add(offset);
+                self.regs.pc = self.regs.pc.wrapping_add(offset);
             }
         }
     }
 
     pub fn step(&mut self) {
         self.check_stacks();
-        // instruction
-        if Ins::new(self.memory.iram[self.pc as usize]).opcode() == Opcode::Halt {
-            self.control.halt = true;
+
+        // fetch
+        let mut ins = Ins::new(self.memory.iram[self.regs.pc as usize]);
+        let opcode = ins.opcode();
+
+        let extra = opcode
+            .needs_extra()
+            .then_some(self.memory.iram[self.regs.pc as usize + 1]);
+
+        if let Some(extra) = extra {
+            ins.extra = extra;
         }
 
-        self.pc += 1;
+        // execute
+        let regs_previous = self.regs.clone();
+        match ins.opcode() {
+            Opcode::Nop => (),
+            Opcode::Halt => self.halt(ins),
+            op => todo!("opcode {op:?}"),
+        }
+
+        if opcode.has_extension() {
+            let extension = ins.extension_opcode();
+            match extension {
+                ExtensionOpcode::Nop => (),
+                _ => todo!(),
+            }
+        }
+
+        self.regs.pc += if extra.is_some() { 2 } else { 1 };
     }
 }

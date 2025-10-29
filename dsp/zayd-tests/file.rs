@@ -15,8 +15,14 @@ pub struct TestCase {
 fn regs(arr: [u16; 31]) -> dsp::Registers {
     let mut regs = dsp::Registers::default();
     for i in 0..31 {
-        // reg 18 is skipped
+        // reg 18 is not in the data
         let reg_index = if i < 18 { i } else { i + 1 };
+
+        // reg 14 is skipped, it can't be written to by LIS
+        if reg_index == 14 {
+            continue;
+        }
+
         regs.set(dsp::Reg::new(reg_index), arr[i as usize]);
     }
 

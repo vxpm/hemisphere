@@ -283,6 +283,83 @@ impl Opcode {
                 | Si
         )
     }
+
+    pub fn has_extension(self) -> bool {
+        use Opcode::*;
+
+        matches!(
+            self,
+            Xorr | Andr
+                | Orr
+                | Andc
+                | Orc
+                | Xorc
+                | Not
+                | Lsrnrx
+                | Asrnrx
+                | Lsrnr
+                | Asrnr
+                | Addr
+                | Addax
+                | Add
+                | Addp
+                | Subr
+                | Subax
+                | Sub
+                | Subp
+                | Movr
+                | Movax
+                | Mov
+                | Movp
+                | Addaxl
+                | Incm
+                | Inc
+                | Decm
+                | Dec
+                | Neg
+                | Movnp
+                | Nx
+                | Clr
+                | Cmp
+                | Mulaxh
+                | Clrp
+                | Tstprod
+                | Tstaxh
+                | M2
+                | M0
+                | Clr15
+                | Set15
+                | Set16
+                | Set40
+                | Mul
+                | Asr16
+                | Mulmvz
+                | Mulac
+                | Mulmv
+                | Mulx
+                | Abs
+                | Tst
+                | Mulxmvz
+                | Mulxac
+                | Mulxmv
+                | Mulc
+                | Cmpaxh
+                | Mulcmvz
+                | Mulcac
+                | Mulcmv
+                | Maddx
+                | Msubx
+                | Maddc
+                | Msubc
+                | Lsl16
+                | Madd
+                | Lsr16
+                | Msub
+                | Addpaxz
+                | Clrl
+                | Movpz
+        )
+    }
 }
 
 opcode! {
@@ -329,6 +406,10 @@ impl Ins {
 
     pub fn opcode(self) -> Opcode {
         Opcode::new(self.base)
+    }
+
+    pub fn extension_opcode(self) -> ExtensionOpcode {
+        ExtensionOpcode::new(self.base)
     }
 }
 
