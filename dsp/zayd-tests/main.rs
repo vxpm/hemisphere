@@ -1,10 +1,12 @@
+#![feature(trim_prefix_suffix)]
+
 mod file;
 
 use dsp::Dsp;
 use libtest_mimic::{Arguments, Failed, Trial};
 use std::fmt::Write;
 
-fn parse_ins(mut words: &[u16]) -> Vec<dsp::Ins> {
+fn parse_code(mut words: &[u16]) -> Vec<dsp::Ins> {
     let mut ins = vec![];
     while !words.is_empty() {
         let opcode = dsp::ins::Opcode::new(words[0]);
@@ -29,12 +31,14 @@ fn run_case(case: file::TestCase) -> Result<(), Divergences> {
     let mut dsp = Dsp::default();
 
     // setup
+    dsp.pc = 62;
     dsp.regs = case.initial_regs();
     dsp.memory.iram[62..][..case.instructions.len()].copy_from_slice(&case.instructions);
+    dsp.memory.iram[case.instructions.len()] = 0x21; // HALT
 
-    // run
-    let code = parse_ins(&case.instructions);
-    for _ in 0..code.len() {
+    // run until halt
+    let code = parse_code(&case.instructions);
+    while !dsp.control.halt {
         dsp.step();
     }
 
@@ -77,7 +81,11 @@ fn run_test(file: file::TestFile) -> Result<(), Failed> {
                 .map(|i| format!("{:?}\r\n", i.opcode()))
                 .collect::<String>();
 
-            failures.push(format!("Case {i} failed: {}\r\n{}", regs, ins));
+            failures.push(format!(
+                "Case {i} failed: {}\r\n{}",
+                regs.trim_suffix(", "),
+                ins
+            ));
         }
     }
 

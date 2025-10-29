@@ -7,6 +7,8 @@ use tinyvec::ArrayVec;
 
 pub use ins::Ins;
 
+use crate::ins::Opcode;
+
 const IRAM_LEN: usize = 0x1000;
 const IROM_LEN: usize = 0x1000;
 const DRAM_LEN: usize = 0x1000;
@@ -224,11 +226,42 @@ impl Registers {
 }
 
 #[derive(Default)]
+pub struct Control {
+    pub halt: bool,
+}
+
+#[derive(Default)]
 pub struct Dsp {
-    pub memory: Memory,
+    pub pc: u16,
     pub regs: Registers,
+    pub memory: Memory,
+    pub control: Control,
 }
 
 impl Dsp {
-    pub fn step(&mut self) {}
+    fn check_stacks(&mut self) {
+        if self.regs.loop_stack.last().is_some_and(|v| *v == self.pc) {
+            let counter = self.regs.loop_count.last_mut().unwrap();
+            *counter -= 1;
+
+            if *counter == 0 {
+                self.regs.call_stack.pop();
+                self.regs.loop_stack.pop();
+                self.regs.loop_count.pop();
+            } else {
+                let offset = *self.regs.call_stack.last().unwrap();
+                self.pc = self.pc.wrapping_add(offset);
+            }
+        }
+    }
+
+    pub fn step(&mut self) {
+        self.check_stacks();
+        // instruction
+        if Ins::new(self.memory.iram[self.pc as usize]).opcode() == Opcode::Halt {
+            self.control.halt = true;
+        }
+
+        self.pc += 1;
+    }
 }

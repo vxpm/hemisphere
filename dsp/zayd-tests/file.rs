@@ -14,14 +14,10 @@ pub struct TestCase {
 
 fn regs(arr: [u16; 31]) -> dsp::Registers {
     let mut regs = dsp::Registers::default();
-    for i in 0..18 {
-        regs.set(dsp::Reg::new(i), arr[i as usize]);
-    }
-
-    // reg 18 is skipped
-
-    for i in 18..31 {
-        regs.set(dsp::Reg::new(i + 1), arr[i as usize]);
+    for i in 0..31 {
+        // reg 18 is skipped
+        let reg_index = if i < 18 { i } else { i + 1 };
+        regs.set(dsp::Reg::new(reg_index), arr[i as usize]);
     }
 
     regs
