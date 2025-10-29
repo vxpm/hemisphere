@@ -319,11 +319,12 @@ pub struct Ins {
 }
 
 impl Ins {
-    pub fn new(value: u16) -> Self {
-        Self {
-            base: value,
-            extra: 0,
-        }
+    pub fn new(base: u16) -> Self {
+        Self { base, extra: 0 }
+    }
+
+    pub fn with_extra(base: u16, extra: u16) -> Self {
+        Self { base, extra }
     }
 
     pub fn opcode(self) -> Opcode {

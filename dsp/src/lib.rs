@@ -1,8 +1,11 @@
 pub mod ins;
 
-use bitos::{bitos, integer::u40};
+use bitos::{BitUtils, bitos};
 use common::util::boxed_array;
+use strum::FromRepr;
 use tinyvec::ArrayVec;
+
+pub use ins::Ins;
 
 const IRAM_LEN: usize = 0x1000;
 const IROM_LEN: usize = 0x1000;
@@ -40,10 +43,17 @@ pub enum Exception {
 }
 
 #[derive(Debug, Clone, Copy, Default)]
+pub struct Acc40 {
+    pub low: u16,
+    pub mid: u16,
+    pub high: u8,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
 pub struct Product {
     pub low: u16,
-    pub mid0: u16,
     pub mid1: u16,
+    pub mid2: u16,
     pub high: u8,
 }
 
@@ -78,6 +88,49 @@ pub struct Status {
     pub unsigned_mul: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, FromRepr)]
+#[repr(u8)]
+pub enum Reg {
+    Addr0,
+    Addr1,
+    Addr2,
+    Addr3,
+    Index0,
+    Index1,
+    Index2,
+    Index3,
+    Wrap0,
+    Wrap1,
+    Wrap2,
+    Wrap3,
+    CallStack,
+    DataStack,
+    LoopStack,
+    LoopCount,
+    Acc40High0,
+    Acc40High1,
+    Config,
+    Status,
+    ProdLow,
+    ProdMid1,
+    ProdHigh,
+    ProdMid2,
+    Acc32Low0,
+    Acc32Low1,
+    Acc32High0,
+    Acc32High1,
+    Acc40Low0,
+    Acc40Low1,
+    Acc40Mid0,
+    Acc40Mid1,
+}
+
+impl Reg {
+    pub fn new(index: u8) -> Self {
+        Self::from_repr(index).unwrap()
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct Registers {
     pub addressing: [u16; 4],
@@ -88,14 +141,94 @@ pub struct Registers {
     pub loop_stack: ArrayVec<[u16; 4]>,
     pub loop_count: ArrayVec<[u16; 4]>,
     pub product: Product,
-    pub acc40: [u40; 2],
+    pub acc40: [Acc40; 2],
     pub acc32: [u32; 2],
     pub config: u8,
     pub status: Status,
+}
+
+impl Registers {
+    pub fn get(&self, reg: Reg) -> u16 {
+        match reg {
+            Reg::Addr0 => self.addressing[0],
+            Reg::Addr1 => self.addressing[1],
+            Reg::Addr2 => self.addressing[2],
+            Reg::Addr3 => self.addressing[3],
+            Reg::Index0 => self.indexing[0],
+            Reg::Index1 => self.indexing[1],
+            Reg::Index2 => self.indexing[2],
+            Reg::Index3 => self.indexing[3],
+            Reg::Wrap0 => self.wrapping[0],
+            Reg::Wrap1 => self.wrapping[1],
+            Reg::Wrap2 => self.wrapping[2],
+            Reg::Wrap3 => self.wrapping[3],
+            Reg::CallStack => self.call_stack.last().copied().unwrap(),
+            Reg::DataStack => self.data_stack.last().copied().unwrap(),
+            Reg::LoopStack => self.loop_stack.last().copied().unwrap(),
+            Reg::LoopCount => self.loop_count.last().copied().unwrap(),
+            Reg::Acc40High0 => self.acc40[0].high as i8 as i16 as u16,
+            Reg::Acc40High1 => self.acc40[1].high as i8 as i16 as u16,
+            Reg::Config => self.config as u16,
+            Reg::Status => self.status.to_bits(),
+            Reg::ProdLow => self.product.low,
+            Reg::ProdMid1 => self.product.mid1,
+            Reg::ProdHigh => self.product.high as u16,
+            Reg::ProdMid2 => self.product.mid2,
+            Reg::Acc32Low0 => self.acc32[0].bits(0, 16) as u16,
+            Reg::Acc32Low1 => self.acc32[1].bits(0, 16) as u16,
+            Reg::Acc32High0 => self.acc32[0].bits(16, 32) as u16,
+            Reg::Acc32High1 => self.acc32[1].bits(16, 32) as u16,
+            Reg::Acc40Low0 => self.acc40[0].low,
+            Reg::Acc40Low1 => self.acc40[1].low,
+            Reg::Acc40Mid0 => self.acc40[0].mid,
+            Reg::Acc40Mid1 => self.acc40[1].mid,
+        }
+    }
+
+    pub fn set(&mut self, reg: Reg, value: u16) {
+        match reg {
+            Reg::Addr0 => self.addressing[0] = value,
+            Reg::Addr1 => self.addressing[1] = value,
+            Reg::Addr2 => self.addressing[2] = value,
+            Reg::Addr3 => self.addressing[3] = value,
+            Reg::Index0 => self.indexing[0] = value,
+            Reg::Index1 => self.indexing[1] = value,
+            Reg::Index2 => self.indexing[2] = value,
+            Reg::Index3 => self.indexing[3] = value,
+            Reg::Wrap0 => self.wrapping[0] = value,
+            Reg::Wrap1 => self.wrapping[1] = value,
+            Reg::Wrap2 => self.wrapping[2] = value,
+            Reg::Wrap3 => self.wrapping[3] = value,
+            Reg::CallStack => self.call_stack.push(value),
+            Reg::DataStack => self.data_stack.push(value),
+            Reg::LoopStack => self.loop_stack.push(value),
+            Reg::LoopCount => self.loop_count.push(value),
+            Reg::Acc40High0 => self.acc40[0].high = value as u8,
+            Reg::Acc40High1 => self.acc40[1].high = value as u8,
+            Reg::Config => self.config = value as u8,
+            Reg::Status => self.status = Status::from_bits(value),
+            Reg::ProdLow => self.product.low = value,
+            Reg::ProdMid1 => self.product.mid1 = value,
+            Reg::ProdHigh => self.product.high = value as u8,
+            Reg::ProdMid2 => self.product.mid2 = value,
+            Reg::Acc32Low0 => self.acc32[0] = self.acc32[0].with_bits(0, 16, value as u32),
+            Reg::Acc32Low1 => self.acc32[1] = self.acc32[1].with_bits(0, 16, value as u32),
+            Reg::Acc32High0 => self.acc32[0] = self.acc32[0].with_bits(16, 32, value as u32),
+            Reg::Acc32High1 => self.acc32[1] = self.acc32[1].with_bits(16, 32, value as u32),
+            Reg::Acc40Low0 => self.acc40[0].low = value,
+            Reg::Acc40Low1 => self.acc40[1].low = value,
+            Reg::Acc40Mid0 => self.acc40[0].mid = value,
+            Reg::Acc40Mid1 => self.acc40[1].mid = value,
+        }
+    }
 }
 
 #[derive(Default)]
 pub struct Dsp {
     pub memory: Memory,
     pub regs: Registers,
+}
+
+impl Dsp {
+    pub fn step(&mut self) {}
 }

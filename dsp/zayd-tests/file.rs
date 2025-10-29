@@ -1,22 +1,49 @@
-use binrw::BinRead;
 use binrw::helpers::until_eof;
 use binrw::io::BufReader;
+use binrw::{BinRead, binread};
 use std::path::Path;
 
 #[derive(BinRead)]
 #[br(import(instructions: u16), little)]
 pub struct TestCase {
     #[br(count = instructions)]
-    pub instructions: Vec<u8>,
+    pub instructions: Vec<u16>,
     pub expected: [u16; 31],
     pub initial: [u16; 31],
 }
 
-#[derive(BinRead)]
+fn regs(arr: [u16; 31]) -> dsp::Registers {
+    let mut regs = dsp::Registers::default();
+    for i in 0..18 {
+        regs.set(dsp::Reg::new(i), arr[i as usize]);
+    }
+
+    // reg 18 is skipped
+
+    for i in 18..31 {
+        regs.set(dsp::Reg::new(i + 1), arr[i as usize]);
+    }
+
+    regs
+}
+
+impl TestCase {
+    pub fn expected_regs(&self) -> dsp::Registers {
+        regs(self.expected)
+    }
+
+    pub fn initial_regs(&self) -> dsp::Registers {
+        regs(self.initial)
+    }
+}
+
+#[binread]
 #[br(little)]
 pub struct TestFile {
-    pub case_length: u16,
-    #[br(parse_with = until_eof, args(case_length))]
+    #[br(temp)]
+    case_length: u16,
+    #[br(assert(case_length % 2 == 0))]
+    #[br(parse_with = until_eof, args(case_length / 2))]
     pub cases: Vec<TestCase>,
 }
 
