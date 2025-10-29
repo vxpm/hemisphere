@@ -7,9 +7,20 @@ edition = "2024"
 [lints]
 workspace = true
 
+[[test]]
+name = "zayd-tests"
+path = "zayd-tests/main.rs"
+harness = false
+
+[dev-dependencies]
+binrw.workspace = true
+libtest-mimic = "0.8"
+
 [dependencies]
+common = { path = "../common" }
 bitos.workspace = true
 bytesize.workspace = true
 tracing.workspace = true
 zerocopy.workspace = true
 strum.workspace = true
+tinyvec = "1.10"
