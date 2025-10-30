@@ -853,4 +853,112 @@ impl Dsp {
             _ => self.regs.set(dst, src),
         }
     }
+
+    // NOTE: carry flag issue
+    pub fn msub(&mut self, ins: Ins) {
+        let s = ins.base.bit(8) as usize;
+
+        let acc = self.regs.acc32[s];
+        let low = (acc << 16) >> 16;
+        let high = acc >> 16;
+        let mul = low * high;
+        let result = if self.regs.status.dont_double_result() {
+            mul
+        } else {
+            2 * mul
+        };
+
+        let (_, _, prod) = self.regs.product.get();
+        self.regs.product.set(prod - result as i64);
+    }
+
+    // NOTE: carry flag issue
+    pub fn msubc(&mut self, ins: Ins) {
+        let t = ins.base.bit(8) as usize;
+        let s = ins.base.bit(9) as usize;
+
+        let lhs = self.regs.acc40[s].mid as i16 as i32;
+        let rhs = self.regs.acc32[t] >> 16;
+        let mul = lhs * rhs;
+        let result = if self.regs.status.dont_double_result() {
+            mul
+        } else {
+            2 * mul
+        };
+
+        let (_, _, prod) = self.regs.product.get();
+        self.regs.product.set(prod - result as i64);
+    }
+
+    // NOTE: carry flag issue
+    pub fn msubx(&mut self, ins: Ins) {
+        let t = ins.base.bit(8) as u8;
+        let s = ins.base.bit(9) as u8;
+
+        let lhs = self.regs.get(Reg::new(0x18 + 2 * s)) as i16 as i32;
+        let rhs = self.regs.get(Reg::new(0x19 + 2 * t)) as i16 as i32;
+        let mul = lhs * rhs;
+        let result = if self.regs.status.dont_double_result() {
+            mul
+        } else {
+            2 * mul
+        };
+
+        let (_, _, prod) = self.regs.product.get();
+        self.regs.product.set(prod - result as i64);
+    }
+
+    // NOTE: carry flag issue
+    pub fn mul(&mut self, ins: Ins) {
+        let s = ins.base.bit(11) as usize;
+
+        let acc = self.regs.acc32[s];
+        let low = (acc << 16) >> 16;
+        let high = acc >> 16;
+        let mul = low * high;
+        let result = if self.regs.status.dont_double_result() {
+            mul
+        } else {
+            2 * mul
+        };
+
+        self.regs.product.set(result as i64);
+    }
+
+    // NOTE: carry flag issue
+    pub fn mulac(&mut self, ins: Ins) {
+        let r = ins.base.bit(8) as usize;
+        let s = ins.base.bit(11) as usize;
+
+        let acc_r = self.regs.acc40[r].get();
+        let new = self.regs.acc40[r].set(acc_r + self.regs.product.get().2);
+
+        let acc_s = self.regs.acc32[s];
+        let low = (acc_s << 16) >> 16;
+        let high = acc_s >> 16;
+        let mul = low * high;
+        let result = if self.regs.status.dont_double_result() {
+            mul
+        } else {
+            2 * mul
+        };
+
+        self.regs.product.set(result as i64);
+
+        self.regs.status.set_overflow(false);
+        self.base_flags(new);
+    }
+
+    // NOTE: carry flag issue
+    pub fn mulaxh(&mut self, _: Ins) {
+        let val = (self.regs.acc32[0] >> 16) as i64;
+        let mul = val * val;
+        let result = if self.regs.status.dont_double_result() {
+            mul
+        } else {
+            2 * mul
+        };
+
+        self.regs.product.set(result as i64);
+    }
 }

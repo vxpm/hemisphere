@@ -387,6 +387,12 @@ impl Dsp {
             Opcode::Movpz => self.movpz(ins),
             Opcode::Movr => self.movr(ins),
             Opcode::Mrr => self.mrr(ins),
+            Opcode::Msub => self.msub(ins),
+            Opcode::Msubc => self.msubc(ins),
+            Opcode::Msubx => self.msubx(ins),
+            Opcode::Mul => self.mul(ins),
+            Opcode::Mulac => self.mulac(ins),
+            Opcode::Mulaxh => self.mulaxh(ins),
             _ => (),
         }
 
