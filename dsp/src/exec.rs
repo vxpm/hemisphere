@@ -1,6 +1,13 @@
+use crate::{Acc40, Dsp, Ins, Reg};
 use bitos::BitUtils;
 
-use crate::{Acc40, Dsp, Ins, Reg};
+fn add_carried(lhs: i64, new: i64) -> bool {
+    lhs as u64 > new as u64
+}
+
+fn add_overflowed(lhs: i64, rhs: i64, new: i64) -> bool {
+    (lhs > 0 && rhs > 0 && new <= 0) || (lhs < 0 && rhs < 0 && new >= 0)
+}
 
 impl Dsp {
     fn base_flags(&mut self, value: i64) {
@@ -38,10 +45,8 @@ impl Dsp {
         let rhs = self.regs.acc40[1 - idx].get();
         let new = self.regs.acc40[idx].set(lhs + rhs);
 
-        self.regs.status.set_carry(lhs as u64 > new as u64);
-        self.regs
-            .status
-            .set_overflow((lhs > 0 && rhs > 0 && new <= 0) || (lhs < 0 && rhs < 0 && new >= 0));
+        self.regs.status.set_carry(add_carried(lhs, new));
+        self.regs.status.set_overflow(add_overflowed(lhs, rhs, new));
 
         self.base_flags(new);
     }
@@ -92,10 +97,8 @@ impl Dsp {
         let rhs = self.regs.acc32[s] as i64;
         let new = self.regs.acc40[d].set(lhs + rhs);
 
-        self.regs.status.set_carry(lhs as u64 > new as u64);
-        self.regs
-            .status
-            .set_overflow((lhs > 0 && rhs > 0 && new <= 0) || (lhs < 0 && rhs < 0 && new >= 0));
+        self.regs.status.set_carry(add_carried(lhs, new));
+        self.regs.status.set_overflow(add_overflowed(lhs, rhs, new));
 
         self.base_flags(new);
     }
@@ -108,10 +111,8 @@ impl Dsp {
         let rhs = self.regs.acc32[s].bits(0, 16) as u64 as i64;
         let new = self.regs.acc40[d].set(lhs + rhs);
 
-        self.regs.status.set_carry(lhs as u64 > new as u64);
-        self.regs
-            .status
-            .set_overflow((lhs > 0 && rhs > 0 && new <= 0) || (lhs < 0 && rhs < 0 && new >= 0));
+        self.regs.status.set_carry(add_carried(lhs, new));
+        self.regs.status.set_overflow(add_overflowed(lhs, rhs, new));
 
         self.base_flags(new);
     }
@@ -123,10 +124,8 @@ impl Dsp {
         let rhs = (ins.extra as i16 as i64) << 16;
         let new = self.regs.acc40[d].set(lhs + rhs);
 
-        self.regs.status.set_carry(lhs as u64 > new as u64);
-        self.regs
-            .status
-            .set_overflow((lhs > 0 && rhs > 0 && new <= 0) || (lhs < 0 && rhs < 0 && new >= 0));
+        self.regs.status.set_carry(add_carried(lhs, new));
+        self.regs.status.set_overflow(add_overflowed(lhs, rhs, new));
 
         self.base_flags(new);
     }
@@ -138,10 +137,8 @@ impl Dsp {
         let rhs = (ins.base.bits(0, 8) as i8 as i64) << 16;
         let new = self.regs.acc40[d].set(lhs + rhs);
 
-        self.regs.status.set_carry(lhs as u64 > new as u64);
-        self.regs
-            .status
-            .set_overflow((lhs > 0 && rhs > 0 && new <= 0) || (lhs < 0 && rhs < 0 && new >= 0));
+        self.regs.status.set_carry(add_carried(lhs, new));
+        self.regs.status.set_overflow(add_overflowed(lhs, rhs, new));
 
         self.base_flags(new);
     }
@@ -153,18 +150,14 @@ impl Dsp {
         let (carry, overflow, rhs) = self.regs.product.get();
         let new = self.regs.acc40[d].set(lhs + rhs);
 
+        self.regs.status.set_carry(add_carried(lhs, new) || carry);
         self.regs
             .status
-            .set_carry(lhs as u64 > new as u64 || rhs as u64 > new as u64 || carry);
-
-        self.regs.status.set_overflow(
-            ((lhs > 0 && rhs > 0 && new <= 0) || (lhs < 0 && rhs < 0 && new >= 0)) ^ overflow,
-        );
+            .set_overflow(add_overflowed(lhs, rhs, new) ^ overflow);
 
         self.base_flags(new);
     }
 
-    // TODO: carry flag is still wrong
     pub fn addpaxz(&mut self, ins: Ins) {
         let d = ins.base.bit(8) as usize;
         let s = ins.base.bit(9) as usize;
@@ -173,13 +166,10 @@ impl Dsp {
         let rhs = self.regs.acc32[s] as i64;
         let new = self.regs.acc40[d].set((lhs + rhs) & !0xFFFF);
 
+        self.regs.status.set_carry(add_carried(lhs, new) ^ carry);
         self.regs
             .status
-            .set_carry((lhs as u64 > new as u64 || rhs as u64 > new as u64) ^ carry);
-
-        self.regs.status.set_overflow(
-            ((lhs > 0 && rhs > 0 && new <= 0) || (lhs < 0 && rhs < 0 && new >= 0)) ^ overflow,
-        );
+            .set_overflow(add_overflowed(lhs, rhs, new) ^ overflow);
 
         self.base_flags(new);
     }
@@ -192,13 +182,8 @@ impl Dsp {
         let rhs = (self.regs.get(Reg::new(s + 0x18)) as i16 as i64) << 16;
         let new = self.regs.acc40[d].set(lhs + rhs);
 
-        self.regs
-            .status
-            .set_carry(lhs as u64 > new as u64 || rhs as u64 > new as u64);
-
-        self.regs
-            .status
-            .set_overflow((lhs > 0 && rhs > 0 && new <= 0) || (lhs < 0 && rhs < 0 && new >= 0));
+        self.regs.status.set_carry(add_carried(lhs, new));
+        self.regs.status.set_overflow(add_overflowed(lhs, rhs, new));
 
         self.base_flags(new);
     }
@@ -313,6 +298,47 @@ impl Dsp {
             self.regs.acc40[0].set(lhs << rhs)
         } else {
             self.regs.acc40[0].set(lhs >> rhs)
+        };
+
+        self.regs.status.set_carry(false);
+        self.regs.status.set_overflow(false);
+
+        self.base_flags(new);
+    }
+
+    pub fn asrnr(&mut self, ins: Ins) {
+        let d = ins.base.bit(8) as usize;
+
+        let lhs = self.regs.acc40[d].get();
+        let signed_shift = self.regs.acc40[1 - d].mid;
+        let rhs = signed_shift.bits(0, 6);
+
+        let new = if signed_shift.bit(6) {
+            let rhs = (64 - rhs) % 64;
+            self.regs.acc40[d].set(lhs >> rhs)
+        } else {
+            self.regs.acc40[d].set(lhs << rhs)
+        };
+
+        self.regs.status.set_carry(false);
+        self.regs.status.set_overflow(false);
+
+        self.base_flags(new);
+    }
+
+    pub fn asrnrx(&mut self, ins: Ins) {
+        let d = ins.base.bit(8) as usize;
+        let s = ins.base.bit(9) as usize;
+
+        let lhs = self.regs.acc40[d].get();
+        let signed_shift = self.regs.acc32[s] >> 16;
+        let rhs = signed_shift.bits(0, 6);
+
+        let new = if signed_shift.bit(6) {
+            let rhs = (64 - rhs) % 64;
+            self.regs.acc40[d].set(lhs >> rhs)
+        } else {
+            self.regs.acc40[d].set(lhs << rhs)
         };
 
         self.regs.status.set_carry(false);

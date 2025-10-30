@@ -354,6 +354,8 @@ impl Dsp {
             Opcode::Asl => self.asl(ins),
             Opcode::Asr => self.asr(ins),
             Opcode::Asrn => self.asrn(ins),
+            Opcode::Asrnr => self.asrnr(ins),
+            Opcode::Asrnrx => self.asrnrx(ins),
             Opcode::Halt => self.halt(ins),
             _ => (),
         }

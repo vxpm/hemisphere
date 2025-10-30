@@ -65,7 +65,7 @@ fn run_case(case: file::TestCase) -> Result<(), Divergences> {
     Ok(())
 }
 
-fn run_test(file: file::TestFile) -> Result<(), Failed> {
+fn run_test(file: file::TestFile, quiet: bool) -> Result<(), Failed> {
     let mut failures = vec![];
     for (i, case) in file.cases.into_iter().enumerate() {
         if let Err(divergences) = run_case(case) {
@@ -90,6 +90,13 @@ fn run_test(file: file::TestFile) -> Result<(), Failed> {
     }
 
     if !failures.is_empty() {
+        if quiet {
+            return Err(Failed::from(format!(
+                "Failed a total of {} cases",
+                failures.len()
+            )));
+        }
+
         let mut msg = format!("Failed a total of {} cases\r\n\r\n", failures.len());
         let tests_to_show = 8;
 
@@ -116,6 +123,8 @@ fn run_test(file: file::TestFile) -> Result<(), Failed> {
 fn main() {
     let manifest = env!("CARGO_MANIFEST_DIR");
     let tests_dir = std::fs::read_dir(format!("{manifest}/zayd-tests/tests")).unwrap();
+    let args = Arguments::from_args();
+    let env_quiet = std::env::var("QUIET").is_ok();
 
     let mut tests = vec![];
     for test in tests_dir {
@@ -125,13 +134,20 @@ fn main() {
             tests.push(Trial::test(
                 test.file_name().to_string_lossy().into_owned(),
                 move || {
-                    let result = std::panic::catch_unwind(move || run_test(file));
+                    let result =
+                        std::panic::catch_unwind(move || run_test(file, args.quiet || env_quiet));
 
                     match result {
                         Ok(r) => r,
                         Err(e) => {
-                            let e = e.downcast::<String>().map(|b| *b);
-                            Err(Failed::from(e.unwrap_or("<unknown panic>".into())))
+                            let mut msg = "<unknown panic>".to_owned();
+                            if let Some(s) = e.downcast_ref::<String>() {
+                                msg = s.clone();
+                            } else if let Some(s) = e.downcast_ref::<&'static str>() {
+                                msg = (*s).to_owned();
+                            }
+
+                            Err(Failed::from(msg))
                         }
                     }
                 },
@@ -139,6 +155,6 @@ fn main() {
         }
     }
 
-    let args = Arguments::from_args();
+    std::panic::set_hook(Box::new(move |_| ()));
     libtest_mimic::run(&args, tests).exit();
 }

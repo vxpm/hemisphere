@@ -360,6 +360,16 @@ impl Opcode {
                 | Movpz
         )
     }
+
+    pub fn extension_mask(&self) -> u16 {
+        use Opcode::*;
+
+        match self {
+            Asrnr => 0x7F,
+            Asrnrx => 0x7F,
+            _ => 0xFF,
+        }
+    }
 }
 
 opcode! {
@@ -409,7 +419,10 @@ impl Ins {
     }
 
     pub fn extension_opcode(self) -> ExtensionOpcode {
-        ExtensionOpcode::new(self.base)
+        let opcode = self.opcode();
+        let mask = opcode.extension_mask();
+
+        ExtensionOpcode::new(self.base & mask)
     }
 }
 
