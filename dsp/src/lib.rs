@@ -173,7 +173,7 @@ pub struct Registers {
     pub loop_count: ArrayVec<[u16; 4]>,
     pub product: Product,
     pub acc40: [Acc40; 2],
-    pub acc32: [u32; 2],
+    pub acc32: [i32; 2],
     pub config: u8,
     pub status: Status,
 }
@@ -242,10 +242,10 @@ impl Registers {
             Reg::ProdMid1 => self.product.mid1 = value,
             Reg::ProdHigh => self.product.high = value as u8,
             Reg::ProdMid2 => self.product.mid2 = value,
-            Reg::Acc32Low0 => self.acc32[0] = self.acc32[0].with_bits(0, 16, value as u32),
-            Reg::Acc32Low1 => self.acc32[1] = self.acc32[1].with_bits(0, 16, value as u32),
-            Reg::Acc32High0 => self.acc32[0] = self.acc32[0].with_bits(16, 32, value as u32),
-            Reg::Acc32High1 => self.acc32[1] = self.acc32[1].with_bits(16, 32, value as u32),
+            Reg::Acc32Low0 => self.acc32[0] = self.acc32[0].with_bits(0, 16, value as i32),
+            Reg::Acc32Low1 => self.acc32[1] = self.acc32[1].with_bits(0, 16, value as i32),
+            Reg::Acc32High0 => self.acc32[0] = self.acc32[0].with_bits(16, 32, value as i32),
+            Reg::Acc32High1 => self.acc32[1] = self.acc32[1].with_bits(16, 32, value as i32),
             Reg::Acc40Low0 => self.acc40[0].low = value,
             Reg::Acc40Low1 => self.acc40[1].low = value,
             Reg::Acc40Mid0 => self.acc40[0].mid = value,
@@ -310,8 +310,9 @@ impl Dsp {
             Opcode::Abs => self.abs(ins),
             Opcode::Add => self.add(ins),
             Opcode::Addarn => self.addarn(ins),
+            Opcode::Addax => self.addax(ins),
             Opcode::Halt => self.halt(ins),
-            op => todo!("opcode {op:?}"),
+            _ => (),
         }
 
         if opcode.has_extension() {

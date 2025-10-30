@@ -83,4 +83,20 @@ impl Dsp {
 
         self.regs.addressing[addr] = result;
     }
+
+    pub fn addax(&mut self, ins: Ins) {
+        let d = ins.base.bit(8) as usize;
+        let s = ins.base.bit(9) as usize;
+
+        let lhs = self.regs.acc40[d].get();
+        let rhs = self.regs.acc32[s] as i64;
+        let new = self.regs.acc40[d].set(lhs + rhs);
+
+        self.regs.status.set_carry(lhs as u64 > new as u64);
+        self.regs
+            .status
+            .set_overflow((lhs > 0 && rhs > 0 && new <= 0) || (lhs < 0 && rhs < 0 && new >= 0));
+
+        self.base_flags(new);
+    }
 }
