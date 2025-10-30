@@ -763,15 +763,94 @@ impl Dsp {
         self.base_flags(new);
     }
 
-    // TODO: carry flag
     pub fn movnp(&mut self, ins: Ins) {
         let d = ins.base.bit(8) as usize;
 
-        let (_, _, prod) = self.regs.product.get();
+        let (carry, overflow, prod) = self.regs.product.get();
         let new = self.regs.acc40[d].set(-prod);
 
+        self.regs.status.set_carry((prod != 0) && !carry);
+        self.regs.status.set_overflow(overflow);
+
+        self.base_flags(new);
+    }
+
+    pub fn movp(&mut self, ins: Ins) {
+        let d = ins.base.bit(8) as usize;
+
+        let (carry, overflow, prod) = self.regs.product.get();
+        let new = self.regs.acc40[d].set(prod);
+
+        self.regs.status.set_carry(carry);
+        self.regs.status.set_overflow(overflow);
+
+        self.base_flags(new);
+    }
+
+    // TODO: carry flag
+    pub fn movpz(&mut self, ins: Ins) {
+        let d = ins.base.bit(8) as usize;
+
+        let (carry, overflow, prod) = self.regs.product.get();
+        let new = self.regs.acc40[d].set(round_40(prod));
+
+        self.regs.status.set_carry(carry);
+        self.regs.status.set_overflow(overflow);
+
+        self.base_flags(new);
+    }
+
+    pub fn movr(&mut self, ins: Ins) {
+        let d = ins.base.bit(8) as usize;
+        let s = ins.base.bits(9, 11) as u8;
+
+        let lhs = self.regs.get(Reg::new(0x18 + s)) as i16 as i64;
+        let new = self.regs.acc40[d].set(lhs << 16);
+
+        self.regs.status.set_carry(false);
         self.regs.status.set_overflow(false);
 
         self.base_flags(new);
+    }
+
+    pub fn mrr(&mut self, ins: Ins) {
+        let s = ins.base.bits(0, 5) as u8;
+        let d = ins.base.bits(5, 10) as u8;
+
+        let acc_src = |i: usize| {
+            let ml = self.regs.acc40[i].get() as i32 as i64;
+            let hml = self.regs.acc40[i].get();
+
+            if self.regs.status.sign_extend_to_40() && ml != hml {
+                if hml >= 0 { 0x7FFF } else { 0x8000 }
+            } else {
+                self.regs.acc40[i].mid
+            }
+        };
+
+        let src = Reg::new(s);
+        let src = match src {
+            Reg::Acc40Mid0 => acc_src(0),
+            Reg::Acc40Mid1 => acc_src(1),
+            _ => self.regs.get(src),
+        };
+
+        let mut acc_dst = |i: usize| {
+            if !self.regs.status.sign_extend_to_40() {
+                self.regs.acc40[i].mid = src;
+                return;
+            }
+
+            self.regs.acc40[i].low = 0;
+            self.regs.acc40[i].mid = src;
+            self.regs.acc40[i].high = if src.bit(15) { !0 } else { 0 };
+        };
+
+        let dst = Reg::new(d);
+        match dst {
+            Reg::Acc40Mid0 => acc_dst(0),
+            Reg::Acc40Mid1 => acc_dst(1),
+            _ => self.regs.set(dst, src),
+        }
     }
 }
