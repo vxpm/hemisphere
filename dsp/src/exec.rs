@@ -677,4 +677,101 @@ impl Dsp {
 
         self.base_flags(new);
     }
+
+    pub fn m0(&mut self, _: Ins) {
+        self.regs.status.set_dont_double_result(true);
+    }
+
+    pub fn m2(&mut self, _: Ins) {
+        self.regs.status.set_dont_double_result(false);
+    }
+
+    // NOTE: carry flag issue
+    pub fn madd(&mut self, ins: Ins) {
+        let s = ins.base.bit(8) as usize;
+
+        let acc = self.regs.acc32[s];
+        let low = (acc << 16) >> 16;
+        let high = acc >> 16;
+        let mul = low * high;
+        let result = if self.regs.status.dont_double_result() {
+            mul
+        } else {
+            2 * mul
+        };
+
+        let (_, _, prod) = self.regs.product.get();
+        self.regs.product.set(prod + result as i64);
+    }
+
+    // NOTE: carry flag issue
+    pub fn maddc(&mut self, ins: Ins) {
+        let t = ins.base.bit(8) as usize;
+        let s = ins.base.bit(9) as usize;
+
+        let lhs = self.regs.acc40[s].mid as i16 as i32;
+        let rhs = self.regs.acc32[t] >> 16;
+        let mul = lhs * rhs;
+        let result = if self.regs.status.dont_double_result() {
+            mul
+        } else {
+            2 * mul
+        };
+
+        let (_, _, prod) = self.regs.product.get();
+        self.regs.product.set(prod + result as i64);
+    }
+
+    // NOTE: carry flag issue
+    pub fn maddx(&mut self, ins: Ins) {
+        let t = ins.base.bit(8) as u8;
+        let s = ins.base.bit(9) as u8;
+
+        let lhs = self.regs.get(Reg::new(0x18 + 2 * s)) as i16 as i32;
+        let rhs = self.regs.get(Reg::new(0x19 + 2 * t)) as i16 as i32;
+        let mul = lhs * rhs;
+        let result = if self.regs.status.dont_double_result() {
+            mul
+        } else {
+            2 * mul
+        };
+
+        let (_, _, prod) = self.regs.product.get();
+        self.regs.product.set(prod + result as i64);
+    }
+
+    pub fn mov(&mut self, ins: Ins) {
+        let d = ins.base.bit(8) as usize;
+
+        let new = self.regs.acc40[d].set(self.regs.acc40[1 - d].get());
+
+        self.regs.status.set_carry(false);
+        self.regs.status.set_overflow(false);
+
+        self.base_flags(new);
+    }
+
+    pub fn movax(&mut self, ins: Ins) {
+        let d = ins.base.bit(8) as usize;
+        let s = ins.base.bit(9) as usize;
+
+        let new = self.regs.acc40[d].set(self.regs.acc32[s] as i64);
+
+        self.regs.status.set_carry(false);
+        self.regs.status.set_overflow(false);
+
+        self.base_flags(new);
+    }
+
+    // TODO: carry flag
+    pub fn movnp(&mut self, ins: Ins) {
+        let d = ins.base.bit(8) as usize;
+
+        let (_, _, prod) = self.regs.product.get();
+        let new = self.regs.acc40[d].set(-prod);
+
+        self.regs.status.set_overflow(false);
+
+        self.base_flags(new);
+    }
 }

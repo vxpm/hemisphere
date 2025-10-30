@@ -102,6 +102,13 @@ impl Product {
 
         (carry, overflow, value)
     }
+
+    pub fn set(&mut self, value: i64) {
+        self.low = value as u16;
+        self.mid1 = 0;
+        self.mid2 = (value >> 16) as u16;
+        self.high = (value >> 32) as u8;
+    }
 }
 
 #[bitos(16)]
@@ -368,6 +375,14 @@ impl Dsp {
             Opcode::Lsrnr => self.lsrnr(ins),
             Opcode::Lsrnrx => self.lsrnrx(ins),
             Opcode::Lsr16 => self.lsr16(ins),
+            Opcode::M0 => self.m0(ins),
+            Opcode::M2 => self.m2(ins),
+            Opcode::Madd => self.madd(ins),
+            Opcode::Maddc => self.maddc(ins),
+            Opcode::Maddx => self.maddx(ins),
+            Opcode::Mov => self.mov(ins),
+            Opcode::Movax => self.movax(ins),
+            Opcode::Movnp => self.movnp(ins),
             _ => (),
         }
 
