@@ -102,18 +102,6 @@ impl Product {
 
         (carry, overflow, value)
     }
-
-    pub fn get_rounded(&self) -> (bool, bool, i64) {
-        let (carry, overflow, value) = self.get();
-
-        let value = if value.bit(16) {
-            (value + 0x8000) & !0xFFFF
-        } else {
-            (value + 0x7FFF) & !0xFFFF
-        };
-
-        (carry, overflow, value)
-    }
 }
 
 #[bitos(16)]
@@ -356,6 +344,15 @@ impl Dsp {
             Opcode::Asrn => self.asrn(ins),
             Opcode::Asrnr => self.asrnr(ins),
             Opcode::Asrnrx => self.asrnrx(ins),
+            Opcode::Asr16 => self.asr16(ins),
+            Opcode::Clr15 => self.clr15(ins),
+            Opcode::Clr => self.clr(ins),
+            Opcode::Clrl => self.clrl(ins),
+            Opcode::Clrp => self.clrp(ins),
+            Opcode::Cmp => self.cmp(ins),
+            Opcode::Cmpaxh => self.cmpaxh(ins),
+            Opcode::Cmpi => self.cmpi(ins),
+            Opcode::Cmpis => self.cmpis(ins),
             Opcode::Halt => self.halt(ins),
             _ => (),
         }

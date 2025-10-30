@@ -1,12 +1,28 @@
 use crate::{Acc40, Dsp, Ins, Reg};
 use bitos::BitUtils;
 
+#[inline(always)]
 fn add_carried(lhs: i64, new: i64) -> bool {
     lhs as u64 > new as u64
 }
 
+#[inline(always)]
+fn sub_carried(lhs: i64, new: i64) -> bool {
+    lhs as u64 >= new as u64
+}
+
+#[inline(always)]
 fn add_overflowed(lhs: i64, rhs: i64, new: i64) -> bool {
     (lhs > 0 && rhs > 0 && new <= 0) || (lhs < 0 && rhs < 0 && new >= 0)
+}
+
+#[inline(always)]
+fn round_40(value: i64) -> i64 {
+    if value.bit(16) {
+        (value + 0x8000) & !0xFFFF
+    } else {
+        (value + 0x7FFF) & !0xFFFF
+    }
 }
 
 impl Dsp {
@@ -18,10 +34,10 @@ impl Dsp {
             .set_above_s32(value > i32::MAX as i64 || value < i32::MIN as i64);
         self.regs
             .status
-            .set_overflow_fused(self.regs.status.overflow() || self.regs.status.overflow_fused());
+            .set_top_two_bits_eq(value.bit(30) == value.bit(31));
         self.regs
             .status
-            .set_top_two_bits_eq(value.bit(30) == value.bit(31));
+            .set_overflow_fused(self.regs.status.overflow() || self.regs.status.overflow_fused());
     }
 
     pub fn halt(&mut self, _: Ins) {
@@ -162,7 +178,9 @@ impl Dsp {
         let d = ins.base.bit(8) as usize;
         let s = ins.base.bit(9) as usize;
 
-        let (carry, overflow, lhs) = self.regs.product.get_rounded();
+        let (carry, overflow, lhs) = self.regs.product.get();
+        let lhs = round_40(lhs);
+
         let rhs = self.regs.acc32[s] as i64;
         let new = self.regs.acc40[d].set((lhs + rhs) & !0xFFFF);
 
@@ -345,5 +363,109 @@ impl Dsp {
         self.regs.status.set_overflow(false);
 
         self.base_flags(new);
+    }
+
+    pub fn asr16(&mut self, ins: Ins) {
+        let r = ins.base.bit(11) as usize;
+
+        let lhs = self.regs.acc40[r].get();
+        let new = self.regs.acc40[r].set(lhs >> 16);
+
+        self.regs.status.set_carry(false);
+        self.regs.status.set_overflow(false);
+
+        self.base_flags(new);
+    }
+
+    pub fn clr15(&mut self, _: Ins) {
+        self.regs.status.set_unsigned_mul(false);
+    }
+
+    pub fn clr(&mut self, ins: Ins) {
+        let r = ins.base.bit(11) as usize;
+        let new = self.regs.acc40[r].set(0);
+
+        self.regs.status.set_carry(false);
+        self.regs.status.set_overflow(false);
+
+        self.base_flags(new);
+    }
+
+    pub fn clrl(&mut self, ins: Ins) {
+        let r = ins.base.bit(8) as usize;
+
+        let lhs = self.regs.acc40[r].get();
+        let new = self.regs.acc40[r].set(round_40(lhs));
+
+        self.regs.status.set_carry(false);
+        self.regs.status.set_overflow(false);
+
+        self.base_flags(new);
+    }
+
+    pub fn clrp(&mut self, _: Ins) {
+        self.regs.product.low = 0x0000;
+        self.regs.product.mid1 = 0xFFF0;
+        self.regs.product.mid2 = 0x0010;
+        self.regs.product.high = 0x00FF;
+    }
+
+    pub fn cmp(&mut self, _: Ins) {
+        let lhs = self.regs.acc40[0].get();
+        let rhs = self.regs.acc40[1].get();
+        let diff = Acc40::from(lhs - rhs).get();
+
+        self.regs.status.set_carry(sub_carried(lhs, diff));
+        self.regs
+            .status
+            .set_overflow(add_overflowed(lhs, -rhs, diff));
+
+        self.base_flags(diff);
+    }
+
+    pub fn cmpaxh(&mut self, ins: Ins) {
+        let s = ins.base.bit(11) as usize;
+        let r = ins.base.bit(12) as usize;
+
+        let lhs = self.regs.acc40[s].get();
+        let rhs = ((self.regs.acc32[r] as i64) >> 16) << 16;
+        let diff = Acc40::from(lhs - rhs).get();
+
+        self.regs.status.set_carry(sub_carried(lhs, diff));
+        self.regs
+            .status
+            .set_overflow(add_overflowed(lhs, -rhs, diff));
+
+        self.base_flags(diff);
+    }
+
+    pub fn cmpi(&mut self, ins: Ins) {
+        let d = ins.base.bit(8) as usize;
+
+        let lhs = self.regs.acc40[d].get();
+        let rhs = (ins.extra as i16 as i64) << 16;
+        let diff = Acc40::from(lhs - rhs).get();
+
+        self.regs.status.set_carry(sub_carried(lhs, diff));
+        self.regs
+            .status
+            .set_overflow(add_overflowed(lhs, -rhs, diff));
+
+        self.base_flags(diff);
+    }
+
+    pub fn cmpis(&mut self, ins: Ins) {
+        let d = ins.base.bit(8) as usize;
+
+        let lhs = self.regs.acc40[d].get();
+        let rhs = (ins.base as i8 as i64) << 16;
+        let diff = Acc40::from(lhs - rhs).get();
+
+        self.regs.status.set_carry(sub_carried(lhs, diff));
+        self.regs
+            .status
+            .set_overflow(add_overflowed(lhs, -rhs, diff));
+
+        self.base_flags(diff);
     }
 }
