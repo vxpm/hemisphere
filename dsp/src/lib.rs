@@ -361,6 +361,13 @@ impl Dsp {
             Opcode::If => self.ifcc(ins),
             Opcode::Inc => self.inc(ins),
             Opcode::Incm => self.incm(ins),
+            Opcode::Lsl => self.lsl(ins),
+            Opcode::Lsl16 => self.lsl16(ins),
+            Opcode::Lsr => self.lsr(ins),
+            Opcode::Lsrn => self.lsrn(ins),
+            Opcode::Lsrnr => self.lsrnr(ins),
+            Opcode::Lsrnrx => self.lsrnrx(ins),
+            Opcode::Lsr16 => self.lsr16(ins),
             _ => (),
         }
 

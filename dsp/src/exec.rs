@@ -307,7 +307,6 @@ impl Dsp {
 
     pub fn asrn(&mut self, _: Ins) {
         let lhs = self.regs.acc40[0].get();
-
         let signed_shift = self.regs.acc40[1].mid;
         let rhs = signed_shift.bits(0, 6);
 
@@ -565,6 +564,116 @@ impl Dsp {
         self.regs
             .status
             .set_overflow(add_overflowed(old, 1 << 16, new));
+
+        self.base_flags(new);
+    }
+
+    pub fn lsl(&mut self, ins: Ins) {
+        let r = ins.base.bit(8) as usize;
+        let shift = ins.base.bits(0, 6);
+
+        let old = self.regs.acc40[r].get();
+        let new = self.regs.acc40[r].set(old << shift);
+
+        self.regs.status.set_carry(false);
+        self.regs.status.set_overflow(false);
+
+        self.base_flags(new);
+    }
+
+    pub fn lsl16(&mut self, ins: Ins) {
+        let r = ins.base.bit(8) as usize;
+
+        let old = self.regs.acc40[r].get();
+        let new = self.regs.acc40[r].set(old << 16);
+
+        self.regs.status.set_carry(false);
+        self.regs.status.set_overflow(false);
+
+        self.base_flags(new);
+    }
+
+    pub fn lsr(&mut self, ins: Ins) {
+        let r = ins.base.bit(8) as usize;
+        let shift = ins.base.bits(0, 6);
+
+        let lhs = (self.regs.acc40[r].get() as u64) & ((1 << 40) - 1);
+        let rhs = (64 - shift) % 64;
+        let new = self.regs.acc40[r].set((lhs >> rhs) as i64);
+
+        self.regs.status.set_carry(false);
+        self.regs.status.set_overflow(false);
+
+        self.base_flags(new);
+    }
+
+    pub fn lsrn(&mut self, _: Ins) {
+        let lhs = (self.regs.acc40[0].get()) & ((1 << 40) - 1);
+        let signed_shift = self.regs.acc40[1].mid;
+        let rhs = signed_shift.bits(0, 6);
+
+        let new = if signed_shift.bit(6) {
+            let rhs = (64 - rhs) % 64;
+            self.regs.acc40[0].set(lhs << rhs)
+        } else {
+            self.regs.acc40[0].set(lhs >> rhs)
+        };
+
+        self.regs.status.set_carry(false);
+        self.regs.status.set_overflow(false);
+
+        self.base_flags(new);
+    }
+
+    pub fn lsrnr(&mut self, ins: Ins) {
+        let d = ins.base.bit(8) as usize;
+
+        let lhs = (self.regs.acc40[d].get()) & ((1 << 40) - 1);
+        let signed_shift = self.regs.acc40[1 - d].mid;
+        let rhs = signed_shift.bits(0, 6);
+
+        let new = if signed_shift.bit(6) {
+            let rhs = (64 - rhs) % 64;
+            self.regs.acc40[d].set(lhs >> rhs)
+        } else {
+            self.regs.acc40[d].set(lhs << rhs)
+        };
+
+        self.regs.status.set_carry(false);
+        self.regs.status.set_overflow(false);
+
+        self.base_flags(new);
+    }
+
+    pub fn lsrnrx(&mut self, ins: Ins) {
+        let d = ins.base.bit(8) as usize;
+        let s = ins.base.bit(9) as usize;
+
+        let lhs = (self.regs.acc40[d].get()) & ((1 << 40) - 1);
+        let signed_shift = self.regs.acc32[s] >> 16;
+        let rhs = signed_shift.bits(0, 6);
+
+        let new = if signed_shift.bit(6) {
+            let rhs = (64 - rhs) % 64;
+            self.regs.acc40[d].set(lhs >> rhs)
+        } else {
+            self.regs.acc40[d].set(lhs << rhs)
+        };
+
+        self.regs.status.set_carry(false);
+        self.regs.status.set_overflow(false);
+
+        self.base_flags(new);
+    }
+
+    pub fn lsr16(&mut self, ins: Ins) {
+        let r = ins.base.bit(8) as usize;
+
+        let old = (self.regs.acc40[r].get() as u64) & ((1 << 40) - 1);
+        let new = self.regs.acc40[r].set((old >> 16) as i64);
+
+        self.regs.status.set_carry(false);
+        self.regs.status.set_overflow(false);
 
         self.base_flags(new);
     }

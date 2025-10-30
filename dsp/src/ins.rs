@@ -374,6 +374,8 @@ impl Opcode {
         match self {
             Asrnr => 0x7F,
             Asrnrx => 0x7F,
+            Lsrnr => 0x7F,
+            Lsrnrx => 0x7F,
             _ => 0xFF,
         }
     }
