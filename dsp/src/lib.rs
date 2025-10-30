@@ -87,6 +87,23 @@ pub struct Product {
     pub high: u8,
 }
 
+impl Product {
+    pub fn get(&self) -> (bool, bool, i64) {
+        let (sum, carry) = self.mid1.overflowing_add(self.mid2);
+        let (c_high, carry) = self.high.overflowing_add(carry as u8);
+        let overflow = self.high as i8 >= 0 && ((c_high as i8) < 0);
+
+        let bits = 0
+            .with_bits(0, 16, self.low as i64)
+            .with_bits(16, 32, sum as i64)
+            .with_bits(32, 40, c_high as i64);
+
+        let value = (bits << 24) >> 24;
+
+        (carry, overflow, value)
+    }
+}
+
 #[bitos(16)]
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Status {
@@ -312,6 +329,9 @@ impl Dsp {
             Opcode::Addarn => self.addarn(ins),
             Opcode::Addax => self.addax(ins),
             Opcode::Addaxl => self.addaxl(ins),
+            Opcode::Addi => self.addi(ins),
+            Opcode::Addis => self.addis(ins),
+            Opcode::Addp => self.addp(ins),
             Opcode::Halt => self.halt(ins),
             _ => (),
         }

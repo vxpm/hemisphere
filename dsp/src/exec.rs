@@ -115,4 +115,52 @@ impl Dsp {
 
         self.base_flags(new);
     }
+
+    pub fn addi(&mut self, ins: Ins) {
+        let d = ins.base.bit(8) as usize;
+
+        let lhs = self.regs.acc40[d].get();
+        let rhs = (ins.extra as i16 as i64) << 16;
+        let new = self.regs.acc40[d].set(lhs + rhs);
+
+        self.regs.status.set_carry(lhs as u64 > new as u64);
+        self.regs
+            .status
+            .set_overflow((lhs > 0 && rhs > 0 && new <= 0) || (lhs < 0 && rhs < 0 && new >= 0));
+
+        self.base_flags(new);
+    }
+
+    pub fn addis(&mut self, ins: Ins) {
+        let d = ins.base.bit(8) as usize;
+
+        let lhs = self.regs.acc40[d].get();
+        let rhs = (ins.base.bits(0, 8) as i8 as i64) << 16;
+        let new = self.regs.acc40[d].set(lhs + rhs);
+
+        self.regs.status.set_carry(lhs as u64 > new as u64);
+        self.regs
+            .status
+            .set_overflow((lhs > 0 && rhs > 0 && new <= 0) || (lhs < 0 && rhs < 0 && new >= 0));
+
+        self.base_flags(new);
+    }
+
+    pub fn addp(&mut self, ins: Ins) {
+        let d = ins.base.bit(8) as usize;
+
+        let lhs = self.regs.acc40[d].get();
+        let (carry, overflow, rhs) = self.regs.product.get();
+        let new = self.regs.acc40[d].set(lhs + rhs);
+
+        self.regs
+            .status
+            .set_carry(lhs as u64 > new as u64 || rhs as u64 > new as u64 || carry);
+
+        self.regs.status.set_overflow(
+            (lhs > 0 && rhs > 0 && new <= 0) || (lhs < 0 && rhs < 0 && new >= 0) ^ overflow,
+        );
+
+        self.base_flags(new);
+    }
 }
