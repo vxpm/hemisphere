@@ -333,7 +333,7 @@ impl Dsp {
         }
 
         // execute
-        let regs_previous = self.regs.clone();
+        // let regs_previous = self.regs.clone();
         match ins.opcode() {
             Opcode::Nop => (),
             Opcode::Abs => self.abs(ins),
@@ -345,6 +345,15 @@ impl Dsp {
             Opcode::Addis => self.addis(ins),
             Opcode::Addp => self.addp(ins),
             Opcode::Addpaxz => self.addpaxz(ins),
+            Opcode::Addr => self.addr(ins),
+            Opcode::Andc => self.andc(ins),
+            Opcode::Andcf => self.andcf(ins),
+            Opcode::Andf => self.andf(ins),
+            Opcode::Andi => self.andi(ins),
+            Opcode::Andr => self.andr(ins),
+            Opcode::Asl => self.asl(ins),
+            Opcode::Asr => self.asr(ins),
+            Opcode::Asrn => self.asrn(ins),
             Opcode::Halt => self.halt(ins),
             _ => (),
         }

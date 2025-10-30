@@ -1,6 +1,6 @@
 use bitos::BitUtils;
 
-use crate::{Acc40, Dsp, Ins};
+use crate::{Acc40, Dsp, Ins, Reg};
 
 impl Dsp {
     fn base_flags(&mut self, value: i64) {
@@ -54,7 +54,7 @@ impl Dsp {
         let ix = self.regs.indexing[idx];
         let wrap = self.regs.wrapping[addr];
 
-        // following algorithm created by @calc84maniac, thanks!
+        // following algorithm was described by @calc84maniac, thanks!
 
         // compute amount of significant bits, minimum 1
         let n = (16 - wrap.leading_zeros()).max(1);
@@ -180,6 +180,143 @@ impl Dsp {
         self.regs.status.set_overflow(
             ((lhs > 0 && rhs > 0 && new <= 0) || (lhs < 0 && rhs < 0 && new >= 0)) ^ overflow,
         );
+
+        self.base_flags(new);
+    }
+
+    pub fn addr(&mut self, ins: Ins) {
+        let d = ins.base.bit(8) as usize;
+        let s = ins.base.bits(9, 11) as u8;
+
+        let lhs = self.regs.acc40[d].get();
+        let rhs = (self.regs.get(Reg::new(s + 0x18)) as i16 as i64) << 16;
+        let new = self.regs.acc40[d].set(lhs + rhs);
+
+        self.regs
+            .status
+            .set_carry(lhs as u64 > new as u64 || rhs as u64 > new as u64);
+
+        self.regs
+            .status
+            .set_overflow((lhs > 0 && rhs > 0 && new <= 0) || (lhs < 0 && rhs < 0 && new >= 0));
+
+        self.base_flags(new);
+    }
+
+    pub fn andc(&mut self, ins: Ins) {
+        let d = ins.base.bit(8) as usize;
+
+        self.regs.acc40[d].mid &= self.regs.acc40[1 - d].mid;
+        let new = self.regs.acc40[d].get();
+
+        self.regs.status.set_carry(false);
+        self.regs.status.set_overflow(false);
+
+        self.base_flags(new);
+
+        self.regs
+            .status
+            .set_arithmetic_zero(self.regs.acc40[d].mid == 0);
+        self.regs
+            .status
+            .set_sign((self.regs.acc40[d].mid as i16) < 0);
+    }
+
+    pub fn andcf(&mut self, ins: Ins) {
+        let d = ins.base.bit(8) as usize;
+
+        let is_equal = self.regs.acc40[d].mid & ins.extra == ins.extra;
+        self.regs.status.set_logic_zero(is_equal);
+    }
+
+    pub fn andf(&mut self, ins: Ins) {
+        let d = ins.base.bit(8) as usize;
+
+        let is_equal = self.regs.acc40[d].mid & ins.extra == 0;
+        self.regs.status.set_logic_zero(is_equal);
+    }
+
+    pub fn andi(&mut self, ins: Ins) {
+        let d = ins.base.bit(8) as usize;
+
+        self.regs.acc40[d].mid &= ins.extra;
+        let new = self.regs.acc40[d].get();
+
+        self.regs.status.set_carry(false);
+        self.regs.status.set_overflow(false);
+
+        self.base_flags(new);
+
+        self.regs
+            .status
+            .set_arithmetic_zero(self.regs.acc40[d].mid == 0);
+        self.regs
+            .status
+            .set_sign((self.regs.acc40[d].mid as i16) < 0);
+    }
+
+    pub fn andr(&mut self, ins: Ins) {
+        let d = ins.base.bit(8) as usize;
+        let s = ins.base.bit(9) as usize;
+
+        self.regs.acc40[d].mid &= (self.regs.acc32[s] >> 16) as u16;
+        let new = self.regs.acc40[d].get();
+
+        self.regs.status.set_carry(false);
+        self.regs.status.set_overflow(false);
+
+        self.base_flags(new);
+
+        self.regs
+            .status
+            .set_arithmetic_zero(self.regs.acc40[d].mid == 0);
+        self.regs
+            .status
+            .set_sign((self.regs.acc40[d].mid as i16) < 0);
+    }
+
+    pub fn asl(&mut self, ins: Ins) {
+        let r = ins.base.bit(8) as usize;
+        let imm = ins.base.bits(0, 6) as u8;
+
+        let lhs = self.regs.acc40[r].get();
+        let new = self.regs.acc40[r].set(lhs << imm);
+
+        self.regs.status.set_carry(false);
+        self.regs.status.set_overflow(false);
+
+        self.base_flags(new);
+    }
+
+    pub fn asr(&mut self, ins: Ins) {
+        let r = ins.base.bit(8) as usize;
+        let imm = ins.base.bits(0, 6);
+
+        let lhs = self.regs.acc40[r].get();
+        let rhs = (64 - imm) % 64;
+        let new = self.regs.acc40[r].set(lhs >> rhs);
+
+        self.regs.status.set_carry(false);
+        self.regs.status.set_overflow(false);
+
+        self.base_flags(new);
+    }
+
+    pub fn asrn(&mut self, _: Ins) {
+        let lhs = self.regs.acc40[0].get();
+
+        let signed_shift = self.regs.acc40[1].mid;
+        let rhs = signed_shift.bits(0, 6);
+
+        let new = if signed_shift.bit(6) {
+            let rhs = (64 - rhs) % 64;
+            self.regs.acc40[0].set(lhs << rhs)
+        } else {
+            self.regs.acc40[0].set(lhs >> rhs)
+        };
+
+        self.regs.status.set_carry(false);
+        self.regs.status.set_overflow(false);
 
         self.base_flags(new);
     }
