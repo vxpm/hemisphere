@@ -468,4 +468,9 @@ impl Dsp {
 
         self.base_flags(diff);
     }
+
+    pub fn dar(&mut self, ins: Ins) {
+        let d = ins.base.bits(0, 2) as usize;
+        self.regs.addressing[d] = self.regs.addressing[d].wrapping_sub(1);
+    }
 }

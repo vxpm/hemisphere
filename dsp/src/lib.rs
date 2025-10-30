@@ -353,6 +353,7 @@ impl Dsp {
             Opcode::Cmpaxh => self.cmpaxh(ins),
             Opcode::Cmpi => self.cmpi(ins),
             Opcode::Cmpis => self.cmpis(ins),
+            Opcode::Dar => self.dar(ins),
             Opcode::Halt => self.halt(ins),
             _ => (),
         }
