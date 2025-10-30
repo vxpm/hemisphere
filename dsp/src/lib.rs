@@ -53,6 +53,32 @@ pub struct Acc40 {
     pub high: u8,
 }
 
+impl Acc40 {
+    const MIN: i64 = (1 << 63) >> 24;
+
+    pub fn from(value: i64) -> Self {
+        Self {
+            low: value.bits(0, 16) as u16,
+            mid: value.bits(16, 32) as u16,
+            high: value.bits(32, 40) as u8,
+        }
+    }
+
+    pub fn get(&self) -> i64 {
+        let bits = 0
+            .with_bits(0, 16, self.low as i64)
+            .with_bits(16, 32, self.mid as i64)
+            .with_bits(32, 40, self.high as i64);
+
+        (bits << 24) >> 24
+    }
+
+    pub fn set(&mut self, value: i64) -> i64 {
+        *self = Self::from(value);
+        self.get()
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Product {
     pub low: u16,
@@ -281,6 +307,9 @@ impl Dsp {
         let regs_previous = self.regs.clone();
         match ins.opcode() {
             Opcode::Nop => (),
+            Opcode::Abs => self.abs(ins),
+            Opcode::Add => self.add(ins),
+            Opcode::Addarn => self.addarn(ins),
             Opcode::Halt => self.halt(ins),
             op => todo!("opcode {op:?}"),
         }
@@ -289,7 +318,7 @@ impl Dsp {
             let extension = ins.extension_opcode();
             match extension {
                 ExtensionOpcode::Nop => (),
-                _ => todo!(),
+                _ => todo!("extension op {extension:?}"),
             }
         }
 

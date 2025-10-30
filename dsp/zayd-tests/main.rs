@@ -91,14 +91,20 @@ fn run_test(file: file::TestFile) -> Result<(), Failed> {
 
     if !failures.is_empty() {
         let mut msg = format!("Failed a total of {} cases\r\n\r\n", failures.len());
+        let tests_to_show = 8;
 
-        let show = failures.iter().take(4);
+        let show = failures.iter().take(tests_to_show);
         for failure in show {
             writeln!(&mut msg, "{}", failure).unwrap();
         }
 
-        if failures.len() > 4 {
-            writeln!(&mut msg, "... and {} others", failures.len() - 4).unwrap();
+        if failures.len() > tests_to_show {
+            writeln!(
+                &mut msg,
+                "... and {} others",
+                failures.len() - tests_to_show
+            )
+            .unwrap();
         }
 
         return Err(Failed::from(msg));
@@ -118,7 +124,17 @@ fn main() {
             let file = file::TestFile::open(test.path());
             tests.push(Trial::test(
                 test.file_name().to_string_lossy().into_owned(),
-                move || run_test(file),
+                move || {
+                    let result = std::panic::catch_unwind(move || run_test(file));
+
+                    match result {
+                        Ok(r) => r,
+                        Err(e) => {
+                            let e = e.downcast::<String>().map(|b| *b);
+                            Err(Failed::from(e.unwrap_or("<unknown panic>".into())))
+                        }
+                    }
+                },
             ));
         }
     }
