@@ -40,10 +40,6 @@ impl Dsp {
             .set_overflow_fused(self.regs.status.overflow() || self.regs.status.overflow_fused());
     }
 
-    pub fn halt(&mut self, _: Ins) {
-        self.control.halt = true;
-    }
-
     pub fn abs(&mut self, ins: Ins) {
         let idx = ins.base.bit(11) as usize;
         let old = self.regs.acc40[idx].get();
@@ -67,12 +63,8 @@ impl Dsp {
         self.base_flags(new);
     }
 
-    pub fn addarn(&mut self, ins: Ins) {
-        let addr = ins.base.bits(0, 2) as usize;
-        let idx = ins.base.bits(2, 4) as usize;
-
+    fn add_to_addr_reg(&mut self, addr: usize, value: u16, cond: bool) {
         let ar = self.regs.addressing[addr];
-        let ix = self.regs.indexing[idx];
         let wrap = self.regs.wrapping[addr];
 
         // following algorithm was described by @calc84maniac, thanks!
@@ -84,11 +76,11 @@ impl Dsp {
         let mask = 1u16.checked_shl(n).map(|r| r - 1).unwrap_or(!0);
 
         // compute the carry out of bit n
-        let carry = ((ar & mask) as u32 + (ix & mask) as u32) > mask as u32;
+        let carry = ((ar & mask) as u32 + (value & mask) as u32) > mask as u32;
 
         // compute result
-        let mut result = ar.wrapping_add(ix);
-        if ix as i16 >= 0 {
+        let mut result = ar.wrapping_add(value);
+        if value as i16 > 0 || (cond && value as i16 == 0) {
             if carry {
                 result = result.wrapping_sub(wrap.wrapping_add(1));
             }
@@ -103,6 +95,14 @@ impl Dsp {
         }
 
         self.regs.addressing[addr] = result;
+    }
+
+    pub fn addarn(&mut self, ins: Ins) {
+        let addr = ins.base.bits(0, 2) as usize;
+        let idx = ins.base.bits(2, 4) as usize;
+
+        let ix = self.regs.indexing[idx];
+        self.add_to_addr_reg(addr, ix, true);
     }
 
     pub fn addax(&mut self, ins: Ins) {
@@ -368,8 +368,8 @@ impl Dsp {
     pub fn asr16(&mut self, ins: Ins) {
         let r = ins.base.bit(11) as usize;
 
-        let lhs = self.regs.acc40[r].get();
-        let new = self.regs.acc40[r].set(lhs >> 16);
+        let old = self.regs.acc40[r].get();
+        let new = self.regs.acc40[r].set(old >> 16);
 
         self.regs.status.set_carry(false);
         self.regs.status.set_overflow(false);
@@ -383,6 +383,7 @@ impl Dsp {
 
     pub fn clr(&mut self, ins: Ins) {
         let r = ins.base.bit(11) as usize;
+
         let new = self.regs.acc40[r].set(0);
 
         self.regs.status.set_carry(false);
@@ -394,8 +395,8 @@ impl Dsp {
     pub fn clrl(&mut self, ins: Ins) {
         let r = ins.base.bit(8) as usize;
 
-        let lhs = self.regs.acc40[r].get();
-        let new = self.regs.acc40[r].set(round_40(lhs));
+        let old = self.regs.acc40[r].get();
+        let new = self.regs.acc40[r].set(round_40(old));
 
         self.regs.status.set_carry(false);
         self.regs.status.set_overflow(false);
@@ -470,7 +471,42 @@ impl Dsp {
     }
 
     pub fn dar(&mut self, ins: Ins) {
-        let d = ins.base.bits(0, 2) as usize;
-        self.regs.addressing[d] = self.regs.addressing[d].wrapping_sub(1);
+        let addr = ins.base.bits(0, 2) as usize;
+        self.add_to_addr_reg(addr, -1i16 as u16, false);
+    }
+
+    pub fn dec(&mut self, ins: Ins) {
+        let d = ins.base.bit(8) as usize;
+
+        let old = self.regs.acc40[d].get();
+        let new = self.regs.acc40[d].set(old.wrapping_sub(1));
+
+        self.regs.status.set_carry(sub_carried(old, new));
+        self.regs.status.set_overflow(add_overflowed(old, -1, new));
+
+        self.base_flags(new);
+    }
+
+    pub fn decm(&mut self, ins: Ins) {
+        let d = ins.base.bit(8) as usize;
+
+        let old = self.regs.acc40[d].get();
+        let new = self.regs.acc40[d].set(old - (1 << 16));
+
+        self.regs.status.set_carry(sub_carried(old, new));
+        self.regs
+            .status
+            .set_overflow(add_overflowed(old, -(1 << 16), new));
+
+        self.base_flags(new);
+    }
+
+    pub fn halt(&mut self, _: Ins) {
+        self.control.halt = true;
+    }
+
+    pub fn iar(&mut self, ins: Ins) {
+        let addr = ins.base.bits(0, 2) as usize;
+        self.add_to_addr_reg(addr, 1i16 as u16, false);
     }
 }

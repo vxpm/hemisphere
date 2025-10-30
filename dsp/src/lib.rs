@@ -354,7 +354,10 @@ impl Dsp {
             Opcode::Cmpi => self.cmpi(ins),
             Opcode::Cmpis => self.cmpis(ins),
             Opcode::Dar => self.dar(ins),
+            Opcode::Dec => self.dec(ins),
+            Opcode::Decm => self.decm(ins),
             Opcode::Halt => self.halt(ins),
+            Opcode::Iar => self.iar(ins),
             _ => (),
         }
 
