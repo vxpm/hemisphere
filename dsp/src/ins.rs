@@ -1,6 +1,7 @@
-use strum::VariantArray;
+use strum::{FromRepr, VariantArray};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, FromRepr)]
+#[repr(u8)]
 pub enum CondCode {
     GreaterOrEqual = 0b0000,
     Less = 0b0001,
@@ -18,6 +19,12 @@ pub enum CondCode {
     LogicZero = 0b1101,
     Overflow = 0b1110,
     Always = 0b1111,
+}
+
+impl CondCode {
+    pub fn new(value: u8) -> Self {
+        Self::from_repr(value).unwrap()
+    }
 }
 
 #[derive(Clone, Copy)]

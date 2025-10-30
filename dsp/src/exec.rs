@@ -1,4 +1,4 @@
-use crate::{Acc40, Dsp, Ins, Reg};
+use crate::{Acc40, Dsp, Ins, Reg, ins::CondCode};
 use bitos::BitUtils;
 
 #[inline(always)]
@@ -508,5 +508,64 @@ impl Dsp {
     pub fn iar(&mut self, ins: Ins) {
         let addr = ins.base.bits(0, 2) as usize;
         self.add_to_addr_reg(addr, 1i16 as u16, false);
+    }
+
+    fn condition(&self, code: CondCode) -> bool {
+        let status = self.regs.status.clone();
+        match code {
+            CondCode::GreaterOrEqual => status.overflow() == status.sign(),
+            CondCode::Less => status.overflow() != status.sign(),
+            CondCode::Greater => status.overflow() == status.sign() && !status.arithmetic_zero(),
+            CondCode::LessOrEqual => status.overflow() != status.sign() || status.arithmetic_zero(),
+            CondCode::NotZero => !status.arithmetic_zero(),
+            CondCode::Zero => status.arithmetic_zero(),
+            CondCode::NotCarry => !status.carry(),
+            CondCode::Carry => status.carry(),
+            CondCode::BelowS32 => !status.above_s32(),
+            CondCode::AboveS32 => status.above_s32(),
+            CondCode::WeirdA => {
+                (status.above_s32() || status.top_two_bits_eq()) && !status.arithmetic_zero()
+            }
+            CondCode::WeirdB => {
+                (!status.above_s32() && !status.top_two_bits_eq()) || status.arithmetic_zero()
+            }
+            CondCode::NotLogicZero => !status.logic_zero(),
+            CondCode::LogicZero => status.logic_zero(),
+            CondCode::Overflow => status.overflow(),
+            CondCode::Always => true,
+        }
+    }
+
+    pub fn ifcc(&mut self, ins: Ins) {
+        let code = CondCode::new(ins.base.bits(0, 4) as u8);
+        if !self.condition(code) {
+            self.regs.pc += 1;
+        }
+    }
+
+    pub fn inc(&mut self, ins: Ins) {
+        let d = ins.base.bit(8) as usize;
+
+        let old = self.regs.acc40[d].get();
+        let new = self.regs.acc40[d].set(old.wrapping_add(1));
+
+        self.regs.status.set_carry(add_carried(old, new));
+        self.regs.status.set_overflow(add_overflowed(old, 1, new));
+
+        self.base_flags(new);
+    }
+
+    pub fn incm(&mut self, ins: Ins) {
+        let d = ins.base.bit(8) as usize;
+
+        let old = self.regs.acc40[d].get();
+        let new = self.regs.acc40[d].set(old + (1 << 16));
+
+        self.regs.status.set_carry(add_carried(old, new));
+        self.regs
+            .status
+            .set_overflow(add_overflowed(old, 1 << 16, new));
+
+        self.base_flags(new);
     }
 }

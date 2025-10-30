@@ -358,6 +358,9 @@ impl Dsp {
             Opcode::Decm => self.decm(ins),
             Opcode::Halt => self.halt(ins),
             Opcode::Iar => self.iar(ins),
+            Opcode::If => self.ifcc(ins),
+            Opcode::Inc => self.inc(ins),
+            Opcode::Incm => self.incm(ins),
             _ => (),
         }
 
