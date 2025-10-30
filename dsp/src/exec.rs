@@ -158,7 +158,27 @@ impl Dsp {
             .set_carry(lhs as u64 > new as u64 || rhs as u64 > new as u64 || carry);
 
         self.regs.status.set_overflow(
-            (lhs > 0 && rhs > 0 && new <= 0) || (lhs < 0 && rhs < 0 && new >= 0) ^ overflow,
+            ((lhs > 0 && rhs > 0 && new <= 0) || (lhs < 0 && rhs < 0 && new >= 0)) ^ overflow,
+        );
+
+        self.base_flags(new);
+    }
+
+    // TODO: carry flag is still wrong
+    pub fn addpaxz(&mut self, ins: Ins) {
+        let d = ins.base.bit(8) as usize;
+        let s = ins.base.bit(9) as usize;
+
+        let (carry, overflow, lhs) = self.regs.product.get_rounded();
+        let rhs = self.regs.acc32[s] as i64;
+        let new = self.regs.acc40[d].set((lhs + rhs) & !0xFFFF);
+
+        self.regs
+            .status
+            .set_carry((lhs as u64 > new as u64 || rhs as u64 > new as u64) ^ carry);
+
+        self.regs.status.set_overflow(
+            ((lhs > 0 && rhs > 0 && new <= 0) || (lhs < 0 && rhs < 0 && new >= 0)) ^ overflow,
         );
 
         self.base_flags(new);
