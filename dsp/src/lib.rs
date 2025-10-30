@@ -311,6 +311,7 @@ impl Dsp {
             Opcode::Add => self.add(ins),
             Opcode::Addarn => self.addarn(ins),
             Opcode::Addax => self.addax(ins),
+            Opcode::Addaxl => self.addaxl(ins),
             Opcode::Halt => self.halt(ins),
             _ => (),
         }
