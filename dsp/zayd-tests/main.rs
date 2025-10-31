@@ -2,7 +2,7 @@
 
 mod file;
 
-use dsp::Dsp;
+use dsp::{Dsp, Registers};
 use libtest_mimic::{Arguments, Failed, Trial};
 use std::fmt::Write;
 
@@ -22,12 +22,14 @@ fn parse_code(mut words: &[u16]) -> Vec<dsp::Ins> {
     ins
 }
 
-struct Divergences {
+struct FailedCase {
     code: Vec<dsp::Ins>,
-    regs: Vec<(dsp::Reg, u16, u16)>,
+    initial: Registers,
+    expected: Registers,
+    divergences: Vec<(dsp::Reg, u16, u16)>,
 }
 
-fn run_case(case: file::TestCase) -> Result<(), Divergences> {
+fn run_case(case: file::TestCase) -> Result<(), FailedCase> {
     let mut dsp = Dsp::default();
 
     // setup
@@ -61,9 +63,11 @@ fn run_case(case: file::TestCase) -> Result<(), Divergences> {
     }
 
     if !divergences.is_empty() {
-        return Err(Divergences {
+        return Err(FailedCase {
             code,
-            regs: divergences,
+            initial: case.initial_regs(),
+            expected: case.expected_regs(),
+            divergences,
         });
     }
 
@@ -71,25 +75,42 @@ fn run_case(case: file::TestCase) -> Result<(), Divergences> {
 }
 
 fn run_test(file: file::TestFile, quiet: bool) -> Result<(), Failed> {
+    let early_exit = std::env::var("EARLY_EXIT").is_ok();
     let total = file.cases.len();
     let mut failures = vec![];
     for (i, case) in file.cases.into_iter().enumerate() {
-        if let Err(divergences) = run_case(case) {
-            let regs = divergences
-                .regs
-                .iter()
-                .map(|(r, v, e)| format!("{r:?}(v={v:04X}, e={e:04X}), "))
-                .collect::<String>();
+        // if i != 13 {
+        //     continue;
+        // }
 
-            let ins = divergences
-                .code
-                .iter()
-                .map(|i| format!("{:?}\r\n", i))
-                .collect::<String>();
+        let Err(failure) = run_case(case) else {
+            continue;
+        };
 
+        let ins = failure
+            .code
+            .iter()
+            .map(|i| format!("{:?}\r\n", i))
+            .collect::<String>();
+
+        let divergences = failure
+            .divergences
+            .iter()
+            .map(|(r, v, e)| format!("{r:?}(v={v:04X}, e={e:04X}), "))
+            .collect::<String>();
+
+        if early_exit {
+            failures.push(format!(
+                "Case {i} failed:\r\nINITIAL: {:04X?}\r\nEXPECTED: {:04X?}\r\nDIVERGENCES: {}",
+                failure.initial,
+                failure.expected,
+                divergences.trim_suffix(", "),
+            ));
+            break;
+        } else {
             failures.push(format!(
                 "Case {i} failed: {}\r\n{}",
-                regs.trim_suffix(", "),
+                divergences.trim_suffix(", "),
                 ins
             ));
         }

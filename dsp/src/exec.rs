@@ -1,4 +1,4 @@
-use crate::{Acc40, Dsp, Ins, Reg, Status, ins::CondCode};
+use crate::{Acc40, Dsp, Ins, Reg, Registers, Status, ins::CondCode};
 use bitos::BitUtils;
 
 #[inline(always)]
@@ -28,6 +28,75 @@ fn round_40(value: i64) -> i64 {
     } else {
         (value + 0x7FFF) & !0xFFFF
     }
+}
+
+fn add_to_addr_reg(ar: u16, wr: u16, value: i16) -> u16 {
+    // following algorithm was created by @hrydgard, version implemented here was refined and
+    // described by @calc84maniac, and @zaydlang helped me understand - thanks!!
+
+    // compute amount of significant bits in wr, minimum 1
+    let n = (16 - wr.leading_zeros()).max(1);
+
+    // create a mask of n bits
+    let mask = 1u16.checked_shl(n).map(|r| r - 1).unwrap_or(!0);
+
+    // compute the carry out of bit n
+    let carry = ((ar & mask) as u32 + (value as u16 & mask) as u32) > mask as u32;
+
+    // compute result
+    let mut result = ar.wrapping_add_signed(value);
+    println!("n={n} wr={wr:04X} value={value:04X} carry={carry:?} res={result:04X}");
+
+    if value >= 0 {
+        if carry {
+            result = result.wrapping_sub(wr.wrapping_add(1));
+        }
+    } else {
+        let low_sum = result & mask;
+        let low_not_wrap = (!wr) & mask;
+        let carry_again = low_sum < low_not_wrap;
+
+        if !carry || carry_again {
+            result = result.wrapping_add(wr.wrapping_add(1));
+        }
+    }
+
+    result
+}
+
+fn sub_from_addr_reg(ar: u16, wr: u16, value: i16) -> u16 {
+    // following algorithm was created by @hrydgard, version implemented here was refined and
+    // described by @calc84maniac, and @zaydlang helped me understand - thanks!!
+
+    // subtraction uses the one's complement
+    let value = !value;
+
+    // compute amount of significant bits in wr, minimum 1
+    let n = (16 - wr.leading_zeros()).max(1);
+
+    // create a mask of n bits
+    let mask = 1u16.checked_shl(n).map(|r| r - 1).unwrap_or(!0);
+
+    // compute the carry out of bit n
+    let carry = ((ar & mask) as u32 + (value as u16 & mask) as u32 + 1) > mask as u32;
+
+    // compute result
+    let mut result = ar.wrapping_add_signed(value).wrapping_add(1);
+    if (value.wrapping_add(1)) > 0 {
+        if carry {
+            result = result.wrapping_sub(wr.wrapping_add(1));
+        }
+    } else {
+        let low_sum = result & mask;
+        let low_not_wrap = (!wr) & mask;
+        let carry_again = low_sum < low_not_wrap;
+
+        if !carry || carry_again {
+            result = result.wrapping_add(wr.wrapping_add(1));
+        }
+    }
+
+    result
 }
 
 impl Dsp {
@@ -69,82 +138,15 @@ impl Dsp {
         self.base_flags(new);
     }
 
-    fn add_to_addr_reg(&mut self, addr: usize, value: i16) {
-        let ar = self.regs.addressing[addr];
-        let wr = self.regs.wrapping[addr];
-
-        // following algorithm was created by @hrydgard, version implemented here was refined and
-        // described by @calc84maniac - thanks!!
-
-        // compute amount of significant bits in wr, minimum 1
-        let n = (16 - wr.leading_zeros()).max(1);
-
-        // create a mask of n bits
-        let mask = 1u16.checked_shl(n).map(|r| r - 1).unwrap_or(!0);
-
-        // compute the carry out of bit n
-        let carry = ((ar & mask) as u32 + (value as u16 & mask) as u32) > mask as u32;
-
-        // compute result
-        let mut result = ar.wrapping_add_signed(value);
-        if value >= 0 {
-            if carry {
-                result = result.wrapping_sub(wr.wrapping_add(1));
-            }
-        } else {
-            let low_sum = result & mask;
-            let low_not_wrap = (!wr) & mask;
-            let carry_again = low_sum < low_not_wrap;
-
-            if !carry || carry_again {
-                result = result.wrapping_add(wr.wrapping_add(1));
-            }
-        }
-
-        self.regs.addressing[addr] = result;
-    }
-
-    fn sub_from_addr_reg(&mut self, addr: usize, value: i16) {
-        let ar = self.regs.addressing[addr];
-        let wr = self.regs.wrapping[addr];
-
-        // following algorithm was created by @hrydgard, version implemented here was refined and
-        // described by @calc84maniac - thanks!!
-
-        // compute amount of significant bits in wr, minimum 1
-        let n = (16 - wr.leading_zeros()).max(1);
-
-        // create a mask of n bits
-        let mask = 1u16.checked_shl(n).map(|r| r - 1).unwrap_or(!0);
-
-        // compute the carry out of bit n
-        let carry = ((ar & mask) as u32 + (-value as u16 & mask) as u32) > mask as u32;
-
-        // compute result
-        let mut result = ar.wrapping_sub_signed(value);
-        if value <= 0 {
-            if carry {
-                result = result.wrapping_sub(wr.wrapping_add(1));
-            }
-        } else {
-            let low_sum = result & mask;
-            let low_not_wrap = (!wr) & mask;
-            let carry_again = low_sum < low_not_wrap;
-
-            if !carry || carry_again {
-                result = result.wrapping_add(wr.wrapping_add(1));
-            }
-        }
-
-        self.regs.addressing[addr] = result;
-    }
-
     pub fn addarn(&mut self, ins: Ins) {
         let d = ins.base.bits(0, 2) as usize;
         let s = ins.base.bits(2, 4) as usize;
 
+        let ar = self.regs.addressing[d];
+        let wr = self.regs.wrapping[d];
         let ix = self.regs.indexing[s];
-        self.add_to_addr_reg(d, ix as i16);
+
+        self.regs.addressing[d] = add_to_addr_reg(ar, wr, ix as i16);
     }
 
     pub fn addax(&mut self, ins: Ins) {
@@ -512,8 +514,12 @@ impl Dsp {
     }
 
     pub fn dar(&mut self, ins: Ins) {
-        let addr = ins.base.bits(0, 2) as usize;
-        self.sub_from_addr_reg(addr, 1i16);
+        let d = ins.base.bits(0, 2) as usize;
+
+        let ar = self.regs.addressing[d];
+        let wr = self.regs.wrapping[d];
+
+        self.regs.addressing[d] = sub_from_addr_reg(ar, wr, 1i16);
     }
 
     pub fn dec(&mut self, ins: Ins) {
@@ -547,8 +553,12 @@ impl Dsp {
     }
 
     pub fn iar(&mut self, ins: Ins) {
-        let addr = ins.base.bits(0, 2) as usize;
-        self.add_to_addr_reg(addr, 1i16);
+        let r = ins.base.bits(0, 2) as usize;
+
+        let ar = self.regs.addressing[r];
+        let wr = self.regs.wrapping[r];
+
+        self.regs.addressing[r] = add_to_addr_reg(ar, wr, 1);
     }
 
     fn condition(&self, code: CondCode) -> bool {
@@ -1388,9 +1398,12 @@ impl Dsp {
 
     pub fn subarn(&mut self, ins: Ins) {
         let d = ins.base.bits(0, 2) as usize;
-        let ix = self.regs.indexing[d];
 
-        self.sub_from_addr_reg(d, ix as i16);
+        let ix = self.regs.indexing[d];
+        let ar = self.regs.addressing[d];
+        let wr = self.regs.wrapping[d];
+
+        self.regs.addressing[d] = sub_from_addr_reg(ar, wr, ix as i16);
     }
 
     pub fn subax(&mut self, ins: Ins) {
@@ -1589,5 +1602,34 @@ impl Dsp {
             let addr = self.regs.call_stack.pop().unwrap();
             self.regs.pc = addr - 1;
         }
+    }
+}
+
+impl Dsp {
+    pub fn ext_dr(&mut self, ins: Ins, regs: &Registers) {
+        let r = ins.base.bits(0, 2) as usize;
+
+        let ar = regs.addressing[r];
+        let wr = regs.wrapping[r];
+
+        self.regs.addressing[r] = sub_from_addr_reg(ar, wr, 1i16);
+    }
+
+    pub fn ext_ir(&mut self, ins: Ins, regs: &Registers) {
+        let r = ins.base.bits(0, 2) as usize;
+
+        let ar = regs.addressing[r];
+        let wr = regs.wrapping[r];
+
+        self.regs.addressing[r] = add_to_addr_reg(ar, wr, 1i16);
+    }
+
+    pub fn ext_nr(&mut self, ins: Ins, regs: &Registers) {
+        let r = ins.base.bits(0, 2) as usize;
+
+        let ar = regs.addressing[r];
+        let wr = regs.wrapping[r];
+
+        self.regs.addressing[r] = add_to_addr_reg(ar, wr, 1i16);
     }
 }

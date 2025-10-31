@@ -339,7 +339,7 @@ impl Dsp {
         }
 
         // execute
-        // let regs_previous = self.regs.clone();
+        let regs_previous = self.regs.clone();
         match ins.opcode() {
             Opcode::Nop | Opcode::Nx => (),
             Opcode::Abs => self.abs(ins),
@@ -448,6 +448,9 @@ impl Dsp {
             let extension = ins.extension_opcode();
             match extension {
                 ExtensionOpcode::Nop => (),
+                ExtensionOpcode::Dr => self.ext_dr(ins, &regs_previous),
+                ExtensionOpcode::Ir => self.ext_ir(ins, &regs_previous),
+                ExtensionOpcode::Nr => self.ext_nr(ins, &regs_previous),
                 _ => todo!("extension op {extension:?}"),
             }
         }
