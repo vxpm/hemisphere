@@ -961,4 +961,140 @@ impl Dsp {
 
         self.regs.product.set(result as i64);
     }
+
+    // NOTE: carry flag issue
+    pub fn mulc(&mut self, ins: Ins) {
+        let t = ins.base.bit(11) as usize;
+        let s = ins.base.bit(12) as usize;
+
+        let lhs = self.regs.acc40[s].mid as i16 as i32;
+        let rhs = self.regs.acc32[t] >> 16;
+        let mul = lhs * rhs;
+        let result = if self.regs.status.dont_double_result() {
+            mul
+        } else {
+            2 * mul
+        };
+
+        self.regs.product.set(result as i64);
+    }
+
+    // NOTE: carry flag issue
+    pub fn mulcac(&mut self, ins: Ins) {
+        let r = ins.base.bit(8) as usize;
+        let t = ins.base.bit(11) as usize;
+        let s = ins.base.bit(12) as usize;
+
+        let (_, _, prod) = self.regs.product.get();
+
+        let lhs = self.regs.acc40[s].mid as i16 as i32;
+        let rhs = self.regs.acc32[t] >> 16;
+        let mul = lhs * rhs;
+        let result = if self.regs.status.dont_double_result() {
+            mul
+        } else {
+            2 * mul
+        };
+
+        self.regs.product.set(result as i64);
+        let acc_r = self.regs.acc40[r].get();
+        let new = self.regs.acc40[r].set(acc_r + prod);
+
+        self.regs.status.set_overflow(false);
+        self.base_flags(new);
+    }
+
+    // NOTE: carry flag issue
+    pub fn mulcmv(&mut self, ins: Ins) {
+        let r = ins.base.bit(8) as usize;
+        let t = ins.base.bit(11) as usize;
+        let s = ins.base.bit(12) as usize;
+
+        let (_, _, prod) = self.regs.product.get();
+
+        let lhs = self.regs.acc40[s].mid as i16 as i32;
+        let rhs = self.regs.acc32[t] >> 16;
+        let mul = lhs * rhs;
+        let result = if self.regs.status.dont_double_result() {
+            mul
+        } else {
+            2 * mul
+        };
+
+        self.regs.product.set(result as i64);
+        let new = self.regs.acc40[r].set(prod);
+
+        self.regs.status.set_overflow(false);
+        self.base_flags(new);
+    }
+
+    // NOTE: carry flag issue
+    pub fn mulcmvz(&mut self, ins: Ins) {
+        let r = ins.base.bit(8) as usize;
+        let t = ins.base.bit(11) as usize;
+        let s = ins.base.bit(12) as usize;
+
+        let (_, _, prod) = self.regs.product.get();
+
+        let lhs = self.regs.acc40[s].mid as i16 as i32;
+        let rhs = self.regs.acc32[t] >> 16;
+        let mul = lhs * rhs;
+        let result = if self.regs.status.dont_double_result() {
+            mul
+        } else {
+            2 * mul
+        };
+
+        self.regs.product.set(result as i64);
+        let new = self.regs.acc40[r].set(round_40(prod));
+
+        self.regs.status.set_overflow(false);
+        self.base_flags(new);
+    }
+
+    // NOTE: carry flag issue
+    pub fn mulmv(&mut self, ins: Ins) {
+        let r = ins.base.bit(8) as usize;
+        let s = ins.base.bit(11) as usize;
+
+        let (_, _, prod) = self.regs.product.get();
+        let new = self.regs.acc40[r].set(prod);
+
+        let low = (self.regs.acc32[s] << 16) >> 16;
+        let high = self.regs.acc32[s] >> 16;
+        let mul = low * high;
+        let result = if self.regs.status.dont_double_result() {
+            mul
+        } else {
+            2 * mul
+        };
+
+        self.regs.product.set(result as i64);
+
+        self.regs.status.set_overflow(false);
+        self.base_flags(new);
+    }
+
+    // NOTE: carry flag issue
+    pub fn mulmvz(&mut self, ins: Ins) {
+        let r = ins.base.bit(8) as usize;
+        let s = ins.base.bit(11) as usize;
+
+        let (_, _, prod) = self.regs.product.get();
+        let new = self.regs.acc40[r].set(round_40(prod));
+
+        let low = (self.regs.acc32[s] << 16) >> 16;
+        let high = self.regs.acc32[s] >> 16;
+        let mul = low * high;
+        let result = if self.regs.status.dont_double_result() {
+            mul
+        } else {
+            2 * mul
+        };
+
+        self.regs.product.set(result as i64);
+
+        self.regs.status.set_overflow(false);
+        self.base_flags(new);
+    }
 }
