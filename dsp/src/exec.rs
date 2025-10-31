@@ -45,7 +45,6 @@ fn add_to_addr_reg(ar: u16, wr: u16, value: i16) -> u16 {
 
     // compute result
     let mut result = ar.wrapping_add_signed(value);
-    println!("n={n} wr={wr:04X} value={value:04X} carry={carry:?} res={result:04X}");
 
     if value >= 0 {
         if carry {

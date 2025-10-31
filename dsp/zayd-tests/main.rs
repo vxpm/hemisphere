@@ -187,6 +187,6 @@ fn main() {
         }
     }
 
-    // std::panic::set_hook(Box::new(move |_| ()));
+    std::panic::set_hook(Box::new(move |_| ()));
     libtest_mimic::run(&args, tests).exit();
 }
