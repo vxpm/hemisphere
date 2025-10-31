@@ -1097,4 +1097,125 @@ impl Dsp {
         self.regs.status.set_overflow(false);
         self.base_flags(new);
     }
+
+    // NOTE: issues
+    pub fn mulx(&mut self, ins: Ins) {
+        let t = ins.base.bit(11);
+        let s = ins.base.bit(12);
+
+        let lhs = if s {
+            self.regs.acc32[0] >> 16
+        } else {
+            (self.regs.acc32[0] << 16) >> 16
+        };
+
+        let rhs = if t {
+            self.regs.acc32[1] >> 16
+        } else {
+            (self.regs.acc32[1] << 16) >> 16
+        };
+
+        let mul = lhs * rhs;
+        let result = if self.regs.status.dont_double_result() {
+            mul
+        } else {
+            2 * mul
+        };
+
+        self.regs.product.set(result as i64);
+    }
+
+    // NOTE: issues
+    pub fn mulxac(&mut self, ins: Ins) {
+        let r = ins.base.bit(8) as usize;
+        let t = ins.base.bit(11);
+        let s = ins.base.bit(12);
+
+        let (_, _, prod) = self.regs.product.get();
+        let acc = self.regs.acc40[r].get();
+        self.regs.acc40[r].set(acc + prod);
+
+        let lhs = if s {
+            self.regs.acc32[0] >> 16
+        } else {
+            (self.regs.acc32[0] << 16) >> 16
+        };
+
+        let rhs = if t {
+            self.regs.acc32[1] >> 16
+        } else {
+            (self.regs.acc32[1] << 16) >> 16
+        };
+
+        let mul = lhs * rhs;
+        let result = if self.regs.status.dont_double_result() {
+            mul
+        } else {
+            2 * mul
+        };
+
+        self.regs.product.set(result as i64);
+    }
+
+    // NOTE: issues
+    pub fn mulxmv(&mut self, ins: Ins) {
+        let r = ins.base.bit(8) as usize;
+        let t = ins.base.bit(11);
+        let s = ins.base.bit(12);
+
+        let (_, _, prod) = self.regs.product.get();
+        self.regs.acc40[r].set(prod);
+
+        let lhs = if s {
+            self.regs.acc32[0] >> 16
+        } else {
+            (self.regs.acc32[0] << 16) >> 16
+        };
+
+        let rhs = if t {
+            self.regs.acc32[1] >> 16
+        } else {
+            (self.regs.acc32[1] << 16) >> 16
+        };
+
+        let mul = lhs * rhs;
+        let result = if self.regs.status.dont_double_result() {
+            mul
+        } else {
+            2 * mul
+        };
+
+        self.regs.product.set(result as i64);
+    }
+
+    // NOTE: issues
+    pub fn mulxmvz(&mut self, ins: Ins) {
+        let r = ins.base.bit(8) as usize;
+        let t = ins.base.bit(11);
+        let s = ins.base.bit(12);
+
+        let (_, _, prod) = self.regs.product.get();
+        self.regs.acc40[r].set(round_40(prod));
+
+        let lhs = if s {
+            self.regs.acc32[0] >> 16
+        } else {
+            (self.regs.acc32[0] << 16) >> 16
+        };
+
+        let rhs = if t {
+            self.regs.acc32[1] >> 16
+        } else {
+            (self.regs.acc32[1] << 16) >> 16
+        };
+
+        let mul = lhs * rhs;
+        let result = if self.regs.status.dont_double_result() {
+            mul
+        } else {
+            2 * mul
+        };
+
+        self.regs.product.set(result as i64);
+    }
 }

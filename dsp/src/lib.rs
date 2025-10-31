@@ -399,6 +399,10 @@ impl Dsp {
             Opcode::Mulcmvz => self.mulcmvz(ins),
             Opcode::Mulmv => self.mulmv(ins),
             Opcode::Mulmvz => self.mulmvz(ins),
+            Opcode::Mulx => self.mulx(ins),
+            Opcode::Mulxac => self.mulxac(ins),
+            Opcode::Mulxmv => self.mulxmv(ins),
+            Opcode::Mulxmvz => self.mulxmvz(ins),
             _ => (),
         }
 

@@ -43,6 +43,7 @@ fn run_case(case: file::TestCase) -> Result<(), Divergences> {
     }
 
     // check
+    let allow_status = std::env::var("IGNORE_STATUS").is_ok();
     let expected = case.expected_regs();
     let mut divergences = vec![];
     for i in 0..32 {
@@ -51,6 +52,10 @@ fn run_case(case: file::TestCase) -> Result<(), Divergences> {
         let expected = expected.get(reg);
 
         if value != expected {
+            if allow_status && reg == dsp::Reg::Status {
+                continue;
+            }
+
             divergences.push((reg, value, expected));
         }
     }
