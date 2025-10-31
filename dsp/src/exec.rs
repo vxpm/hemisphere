@@ -1632,4 +1632,12 @@ impl Dsp {
 
         self.regs.addressing[r] = add_to_addr_reg(ar, wr, 1i16);
     }
+
+    pub fn ext_mv(&mut self, ins: Ins, regs: &Registers) {
+        let s = ins.base.bits(0, 2) as u8;
+        let d = ins.base.bits(2, 4) as u8;
+
+        self.regs
+            .set(Reg::new(0x18 + d), regs.get(Reg::new(0x1C + s)));
+    }
 }
