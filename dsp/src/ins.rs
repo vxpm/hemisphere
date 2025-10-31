@@ -377,6 +377,7 @@ impl Opcode {
             Lsrnr => 0x7F,
             Lsrnrx => 0x7F,
             Not => 0x7F,
+            Xorc => 0x7F,
             _ => 0xFF,
         }
     }
@@ -409,10 +410,21 @@ opcode! {
     Ldnm    = "xxxx_xxxx_11xx_11xx",
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct Ins {
     pub base: u16,
     pub extra: u16,
+}
+
+impl std::fmt::Debug for Ins {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let opcode = self.opcode();
+        if opcode.has_extension() {
+            write!(f, "{:?}'{:?}", opcode, self.extension_opcode())
+        } else {
+            write!(f, "{:?}", opcode)
+        }
+    }
 }
 
 impl Ins {

@@ -71,6 +71,7 @@ fn run_case(case: file::TestCase) -> Result<(), Divergences> {
 }
 
 fn run_test(file: file::TestFile, quiet: bool) -> Result<(), Failed> {
+    let total = file.cases.len();
     let mut failures = vec![];
     for (i, case) in file.cases.into_iter().enumerate() {
         if let Err(divergences) = run_case(case) {
@@ -83,7 +84,7 @@ fn run_test(file: file::TestFile, quiet: bool) -> Result<(), Failed> {
             let ins = divergences
                 .code
                 .iter()
-                .map(|i| format!("{:?}\r\n", i.opcode()))
+                .map(|i| format!("{:?}\r\n", i))
                 .collect::<String>();
 
             failures.push(format!(
@@ -97,12 +98,17 @@ fn run_test(file: file::TestFile, quiet: bool) -> Result<(), Failed> {
     if !failures.is_empty() {
         if quiet {
             return Err(Failed::from(format!(
-                "Failed a total of {} cases",
-                failures.len()
+                "Failed a total of {} cases (out of {})",
+                failures.len(),
+                total
             )));
         }
 
-        let mut msg = format!("Failed a total of {} cases\r\n\r\n", failures.len());
+        let mut msg = format!(
+            "Failed a total of {} cases (out of {})\r\n\r\n",
+            failures.len(),
+            total
+        );
         let tests_to_show = 8;
 
         let show = failures.iter().take(tests_to_show);
@@ -160,6 +166,6 @@ fn main() {
         }
     }
 
-    std::panic::set_hook(Box::new(move |_| ()));
+    // std::panic::set_hook(Box::new(move |_| ()));
     libtest_mimic::run(&args, tests).exit();
 }

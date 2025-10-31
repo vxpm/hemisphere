@@ -17,6 +17,11 @@ fn add_overflowed(lhs: i64, rhs: i64, new: i64) -> bool {
 }
 
 #[inline(always)]
+fn sub_overflowed(lhs: i64, rhs: i64, new: i64) -> bool {
+    add_overflowed(lhs, -rhs, new)
+}
+
+#[inline(always)]
 fn round_40(value: i64) -> i64 {
     if value.bit(16) {
         (value + 0x8000) & !0xFFFF
@@ -455,7 +460,7 @@ impl Dsp {
         self.regs.status.set_carry(sub_carried(lhs, diff));
         self.regs
             .status
-            .set_overflow(add_overflowed(lhs, -rhs, diff));
+            .set_overflow(sub_overflowed(lhs, rhs, diff));
 
         self.base_flags(diff);
     }
@@ -471,7 +476,7 @@ impl Dsp {
         self.regs.status.set_carry(sub_carried(lhs, diff));
         self.regs
             .status
-            .set_overflow(add_overflowed(lhs, -rhs, diff));
+            .set_overflow(sub_overflowed(lhs, rhs, diff));
 
         self.base_flags(diff);
     }
@@ -486,7 +491,7 @@ impl Dsp {
         self.regs.status.set_carry(sub_carried(lhs, diff));
         self.regs
             .status
-            .set_overflow(add_overflowed(lhs, -rhs, diff));
+            .set_overflow(sub_overflowed(lhs, rhs, diff));
 
         self.base_flags(diff);
     }
@@ -501,7 +506,7 @@ impl Dsp {
         self.regs.status.set_carry(sub_carried(lhs, diff));
         self.regs
             .status
-            .set_overflow(add_overflowed(lhs, -rhs, diff));
+            .set_overflow(sub_overflowed(lhs, rhs, diff));
 
         self.base_flags(diff);
     }
@@ -854,24 +859,7 @@ impl Dsp {
         let s = ins.base.bits(0, 5) as u8;
         let d = ins.base.bits(5, 10) as u8;
 
-        let acc_src = |i: usize| {
-            let ml = self.regs.acc40[i].get() as i32 as i64;
-            let hml = self.regs.acc40[i].get();
-
-            if self.regs.status.sign_extend_to_40() && ml != hml {
-                if hml >= 0 { 0x7FFF } else { 0x8000 }
-            } else {
-                self.regs.acc40[i].mid
-            }
-        };
-
-        let src = Reg::new(s);
-        let src = match src {
-            Reg::Acc40Mid0 => acc_src(0),
-            Reg::Acc40Mid1 => acc_src(1),
-            _ => self.regs.get(src),
-        };
-
+        let src = self.regs.get(Reg::new(s));
         let mut acc_dst = |i: usize| {
             if !self.regs.status.sign_extend_to_40() {
                 self.regs.acc40[i].mid = src;
@@ -1393,9 +1381,7 @@ impl Dsp {
         let new = self.regs.acc40[d].set(lhs - rhs);
 
         self.regs.status.set_carry(sub_carried(lhs, new));
-        self.regs
-            .status
-            .set_overflow(add_overflowed(lhs, -rhs, new));
+        self.regs.status.set_overflow(sub_overflowed(lhs, rhs, new));
 
         self.base_flags(new);
     }
@@ -1404,7 +1390,204 @@ impl Dsp {
         let d = ins.base.bits(0, 2) as usize;
         let ix = self.regs.indexing[d];
 
-        // self.add_to_addr_reg(d, -(ix as i16));
         self.sub_from_addr_reg(d, ix as i16);
+    }
+
+    pub fn subax(&mut self, ins: Ins) {
+        let d = ins.base.bit(8) as usize;
+        let s = ins.base.bit(9) as usize;
+
+        let lhs = self.regs.acc40[d].get();
+        let rhs = self.regs.acc32[s] as i64;
+        let new = self.regs.acc40[d].set(lhs - rhs);
+
+        self.regs.status.set_carry(sub_carried(lhs, new));
+        self.regs.status.set_overflow(sub_overflowed(lhs, rhs, new));
+
+        self.base_flags(new);
+    }
+
+    pub fn subp(&mut self, ins: Ins) {
+        let d = ins.base.bit(8) as usize;
+
+        let lhs = self.regs.acc40[d].get();
+        let (carry, overflow, rhs) = self.regs.product.get();
+        let new = self.regs.acc40[d].set(lhs - rhs);
+
+        self.regs.status.set_carry(sub_carried(lhs, new) ^ !carry);
+        self.regs
+            .status
+            .set_overflow(sub_overflowed(lhs, rhs, new) ^ overflow);
+
+        self.base_flags(new);
+    }
+
+    pub fn subr(&mut self, ins: Ins) {
+        let d = ins.base.bit(8) as usize;
+        let s = ins.base.bits(9, 11) as u8;
+
+        let lhs = self.regs.acc40[d].get();
+        let rhs = (self.regs.get(Reg::new(s + 0x18)) as i16 as i64) << 16;
+        let new = self.regs.acc40[d].set(lhs - rhs);
+
+        self.regs.status.set_carry(sub_carried(lhs, new));
+        self.regs.status.set_overflow(sub_overflowed(lhs, rhs, new));
+
+        self.base_flags(new);
+    }
+
+    pub fn tst(&mut self, ins: Ins) {
+        let r = ins.base.bit(11) as usize;
+
+        let acc = self.regs.acc40[r].get();
+
+        self.regs.status.set_carry(false);
+        self.regs.status.set_overflow(false);
+
+        self.base_flags(acc);
+    }
+
+    pub fn tstaxh(&mut self, ins: Ins) {
+        let r = ins.base.bit(8) as usize;
+
+        let acc = self.regs.acc32[r] >> 16;
+
+        self.regs.status.set_carry(false);
+        self.regs.status.set_overflow(false);
+
+        self.base_flags(acc as i64);
+
+        self.regs
+            .status
+            .set_top_two_bits_eq(acc.bit(15) == acc.bit(14));
+    }
+
+    pub fn tstprod(&mut self, _: Ins) {
+        let (carry, overflow, prod) = self.regs.product.get();
+
+        self.regs.status.set_carry(carry);
+        self.regs.status.set_overflow(overflow);
+
+        self.base_flags(prod);
+    }
+
+    pub fn xorc(&mut self, ins: Ins) {
+        let d = ins.base.bit(8) as usize;
+
+        self.regs.acc40[d].mid ^= self.regs.acc40[1 - d].mid;
+        let new = self.regs.acc40[d].get();
+
+        self.regs.status.set_carry(false);
+        self.regs.status.set_overflow(false);
+
+        self.base_flags(new);
+
+        self.regs
+            .status
+            .set_arithmetic_zero(self.regs.acc40[d].mid == 0);
+        self.regs
+            .status
+            .set_sign((self.regs.acc40[d].mid as i16) < 0);
+    }
+
+    pub fn xori(&mut self, ins: Ins) {
+        let d = ins.base.bit(8) as usize;
+
+        self.regs.acc40[d].mid ^= ins.extra;
+        let new = self.regs.acc40[d].get();
+
+        self.regs.status.set_carry(false);
+        self.regs.status.set_overflow(false);
+
+        self.base_flags(new);
+
+        self.regs
+            .status
+            .set_arithmetic_zero(self.regs.acc40[d].mid == 0);
+        self.regs
+            .status
+            .set_sign((self.regs.acc40[d].mid as i16) < 0);
+    }
+
+    pub fn xorr(&mut self, ins: Ins) {
+        let d = ins.base.bit(8) as usize;
+        let s = ins.base.bit(9) as usize;
+
+        self.regs.acc40[d].mid ^= (self.regs.acc32[s] >> 16) as u16;
+        let new = self.regs.acc40[d].get();
+
+        self.regs.status.set_carry(false);
+        self.regs.status.set_overflow(false);
+
+        self.base_flags(new);
+
+        self.regs
+            .status
+            .set_arithmetic_zero(self.regs.acc40[d].mid == 0);
+        self.regs
+            .status
+            .set_sign((self.regs.acc40[d].mid as i16) < 0);
+    }
+
+    pub fn bloop(&mut self, ins: Ins) {
+        let r = ins.base.bits(0, 5) as u8;
+
+        let counter = self.regs.get(Reg::new(r));
+        self.regs.call_stack.push(self.regs.pc.wrapping_add(2));
+        self.regs.loop_stack.push(ins.extra + 1);
+        self.regs.loop_count.push(counter);
+    }
+
+    pub fn bloopi(&mut self, ins: Ins) {
+        let counter = ins.base.bits(0, 8);
+        self.regs.call_stack.push(self.regs.pc.wrapping_add(2));
+        self.regs.loop_stack.push(ins.extra + 1);
+        self.regs.loop_count.push(counter);
+    }
+
+    pub fn call(&mut self, ins: Ins) {
+        let code = CondCode::new(ins.base.bits(0, 4) as u8);
+        if self.condition(code) {
+            self.regs.call_stack.push(self.regs.pc.wrapping_add(2));
+            self.regs.pc = ins.extra - 2;
+        }
+    }
+
+    pub fn callr(&mut self, ins: Ins) {
+        let r = ins.base.bits(5, 8) as u8;
+
+        let code = CondCode::new(ins.base.bits(0, 4) as u8);
+        let addr = self.regs.get(Reg::new(r));
+
+        if self.condition(code) {
+            self.regs.call_stack.push(self.regs.pc.wrapping_add(1));
+            self.regs.pc = addr - 1;
+        }
+    }
+
+    pub fn jmp(&mut self, ins: Ins) {
+        let code = CondCode::new(ins.base.bits(0, 4) as u8);
+        if self.condition(code) {
+            self.regs.pc = ins.extra - 2;
+        }
+    }
+
+    pub fn jmpr(&mut self, ins: Ins) {
+        let r = ins.base.bits(5, 8) as u8;
+
+        let code = CondCode::new(ins.base.bits(0, 4) as u8);
+        let addr = self.regs.get(Reg::new(r));
+
+        if self.condition(code) {
+            self.regs.pc = addr - 1;
+        }
+    }
+
+    pub fn ret(&mut self, ins: Ins) {
+        let code = CondCode::new(ins.base.bits(0, 4) as u8);
+        if self.condition(code) {
+            let addr = self.regs.call_stack.pop().unwrap();
+            self.regs.pc = addr - 1;
+        }
     }
 }

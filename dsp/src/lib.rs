@@ -204,6 +204,17 @@ pub struct Registers {
 
 impl Registers {
     pub fn get(&self, reg: Reg) -> u16 {
+        let acc_saturate = |i: usize| {
+            let ml = self.acc40[i].get() as i32 as i64;
+            let hml = self.acc40[i].get();
+
+            if self.status.sign_extend_to_40() && ml != hml {
+                if hml >= 0 { 0x7FFF } else { 0x8000 }
+            } else {
+                self.acc40[i].mid
+            }
+        };
+
         match reg {
             Reg::Addr0 => self.addressing[0],
             Reg::Addr1 => self.addressing[1],
@@ -235,8 +246,8 @@ impl Registers {
             Reg::Acc32High1 => self.acc32[1].bits(16, 32) as u16,
             Reg::Acc40Low0 => self.acc40[0].low,
             Reg::Acc40Low1 => self.acc40[1].low,
-            Reg::Acc40Mid0 => self.acc40[0].mid,
-            Reg::Acc40Mid1 => self.acc40[1].mid,
+            Reg::Acc40Mid0 => acc_saturate(0),
+            Reg::Acc40Mid1 => acc_saturate(1),
         }
     }
 
@@ -306,8 +317,8 @@ impl Dsp {
                 self.regs.loop_stack.pop();
                 self.regs.loop_count.pop();
             } else {
-                let offset = *self.regs.call_stack.last().unwrap();
-                self.regs.pc = self.regs.pc.wrapping_add(offset);
+                let addr = *self.regs.call_stack.last().unwrap();
+                self.regs.pc = addr;
             }
         }
     }
@@ -321,7 +332,7 @@ impl Dsp {
 
         let extra = opcode
             .needs_extra()
-            .then_some(self.memory.iram[self.regs.pc as usize + 1]);
+            .then_some(self.memory.iram[(self.regs.pc as usize + 1) % 4096]);
 
         if let Some(extra) = extra {
             ins.extra = extra;
@@ -415,6 +426,21 @@ impl Dsp {
             Opcode::Set40 => self.set40(ins),
             Opcode::Sub => self.sub(ins),
             Opcode::Subarn => self.subarn(ins),
+            Opcode::Subax => self.subax(ins),
+            Opcode::Subp => self.subp(ins),
+            Opcode::Subr => self.subr(ins),
+            Opcode::Tst => self.tst(ins),
+            Opcode::Tstaxh => self.tstaxh(ins),
+            Opcode::Tstprod => self.tstprod(ins),
+            Opcode::Xorc => self.xorc(ins),
+            Opcode::Xori => self.xori(ins),
+            Opcode::Xorr => self.xorr(ins),
+            Opcode::Bloop => self.bloop(ins),
+            Opcode::Bloopi => self.bloopi(ins),
+            Opcode::Call => self.call(ins),
+            Opcode::Callr => self.callr(ins),
+            Opcode::Jmp => self.jmp(ins),
+            Opcode::Ret => self.ret(ins),
             _ => (),
         }
 
@@ -427,5 +453,6 @@ impl Dsp {
         }
 
         self.regs.pc += if extra.is_some() { 2 } else { 1 };
+        self.regs.pc = self.regs.pc % 4096;
     }
 }
