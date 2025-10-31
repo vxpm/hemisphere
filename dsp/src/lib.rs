@@ -413,6 +413,8 @@ impl Dsp {
             Opcode::Set15 => self.set15(ins),
             Opcode::Set16 => self.set16(ins),
             Opcode::Set40 => self.set40(ins),
+            Opcode::Sub => self.sub(ins),
+            Opcode::Subarn => self.subarn(ins),
             _ => (),
         }
 
