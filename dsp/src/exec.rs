@@ -1,4 +1,4 @@
-use crate::{Acc40, Dsp, Ins, Reg, ins::CondCode};
+use crate::{Acc40, Dsp, Ins, Reg, Status, ins::CondCode};
 use bitos::BitUtils;
 
 #[inline(always)]
@@ -1217,5 +1217,134 @@ impl Dsp {
         };
 
         self.regs.product.set(result as i64);
+    }
+
+    pub fn neg(&mut self, ins: Ins) {
+        let d = ins.base.bit(8) as usize;
+
+        let old = self.regs.acc40[d].get();
+        let new = self.regs.acc40[d].set(-old);
+
+        self.regs.status.set_carry(old == 0);
+        self.regs.status.set_overflow(old == (1 << 40));
+
+        self.base_flags(new);
+    }
+
+    pub fn not(&mut self, ins: Ins) {
+        let d = ins.base.bit(8) as usize;
+
+        self.regs.acc40[d].mid ^= 0xFFFF;
+        let new = self.regs.acc40[d].get();
+
+        self.regs.status.set_carry(false);
+        self.regs.status.set_overflow(false);
+
+        self.base_flags(new);
+
+        self.regs
+            .status
+            .set_arithmetic_zero(self.regs.acc40[d].mid == 0);
+        self.regs
+            .status
+            .set_sign((self.regs.acc40[d].mid as i16) < 0);
+    }
+
+    pub fn orc(&mut self, ins: Ins) {
+        let d = ins.base.bit(8) as usize;
+
+        self.regs.acc40[d].mid |= self.regs.acc40[1 - d].mid;
+        let new = self.regs.acc40[d].get();
+
+        self.regs.status.set_carry(false);
+        self.regs.status.set_overflow(false);
+
+        self.base_flags(new);
+
+        self.regs
+            .status
+            .set_arithmetic_zero(self.regs.acc40[d].mid == 0);
+        self.regs
+            .status
+            .set_sign((self.regs.acc40[d].mid as i16) < 0);
+    }
+
+    pub fn ori(&mut self, ins: Ins) {
+        let d = ins.base.bit(8) as usize;
+
+        self.regs.acc40[d].mid |= ins.extra;
+        let new = self.regs.acc40[d].get();
+
+        self.regs.status.set_carry(false);
+        self.regs.status.set_overflow(false);
+
+        self.base_flags(new);
+
+        self.regs
+            .status
+            .set_arithmetic_zero(self.regs.acc40[d].mid == 0);
+        self.regs
+            .status
+            .set_sign((self.regs.acc40[d].mid as i16) < 0);
+    }
+
+    pub fn orr(&mut self, ins: Ins) {
+        let d = ins.base.bit(8) as usize;
+        let s = ins.base.bit(9) as usize;
+
+        self.regs.acc40[d].mid |= (self.regs.acc32[s] >> 16) as u16;
+        let new = self.regs.acc40[d].get();
+
+        self.regs.status.set_carry(false);
+        self.regs.status.set_overflow(false);
+
+        self.base_flags(new);
+
+        self.regs
+            .status
+            .set_arithmetic_zero(self.regs.acc40[d].mid == 0);
+        self.regs
+            .status
+            .set_sign((self.regs.acc40[d].mid as i16) < 0);
+    }
+
+    pub fn sbclr(&mut self, ins: Ins) {
+        let i = ins.base.bits(0, 3) as u8;
+
+        let idx = 6 + i;
+        let old = self.regs.status.to_bits();
+        let new = if idx == 13 {
+            old
+        } else {
+            old.with_bit(idx, false)
+        };
+
+        self.regs.status = Status::from_bits(new);
+    }
+
+    pub fn sbset(&mut self, ins: Ins) {
+        let i = ins.base.bits(0, 3) as u8;
+
+        let idx = 6 + i;
+        let old = self.regs.status.to_bits();
+        let new = if idx == 13 || idx == 8 {
+            old
+        } else {
+            old.with_bit(idx, true)
+        };
+
+        self.regs.status = Status::from_bits(new);
+    }
+
+    pub fn set15(&mut self, _: Ins) {
+        self.regs.status.set_unsigned_mul(true);
+    }
+
+    pub fn set16(&mut self, _: Ins) {
+        self.regs.status.set_sign_extend_to_40(false);
+    }
+
+    pub fn set40(&mut self, _: Ins) {
+        self.regs.status.set_sign_extend_to_40(true);
     }
 }

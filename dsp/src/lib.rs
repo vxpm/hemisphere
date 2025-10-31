@@ -330,7 +330,7 @@ impl Dsp {
         // execute
         // let regs_previous = self.regs.clone();
         match ins.opcode() {
-            Opcode::Nop => (),
+            Opcode::Nop | Opcode::Nx => (),
             Opcode::Abs => self.abs(ins),
             Opcode::Add => self.add(ins),
             Opcode::Addarn => self.addarn(ins),
@@ -403,6 +403,16 @@ impl Dsp {
             Opcode::Mulxac => self.mulxac(ins),
             Opcode::Mulxmv => self.mulxmv(ins),
             Opcode::Mulxmvz => self.mulxmvz(ins),
+            Opcode::Neg => self.neg(ins),
+            Opcode::Not => self.not(ins),
+            Opcode::Orc => self.orc(ins),
+            Opcode::Ori => self.ori(ins),
+            Opcode::Orr => self.orr(ins),
+            Opcode::Sbclr => self.sbclr(ins),
+            Opcode::Sbset => self.sbset(ins),
+            Opcode::Set15 => self.set15(ins),
+            Opcode::Set16 => self.set16(ins),
+            Opcode::Set40 => self.set40(ins),
             _ => (),
         }
 
