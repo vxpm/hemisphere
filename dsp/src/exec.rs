@@ -869,23 +869,7 @@ impl Dsp {
         let d = ins.base.bits(5, 10) as u8;
 
         let src = self.regs.get(Reg::new(s));
-        let mut acc_dst = |i: usize| {
-            if !self.regs.status.sign_extend_to_40() {
-                self.regs.acc40[i].mid = src;
-                return;
-            }
-
-            self.regs.acc40[i].low = 0;
-            self.regs.acc40[i].mid = src;
-            self.regs.acc40[i].high = if src.bit(15) { !0 } else { 0 };
-        };
-
-        let dst = Reg::new(d);
-        match dst {
-            Reg::Acc40Mid0 => acc_dst(0),
-            Reg::Acc40Mid1 => acc_dst(1),
-            _ => self.regs.set(dst, src),
-        }
+        self.regs.set_saturate(Reg::new(d), src);
     }
 
     // NOTE: carry flag issue
@@ -1601,6 +1585,136 @@ impl Dsp {
             let addr = self.regs.call_stack.pop().unwrap();
             self.regs.pc = addr - 1;
         }
+    }
+
+    pub fn lr(&mut self, ins: Ins) {
+        let d = ins.base.bits(0, 5) as u8;
+
+        let data = self.memory.dram[ins.extra as usize];
+        self.regs.set_saturate(Reg::new(d), data);
+    }
+
+    pub fn lri(&mut self, ins: Ins) {
+        let d = ins.base.bits(0, 5) as u8;
+        self.regs.set_saturate(Reg::new(d), ins.extra);
+    }
+
+    pub fn lris(&mut self, ins: Ins) {
+        let d = ins.base.bits(8, 11) as u8;
+        let imm = ins.base.bits(0, 8) as i8 as i16;
+        self.regs.set_saturate(Reg::new(0x18 + d), imm as u16);
+    }
+
+    pub fn lrr(&mut self, ins: Ins) {
+        let d = ins.base.bits(0, 5) as u8;
+        let s = ins.base.bits(5, 7) as usize;
+
+        let addr = self.regs.addressing[s] as usize;
+        let data = self.memory.dram[addr];
+        self.regs.set_saturate(Reg::new(d), data);
+    }
+
+    pub fn lrrd(&mut self, ins: Ins) {
+        let d = ins.base.bits(0, 5) as u8;
+        let s = ins.base.bits(5, 7) as usize;
+
+        let ar = self.regs.addressing[s];
+        let wr = self.regs.wrapping[s];
+
+        let data = self.memory.dram[ar as usize];
+        self.regs.set_saturate(Reg::new(d), data);
+
+        self.regs.addressing[s] = sub_from_addr_reg(ar, wr, 1);
+    }
+
+    pub fn lrri(&mut self, ins: Ins) {
+        let d = ins.base.bits(0, 5) as u8;
+        let s = ins.base.bits(5, 7) as usize;
+
+        let ar = self.regs.addressing[s];
+        let wr = self.regs.wrapping[s];
+
+        let data = self.memory.dram[ar as usize];
+        self.regs.set_saturate(Reg::new(d), data);
+
+        self.regs.addressing[s] = add_to_addr_reg(ar, wr, 1);
+    }
+
+    pub fn lrrn(&mut self, ins: Ins) {
+        let d = ins.base.bits(0, 5) as u8;
+        let s = ins.base.bits(5, 7) as usize;
+
+        let ar = self.regs.addressing[s];
+        let wr = self.regs.addressing[s];
+        let ix = self.regs.indexing[s];
+
+        let data = self.memory.dram[ar as usize];
+        self.regs.set_saturate(Reg::new(d), data);
+
+        self.regs.addressing[s] = add_to_addr_reg(ar, wr, ix as i16);
+    }
+
+    pub fn lrs(&mut self, ins: Ins) {
+        let imm = ins.base.bits(0, 8) as u8;
+        let d = ins.base.bits(8, 10) as u8;
+
+        let addr = u16::from_le_bytes([imm, self.regs.config]);
+        let data = self.memory.dram[addr as usize];
+        self.regs.set_saturate(Reg::new(d), data);
+    }
+
+    pub fn ilrr(&mut self, ins: Ins) {
+        let s = ins.base.bits(0, 2) as usize;
+        let d = ins.base.bit(8);
+
+        let reg = if d { Reg::Acc40Mid1 } else { Reg::Acc40Mid0 };
+        let addr = self.regs.addressing[s];
+        let data = self.memory.iram[addr as usize];
+
+        self.regs.set_saturate(reg, data);
+    }
+
+    pub fn ilrrd(&mut self, ins: Ins) {
+        let s = ins.base.bits(0, 2) as usize;
+        let d = ins.base.bit(8);
+
+        let reg = if d { Reg::Acc40Mid1 } else { Reg::Acc40Mid0 };
+        let ar = self.regs.addressing[s];
+        let wr = self.regs.wrapping[s];
+
+        let data = self.memory.iram[ar as usize];
+        self.regs.set_saturate(reg, data);
+
+        self.regs.addressing[s] = sub_from_addr_reg(ar, wr, 1);
+    }
+
+    pub fn ilrri(&mut self, ins: Ins) {
+        let s = ins.base.bits(0, 2) as usize;
+        let d = ins.base.bit(8);
+
+        let reg = if d { Reg::Acc40Mid1 } else { Reg::Acc40Mid0 };
+        let ar = self.regs.addressing[s];
+        let wr = self.regs.wrapping[s];
+
+        let data = self.memory.iram[ar as usize];
+        self.regs.set_saturate(reg, data);
+
+        self.regs.addressing[s] = add_to_addr_reg(ar, wr, 1);
+    }
+
+    pub fn ilrrn(&mut self, ins: Ins) {
+        let s = ins.base.bits(0, 2) as usize;
+        let d = ins.base.bit(8);
+
+        let reg = if d { Reg::Acc40Mid1 } else { Reg::Acc40Mid0 };
+        let ar = self.regs.addressing[s];
+        let wr = self.regs.wrapping[s];
+        let ix = self.regs.wrapping[s];
+
+        let data = self.memory.iram[ar as usize];
+        self.regs.set_saturate(reg, data);
+
+        self.regs.addressing[s] = add_to_addr_reg(ar, wr, ix as i16);
     }
 }
 

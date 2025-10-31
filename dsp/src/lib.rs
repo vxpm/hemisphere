@@ -287,6 +287,25 @@ impl Registers {
             Reg::Acc40Mid1 => self.acc40[1].mid = value,
         }
     }
+
+    pub fn set_saturate(&mut self, reg: Reg, value: u16) {
+        let mut acc_saturate = |i: usize| {
+            if !self.status.sign_extend_to_40() {
+                self.acc40[i].mid = value;
+                return;
+            }
+
+            self.acc40[i].low = 0;
+            self.acc40[i].mid = value;
+            self.acc40[i].high = if value.bit(15) { !0 } else { 0 };
+        };
+
+        match reg {
+            Reg::Acc40Mid0 => acc_saturate(0),
+            Reg::Acc40Mid1 => acc_saturate(1),
+            _ => self.set(reg, value),
+        }
+    }
 }
 
 #[derive(Default)]
@@ -441,6 +460,18 @@ impl Dsp {
             Opcode::Callr => self.callr(ins),
             Opcode::Jmp => self.jmp(ins),
             Opcode::Ret => self.ret(ins),
+            Opcode::Lr => self.lr(ins),
+            Opcode::Lri => self.lri(ins),
+            Opcode::Lris => self.lris(ins),
+            Opcode::Lrr => self.lrr(ins),
+            Opcode::Lrrd => self.lrrd(ins),
+            Opcode::Lrri => self.lrri(ins),
+            Opcode::Lrrn => self.lrrn(ins),
+            Opcode::Lrs => self.lrs(ins),
+            Opcode::Ilrr => self.ilrr(ins),
+            Opcode::Ilrrd => self.ilrrd(ins),
+            Opcode::Ilrri => self.ilrri(ins),
+            Opcode::Ilrrn => self.ilrrn(ins),
             _ => (),
         }
 
