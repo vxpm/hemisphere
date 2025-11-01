@@ -1820,6 +1820,28 @@ impl Dsp {
         let data = self.regs.acc40[s].high as i8 as i16 as u16;
         self.write_data(addr, data);
     }
+
+    pub fn loop_(&mut self, ins: Ins) {
+        let r = ins.base.bits(0, 5) as u8;
+        self.loop_counter = Some(self.regs.get(Reg::new(r)));
+        self.regs.pc += 1;
+    }
+
+    pub fn loopi(&mut self, ins: Ins) {
+        let imm = ins.base.bits(0, 8) as u8;
+        self.loop_counter = Some(imm as u16);
+        self.regs.pc += 1;
+    }
+
+    pub fn rti(&mut self, ins: Ins) {
+        let code = CondCode::new(ins.base.bits(0, 4) as u8);
+        if self.condition(code) {
+            let sr = self.regs.data_stack.pop().unwrap();
+            let pc = self.regs.call_stack.pop().unwrap();
+            self.regs.set(Reg::Status, sr);
+            self.regs.pc = pc;
+        }
+    }
 }
 
 impl Dsp {

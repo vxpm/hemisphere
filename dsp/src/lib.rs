@@ -300,7 +300,7 @@ impl Registers {
             self.acc40[i].high = if value.bit(15) { !0 } else { 0 };
         };
 
-        println!("setting {reg:?} to {value:04X}");
+        // println!("setting {reg:?} to {value:04X}");
 
         match reg {
             Reg::Acc40Mid0 => acc_saturate(0),
@@ -321,6 +321,7 @@ pub struct Dsp {
     pub regs: Registers,
     pub memory: Memory,
     pub control: Control,
+    pub loop_counter: Option<u16>,
 }
 
 impl Dsp {
@@ -353,12 +354,12 @@ impl Dsp {
             _ => 0,
         };
 
-        println!("reading {value:04X} from {addr:04X}");
+        // println!("reading {value:04X} from {addr:04X}");
         value
     }
 
     pub fn write_data(&mut self, addr: u16, value: u16) {
-        println!("writing {value:04X} to {addr:04X}");
+        // println!("writing {value:04X} to {addr:04X}");
         match addr {
             0x0000..0x1000 => self.memory.dram[addr as usize] = value,
             0x1000..0x1800 => (),
@@ -513,7 +514,11 @@ impl Dsp {
             Opcode::Xorc => self.xorc(ins),
             Opcode::Xori => self.xori(ins),
             Opcode::Xorr => self.xorr(ins),
-            _ => (),
+            Opcode::Loop => self.loop_(ins),
+            Opcode::Loopi => self.loopi(ins),
+            Opcode::Rti => self.rti(ins),
+            Opcode::Jr => self.jmpr(ins),
+            Opcode::Illegal => panic!("illegal opcode"),
         }
 
         if opcode.has_extension() {
@@ -540,11 +545,19 @@ impl Dsp {
                 ExtensionOpcode::Slm => self.ext_slm(ins, &regs_previous),
                 ExtensionOpcode::Slnm => self.ext_slnm(ins, &regs_previous),
                 ExtensionOpcode::Sln => self.ext_sln(ins, &regs_previous),
-                _ => todo!("extension op {extension:?}"),
+                ExtensionOpcode::Illegal => panic!("illegal extension opcode"),
             }
         }
 
-        self.regs.pc += if extra.is_some() { 2 } else { 1 };
-        self.regs.pc = self.regs.pc % 4096;
+        if let Some(loop_counter) = &mut self.loop_counter {
+            if *loop_counter == 0 {
+                self.loop_counter = None;
+                self.regs.pc += 1;
+            } else {
+                *loop_counter -= 1;
+            }
+        } else {
+            self.regs.pc += if extra.is_some() { 2 } else { 1 };
+        }
     }
 }

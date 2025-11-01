@@ -30,7 +30,6 @@ struct FailedCase {
 }
 
 fn run_case(case: file::TestCase) -> Result<(), FailedCase> {
-    println!("Case start");
     let mut dsp = Dsp::default();
 
     // setup
@@ -41,8 +40,6 @@ fn run_case(case: file::TestCase) -> Result<(), FailedCase> {
 
     // run until halt
     let code = parse_code(&case.instructions);
-    dbg!(&code);
-
     while !dsp.control.halt {
         dsp.step();
     }
