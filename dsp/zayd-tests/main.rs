@@ -30,6 +30,7 @@ struct FailedCase {
 }
 
 fn run_case(case: file::TestCase) -> Result<(), FailedCase> {
+    println!("Case start");
     let mut dsp = Dsp::default();
 
     // setup

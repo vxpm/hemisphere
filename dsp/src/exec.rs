@@ -1957,4 +1957,31 @@ impl Dsp {
         let wr = regs.wrapping[3];
         self.regs.addressing[3] = add_to_addr_reg(ar, wr, 1);
     }
+
+    pub fn ext_s(&mut self, ins: Ins, regs: &Registers) {
+        let d = ins.base.bits(0, 2) as usize;
+        let s = ins.base.bits(3, 5) as u8;
+
+        let ar = regs.addressing[d];
+        let data = self.regs.get(Reg::new(0x1C + s));
+        self.write_data(ar, data);
+
+        let ar = regs.addressing[d];
+        let wr = regs.wrapping[d];
+        self.regs.addressing[d] = add_to_addr_reg(ar, wr, 1);
+    }
+
+    pub fn ext_sn(&mut self, ins: Ins, regs: &Registers) {
+        let d = ins.base.bits(0, 2) as usize;
+        let s = ins.base.bits(3, 5) as u8;
+
+        let ar = regs.addressing[d];
+        let data = self.regs.get(Reg::new(0x1C + s));
+        self.write_data(ar, data);
+
+        let ar = regs.addressing[d];
+        let wr = regs.wrapping[d];
+        let ix = regs.indexing[d];
+        self.regs.addressing[d] = add_to_addr_reg(ar, wr, ix as i16);
+    }
 }
