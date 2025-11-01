@@ -300,9 +300,12 @@ impl Registers {
             self.acc40[i].high = if value.bit(15) { !0 } else { 0 };
         };
 
+        println!("setting {reg:?} to {value:04X}");
+
         match reg {
             Reg::Acc40Mid0 => acc_saturate(0),
             Reg::Acc40Mid1 => acc_saturate(1),
+            Reg::LoopStack => (),
             _ => self.set(reg, value),
         }
     }
@@ -343,20 +346,22 @@ impl Dsp {
     }
 
     pub fn read_data(&mut self, addr: u16) -> u16 {
+        println!("reading {addr:04X}");
         match addr {
             0x0000..0x1000 => self.memory.dram[addr as usize],
-            0x1000..0x1800 => todo!("coeff"),
-            0xFF00.. => todo!("mmio"),
-            _ => unreachable!(),
+            0x1000..0x1800 => 0,
+            0xFF00.. => 0,
+            _ => 0,
         }
     }
 
     pub fn write_data(&mut self, addr: u16, value: u16) {
+        println!("writing {value:04X} to {addr:04X}");
         match addr {
             0x0000..0x1000 => self.memory.dram[addr as usize] = value,
-            0x1000..0x1800 => todo!("coeff"),
-            0xFF00.. => todo!("mmio"),
-            _ => unreachable!(),
+            0x1000..0x1800 => (),
+            0xFF00.. => (),
+            _ => (),
         }
     }
 
@@ -500,6 +505,9 @@ impl Dsp {
             Opcode::Ilrrn => self.ilrrn(ins),
             Opcode::Si => self.si(ins),
             Opcode::Sr => self.sr(ins),
+            Opcode::Srr => self.srr(ins),
+            Opcode::Srrd => self.srrd(ins),
+            Opcode::Srri => self.srri(ins),
             _ => (),
         }
 
