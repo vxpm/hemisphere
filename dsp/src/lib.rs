@@ -529,6 +529,14 @@ impl Dsp {
                 ExtensionOpcode::Ldn => self.ext_ldn(ins, &regs_previous),
                 ExtensionOpcode::S => self.ext_s(ins, &regs_previous),
                 ExtensionOpcode::Sn => self.ext_sn(ins, &regs_previous),
+                ExtensionOpcode::Ls => self.ext_ls(ins, &regs_previous),
+                ExtensionOpcode::Lsm => self.ext_lsm(ins, &regs_previous),
+                ExtensionOpcode::Lsnm => self.ext_lsnm(ins, &regs_previous),
+                ExtensionOpcode::Lsn => self.ext_lsn(ins, &regs_previous),
+                ExtensionOpcode::Sl => self.ext_sl(ins, &regs_previous),
+                ExtensionOpcode::Slm => self.ext_slm(ins, &regs_previous),
+                ExtensionOpcode::Slnm => self.ext_slnm(ins, &regs_previous),
+                ExtensionOpcode::Sln => self.ext_sln(ins, &regs_previous),
                 _ => todo!("extension op {extension:?}"),
             }
         }

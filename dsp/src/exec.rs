@@ -2116,4 +2116,180 @@ impl Dsp {
         let ix = regs.indexing[d];
         self.regs.addressing[d] = add_to_addr_reg(ar, wr, ix as i16);
     }
+
+    pub fn ext_ls(&mut self, ins: Ins, regs: &Registers) {
+        let s = ins.base.bit(0) as usize;
+        let d = ins.base.bits(4, 6) as u8;
+
+        let ar = regs.addressing[0];
+        let data = self.read_data(ar);
+        self.regs.set(Reg::new(0x18 + d), data);
+
+        let ar = regs.addressing[3];
+        let data = self.regs.acc40[s].mid;
+        self.write_data(ar, data);
+
+        let ar = regs.addressing[0];
+        let wr = regs.wrapping[0];
+        self.regs.addressing[0] = add_to_addr_reg(ar, wr, 1);
+
+        let ar = regs.addressing[3];
+        let wr = regs.wrapping[3];
+        self.regs.addressing[3] = add_to_addr_reg(ar, wr, 1);
+    }
+
+    pub fn ext_lsm(&mut self, ins: Ins, regs: &Registers) {
+        let s = ins.base.bit(0) as usize;
+        let d = ins.base.bits(4, 6) as u8;
+
+        let ar = regs.addressing[0];
+        let data = self.read_data(ar);
+        self.regs.set(Reg::new(0x18 + d), data);
+
+        let ar = regs.addressing[3];
+        let data = self.regs.acc40[s].mid;
+        self.write_data(ar, data);
+
+        let ar = regs.addressing[0];
+        let wr = regs.wrapping[0];
+        self.regs.addressing[0] = add_to_addr_reg(ar, wr, 1);
+
+        let ar = regs.addressing[3];
+        let wr = regs.wrapping[3];
+        let ix = regs.indexing[3];
+        self.regs.addressing[3] = add_to_addr_reg(ar, wr, ix as i16);
+    }
+
+    pub fn ext_lsnm(&mut self, ins: Ins, regs: &Registers) {
+        let s = ins.base.bit(0) as usize;
+        let d = ins.base.bits(4, 6) as u8;
+
+        let ar = regs.addressing[0];
+        let data = self.read_data(ar);
+        self.regs.set(Reg::new(0x18 + d), data);
+
+        let ar = regs.addressing[3];
+        let data = self.regs.acc40[s].mid;
+        self.write_data(ar, data);
+
+        let ar = regs.addressing[0];
+        let wr = regs.wrapping[0];
+        let ix = regs.indexing[0];
+        self.regs.addressing[0] = add_to_addr_reg(ar, wr, ix as i16);
+
+        let ar = regs.addressing[3];
+        let wr = regs.wrapping[3];
+        let ix = regs.indexing[3];
+        self.regs.addressing[3] = add_to_addr_reg(ar, wr, ix as i16);
+    }
+
+    pub fn ext_lsn(&mut self, ins: Ins, regs: &Registers) {
+        let s = ins.base.bit(0) as usize;
+        let d = ins.base.bits(4, 6) as u8;
+
+        let ar = regs.addressing[0];
+        let data = self.read_data(ar);
+        self.regs.set(Reg::new(0x18 + d), data);
+
+        let ar = regs.addressing[3];
+        let data = self.regs.acc40[s].mid;
+        self.write_data(ar, data);
+
+        let ar = regs.addressing[0];
+        let wr = regs.wrapping[0];
+        let ix = regs.indexing[0];
+        self.regs.addressing[0] = add_to_addr_reg(ar, wr, ix as i16);
+
+        let ar = regs.addressing[3];
+        let wr = regs.wrapping[3];
+        self.regs.addressing[3] = add_to_addr_reg(ar, wr, 1);
+    }
+
+    pub fn ext_sl(&mut self, ins: Ins, regs: &Registers) {
+        let s = ins.base.bit(0) as usize;
+        let d = ins.base.bits(4, 6) as u8;
+
+        let ar = regs.addressing[0];
+        let data = self.regs.acc40[s].mid;
+        self.write_data(ar, data);
+
+        let ar = regs.addressing[3];
+        let data = self.read_data(ar);
+        self.regs.set(Reg::new(0x18 + d), data);
+
+        let ar = regs.addressing[0];
+        let wr = regs.wrapping[0];
+        self.regs.addressing[0] = add_to_addr_reg(ar, wr, 1);
+
+        let ar = regs.addressing[3];
+        let wr = regs.wrapping[3];
+        self.regs.addressing[3] = add_to_addr_reg(ar, wr, 1);
+    }
+
+    pub fn ext_slm(&mut self, ins: Ins, regs: &Registers) {
+        let s = ins.base.bit(0) as usize;
+        let d = ins.base.bits(4, 6) as u8;
+
+        let ar = regs.addressing[0];
+        let data = self.regs.acc40[s].mid;
+        self.write_data(ar, data);
+
+        let ar = regs.addressing[3];
+        let data = self.read_data(ar);
+        self.regs.set(Reg::new(0x18 + d), data);
+
+        let ar = regs.addressing[0];
+        let wr = regs.wrapping[0];
+        self.regs.addressing[0] = add_to_addr_reg(ar, wr, 1);
+
+        let ar = regs.addressing[3];
+        let wr = regs.wrapping[3];
+        let ix = regs.indexing[3];
+        self.regs.addressing[3] = add_to_addr_reg(ar, wr, ix as i16);
+    }
+
+    pub fn ext_slnm(&mut self, ins: Ins, regs: &Registers) {
+        let s = ins.base.bit(0) as usize;
+        let d = ins.base.bits(4, 6) as u8;
+
+        let ar = regs.addressing[0];
+        let data = self.regs.acc40[s].mid;
+        self.write_data(ar, data);
+
+        let ar = regs.addressing[3];
+        let data = self.read_data(ar);
+        self.regs.set(Reg::new(0x18 + d), data);
+
+        let ar = regs.addressing[0];
+        let wr = regs.wrapping[0];
+        let ix = regs.indexing[0];
+        self.regs.addressing[0] = add_to_addr_reg(ar, wr, ix as i16);
+
+        let ar = regs.addressing[3];
+        let wr = regs.wrapping[3];
+        let ix = regs.indexing[3];
+        self.regs.addressing[3] = add_to_addr_reg(ar, wr, ix as i16);
+    }
+
+    pub fn ext_sln(&mut self, ins: Ins, regs: &Registers) {
+        let s = ins.base.bit(0) as usize;
+        let d = ins.base.bits(4, 6) as u8;
+
+        let ar = regs.addressing[0];
+        let data = self.regs.acc40[s].mid;
+        self.write_data(ar, data);
+
+        let ar = regs.addressing[3];
+        let data = self.read_data(ar);
+        self.regs.set(Reg::new(0x18 + d), data);
+
+        let ar = regs.addressing[0];
+        let wr = regs.wrapping[0];
+        let ix = regs.indexing[0];
+        self.regs.addressing[0] = add_to_addr_reg(ar, wr, ix as i16);
+
+        let ar = regs.addressing[3];
+        let wr = regs.wrapping[3];
+        self.regs.addressing[3] = add_to_addr_reg(ar, wr, 1);
+    }
 }
