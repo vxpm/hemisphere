@@ -1123,7 +1123,7 @@ impl Dsp {
         self.base_flags(new);
     }
 
-    fn multiply(&mut self, mode: MultiplyMode, a: u16, b: u16) -> i64 {
+    fn multiply(&self, mode: MultiplyMode, a: u16, b: u16) -> i64 {
         let factor = if self.regs.status.dont_double_result() {
             1
         } else {
@@ -1168,10 +1168,9 @@ impl Dsp {
         };
 
         let result = self.multiply(mode, lhs, rhs);
-        self.regs.product.set(result as i64);
+        self.regs.product.set(result);
     }
 
-    // NOTE: issues
     pub fn mulxac(&mut self, ins: Ins) {
         let r = ins.base.bit(8) as usize;
         let t = ins.base.bit(11);
@@ -1182,28 +1181,28 @@ impl Dsp {
         self.regs.acc40[r].set(acc + prod);
 
         let lhs = if s {
-            self.regs.acc32[0] >> 16
+            (self.regs.acc32[0] >> 16) as u16
         } else {
-            (self.regs.acc32[0] << 16) >> 16
+            self.regs.acc32[0] as u16
         };
 
         let rhs = if t {
-            self.regs.acc32[1] >> 16
+            (self.regs.acc32[1] >> 16) as u16
         } else {
-            (self.regs.acc32[1] << 16) >> 16
+            self.regs.acc32[1] as u16
         };
 
-        let mul = lhs * rhs;
-        let result = if self.regs.status.dont_double_result() {
-            mul
-        } else {
-            2 * mul
+        let (mode, lhs, rhs) = match (s, t) {
+            (false, false) => (MultiplyMode::Unsigned, lhs, rhs),
+            (false, true) => (MultiplyMode::Mixed, lhs, rhs),
+            (true, false) => (MultiplyMode::Mixed, rhs, lhs),
+            (true, true) => (MultiplyMode::Signed, lhs, rhs),
         };
 
-        self.regs.product.set(result as i64);
+        let result = self.multiply(mode, lhs, rhs);
+        self.regs.product.set(result);
     }
 
-    // NOTE: issues
     pub fn mulxmv(&mut self, ins: Ins) {
         let r = ins.base.bit(8) as usize;
         let t = ins.base.bit(11);
@@ -1213,28 +1212,28 @@ impl Dsp {
         self.regs.acc40[r].set(prod);
 
         let lhs = if s {
-            self.regs.acc32[0] >> 16
+            (self.regs.acc32[0] >> 16) as u16
         } else {
-            (self.regs.acc32[0] << 16) >> 16
+            self.regs.acc32[0] as u16
         };
 
         let rhs = if t {
-            self.regs.acc32[1] >> 16
+            (self.regs.acc32[1] >> 16) as u16
         } else {
-            (self.regs.acc32[1] << 16) >> 16
+            self.regs.acc32[1] as u16
         };
 
-        let mul = lhs * rhs;
-        let result = if self.regs.status.dont_double_result() {
-            mul
-        } else {
-            2 * mul
+        let (mode, lhs, rhs) = match (s, t) {
+            (false, false) => (MultiplyMode::Unsigned, lhs, rhs),
+            (false, true) => (MultiplyMode::Mixed, lhs, rhs),
+            (true, false) => (MultiplyMode::Mixed, rhs, lhs),
+            (true, true) => (MultiplyMode::Signed, lhs, rhs),
         };
 
-        self.regs.product.set(result as i64);
+        let result = self.multiply(mode, lhs, rhs);
+        self.regs.product.set(result);
     }
 
-    // NOTE: issues
     pub fn mulxmvz(&mut self, ins: Ins) {
         let r = ins.base.bit(8) as usize;
         let t = ins.base.bit(11);
@@ -1244,25 +1243,26 @@ impl Dsp {
         self.regs.acc40[r].set(round_40(prod));
 
         let lhs = if s {
-            self.regs.acc32[0] >> 16
+            (self.regs.acc32[0] >> 16) as u16
         } else {
-            (self.regs.acc32[0] << 16) >> 16
+            self.regs.acc32[0] as u16
         };
 
         let rhs = if t {
-            self.regs.acc32[1] >> 16
+            (self.regs.acc32[1] >> 16) as u16
         } else {
-            (self.regs.acc32[1] << 16) >> 16
+            self.regs.acc32[1] as u16
         };
 
-        let mul = lhs * rhs;
-        let result = if self.regs.status.dont_double_result() {
-            mul
-        } else {
-            2 * mul
+        let (mode, lhs, rhs) = match (s, t) {
+            (false, false) => (MultiplyMode::Unsigned, lhs, rhs),
+            (false, true) => (MultiplyMode::Mixed, lhs, rhs),
+            (true, false) => (MultiplyMode::Mixed, rhs, lhs),
+            (true, true) => (MultiplyMode::Signed, lhs, rhs),
         };
 
-        self.regs.product.set(result as i64);
+        let result = self.multiply(mode, lhs, rhs);
+        self.regs.product.set(result);
     }
 
     pub fn neg(&mut self, ins: Ins) {
