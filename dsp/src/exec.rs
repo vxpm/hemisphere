@@ -1637,8 +1637,8 @@ impl Dsp {
         let d = ins.base.bits(0, 5) as u8;
         let s = ins.base.bits(5, 7) as usize;
 
-        let addr = self.regs.addressing[s];
-        let data = self.read_data(addr);
+        let ar = self.regs.addressing[s];
+        let data = self.read_data(ar);
         self.regs.set_saturate(Reg::new(d), data);
     }
 
@@ -1768,13 +1768,12 @@ impl Dsp {
         let d = ins.base.bits(5, 7) as usize;
 
         let data = self.regs.get(Reg::new(s));
+        let ar = self.regs.addressing[d];
+        self.write_data(ar, data);
 
         let ar = self.regs.addressing[d];
         let wr = self.regs.wrapping[d];
         self.regs.addressing[d] = sub_from_addr_reg(ar, wr, 1);
-
-        let ar = self.regs.addressing[d];
-        self.write_data(ar, data);
     }
 
     pub fn srri(&mut self, ins: Ins) {
@@ -1782,12 +1781,35 @@ impl Dsp {
         let d = ins.base.bits(5, 7) as usize;
 
         let data = self.regs.get(Reg::new(s));
+        let ar = self.regs.addressing[d];
+        self.write_data(ar, data);
 
         let ar = self.regs.addressing[d];
         let wr = self.regs.wrapping[d];
         self.regs.addressing[d] = add_to_addr_reg(ar, wr, 1);
+    }
 
+    pub fn srrn(&mut self, ins: Ins) {
+        let s = ins.base.bits(0, 5) as u8;
+        let d = ins.base.bits(5, 7) as usize;
+
+        let data = self.regs.get(Reg::new(s));
+        let ar = self.regs.addressing[d];
         self.write_data(ar, data);
+
+        let ar = self.regs.addressing[d];
+        let wr = self.regs.wrapping[d];
+        let ix = self.regs.indexing[d];
+        self.regs.addressing[d] = add_to_addr_reg(ar, wr, ix as i16);
+    }
+
+    pub fn srs(&mut self, ins: Ins) {
+        let imm = ins.base.bits(0, 8) as u8;
+        let s = ins.base.bits(8, 10) as u8;
+
+        let addr = u16::from_le_bytes([imm, self.regs.config]);
+        let data = self.regs.get(Reg::new(0x1C + s));
+        self.write_data(addr, data);
     }
 }
 
