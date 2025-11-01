@@ -1,6 +1,13 @@
 use crate::{Acc40, Dsp, Ins, Reg, Registers, Status, ins::CondCode};
 use bitos::BitUtils;
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum MultiplyMode {
+    Unsigned,
+    Mixed,
+    Signed,
+}
+
 #[inline(always)]
 fn add_carried(lhs: i64, new: i64) -> bool {
     lhs as u64 > new as u64
@@ -1116,30 +1123,51 @@ impl Dsp {
         self.base_flags(new);
     }
 
-    // NOTE: issues
+    fn multiply(&mut self, mode: MultiplyMode, a: u16, b: u16) -> i64 {
+        let factor = if self.regs.status.dont_double_result() {
+            1
+        } else {
+            2
+        };
+
+        let (a, b) = if mode == MultiplyMode::Signed || !self.regs.status.unsigned_mul() {
+            // sign ext, sign ext
+            (a as i16 as i64, b as i16 as i64)
+        } else if mode == MultiplyMode::Mixed {
+            // zero ext, sign ext
+            (a as u64 as i64, b as i16 as i64)
+        } else {
+            // zero ext, zero ext
+            (a as u64 as i64, b as u64 as i64)
+        };
+
+        a * b * factor
+    }
+
     pub fn mulx(&mut self, ins: Ins) {
         let t = ins.base.bit(11);
         let s = ins.base.bit(12);
 
         let lhs = if s {
-            self.regs.acc32[0] >> 16
+            (self.regs.acc32[0] >> 16) as u16
         } else {
-            (self.regs.acc32[0] << 16) >> 16
+            self.regs.acc32[0] as u16
         };
 
         let rhs = if t {
-            self.regs.acc32[1] >> 16
+            (self.regs.acc32[1] >> 16) as u16
         } else {
-            (self.regs.acc32[1] << 16) >> 16
+            self.regs.acc32[1] as u16
         };
 
-        let mul = lhs * rhs;
-        let result = if self.regs.status.dont_double_result() {
-            mul
-        } else {
-            2 * mul
+        let (mode, lhs, rhs) = match (s, t) {
+            (false, false) => (MultiplyMode::Unsigned, lhs, rhs),
+            (false, true) => (MultiplyMode::Mixed, lhs, rhs),
+            (true, false) => (MultiplyMode::Mixed, rhs, lhs),
+            (true, true) => (MultiplyMode::Signed, lhs, rhs),
         };
 
+        let result = self.multiply(mode, lhs, rhs);
         self.regs.product.set(result as i64);
     }
 
