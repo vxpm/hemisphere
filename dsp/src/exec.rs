@@ -1853,4 +1853,108 @@ impl Dsp {
         let ix = regs.indexing[s];
         self.regs.addressing[s] = add_to_addr_reg(ar, wr, ix as i16);
     }
+
+    pub fn ext_ld(&mut self, ins: Ins, regs: &Registers) {
+        let s = ins.base.bits(0, 2) as usize;
+        let r = ins.base.bit(4);
+        let d = ins.base.bit(5);
+        println!("ext_ld: {s}, {r}, {d}");
+
+        let d = if d { Reg::Acc32High0 } else { Reg::Acc32Low0 };
+        let ar = regs.addressing[s];
+        let data = self.read_data(ar);
+        self.regs.set_saturate(d, data);
+
+        let r = if r { Reg::Acc32High1 } else { Reg::Acc32Low1 };
+        let ar = regs.addressing[3];
+        let data = self.read_data(ar);
+        self.regs.set_saturate(r, data);
+
+        let ar = regs.addressing[s];
+        let wr = regs.wrapping[s];
+        self.regs.addressing[s] = add_to_addr_reg(ar, wr, 1);
+
+        let ar = regs.addressing[3];
+        let wr = regs.wrapping[3];
+        self.regs.addressing[3] = add_to_addr_reg(ar, wr, 1);
+    }
+
+    pub fn ext_ldm(&mut self, ins: Ins, regs: &Registers) {
+        let s = ins.base.bits(0, 2) as usize;
+        let r = ins.base.bit(4);
+        let d = ins.base.bit(5);
+        println!("ext_ldm: {s}, {r}, {d}");
+
+        let d = if d { Reg::Acc32High0 } else { Reg::Acc32Low0 };
+        let ar = regs.addressing[s];
+        let data = self.read_data(ar);
+        self.regs.set_saturate(d, data);
+
+        let r = if r { Reg::Acc32High1 } else { Reg::Acc32Low1 };
+        let ar = regs.addressing[3];
+        let data = self.read_data(ar);
+        self.regs.set_saturate(r, data);
+
+        let ar = regs.addressing[s];
+        let wr = regs.wrapping[s];
+        self.regs.addressing[s] = add_to_addr_reg(ar, wr, 1);
+
+        let ar = regs.addressing[3];
+        let wr = regs.wrapping[3];
+        let ix = regs.indexing[3];
+        self.regs.addressing[3] = add_to_addr_reg(ar, wr, ix as i16);
+    }
+
+    pub fn ext_ldnm(&mut self, ins: Ins, regs: &Registers) {
+        let s = ins.base.bits(0, 2) as usize;
+        let r = ins.base.bit(4);
+        let d = ins.base.bit(5);
+        println!("ext_ldm: {s}, {r}, {d}");
+
+        let d = if d { Reg::Acc32High0 } else { Reg::Acc32Low0 };
+        let ar = regs.addressing[s];
+        let data = self.read_data(ar);
+        self.regs.set_saturate(d, data);
+
+        let r = if r { Reg::Acc32High1 } else { Reg::Acc32Low1 };
+        let ar = regs.addressing[3];
+        let data = self.read_data(ar);
+        self.regs.set_saturate(r, data);
+
+        let ar = regs.addressing[s];
+        let wr = regs.wrapping[s];
+        let ix = regs.indexing[s];
+        self.regs.addressing[s] = add_to_addr_reg(ar, wr, ix as i16);
+
+        let ar = regs.addressing[3];
+        let wr = regs.wrapping[3];
+        let ix = regs.indexing[3];
+        self.regs.addressing[3] = add_to_addr_reg(ar, wr, ix as i16);
+    }
+
+    pub fn ext_ldn(&mut self, ins: Ins, regs: &Registers) {
+        let s = ins.base.bits(0, 2) as usize;
+        let r = ins.base.bit(4);
+        let d = ins.base.bit(5);
+        println!("ext_ldm: {s}, {r}, {d}");
+
+        let d = if d { Reg::Acc32High0 } else { Reg::Acc32Low0 };
+        let ar = regs.addressing[s];
+        let data = self.read_data(ar);
+        self.regs.set_saturate(d, data);
+
+        let r = if r { Reg::Acc32High1 } else { Reg::Acc32Low1 };
+        let ar = regs.addressing[3];
+        let data = self.read_data(ar);
+        self.regs.set_saturate(r, data);
+
+        let ar = regs.addressing[s];
+        let wr = regs.wrapping[s];
+        let ix = regs.indexing[s];
+        self.regs.addressing[s] = add_to_addr_reg(ar, wr, ix as i16);
+
+        let ar = regs.addressing[3];
+        let wr = regs.wrapping[3];
+        self.regs.addressing[3] = add_to_addr_reg(ar, wr, 1);
+    }
 }

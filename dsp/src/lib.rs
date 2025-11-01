@@ -346,13 +346,15 @@ impl Dsp {
     }
 
     pub fn read_data(&mut self, addr: u16) -> u16 {
-        println!("reading {addr:04X}");
-        match addr {
+        let value = match addr {
             0x0000..0x1000 => self.memory.dram[addr as usize],
             0x1000..0x1800 => 0,
             0xFF00.. => 0,
             _ => 0,
-        }
+        };
+
+        println!("reading {value:04X} from {addr:04X}");
+        value
     }
 
     pub fn write_data(&mut self, addr: u16, value: u16) {
@@ -521,6 +523,10 @@ impl Dsp {
                 ExtensionOpcode::Mv => self.ext_mv(ins, &regs_previous),
                 ExtensionOpcode::L => self.ext_l(ins, &regs_previous),
                 ExtensionOpcode::Ln => self.ext_ln(ins, &regs_previous),
+                ExtensionOpcode::Ld => self.ext_ld(ins, &regs_previous),
+                ExtensionOpcode::Ldm => self.ext_ldm(ins, &regs_previous),
+                ExtensionOpcode::Ldnm => self.ext_ldnm(ins, &regs_previous),
+                ExtensionOpcode::Ldn => self.ext_ldn(ins, &regs_previous),
                 _ => todo!("extension op {extension:?}"),
             }
         }
