@@ -1747,8 +1747,9 @@ impl Dsp {
 
         let ar = regs.addressing[r];
         let wr = regs.wrapping[r];
+        let ir = regs.indexing[r];
 
-        self.regs.addressing[r] = add_to_addr_reg(ar, wr, 1i16);
+        self.regs.addressing[r] = add_to_addr_reg(ar, wr, ir as i16);
     }
 
     pub fn ext_mv(&mut self, ins: Ins, regs: &Registers) {
