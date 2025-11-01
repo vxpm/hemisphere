@@ -101,7 +101,7 @@ fn run_test(file: file::TestFile, quiet: bool) -> Result<(), Failed> {
 
         if early_exit {
             failures.push(format!(
-                "Case {i} failed:\r\nINITIAL: {:04X?}\r\nEXPECTED: {:04X?}\r\nDIVERGENCES: {}",
+                "Case {i} failed:\r\nINITIAL: {:04X?}\r\nEXPECTED: {:04X?}\r\nDIVERGENCES: {}\r\nCODE:\r\n{ins}",
                 failure.initial,
                 failure.expected,
                 divergences.trim_suffix(", "),

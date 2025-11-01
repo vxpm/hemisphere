@@ -420,9 +420,16 @@ impl std::fmt::Debug for Ins {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let opcode = self.opcode();
         if opcode.has_extension() {
-            write!(f, "{:?}'{:?}", opcode, self.extension_opcode())
+            write!(
+                f,
+                "{:?}'{:?} ({:04X}:{:04X})",
+                opcode,
+                self.extension_opcode(),
+                self.base,
+                self.extra
+            )
         } else {
-            write!(f, "{:?}", opcode)
+            write!(f, "{:?} ({:04X}:{:04X})", opcode, self.base, self.extra)
         }
     }
 }

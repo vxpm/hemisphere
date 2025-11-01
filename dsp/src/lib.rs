@@ -342,6 +342,32 @@ impl Dsp {
         }
     }
 
+    pub fn read_data(&mut self, addr: u16) -> u16 {
+        match addr {
+            0x0000..0x1000 => self.memory.dram[addr as usize],
+            0x1000..0x1800 => todo!("coeff"),
+            0xFF00.. => todo!("mmio"),
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn write_data(&mut self, addr: u16, value: u16) {
+        match addr {
+            0x0000..0x1000 => self.memory.dram[addr as usize] = value,
+            0x1000..0x1800 => todo!("coeff"),
+            0xFF00.. => todo!("mmio"),
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn read_instr(&mut self, addr: u16) -> u16 {
+        match addr {
+            0x0000..0x1000 => self.memory.iram[addr as usize],
+            0x8000..0x9000 => self.memory.irom[addr as usize - 0x8000],
+            _ => unreachable!(),
+        }
+    }
+
     pub fn step(&mut self) {
         self.check_stacks();
 
@@ -472,6 +498,8 @@ impl Dsp {
             Opcode::Ilrrd => self.ilrrd(ins),
             Opcode::Ilrri => self.ilrri(ins),
             Opcode::Ilrrn => self.ilrrn(ins),
+            Opcode::Si => self.si(ins),
+            Opcode::Sr => self.sr(ins),
             _ => (),
         }
 

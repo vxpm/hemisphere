@@ -1589,8 +1589,7 @@ impl Dsp {
 
     pub fn lr(&mut self, ins: Ins) {
         let d = ins.base.bits(0, 5) as u8;
-
-        let data = self.memory.dram[ins.extra as usize];
+        let data = self.read_data(ins.extra);
         self.regs.set_saturate(Reg::new(d), data);
     }
 
@@ -1609,8 +1608,8 @@ impl Dsp {
         let d = ins.base.bits(0, 5) as u8;
         let s = ins.base.bits(5, 7) as usize;
 
-        let addr = self.regs.addressing[s] as usize;
-        let data = self.memory.dram[addr];
+        let addr = self.regs.addressing[s];
+        let data = self.read_data(addr);
         self.regs.set_saturate(Reg::new(d), data);
     }
 
@@ -1620,11 +1619,10 @@ impl Dsp {
 
         let ar = self.regs.addressing[s];
         let wr = self.regs.wrapping[s];
-
-        let data = self.memory.dram[ar as usize];
-        self.regs.set_saturate(Reg::new(d), data);
-
         self.regs.addressing[s] = sub_from_addr_reg(ar, wr, 1);
+
+        let data = self.read_data(ar);
+        self.regs.set_saturate(Reg::new(d), data);
     }
 
     pub fn lrri(&mut self, ins: Ins) {
@@ -1633,11 +1631,10 @@ impl Dsp {
 
         let ar = self.regs.addressing[s];
         let wr = self.regs.wrapping[s];
-
-        let data = self.memory.dram[ar as usize];
-        self.regs.set_saturate(Reg::new(d), data);
-
         self.regs.addressing[s] = add_to_addr_reg(ar, wr, 1);
+
+        let data = self.read_data(ar);
+        self.regs.set_saturate(Reg::new(d), data);
     }
 
     pub fn lrrn(&mut self, ins: Ins) {
@@ -1647,11 +1644,10 @@ impl Dsp {
         let ar = self.regs.addressing[s];
         let wr = self.regs.addressing[s];
         let ix = self.regs.indexing[s];
-
-        let data = self.memory.dram[ar as usize];
-        self.regs.set_saturate(Reg::new(d), data);
-
         self.regs.addressing[s] = add_to_addr_reg(ar, wr, ix as i16);
+
+        let data = self.read_data(ar);
+        self.regs.set_saturate(Reg::new(d), data);
     }
 
     pub fn lrs(&mut self, ins: Ins) {
@@ -1659,7 +1655,7 @@ impl Dsp {
         let d = ins.base.bits(8, 10) as u8;
 
         let addr = u16::from_le_bytes([imm, self.regs.config]);
-        let data = self.memory.dram[addr as usize];
+        let data = self.read_data(addr);
         self.regs.set_saturate(Reg::new(d), data);
     }
 
@@ -1669,7 +1665,7 @@ impl Dsp {
 
         let reg = if d { Reg::Acc40Mid1 } else { Reg::Acc40Mid0 };
         let addr = self.regs.addressing[s];
-        let data = self.memory.iram[addr as usize];
+        let data = self.read_instr(addr);
 
         self.regs.set_saturate(reg, data);
     }
@@ -1681,11 +1677,10 @@ impl Dsp {
         let reg = if d { Reg::Acc40Mid1 } else { Reg::Acc40Mid0 };
         let ar = self.regs.addressing[s];
         let wr = self.regs.wrapping[s];
-
-        let data = self.memory.iram[ar as usize];
-        self.regs.set_saturate(reg, data);
-
         self.regs.addressing[s] = sub_from_addr_reg(ar, wr, 1);
+
+        let data = self.read_instr(ar);
+        self.regs.set_saturate(reg, data);
     }
 
     pub fn ilrri(&mut self, ins: Ins) {
@@ -1695,11 +1690,10 @@ impl Dsp {
         let reg = if d { Reg::Acc40Mid1 } else { Reg::Acc40Mid0 };
         let ar = self.regs.addressing[s];
         let wr = self.regs.wrapping[s];
-
-        let data = self.memory.iram[ar as usize];
-        self.regs.set_saturate(reg, data);
-
         self.regs.addressing[s] = add_to_addr_reg(ar, wr, 1);
+
+        let data = self.read_instr(ar);
+        self.regs.set_saturate(reg, data);
     }
 
     pub fn ilrrn(&mut self, ins: Ins) {
@@ -1710,11 +1704,22 @@ impl Dsp {
         let ar = self.regs.addressing[s];
         let wr = self.regs.wrapping[s];
         let ix = self.regs.wrapping[s];
-
-        let data = self.memory.iram[ar as usize];
-        self.regs.set_saturate(reg, data);
-
         self.regs.addressing[s] = add_to_addr_reg(ar, wr, ix as i16);
+
+        let data = self.read_instr(ar);
+        self.regs.set_saturate(reg, data);
+    }
+
+    pub fn si(&mut self, ins: Ins) {
+        let offset = ins.base.bits(0, 8) as u8;
+        let addr = u16::from_le_bytes([offset, 0xFF]);
+        self.memory.dram[addr as usize] = ins.extra;
+    }
+
+    pub fn sr(&mut self, ins: Ins) {
+        let s = ins.base.bits(0, 5) as u8;
+        let data = self.regs.get(Reg::new(s));
+        self.memory.dram[ins.extra as usize] = data;
     }
 }
 
