@@ -498,6 +498,7 @@ impl Dsp {
             Opcode::Sr => self.sr(ins),
             Opcode::Srr => self.srr(ins),
             Opcode::Srs => self.srs(ins),
+            Opcode::Srsh => self.srsh(ins),
             Opcode::Srrd => self.srrd(ins),
             Opcode::Srri => self.srri(ins),
             Opcode::Srrn => self.srrn(ins),

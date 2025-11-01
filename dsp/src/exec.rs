@@ -1811,6 +1811,15 @@ impl Dsp {
         let data = self.regs.get(Reg::new(0x1C + s));
         self.write_data(addr, data);
     }
+
+    pub fn srsh(&mut self, ins: Ins) {
+        let imm = ins.base.bits(0, 8) as u8;
+        let s = ins.base.bit(8) as usize;
+
+        let addr = u16::from_le_bytes([imm, self.regs.config]);
+        let data = self.regs.acc40[s].high as i8 as i16 as u16;
+        self.write_data(addr, data);
+    }
 }
 
 impl Dsp {
