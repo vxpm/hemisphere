@@ -1582,6 +1582,7 @@ impl Dsp {
 
         let code = CondCode::new(ins.base.bits(0, 4) as u8);
         let addr = self.regs.get(Reg::new(r));
+        println!("calling address {addr:04X} ({:?})", Reg::new(r));
 
         if self.condition(code) {
             self.regs.call_stack.push(self.regs.pc.wrapping_add(1));
@@ -1680,11 +1681,11 @@ impl Dsp {
 
     pub fn lrs(&mut self, ins: Ins) {
         let imm = ins.base.bits(0, 8) as u8;
-        let d = ins.base.bits(8, 10) as u8;
+        let d = ins.base.bits(8, 11) as u8;
 
         let addr = u16::from_le_bytes([imm, self.regs.config]);
         let data = self.read_data(addr);
-        self.regs.set_saturate(Reg::new(d), data);
+        self.regs.set_saturate(Reg::new(0x18 + d), data);
     }
 
     pub fn ilrr(&mut self, ins: Ins) {
