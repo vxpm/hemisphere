@@ -519,6 +519,8 @@ impl Dsp {
                 ExtensionOpcode::Ir => self.ext_ir(ins, &regs_previous),
                 ExtensionOpcode::Nr => self.ext_nr(ins, &regs_previous),
                 ExtensionOpcode::Mv => self.ext_mv(ins, &regs_previous),
+                ExtensionOpcode::L => self.ext_l(ins, &regs_previous),
+                ExtensionOpcode::Ln => self.ext_ln(ins, &regs_previous),
                 _ => todo!("extension op {extension:?}"),
             }
         }

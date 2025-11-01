@@ -1826,4 +1826,31 @@ impl Dsp {
         self.regs
             .set(Reg::new(0x18 + d), regs.get(Reg::new(0x1C + s)));
     }
+
+    pub fn ext_l(&mut self, ins: Ins, regs: &Registers) {
+        let s = ins.base.bits(0, 2) as usize;
+        let d = ins.base.bits(3, 6) as u8;
+
+        let ar = regs.addressing[s];
+        let data = self.read_data(ar);
+        self.regs.set_saturate(Reg::new(0x18 + d), data);
+
+        let ar = regs.addressing[s];
+        let wr = regs.wrapping[s];
+        self.regs.addressing[s] = add_to_addr_reg(ar, wr, 1);
+    }
+
+    pub fn ext_ln(&mut self, ins: Ins, regs: &Registers) {
+        let s = ins.base.bits(0, 2) as usize;
+        let d = ins.base.bits(3, 6) as u8;
+
+        let ar = regs.addressing[s];
+        let data = self.read_data(ar);
+        self.regs.set_saturate(Reg::new(0x18 + d), data);
+
+        let ar = regs.addressing[s];
+        let wr = regs.wrapping[s];
+        let ix = regs.indexing[s];
+        self.regs.addressing[s] = add_to_addr_reg(ar, wr, ix as i16);
+    }
 }
