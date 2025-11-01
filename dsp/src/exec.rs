@@ -1642,7 +1642,7 @@ impl Dsp {
         let s = ins.base.bits(5, 7) as usize;
 
         let ar = self.regs.addressing[s];
-        let wr = self.regs.addressing[s];
+        let wr = self.regs.wrapping[s];
         let ix = self.regs.indexing[s];
         self.regs.addressing[s] = add_to_addr_reg(ar, wr, ix as i16);
 
@@ -1703,7 +1703,7 @@ impl Dsp {
         let reg = if d { Reg::Acc40Mid1 } else { Reg::Acc40Mid0 };
         let ar = self.regs.addressing[s];
         let wr = self.regs.wrapping[s];
-        let ix = self.regs.wrapping[s];
+        let ix = self.regs.indexing[s];
         self.regs.addressing[s] = add_to_addr_reg(ar, wr, ix as i16);
 
         let data = self.read_instr(ar);
