@@ -300,8 +300,6 @@ impl Registers {
             self.acc40[i].high = if value.bit(15) { !0 } else { 0 };
         };
 
-        // println!("setting {reg:?} to {value:04X}");
-
         match reg {
             Reg::Acc40Mid0 => acc_saturate(0),
             Reg::Acc40Mid1 => acc_saturate(1),
@@ -440,6 +438,9 @@ impl Dsp {
             Opcode::Inc => self.inc(ins),
             Opcode::Incm => self.incm(ins),
             Opcode::Jmp => self.jmp(ins),
+            Opcode::Jr => self.jmpr(ins),
+            Opcode::Loop => self.loop_(ins),
+            Opcode::Loopi => self.loopi(ins),
             Opcode::Lr => self.lr(ins),
             Opcode::Lri => self.lri(ins),
             Opcode::Lris => self.lris(ins),
@@ -490,6 +491,7 @@ impl Dsp {
             Opcode::Ori => self.ori(ins),
             Opcode::Orr => self.orr(ins),
             Opcode::Ret => self.ret(ins),
+            Opcode::Rti => self.rti(ins),
             Opcode::Sbclr => self.sbclr(ins),
             Opcode::Sbset => self.sbset(ins),
             Opcode::Set15 => self.set15(ins),
@@ -498,11 +500,11 @@ impl Dsp {
             Opcode::Si => self.si(ins),
             Opcode::Sr => self.sr(ins),
             Opcode::Srr => self.srr(ins),
-            Opcode::Srs => self.srs(ins),
-            Opcode::Srsh => self.srsh(ins),
             Opcode::Srrd => self.srrd(ins),
             Opcode::Srri => self.srri(ins),
             Opcode::Srrn => self.srrn(ins),
+            Opcode::Srs => self.srs(ins),
+            Opcode::Srsh => self.srsh(ins),
             Opcode::Sub => self.sub(ins),
             Opcode::Subarn => self.subarn(ins),
             Opcode::Subax => self.subax(ins),
@@ -514,37 +516,33 @@ impl Dsp {
             Opcode::Xorc => self.xorc(ins),
             Opcode::Xori => self.xori(ins),
             Opcode::Xorr => self.xorr(ins),
-            Opcode::Loop => self.loop_(ins),
-            Opcode::Loopi => self.loopi(ins),
-            Opcode::Rti => self.rti(ins),
-            Opcode::Jr => self.jmpr(ins),
             Opcode::Illegal => panic!("illegal opcode"),
         }
 
         if opcode.has_extension() {
             let extension = ins.extension_opcode();
             match extension {
-                ExtensionOpcode::Nop => (),
                 ExtensionOpcode::Dr => self.ext_dr(ins, &regs_previous),
                 ExtensionOpcode::Ir => self.ext_ir(ins, &regs_previous),
-                ExtensionOpcode::Nr => self.ext_nr(ins, &regs_previous),
-                ExtensionOpcode::Mv => self.ext_mv(ins, &regs_previous),
                 ExtensionOpcode::L => self.ext_l(ins, &regs_previous),
-                ExtensionOpcode::Ln => self.ext_ln(ins, &regs_previous),
                 ExtensionOpcode::Ld => self.ext_ld(ins, &regs_previous),
                 ExtensionOpcode::Ldm => self.ext_ldm(ins, &regs_previous),
-                ExtensionOpcode::Ldnm => self.ext_ldnm(ins, &regs_previous),
                 ExtensionOpcode::Ldn => self.ext_ldn(ins, &regs_previous),
-                ExtensionOpcode::S => self.ext_s(ins, &regs_previous),
-                ExtensionOpcode::Sn => self.ext_sn(ins, &regs_previous),
+                ExtensionOpcode::Ldnm => self.ext_ldnm(ins, &regs_previous),
+                ExtensionOpcode::Ln => self.ext_ln(ins, &regs_previous),
                 ExtensionOpcode::Ls => self.ext_ls(ins, &regs_previous),
                 ExtensionOpcode::Lsm => self.ext_lsm(ins, &regs_previous),
-                ExtensionOpcode::Lsnm => self.ext_lsnm(ins, &regs_previous),
                 ExtensionOpcode::Lsn => self.ext_lsn(ins, &regs_previous),
+                ExtensionOpcode::Lsnm => self.ext_lsnm(ins, &regs_previous),
+                ExtensionOpcode::Mv => self.ext_mv(ins, &regs_previous),
+                ExtensionOpcode::Nop => (),
+                ExtensionOpcode::Nr => self.ext_nr(ins, &regs_previous),
+                ExtensionOpcode::S => self.ext_s(ins, &regs_previous),
                 ExtensionOpcode::Sl => self.ext_sl(ins, &regs_previous),
                 ExtensionOpcode::Slm => self.ext_slm(ins, &regs_previous),
-                ExtensionOpcode::Slnm => self.ext_slnm(ins, &regs_previous),
                 ExtensionOpcode::Sln => self.ext_sln(ins, &regs_previous),
+                ExtensionOpcode::Slnm => self.ext_slnm(ins, &regs_previous),
+                ExtensionOpcode::Sn => self.ext_sn(ins, &regs_previous),
                 ExtensionOpcode::Illegal => panic!("illegal extension opcode"),
             }
         }
