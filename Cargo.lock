@@ -1776,6 +1776,7 @@ dependencies = [
  "color-backtrace",
  "common",
  "dol",
+ "dsp",
  "easyerr",
  "glam",
  "iso",

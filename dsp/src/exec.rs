@@ -555,7 +555,7 @@ impl Dsp {
     }
 
     pub fn halt(&mut self, _: Ins) {
-        self.control.halt = true;
+        self.mmio.control.set_halted(true);
     }
 
     pub fn iar(&mut self, ins: Ins) {

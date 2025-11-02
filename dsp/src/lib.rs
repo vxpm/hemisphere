@@ -1,15 +1,18 @@
 mod exec;
 
 pub mod ins;
+pub mod mmio;
 
+use crate::{
+    ins::{ExtensionOpcode, Opcode},
+    mmio::Mmio,
+};
 use bitos::{BitUtils, bitos};
 use common::util::boxed_array;
 use strum::FromRepr;
 use tinyvec::ArrayVec;
 
 pub use ins::Ins;
-
-use crate::ins::{ExtensionOpcode, Opcode};
 
 const IRAM_LEN: usize = 0x1000;
 const IROM_LEN: usize = 0x1000;
@@ -310,15 +313,10 @@ impl Registers {
 }
 
 #[derive(Default)]
-pub struct Control {
-    pub halt: bool,
-}
-
-#[derive(Default)]
 pub struct Dsp {
     pub regs: Registers,
     pub memory: Memory,
-    pub control: Control,
+    pub mmio: Mmio,
     pub loop_counter: Option<u16>,
 }
 
@@ -342,6 +340,10 @@ impl Dsp {
                 self.regs.pc = addr;
             }
         }
+    }
+
+    pub fn write_control(&mut self, value: mmio::Control) {
+        todo!()
     }
 
     pub fn read_data(&mut self, addr: u16) -> u16 {

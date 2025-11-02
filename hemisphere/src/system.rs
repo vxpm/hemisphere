@@ -3,7 +3,6 @@
 pub mod audio;
 pub mod bus;
 pub mod disk;
-pub mod dsp;
 pub mod eabi;
 pub mod executable;
 pub mod external;
@@ -18,7 +17,6 @@ pub mod video;
 use crate::{
     render::Renderer,
     system::{
-        dsp::Dsp,
         executable::{DebugInfo, Executable},
         gpu::Gpu,
         lazy::Lazy,
@@ -73,8 +71,8 @@ pub struct System {
     pub cpu: Cpu,
     /// The GPU state.
     pub gpu: Gpu,
-    /// The DSP state.
-    pub dsp: Dsp,
+    /// The DSP interface.
+    pub dsp: dsp::Dsp,
     /// System memory.
     pub mem: Memory,
     /// State of memory mapping.
@@ -209,7 +207,7 @@ impl System {
             scheduler: Scheduler::default(),
             cpu: Cpu::default(),
             gpu: Gpu::default(),
-            dsp: Dsp::default(),
+            dsp: dsp::Dsp::default(),
             mem: Memory::new(
                 config
                     .ipl

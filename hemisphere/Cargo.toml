@@ -12,6 +12,7 @@ common = { path = "../common" }
 ppcjit = { path = "../ppcjit", features = ["disasm"] }
 dol = { path = "../dol" }
 iso = { path = "../iso" }
+dsp = { path = "../dsp" }
 bitos.workspace = true
 bytesize.workspace = true
 easyerr.workspace = true

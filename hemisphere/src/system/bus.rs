@@ -5,7 +5,6 @@ use crate::system::{
     mem::{IPL_LEN, RAM_LEN},
 };
 use common::{Address, Primitive};
-use tracing::debug;
 use zerocopy::IntoBytes;
 
 pub use mmio::Mmio;
@@ -141,21 +140,13 @@ impl System {
             Mmio::ProcessorFifoCurrent => ne!(self.processor.fifo_current.as_bytes()),
 
             // === DSP Interface ===
-            Mmio::DspDspMailbox => ne!(self.dsp.dsp_mailbox.as_bytes()),
-            Mmio::DspCpuMailbox => {
-                let data = ne!(self.dsp.cpu_mailbox.as_bytes());
-                if (2..4).contains(&offset) && self.dsp.cpu_mailbox.status() {
-                    debug!("popping CPU mailbox");
-                    self.dsp.pop_cpu_mailbox();
-                }
-
-                data
-            }
-            Mmio::DspControl => ne!(self.dsp.control.as_bytes()),
+            Mmio::DspDspMailbox => ne!(self.dsp.mmio.dsp_mailbox.as_bytes()), // TODO: read action
+            Mmio::DspCpuMailbox => ne!(self.dsp.mmio.cpu_mailbox.as_bytes()),
+            Mmio::DspControl => ne!(self.dsp.mmio.control.as_bytes()),
             Mmio::DspAramMode => ne!((!0u64).as_mut_bytes()), // TODO: figure out this register
-            Mmio::DspAramDmaRamBase => ne!(self.dsp.aram_dma_ram.as_bytes()),
-            Mmio::DspAramDmaAramBase => ne!(self.dsp.aram_dma_aram.as_bytes()),
-            Mmio::DspAramDmaControl => ne!(self.dsp.aram_dma_control.as_bytes()),
+            Mmio::DspAramDmaRamBase => ne!(self.dsp.mmio.aram_dma_ram.as_bytes()),
+            Mmio::DspAramDmaAramBase => ne!(self.dsp.mmio.aram_dma_aram.as_bytes()),
+            Mmio::DspAramDmaControl => ne!(self.dsp.mmio.aram_dma_control.as_bytes()),
 
             // === Disk Interface ===
             Mmio::DiskStatus => ne!(self.disk.status.as_bytes()),
@@ -412,30 +403,14 @@ impl System {
             Mmio::DspDspMailbox => (),
             Mmio::DspCpuMailbox => (),
             Mmio::DspControl => {
-                let mut written = self.dsp.control;
+                let mut written = self.dsp.mmio.control;
                 ne!(written.as_mut_bytes());
                 self.dsp.write_control(written);
             }
-            Mmio::DspAramDmaRamBase => ne!(self.dsp.aram_dma_ram.as_mut_bytes()),
-            Mmio::DspAramDmaAramBase => ne!(self.dsp.aram_dma_aram.as_mut_bytes()),
-            Mmio::DspAramDmaControl => {
-                debug!("started DSP DMA, set CPU mailbox as having data");
-
-                // NOTE: stubbed, just set DMA as complete
-                self.dsp.control.set_aram_interrupt(true);
-
-                self.dsp.cpu_mailbox_queue.push_back(0);
-
-                // HACK: stub hack, set mailbox as having data
-                self.dsp.cpu_mailbox.set_status(true);
-            }
-            Mmio::AudioDmaControl => {
-                debug!("forcing AI DMA");
-                self.audio
-                    .control
-                    .set_interrupt(self.audio.control.interrupt_mask());
-                self.scheduler.schedule_now(Event::CheckInterrupts);
-            }
+            Mmio::DspAramDmaRamBase => ne!(self.dsp.mmio.aram_dma_ram.as_mut_bytes()),
+            Mmio::DspAramDmaAramBase => ne!(self.dsp.mmio.aram_dma_aram.as_mut_bytes()),
+            Mmio::DspAramDmaControl => todo!(),
+            Mmio::AudioDmaControl => todo!(),
 
             // === Disk Interface ===
             Mmio::DiskStatus => {

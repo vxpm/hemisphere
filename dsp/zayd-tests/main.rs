@@ -40,7 +40,7 @@ fn run_case(case: file::TestCase) -> Result<(), FailedCase> {
 
     // run until halt
     let code = parse_code(&case.instructions);
-    while !dsp.control.halt {
+    while !dsp.mmio.control.halted() {
         dsp.step();
     }
 
