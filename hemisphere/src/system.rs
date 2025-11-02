@@ -3,6 +3,7 @@
 pub mod audio;
 pub mod bus;
 pub mod disk;
+pub mod dspi;
 pub mod eabi;
 pub mod executable;
 pub mod external;
@@ -166,7 +167,7 @@ impl System {
         let entry = self.load_apploader().unwrap();
 
         // load fake-ipl
-        let mut cursor = Cursor::new(include_bytes!("../../resources/fake-ipl.dol"));
+        let mut cursor = Cursor::new(include_bytes!("../../local/fake-ipl.dol"));
         let ipl = dol::Dol::read(&mut cursor).unwrap();
         self.config.sideload = Some(Executable::Dol(ipl));
         self.load_executable();

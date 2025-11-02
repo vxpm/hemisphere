@@ -555,7 +555,7 @@ impl Dsp {
     }
 
     pub fn halt(&mut self, _: Ins) {
-        self.mmio.control.set_halted(true);
+        self.mmio.control.set_halt(true);
     }
 
     pub fn iar(&mut self, ins: Ins) {
@@ -1618,7 +1618,7 @@ impl Dsp {
 
     pub fn lr(&mut self, ins: Ins) {
         let d = ins.base.bits(0, 5) as u8;
-        let data = self.read_data(ins.extra);
+        let data = self.read_dmem(ins.extra);
         self.regs.set_saturate(Reg::new(d), data);
     }
 
@@ -1638,7 +1638,7 @@ impl Dsp {
         let s = ins.base.bits(5, 7) as usize;
 
         let ar = self.regs.addressing[s];
-        let data = self.read_data(ar);
+        let data = self.read_dmem(ar);
         self.regs.set_saturate(Reg::new(d), data);
     }
 
@@ -1648,7 +1648,7 @@ impl Dsp {
 
         let ar = self.regs.addressing[s];
         let wr = self.regs.wrapping[s];
-        let data = self.read_data(ar);
+        let data = self.read_dmem(ar);
         self.regs.addressing[s] = sub_from_addr_reg(ar, wr, 1);
 
         self.regs.set_saturate(Reg::new(d), data);
@@ -1660,7 +1660,7 @@ impl Dsp {
 
         let ar = self.regs.addressing[s];
         let wr = self.regs.wrapping[s];
-        let data = self.read_data(ar);
+        let data = self.read_dmem(ar);
         self.regs.addressing[s] = add_to_addr_reg(ar, wr, 1);
 
         self.regs.set_saturate(Reg::new(d), data);
@@ -1673,7 +1673,7 @@ impl Dsp {
         let ar = self.regs.addressing[s];
         let wr = self.regs.wrapping[s];
         let ix = self.regs.indexing[s];
-        let data = self.read_data(ar);
+        let data = self.read_dmem(ar);
         self.regs.addressing[s] = add_to_addr_reg(ar, wr, ix as i16);
 
         self.regs.set_saturate(Reg::new(d), data);
@@ -1684,7 +1684,7 @@ impl Dsp {
         let d = ins.base.bits(8, 11) as u8;
 
         let addr = u16::from_le_bytes([imm, self.regs.config]);
-        let data = self.read_data(addr);
+        let data = self.read_dmem(addr);
         self.regs.set_saturate(Reg::new(0x18 + d), data);
     }
 
@@ -1694,7 +1694,7 @@ impl Dsp {
 
         let reg = if d { Reg::Acc40Mid1 } else { Reg::Acc40Mid0 };
         let addr = self.regs.addressing[s];
-        let data = self.read_instr(addr);
+        let data = self.read_imem(addr);
 
         self.regs.set_saturate(reg, data);
     }
@@ -1705,7 +1705,7 @@ impl Dsp {
 
         let reg = if d { Reg::Acc40Mid1 } else { Reg::Acc40Mid0 };
         let ar = self.regs.addressing[s];
-        let data = self.read_instr(ar);
+        let data = self.read_imem(ar);
         self.regs.set_saturate(reg, data);
 
         let ar = self.regs.addressing[s];
@@ -1719,7 +1719,7 @@ impl Dsp {
 
         let reg = if d { Reg::Acc40Mid1 } else { Reg::Acc40Mid0 };
         let ar = self.regs.addressing[s];
-        let data = self.read_instr(ar);
+        let data = self.read_imem(ar);
         self.regs.set_saturate(reg, data);
 
         let ar = self.regs.addressing[s];
@@ -1733,7 +1733,7 @@ impl Dsp {
 
         let reg = if d { Reg::Acc40Mid1 } else { Reg::Acc40Mid0 };
         let ar = self.regs.addressing[s];
-        let data = self.read_instr(ar);
+        let data = self.read_imem(ar);
         self.regs.set_saturate(reg, data);
 
         let ar = self.regs.addressing[s];
@@ -1745,13 +1745,13 @@ impl Dsp {
     pub fn si(&mut self, ins: Ins) {
         let offset = ins.base.bits(0, 8) as u8;
         let addr = u16::from_le_bytes([offset, 0xFF]);
-        self.write_data(addr, ins.extra);
+        self.write_dmem(addr, ins.extra);
     }
 
     pub fn sr(&mut self, ins: Ins) {
         let s = ins.base.bits(0, 5) as u8;
         let data = self.regs.get(Reg::new(s));
-        self.write_data(ins.extra, data);
+        self.write_dmem(ins.extra, data);
     }
 
     pub fn srr(&mut self, ins: Ins) {
@@ -1760,7 +1760,7 @@ impl Dsp {
 
         let data = self.regs.get(Reg::new(s));
         let addr = self.regs.addressing[d];
-        self.write_data(addr, data);
+        self.write_dmem(addr, data);
     }
 
     pub fn srrd(&mut self, ins: Ins) {
@@ -1769,7 +1769,7 @@ impl Dsp {
 
         let data = self.regs.get(Reg::new(s));
         let ar = self.regs.addressing[d];
-        self.write_data(ar, data);
+        self.write_dmem(ar, data);
 
         let ar = self.regs.addressing[d];
         let wr = self.regs.wrapping[d];
@@ -1782,7 +1782,7 @@ impl Dsp {
 
         let data = self.regs.get(Reg::new(s));
         let ar = self.regs.addressing[d];
-        self.write_data(ar, data);
+        self.write_dmem(ar, data);
 
         let ar = self.regs.addressing[d];
         let wr = self.regs.wrapping[d];
@@ -1795,7 +1795,7 @@ impl Dsp {
 
         let data = self.regs.get(Reg::new(s));
         let ar = self.regs.addressing[d];
-        self.write_data(ar, data);
+        self.write_dmem(ar, data);
 
         let ar = self.regs.addressing[d];
         let wr = self.regs.wrapping[d];
@@ -1809,7 +1809,7 @@ impl Dsp {
 
         let addr = u16::from_le_bytes([imm, self.regs.config]);
         let data = self.regs.get(Reg::new(0x1C + s));
-        self.write_data(addr, data);
+        self.write_dmem(addr, data);
     }
 
     pub fn srsh(&mut self, ins: Ins) {
@@ -1818,7 +1818,7 @@ impl Dsp {
 
         let addr = u16::from_le_bytes([imm, self.regs.config]);
         let data = self.regs.acc40[s].high as i8 as i16 as u16;
-        self.write_data(addr, data);
+        self.write_dmem(addr, data);
     }
 
     pub fn loop_(&mut self, ins: Ins) {
@@ -1886,7 +1886,7 @@ impl Dsp {
         let d = ins.base.bits(3, 6) as u8;
 
         let ar = regs.addressing[s];
-        let data = self.read_data(ar);
+        let data = self.read_dmem(ar);
         self.regs.set_saturate(Reg::new(0x18 + d), data);
 
         let ar = regs.addressing[s];
@@ -1899,7 +1899,7 @@ impl Dsp {
         let d = ins.base.bits(3, 6) as u8;
 
         let ar = regs.addressing[s];
-        let data = self.read_data(ar);
+        let data = self.read_dmem(ar);
         self.regs.set_saturate(Reg::new(0x18 + d), data);
 
         let ar = regs.addressing[s];
@@ -1920,7 +1920,7 @@ impl Dsp {
 
         let d = if d { Reg::Acc32High0 } else { Reg::Acc32Low0 };
         let ar = regs.addressing[s];
-        let data = self.read_data(ar);
+        let data = self.read_dmem(ar);
         self.regs.set_saturate(d, data);
 
         let ar = if (regs.addressing[3] >> 10) == (regs.addressing[s] >> 10) {
@@ -1929,7 +1929,7 @@ impl Dsp {
             regs.addressing[3]
         };
         let r = if r { Reg::Acc32High1 } else { Reg::Acc32Low1 };
-        let data = self.read_data(ar);
+        let data = self.read_dmem(ar);
         self.regs.set_saturate(r, data);
 
         let ar = regs.addressing[s];
@@ -1946,13 +1946,13 @@ impl Dsp {
         let r = ins.base.bit(4) as usize;
 
         let ar = regs.addressing[s];
-        let high = self.read_data(ar);
+        let high = self.read_dmem(ar);
         let ar = if (regs.addressing[3] >> 10) == (regs.addressing[s] >> 10) {
             regs.addressing[s]
         } else {
             regs.addressing[3]
         };
-        let low = self.read_data(ar);
+        let low = self.read_dmem(ar);
 
         self.regs.acc32[r] = (((high as u32) << 16) | low as u32) as i32;
 
@@ -1977,7 +1977,7 @@ impl Dsp {
 
         let d = if d { Reg::Acc32High0 } else { Reg::Acc32Low0 };
         let ar = regs.addressing[s];
-        let data = self.read_data(ar);
+        let data = self.read_dmem(ar);
         self.regs.set_saturate(d, data);
 
         let r = if r { Reg::Acc32High1 } else { Reg::Acc32Low1 };
@@ -1986,7 +1986,7 @@ impl Dsp {
         } else {
             regs.addressing[3]
         };
-        let data = self.read_data(ar);
+        let data = self.read_dmem(ar);
         self.regs.set_saturate(r, data);
 
         let ar = regs.addressing[s];
@@ -2004,13 +2004,13 @@ impl Dsp {
         let r = ins.base.bit(4) as usize;
 
         let ar = regs.addressing[s];
-        let high = self.read_data(ar);
+        let high = self.read_dmem(ar);
         let ar = if (regs.addressing[3] >> 10) == (regs.addressing[s] >> 10) {
             regs.addressing[s]
         } else {
             regs.addressing[3]
         };
-        let low = self.read_data(ar);
+        let low = self.read_dmem(ar);
 
         self.regs.acc32[r] = (((high as u32) << 16) | low as u32) as i32;
 
@@ -2036,7 +2036,7 @@ impl Dsp {
 
         let d = if d { Reg::Acc32High0 } else { Reg::Acc32Low0 };
         let ar = regs.addressing[s];
-        let data = self.read_data(ar);
+        let data = self.read_dmem(ar);
         self.regs.set_saturate(d, data);
 
         let r = if r { Reg::Acc32High1 } else { Reg::Acc32Low1 };
@@ -2045,7 +2045,7 @@ impl Dsp {
         } else {
             regs.addressing[3]
         };
-        let data = self.read_data(ar);
+        let data = self.read_dmem(ar);
         self.regs.set_saturate(r, data);
 
         let ar = regs.addressing[s];
@@ -2064,13 +2064,13 @@ impl Dsp {
         let r = ins.base.bit(4) as usize;
 
         let ar = regs.addressing[s];
-        let high = self.read_data(ar);
+        let high = self.read_dmem(ar);
         let ar = if (regs.addressing[3] >> 10) == (regs.addressing[s] >> 10) {
             regs.addressing[s]
         } else {
             regs.addressing[3]
         };
-        let low = self.read_data(ar);
+        let low = self.read_dmem(ar);
 
         self.regs.acc32[r] = (((high as u32) << 16) | low as u32) as i32;
 
@@ -2097,7 +2097,7 @@ impl Dsp {
 
         let d = if d { Reg::Acc32High0 } else { Reg::Acc32Low0 };
         let ar = regs.addressing[s];
-        let data = self.read_data(ar);
+        let data = self.read_dmem(ar);
         self.regs.set_saturate(d, data);
 
         let r = if r { Reg::Acc32High1 } else { Reg::Acc32Low1 };
@@ -2106,7 +2106,7 @@ impl Dsp {
         } else {
             regs.addressing[3]
         };
-        let data = self.read_data(ar);
+        let data = self.read_dmem(ar);
         self.regs.set_saturate(r, data);
 
         let ar = regs.addressing[s];
@@ -2124,13 +2124,13 @@ impl Dsp {
         let r = ins.base.bit(4) as usize;
 
         let ar = regs.addressing[s];
-        let high = self.read_data(ar);
+        let high = self.read_dmem(ar);
         let ar = if (regs.addressing[3] >> 10) == (regs.addressing[s] >> 10) {
             regs.addressing[s]
         } else {
             regs.addressing[3]
         };
-        let low = self.read_data(ar);
+        let low = self.read_dmem(ar);
 
         self.regs.acc32[r] = (((high as u32) << 16) | low as u32) as i32;
 
@@ -2150,7 +2150,7 @@ impl Dsp {
 
         let ar = regs.addressing[d];
         let data = self.regs.get(Reg::new(0x1C + s));
-        self.write_data(ar, data);
+        self.write_dmem(ar, data);
 
         let ar = regs.addressing[d];
         let wr = regs.wrapping[d];
@@ -2163,7 +2163,7 @@ impl Dsp {
 
         let ar = regs.addressing[d];
         let data = self.regs.get(Reg::new(0x1C + s));
-        self.write_data(ar, data);
+        self.write_dmem(ar, data);
 
         let ar = regs.addressing[d];
         let wr = regs.wrapping[d];
@@ -2176,12 +2176,12 @@ impl Dsp {
         let d = ins.base.bits(4, 6) as u8;
 
         let ar = regs.addressing[0];
-        let data = self.read_data(ar);
+        let data = self.read_dmem(ar);
         self.regs.set(Reg::new(0x18 + d), data);
 
         let ar = regs.addressing[3];
         let data = self.regs.acc40[s].mid;
-        self.write_data(ar, data);
+        self.write_dmem(ar, data);
 
         let ar = regs.addressing[0];
         let wr = regs.wrapping[0];
@@ -2197,12 +2197,12 @@ impl Dsp {
         let d = ins.base.bits(4, 6) as u8;
 
         let ar = regs.addressing[0];
-        let data = self.read_data(ar);
+        let data = self.read_dmem(ar);
         self.regs.set(Reg::new(0x18 + d), data);
 
         let ar = regs.addressing[3];
         let data = self.regs.acc40[s].mid;
-        self.write_data(ar, data);
+        self.write_dmem(ar, data);
 
         let ar = regs.addressing[0];
         let wr = regs.wrapping[0];
@@ -2219,12 +2219,12 @@ impl Dsp {
         let d = ins.base.bits(4, 6) as u8;
 
         let ar = regs.addressing[0];
-        let data = self.read_data(ar);
+        let data = self.read_dmem(ar);
         self.regs.set(Reg::new(0x18 + d), data);
 
         let ar = regs.addressing[3];
         let data = self.regs.acc40[s].mid;
-        self.write_data(ar, data);
+        self.write_dmem(ar, data);
 
         let ar = regs.addressing[0];
         let wr = regs.wrapping[0];
@@ -2242,12 +2242,12 @@ impl Dsp {
         let d = ins.base.bits(4, 6) as u8;
 
         let ar = regs.addressing[0];
-        let data = self.read_data(ar);
+        let data = self.read_dmem(ar);
         self.regs.set(Reg::new(0x18 + d), data);
 
         let ar = regs.addressing[3];
         let data = self.regs.acc40[s].mid;
-        self.write_data(ar, data);
+        self.write_dmem(ar, data);
 
         let ar = regs.addressing[0];
         let wr = regs.wrapping[0];
@@ -2265,10 +2265,10 @@ impl Dsp {
 
         let ar = regs.addressing[0];
         let data = self.regs.acc40[s].mid;
-        self.write_data(ar, data);
+        self.write_dmem(ar, data);
 
         let ar = regs.addressing[3];
-        let data = self.read_data(ar);
+        let data = self.read_dmem(ar);
         self.regs.set(Reg::new(0x18 + d), data);
 
         let ar = regs.addressing[0];
@@ -2286,10 +2286,10 @@ impl Dsp {
 
         let ar = regs.addressing[0];
         let data = self.regs.acc40[s].mid;
-        self.write_data(ar, data);
+        self.write_dmem(ar, data);
 
         let ar = regs.addressing[3];
-        let data = self.read_data(ar);
+        let data = self.read_dmem(ar);
         self.regs.set(Reg::new(0x18 + d), data);
 
         let ar = regs.addressing[0];
@@ -2308,10 +2308,10 @@ impl Dsp {
 
         let ar = regs.addressing[0];
         let data = self.regs.acc40[s].mid;
-        self.write_data(ar, data);
+        self.write_dmem(ar, data);
 
         let ar = regs.addressing[3];
-        let data = self.read_data(ar);
+        let data = self.read_dmem(ar);
         self.regs.set(Reg::new(0x18 + d), data);
 
         let ar = regs.addressing[0];
@@ -2331,10 +2331,10 @@ impl Dsp {
 
         let ar = regs.addressing[0];
         let data = self.regs.acc40[s].mid;
-        self.write_data(ar, data);
+        self.write_dmem(ar, data);
 
         let ar = regs.addressing[3];
-        let data = self.read_data(ar);
+        let data = self.read_dmem(ar);
         self.regs.set(Reg::new(0x18 + d), data);
 
         let ar = regs.addressing[0];

@@ -405,7 +405,7 @@ impl System {
             Mmio::DspControl => {
                 let mut written = self.dsp.mmio.control;
                 ne!(written.as_mut_bytes());
-                self.dsp.write_control(written);
+                self.dsp_write_control(written);
             }
             Mmio::DspAramDmaRamBase => ne!(self.dsp.mmio.aram_dma_ram.as_mut_bytes()),
             Mmio::DspAramDmaAramBase => ne!(self.dsp.mmio.aram_dma_aram.as_mut_bytes()),

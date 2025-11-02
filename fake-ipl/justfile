@@ -6,9 +6,9 @@ list:
 build:
     @echo -e "=> Building fake-ipl.elf ..."
     @cargo build --release
-    @echo -e "=> Copying fake-ipl.elf to resources folder ..."
-    @cp ../target/powerpc-nintendo-gamecube-eabi/release/fake-ipl.elf ../resources/fake-ipl.elf
+    @echo -e "=> Copying fake-ipl.elf to local resources folder ..."
+    @cp ../target/powerpc-nintendo-gamecube-eabi/release/fake-ipl.elf ../local/fake-ipl.elf
     @echo -e "=> Converting fake-ipl.elf to fake-ipl.dol ..."
-    @cd .. && cargo run -p cubefile convert -i resources/fake-ipl.elf -o resources/fake-ipl.dol
+    @cd .. && cargo run -q -p cubetool convert -i local/fake-ipl.elf -o local/fake-ipl.dol
     @echo -e "=> Done!"
-    @cd .. && cargo run -p cubefile inspect -i resources/fake-ipl.dol
+    @cd .. && cargo run -q -p cubetool inspect -i local/fake-ipl.dol

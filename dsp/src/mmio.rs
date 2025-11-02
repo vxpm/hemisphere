@@ -21,7 +21,7 @@ pub struct Control {
     #[bits(1)]
     pub interrupt: bool,
     #[bits(2)]
-    pub halted: bool,
+    pub halt: bool,
     #[bits(3)]
     pub ai_interrupt: bool,
     #[bits(4)]
@@ -37,7 +37,7 @@ pub struct Control {
     #[bits(9)]
     pub aram_dma_ongoing: bool,
     #[bits(11)]
-    pub secondary_reset: bool,
+    pub reset_high: bool,
 }
 
 #[bitos(1)]
@@ -58,9 +58,9 @@ pub struct AramDmaControl {
 
 #[derive(Default)]
 pub struct Mmio {
-    /// From DSP to CPU
+    /// Data from DSP to CPU
     pub dsp_mailbox: Mailbox,
-    /// From CPU to DSP
+    /// Data from CPU to DSP
     pub cpu_mailbox: Mailbox,
     pub control: Control,
     pub aram_dma_ram: Address,

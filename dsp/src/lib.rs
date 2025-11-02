@@ -315,7 +315,7 @@ impl Registers {
 #[derive(Default)]
 pub struct Dsp {
     pub regs: Registers,
-    pub memory: Memory,
+    pub mem: Memory,
     pub mmio: Mmio,
     pub loop_counter: Option<u16>,
 }
@@ -342,36 +342,53 @@ impl Dsp {
         }
     }
 
-    pub fn write_control(&mut self, value: mmio::Control) {
-        todo!()
+    /// Resets the DSP.
+    pub fn reset(&mut self) {
+        self.regs = Default::default();
+        self.mem = Default::default();
+        self.loop_counter = None;
+
+        self.regs.pc = if self.mmio.control.reset_high() {
+            0x8000
+        } else {
+            0x0000
+        };
     }
 
-    pub fn read_data(&mut self, addr: u16) -> u16 {
+    pub fn read_mmio(&mut self, offset: u8) -> u16 {
+        match offset {
+            // 0xC9 => self.mmio.aram_dma_control,
+            _ => unimplemented!(),
+        }
+    }
+
+    /// Reads from data memory.
+    pub fn read_dmem(&mut self, addr: u16) -> u16 {
         let value = match addr {
-            0x0000..0x1000 => self.memory.dram[addr as usize],
+            0x0000..0x1000 => self.mem.dram[addr as usize],
             0x1000..0x1800 => 0,
-            0xFF00.. => 0,
+            0xFF00.. => self.read_mmio(addr as u8),
             _ => 0,
         };
 
-        // println!("reading {value:04X} from {addr:04X}");
         value
     }
 
-    pub fn write_data(&mut self, addr: u16, value: u16) {
-        // println!("writing {value:04X} to {addr:04X}");
+    /// Writes to data memory.
+    pub fn write_dmem(&mut self, addr: u16, value: u16) {
         match addr {
-            0x0000..0x1000 => self.memory.dram[addr as usize] = value,
+            0x0000..0x1000 => self.mem.dram[addr as usize] = value,
             0x1000..0x1800 => (),
             0xFF00.. => (),
             _ => (),
         }
     }
 
-    pub fn read_instr(&mut self, addr: u16) -> u16 {
+    /// Reads from instruction memory.
+    pub fn read_imem(&mut self, addr: u16) -> u16 {
         match addr {
-            0x0000..0x1000 => self.memory.iram[addr as usize],
-            0x8000..0x9000 => self.memory.irom[addr as usize - 0x8000],
+            0x0000..0x1000 => self.mem.iram[addr as usize],
+            0x8000..0x9000 => self.mem.irom[addr as usize - 0x8000],
             _ => unreachable!(),
         }
     }
@@ -380,12 +397,12 @@ impl Dsp {
         self.check_stacks();
 
         // fetch
-        let mut ins = Ins::new(self.memory.iram[self.regs.pc as usize]);
+        let mut ins = Ins::new(self.mem.iram[self.regs.pc as usize]);
         let opcode = ins.opcode();
 
         let extra = opcode
             .needs_extra()
-            .then_some(self.memory.iram[(self.regs.pc as usize + 1) % 4096]);
+            .then_some(self.mem.iram[(self.regs.pc as usize + 1) % 4096]);
 
         if let Some(extra) = extra {
             ins.extra = extra;

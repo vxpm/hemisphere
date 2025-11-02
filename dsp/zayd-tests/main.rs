@@ -35,12 +35,12 @@ fn run_case(case: file::TestCase) -> Result<(), FailedCase> {
     // setup
     dsp.regs = case.initial_regs();
     dsp.regs.pc = 62;
-    dsp.memory.iram[62..][..case.instructions.len()].copy_from_slice(&case.instructions);
-    dsp.memory.iram[62 + case.instructions.len()] = 0x21; // HALT
+    dsp.mem.iram[62..][..case.instructions.len()].copy_from_slice(&case.instructions);
+    dsp.mem.iram[62 + case.instructions.len()] = 0x21; // HALT
 
     // run until halt
     let code = parse_code(&case.instructions);
-    while !dsp.mmio.control.halted() {
+    while !dsp.mmio.control.halt() {
         dsp.step();
     }
 
