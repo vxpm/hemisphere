@@ -213,7 +213,7 @@ impl System {
         dsp.mem.coef.copy_from_slice(&dspi::DSP_COEF[..]);
 
         let mut scheduler = Scheduler::default();
-        scheduler.schedule(Event::AdvanceDsp, 6 * 1024);
+        scheduler.schedule(Event::AdvanceDsp, 6 * dspi::STEP_SIZE);
 
         let mut system = System {
             scheduler,
@@ -314,18 +314,18 @@ impl System {
             }
             Event::AdvanceDsp => {
                 if !self.dsp.mmio.control.halt() {
-                    for _ in 0..1024 {
+                    for _ in 0..dspi::STEP_SIZE {
                         self.dsp.step();
                     }
                 }
                 self.dsp_dma();
-                self.scheduler.schedule(Event::AdvanceDsp, 6 * 1024);
+                self.scheduler
+                    .schedule(Event::AdvanceDsp, 6 * dspi::STEP_SIZE);
             }
             Event::AiInterrupt => {
                 self.audio.dma_control.set_length(u15::new(0));
                 self.audio.dma_control.set_transfer_ongoing(false);
                 self.dsp.mmio.control.set_ai_interrupt(true);
-
                 self.pi_check_interrupts();
             }
         }

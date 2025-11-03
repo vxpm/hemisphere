@@ -4,6 +4,8 @@ use bitos::integer::u31;
 use common::Primitive;
 use dsp::mmio::{AramDmaDirection, DspDmaDirection, DspDmaTarget};
 
+pub const STEP_SIZE: u64 = 512;
+
 const fn convert_to_dsp_words<const N: usize>(bytes: &[u8]) -> [u16; N] {
     assert!(bytes.len() / 2 == N);
 
@@ -166,13 +168,17 @@ impl System {
                         "DSP DMA {length:04X} bytes from RAM {ram_base:08X} to IMEM {dsp_base:04X}"
                     );
 
+                    // let mut file = std::fs::File::create("IMEM.DUMP").unwrap();
                     for word in 0..length {
                         let data = u16::read_be_bytes(
                             &self.mem.ram[(ram_base + 2 * word as u32) as usize..],
                         );
 
+                        // file.write_all(data.to_be().as_bytes()).unwrap();
                         self.dsp.write_imem(dsp_base + word, data);
                     }
+
+                    // panic!()
                 }
                 (DspDmaTarget::Imem, DspDmaDirection::FromDspToRam) => {
                     todo!()

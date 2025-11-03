@@ -447,6 +447,7 @@ impl Dsp {
 
     /// Reads from data memory.
     pub fn read_dmem(&mut self, addr: u16) -> u16 {
+        println!("read dmem 0x{addr:04X}");
         let value = match addr {
             0x0000..0x1000 => self.mem.dram[addr as usize],
             0x1000..0x1800 => self.mem.coef[addr as usize - 0x1000],
@@ -499,9 +500,9 @@ impl Dsp {
             ins.extra = extra;
         }
 
-        // if opcode != Opcode::Nop && opcode != Opcode::Lrri {
-        //     println!("executing {:?} at {:04X}", ins, self.regs.pc);
-        // }
+        if opcode != Opcode::Nop && opcode != Opcode::Lrri {
+            println!("executing {:?} at {:04X}", ins, self.regs.pc);
+        }
 
         // execute
         let regs_previous = self.regs.clone();

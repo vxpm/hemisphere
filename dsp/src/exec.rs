@@ -1593,6 +1593,7 @@ impl Dsp {
     pub fn jmp(&mut self, ins: Ins) {
         let code = CondCode::new(ins.base.bits(0, 4) as u8);
         if self.condition(code) {
+            println!("JMP to {:04X}", ins.extra);
             self.regs.pc = ins.extra - 2;
         }
     }
