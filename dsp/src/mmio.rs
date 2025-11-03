@@ -1,7 +1,4 @@
-use bitos::{
-    bitos,
-    integer::{u15, u31},
-};
+use bitos::{bitos, integer::u31};
 use common::Address;
 
 #[bitos(32)]
@@ -50,8 +47,8 @@ pub enum AramDmaDirection {
 #[bitos(32)]
 #[derive(Debug, Clone, Default)]
 pub struct AramDmaControl {
-    #[bits(16..31)]
-    pub length: u15,
+    #[bits(0..31)]
+    pub length: u31,
     #[bits(31)]
     pub direction: AramDmaDirection,
 }

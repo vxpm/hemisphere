@@ -60,6 +60,8 @@ pub enum Event {
     Video(video::Event),
     /// Check external interrupts.
     DiskTransferComplete,
+    /// Advance DSP forward
+    AdvanceDsp,
 }
 
 /// System state.
@@ -204,11 +206,18 @@ impl System {
     }
 
     pub fn new(mut config: Config) -> Self {
+        let mut dsp = dsp::Dsp::default();
+        dsp.mem.irom.copy_from_slice(&dspi::DSP_ROM[..]);
+        dsp.mem.coef.copy_from_slice(&dspi::DSP_COEF[..]);
+
+        let mut scheduler = Scheduler::default();
+        scheduler.schedule(Event::AdvanceDsp, 6 * 1024);
+
         let mut system = System {
-            scheduler: Scheduler::default(),
+            scheduler,
+            dsp,
             cpu: Cpu::default(),
             gpu: Gpu::default(),
-            dsp: dsp::Dsp::default(),
             mem: Memory::new(
                 config
                     .ipl
@@ -300,6 +309,15 @@ impl System {
                     Event::Video(video::Event::VerticalCount),
                     cycles_per_line as u64,
                 );
+            }
+            Event::AdvanceDsp => {
+                if !self.dsp.mmio.control.halt() {
+                    for _ in 0..1024 {
+                        self.dsp.step();
+                    }
+                }
+
+                self.scheduler.schedule(Event::AdvanceDsp, 6 * 1024);
             }
         }
     }

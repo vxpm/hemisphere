@@ -117,8 +117,8 @@ mmio! {
     0x4020, 2, MemoryInterrupt;
 
     // === DSP Interface ===
-    0x5000, 4, DspDspMailbox;
-    0x5004, 4, DspCpuMailbox;
+    0x5000, 4, DspSendMailbox;
+    0x5004, 4, DspRecvMailbox;
     0x500A, 2, DspControl;
     0x5012, 2, DspAramSize;
     0x5016, 2, DspAramMode;

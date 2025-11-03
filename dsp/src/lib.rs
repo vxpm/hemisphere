@@ -14,12 +14,14 @@ use tinyvec::ArrayVec;
 
 pub use ins::Ins;
 
+const ARAM_LEN: usize = 16 * bytesize::MIB as usize;
 const IRAM_LEN: usize = 0x1000;
 const IROM_LEN: usize = 0x1000;
 const DRAM_LEN: usize = 0x1000;
 const COEF_LEN: usize = 0x0800;
 
 pub struct Memory {
+    pub aram: Box<[u8; ARAM_LEN]>,
     pub iram: Box<[u16; IRAM_LEN]>,
     pub irom: Box<[u16; IROM_LEN]>,
     pub dram: Box<[u16; DRAM_LEN]>,
@@ -29,6 +31,7 @@ pub struct Memory {
 impl Default for Memory {
     fn default() -> Self {
         Self {
+            aram: boxed_array(0),
             iram: boxed_array(0),
             irom: boxed_array(0),
             dram: boxed_array(0),
@@ -357,7 +360,12 @@ impl Dsp {
 
     pub fn read_mmio(&mut self, offset: u8) -> u16 {
         match offset {
-            // 0xC9 => self.mmio.aram_dma_control,
+            _ => unimplemented!(),
+        }
+    }
+
+    pub fn write_mmio(&mut self, offset: u8) {
+        match offset {
             _ => unimplemented!(),
         }
     }
@@ -366,7 +374,7 @@ impl Dsp {
     pub fn read_dmem(&mut self, addr: u16) -> u16 {
         let value = match addr {
             0x0000..0x1000 => self.mem.dram[addr as usize],
-            0x1000..0x1800 => 0,
+            0x1000..0x1800 => self.mem.coef[addr as usize - 0x1000],
             0xFF00.. => self.read_mmio(addr as u8),
             _ => 0,
         };
@@ -378,8 +386,8 @@ impl Dsp {
     pub fn write_dmem(&mut self, addr: u16, value: u16) {
         match addr {
             0x0000..0x1000 => self.mem.dram[addr as usize] = value,
-            0x1000..0x1800 => (),
-            0xFF00.. => (),
+            0x1000..0x1800 => self.mem.coef[addr as usize - 0x1000] = value,
+            0xFF00.. => self.write_mmio(addr as u8),
             _ => (),
         }
     }
@@ -389,7 +397,7 @@ impl Dsp {
         match addr {
             0x0000..0x1000 => self.mem.iram[addr as usize],
             0x8000..0x9000 => self.mem.irom[addr as usize - 0x8000],
-            _ => unreachable!(),
+            _ => 0,
         }
     }
 
@@ -397,15 +405,19 @@ impl Dsp {
         self.check_stacks();
 
         // fetch
-        let mut ins = Ins::new(self.mem.iram[self.regs.pc as usize]);
+        let mut ins = Ins::new(self.read_imem(self.regs.pc));
         let opcode = ins.opcode();
 
         let extra = opcode
             .needs_extra()
-            .then_some(self.mem.iram[(self.regs.pc as usize + 1) % 4096]);
+            .then_some(self.read_imem(self.regs.pc + 1));
 
         if let Some(extra) = extra {
             ins.extra = extra;
+        }
+
+        if opcode != Opcode::Nop {
+            println!("executing {:?} at {:04X}", ins, self.regs.pc);
         }
 
         // execute
@@ -535,7 +547,7 @@ impl Dsp {
             Opcode::Xorc => self.xorc(ins),
             Opcode::Xori => self.xori(ins),
             Opcode::Xorr => self.xorr(ins),
-            Opcode::Illegal => panic!("illegal opcode"),
+            Opcode::Illegal => (),
         }
 
         if opcode.has_extension() {
