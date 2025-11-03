@@ -112,7 +112,7 @@ impl System {
 
     /// Checks whether any of the currently raised interrutps can be taken and, if any, raises the
     /// interrupt exception.
-    pub fn check_interrupts(&mut self) {
+    pub fn pi_check_interrupts(&mut self) {
         if !self.cpu.supervisor.config.msr.interrupts() {
             return;
         }

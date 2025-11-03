@@ -1,5 +1,5 @@
 use crate::system::System;
-use bitos::bitos;
+use bitos::{bitos, integer::u15};
 
 #[bitos(1)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -27,10 +27,21 @@ pub struct Control {
     pub dsp_sample_rate: SampleRate,
 }
 
+#[bitos(16)]
+#[derive(Debug, Clone, Copy, Default)]
+pub struct DmaControl {
+    #[bits(0)]
+    pub transfer_ongoing: bool,
+    #[bits(1..16)]
+    pub length: u15,
+}
+
 #[derive(Default)]
 pub struct Interface {
     pub control: Control,
-    pub sample_counter: u32,
+    pub dma_control: DmaControl,
+    pub last_updated_counter: u64,
+    pub sample_counter: f64,
 }
 
 impl Interface {
@@ -43,11 +54,20 @@ impl Interface {
         self.control.set_interrupt_valid(value.interrupt_valid());
 
         if value.sample_counter_reset() {
-            self.sample_counter = 0;
+            self.sample_counter = 0.0;
         }
 
         self.control.set_dsp_sample_rate(value.dsp_sample_rate());
     }
 }
 
-impl System {}
+impl System {
+    pub fn ai_update_sample_counter(&mut self) {
+        if self.audio.control.playing() {
+            let elapsed = self.scheduler.elapsed() - self.audio.last_updated_counter;
+            self.audio.sample_counter += elapsed as f64 / 9750.0;
+        }
+
+        self.audio.last_updated_counter = self.scheduler.elapsed();
+    }
+}

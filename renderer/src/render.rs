@@ -162,7 +162,7 @@ impl Renderer {
                 Topology::QuadList => self.draw_quad_list(&attributes),
                 Topology::TriangleList => self.draw_triangle_list(&attributes),
                 Topology::TriangleStrip => self.draw_triangle_strip(&attributes),
-                Topology::TriangleFan => todo!(),
+                Topology::TriangleFan => self.draw_triangle_fan(&attributes),
                 Topology::LineList => todo!(),
                 Topology::LineStrip => todo!(),
                 Topology::PointList => todo!(),
@@ -362,6 +362,19 @@ impl Renderer {
             self.indices.extend_from_slice(&[v0, v1, v2]);
 
             v0 = v1;
+            v1 = v2;
+        }
+    }
+
+    pub fn draw_triangle_fan(&mut self, vertices: &[VertexAttributes]) {
+        let mut iter = vertices.iter();
+
+        let v0 = self.insert_attributes(iter.next().unwrap());
+        let mut v1 = self.insert_attributes(iter.next().unwrap());
+        for v2 in iter {
+            let v2 = self.insert_attributes(v2);
+            self.indices.extend_from_slice(&[v0, v1, v2]);
+
             v1 = v2;
         }
     }

@@ -349,7 +349,7 @@ impl System {
         }
 
         if raised {
-            self.check_interrupts();
+            self.pi_check_interrupts();
         }
     }
 

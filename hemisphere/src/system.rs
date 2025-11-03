@@ -26,7 +26,7 @@ use crate::{
         scheduler::Scheduler,
     },
 };
-use common::Primitive;
+use bitos::integer::u15;
 use common::{
     Address,
     arch::{Cpu, Exception, FREQUENCY},
@@ -63,6 +63,7 @@ pub enum Event {
     DiskTransferComplete,
     /// Advance DSP forward
     AdvanceDsp,
+    AiInterrupt,
 }
 
 /// System state.
@@ -282,7 +283,7 @@ impl System {
                     self.scheduler.schedule(Event::Decrementer, 32);
                 }
             }
-            Event::CheckInterrupts => self.check_interrupts(),
+            Event::CheckInterrupts => self.pi_check_interrupts(),
             Event::Video(video::Event::VerticalCount) => {
                 self.update_display_interrupts();
 
@@ -315,68 +316,17 @@ impl System {
                 if !self.dsp.mmio.control.halt() {
                     for _ in 0..1024 {
                         self.dsp.step();
-
-                        // fuck it, manually perform DMA
-                        if self.dsp.mmio.dsp_dma_length != 0 {
-                            println!("{:?}", self.dsp.mmio.dsp_dma_control);
-                            println!("{:08X}", self.dsp.mmio.dsp_dma_ram_base);
-                            println!("{:04X}", self.dsp.mmio.dsp_dma_dsp_base);
-                            println!("{:04X}", self.dsp.mmio.dsp_dma_length);
-
-                            let ram_base = self.dsp.mmio.dsp_dma_ram_base;
-                            let ram_base = self
-                                .mmu
-                                .translate_data_addr(Address(ram_base))
-                                .unwrap_or(Address(ram_base))
-                                .value();
-                            let dsp_base = self.dsp.mmio.dsp_dma_dsp_base;
-                            let length = self.dsp.mmio.dsp_dma_length / 2;
-
-                            let (target, direction) = (
-                                self.dsp.mmio.dsp_dma_control.dsp_target(),
-                                self.dsp.mmio.dsp_dma_control.direction(),
-                            );
-                            match (target, direction) {
-                                (
-                                    dsp::mmio::DspDmaTarget::Dmem,
-                                    dsp::mmio::DspDmaDirection::FromRamToDsp,
-                                ) => {
-                                    for word in 0..length {
-                                        let data = u16::read_be_bytes(
-                                            &self.mem.ram[(ram_base + 2 * word as u32) as usize..],
-                                        );
-
-                                        self.dsp.write_dmem(dsp_base + word, data);
-                                    }
-                                }
-                                (
-                                    dsp::mmio::DspDmaTarget::Dmem,
-                                    dsp::mmio::DspDmaDirection::FromDspToRam,
-                                ) => todo!(),
-                                (
-                                    dsp::mmio::DspDmaTarget::Imem,
-                                    dsp::mmio::DspDmaDirection::FromRamToDsp,
-                                ) => {
-                                    for word in 0..length {
-                                        let data = u16::read_be_bytes(
-                                            &self.mem.ram[(ram_base + 2 * word as u32) as usize..],
-                                        );
-
-                                        self.dsp.write_imem(dsp_base + word, data);
-                                    }
-                                }
-                                (
-                                    dsp::mmio::DspDmaTarget::Imem,
-                                    dsp::mmio::DspDmaDirection::FromDspToRam,
-                                ) => todo!(),
-                            };
-
-                            self.dsp.mmio.dsp_dma_length = 0;
-                        }
                     }
                 }
-
+                self.dsp_dma();
                 self.scheduler.schedule(Event::AdvanceDsp, 6 * 1024);
+            }
+            Event::AiInterrupt => {
+                self.audio.dma_control.set_length(u15::new(0));
+                self.audio.dma_control.set_transfer_ongoing(false);
+                self.dsp.mmio.control.set_ai_interrupt(true);
+
+                self.pi_check_interrupts();
             }
         }
     }

@@ -43,6 +43,8 @@ pub struct Control {
     pub dsp_interrupt_mask: bool,
     #[bits(9)]
     pub aram_dma_ongoing: bool,
+    #[bits(10)]
+    pub unknown: bool,
     #[bits(11)]
     pub reset_high: bool,
 }
@@ -52,7 +54,7 @@ impl Control {
         let ai = self.ai_interrupt() && self.ai_interrupt_mask();
         let aram = self.aram_interrupt() && self.aram_interrupt_mask();
         let dsp = self.dsp_interrupt() && self.dsp_interrupt_mask();
-        ai || aram || dsp
+        self.interrupt() || ai || aram || dsp
     }
 }
 
@@ -98,20 +100,27 @@ pub struct DspDmaControl {
 }
 
 #[derive(Default)]
+pub struct DspDma {
+    pub ram_base: u32,
+    pub dsp_base: u16,
+    pub length: u16,
+    pub control: DspDmaControl,
+}
+
+#[derive(Default)]
+pub struct AramDma {
+    pub ram_base: Address,
+    pub aram_base: u32,
+    pub control: AramDmaControl,
+}
+
+#[derive(Default)]
 pub struct Mmio {
+    pub control: Control,
     /// Data from DSP to CPU
     pub dsp_mailbox: Mailbox,
     /// Data from CPU to DSP
     pub cpu_mailbox: Mailbox,
-
-    pub control: Control,
-
-    pub dsp_dma_ram_base: u32,
-    pub dsp_dma_dsp_base: u16,
-    pub dsp_dma_length: u16,
-    pub dsp_dma_control: DspDmaControl,
-
-    pub aram_dma_ram: Address,
-    pub aram_dma_aram: u32,
-    pub aram_dma_control: AramDmaControl,
+    pub dsp_dma: DspDma,
+    pub aram_dma: AramDma,
 }

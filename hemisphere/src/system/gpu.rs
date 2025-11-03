@@ -237,7 +237,13 @@ pub enum Reg {
     TevConstant2AR = 0xE6,
     TevConstant2GB = 0xE7,
 
-    TevFogRange = 0xE8,
+    TevRangeAdjC = 0xE8,
+    TevRangeAdj0 = 0xE9,
+    TevRangeAdj1 = 0xEA,
+    TevRangeAdj2 = 0xEB,
+    TevRangeAdj3 = 0xEC,
+    TevRangeAdj4 = 0xED,
+
     TevFog0 = 0xEE,
     TevFog1 = 0xEF,
     TevFog2 = 0xF0,

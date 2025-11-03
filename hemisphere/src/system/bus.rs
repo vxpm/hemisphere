@@ -1,7 +1,7 @@
 mod mmio;
 
 use crate::system::{
-    Event, System, audio, disk, external,
+    Event, System, disk, external,
     mem::{IPL_LEN, RAM_LEN},
 };
 use common::{Address, Primitive};
@@ -157,9 +157,10 @@ impl System {
             }
             Mmio::DspControl => ne!(self.dsp.mmio.control.as_bytes()),
             Mmio::DspAramMode => ne!((!0u64).as_mut_bytes()), // TODO: figure out this register
-            Mmio::DspAramDmaRamBase => ne!(self.dsp.mmio.aram_dma_ram.as_bytes()),
-            Mmio::DspAramDmaAramBase => ne!(self.dsp.mmio.aram_dma_aram.as_bytes()),
-            Mmio::DspAramDmaControl => ne!(self.dsp.mmio.aram_dma_control.as_bytes()),
+            Mmio::DspAramDmaRamBase => ne!(self.dsp.mmio.aram_dma.ram_base.as_bytes()),
+            Mmio::DspAramDmaAramBase => ne!(self.dsp.mmio.aram_dma.aram_base.as_bytes()),
+            Mmio::DspAramDmaControl => ne!(self.dsp.mmio.aram_dma.control.as_bytes()),
+            Mmio::AudioDmaControl => ne!(self.audio.dma_control.as_bytes()),
 
             // === Disk Interface ===
             Mmio::DiskStatus => ne!(self.disk.status.as_bytes()),
@@ -190,9 +191,9 @@ impl System {
 
             // === Audio Interface ===
             Mmio::AudioSampleCounter => {
-                // HACK: allows IPL to progress further
-                self.audio.sample_counter += 1;
-                ne!(self.audio.sample_counter.as_bytes())
+                self.ai_update_sample_counter();
+                let sample = self.audio.sample_counter.floor() as u32;
+                ne!(sample.as_bytes())
             }
             Mmio::AudioControl => ne!(self.audio.control.as_bytes()),
 
@@ -429,14 +430,15 @@ impl System {
                 ne!(written.as_mut_bytes());
                 self.dsp_write_control(written);
             }
-            Mmio::DspAramDmaRamBase => ne!(self.dsp.mmio.aram_dma_ram.as_mut_bytes()),
-            Mmio::DspAramDmaAramBase => ne!(self.dsp.mmio.aram_dma_aram.as_mut_bytes()),
+            Mmio::DspAramDmaRamBase => ne!(self.dsp.mmio.aram_dma.ram_base.as_mut_bytes()),
+            Mmio::DspAramDmaAramBase => ne!(self.dsp.mmio.aram_dma.aram_base.as_mut_bytes()),
             Mmio::DspAramDmaControl => {
-                ne!(self.dsp.mmio.aram_dma_control.as_mut_bytes());
+                ne!(self.dsp.mmio.aram_dma.control.as_mut_bytes());
                 self.dsp_aram_dma();
             }
             Mmio::AudioDmaControl => {
-                // ignore??
+                ne!(self.audio.dma_control.as_mut_bytes());
+                self.scheduler.schedule(Event::AiInterrupt, 100000);
             }
 
             // === Disk Interface ===
@@ -510,7 +512,7 @@ impl System {
 
             // === Audio Interface ===
             Mmio::AudioControl => {
-                let mut written = audio::Control::from_bits(0);
+                let mut written = self.audio.control;
                 ne!(written.as_mut_bytes());
                 self.audio.write_control(written);
             }
