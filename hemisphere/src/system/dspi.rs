@@ -91,15 +91,30 @@ impl System {
     pub fn dsp_aram_dma(&mut self) {
         let length = 4 * self.dsp.mmio.aram_dma_control.length().value() as usize;
         if length != 0 {
-            tracing::debug!("DMAd ARAM shit");
+            let ram_base = self
+                .mmu
+                .translate_data_addr(self.dsp.mmio.aram_dma_ram)
+                .unwrap_or(self.dsp.mmio.aram_dma_ram);
+            let aram_base = self.dsp.mmio.aram_dma_aram & 0x00FF_FFFF;
 
-            assert!(self.dsp.mmio.aram_dma_control.direction() == AramDmaDirection::FromRamToAram);
+            match self.dsp.mmio.aram_dma_control.direction() {
+                AramDmaDirection::FromRamToAram => {
+                    tracing::debug!(
+                        "DMA {length} bytes from RAM {ram_base} to ARAM {aram_base:08X}"
+                    );
 
-            let base = self.dsp.mmio.aram_dma_ram;
-            let aram = self.dsp.mmio.aram_dma_aram;
+                    self.dsp.mem.aram[aram_base as usize..][..length]
+                        .copy_from_slice(&self.mem.ram[ram_base.value() as usize..][..length]);
+                }
+                AramDmaDirection::FromAramToRam => {
+                    tracing::debug!(
+                        "DMA {length} bytes from ARAM {aram_base:08X} to RAM {ram_base}"
+                    );
 
-            self.dsp.mem.aram[aram as usize..][..length]
-                .copy_from_slice(&self.mem.ram[base.value() as usize..][..length]);
+                    self.mem.ram[ram_base.value() as usize..][..length]
+                        .copy_from_slice(&self.dsp.mem.aram[aram_base as usize..][..length]);
+                }
+            }
 
             self.dsp.mmio.aram_dma_control.set_length(u31::new(0));
             self.dsp.mmio.control.set_aram_interrupt(true);

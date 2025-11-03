@@ -58,6 +58,9 @@ opt-level = 2
 [profile.dev.package."dol"]
 opt-level = 2
 
+[profile.dev.package."dsp"]
+opt-level = 3
+
 [profile.dev]
 panic = "unwind"
 codegen-units = 384

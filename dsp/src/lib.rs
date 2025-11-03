@@ -361,6 +361,14 @@ impl Dsp {
 
     pub fn read_mmio(&mut self, offset: u8) -> u16 {
         match offset {
+            // DMA
+            0xC9 => self.mmio.dsp_dma_control.to_bits(),
+            0xCB => self.mmio.dsp_dma_length,
+            0xCD => self.mmio.dsp_dma_dsp_base,
+            0xCE => (self.mmio.dsp_dma_ram_base >> 16) as u16,
+            0xCF => self.mmio.dsp_dma_ram_base as u16,
+
+            // Mailboxes
             0xFC => self.mmio.dsp_mailbox.high_and_status(),
             0xFD => self.mmio.dsp_mailbox.low(),
             0xFE => self.mmio.cpu_mailbox.high_and_status(),
@@ -374,6 +382,31 @@ impl Dsp {
 
     pub fn write_mmio(&mut self, offset: u8, value: u16) {
         match offset {
+            // Coefficients
+            0xA0..=0xAF => (),
+
+            // DMA
+            0xC9 => {
+                self.mmio.dsp_dma_control = mmio::DspDmaControl::from_bits(value)
+                    .with_transfer_ongoing(self.mmio.dsp_dma_control.transfer_ongoing())
+            }
+            0xCB => self.mmio.dsp_dma_length = value, // TODO: this
+            0xCD => self.mmio.dsp_dma_dsp_base = value,
+            0xCE => {
+                self.mmio.dsp_dma_ram_base =
+                    self.mmio.dsp_dma_ram_base.with_bits(16, 32, value as u32)
+            }
+            0xCF => {
+                self.mmio.dsp_dma_ram_base =
+                    self.mmio.dsp_dma_ram_base.with_bits(0, 16, value as u32)
+            }
+
+            // Interrupts
+            0xFB => {
+                self.mmio.control.set_dsp_interrupt(true);
+            }
+
+            // Mailboxes
             0xFC => {
                 self.mmio.dsp_mailbox.set_high(u15::new(value));
             }
@@ -413,6 +446,14 @@ impl Dsp {
             0x0000..0x1000 => self.mem.iram[addr as usize],
             0x8000..0x9000 => self.mem.irom[addr as usize - 0x8000],
             _ => 0,
+        }
+    }
+
+    /// Writes to instruction memory.
+    pub fn write_imem(&mut self, addr: u16, value: u16) {
+        match addr {
+            0x0000..0x1000 => self.mem.iram[addr as usize] = value,
+            _ => (),
         }
     }
 

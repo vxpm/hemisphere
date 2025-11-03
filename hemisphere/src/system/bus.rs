@@ -435,7 +435,9 @@ impl System {
                 ne!(self.dsp.mmio.aram_dma_control.as_mut_bytes());
                 self.dsp_aram_dma();
             }
-            Mmio::AudioDmaControl => todo!(),
+            Mmio::AudioDmaControl => {
+                // ignore??
+            }
 
             // === Disk Interface ===
             Mmio::DiskStatus => {
