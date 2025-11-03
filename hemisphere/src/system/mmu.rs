@@ -85,8 +85,11 @@ impl Mmu {
         self.build_instr_bat_lut(&memory.ibat);
     }
 
-    pub fn translate_data_addr(&self, addr: Address) -> Option<Address> {
-        let addr = addr.value();
+    pub fn translate_data_addr<A: Into<Address>>(&self, addr: A) -> Option<A>
+    where
+        Address: Into<A>,
+    {
+        let addr = addr.into().value();
         let logical_base = addr >> 17;
         let physical_base = self.data_bat_lut[logical_base as usize] as u32;
 
@@ -95,7 +98,7 @@ impl Mmu {
             None
         } else {
             let base = physical_base << 16;
-            Some(Address(base | addr.bits(0, 17)))
+            Some(Address(base | addr.bits(0, 17)).into())
         }
     }
 

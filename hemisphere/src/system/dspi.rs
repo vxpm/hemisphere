@@ -1,7 +1,6 @@
 use crate::system::Event;
 use crate::system::System;
 use bitos::integer::u31;
-use common::Address;
 use common::Primitive;
 use dsp::mmio::{AramDmaDirection, DspDmaDirection, DspDmaTarget};
 
@@ -89,9 +88,12 @@ impl System {
     pub fn dsp_aram_dma(&mut self) {
         let length = 4 * self.dsp.mmio.aram_dma.control.length().value() as usize;
         if length != 0 {
-            let ram_base = self.dsp.mmio.aram_dma.ram_base.value() & 0x01FF_FFFF;
-            let aram_base = self.dsp.mmio.aram_dma.aram_base & 0x00FF_FFFF;
+            let ram_base = self
+                .mmu
+                .translate_data_addr(self.dsp.mmio.aram_dma.ram_base.value())
+                .unwrap_or(self.dsp.mmio.aram_dma.ram_base.value());
 
+            let aram_base = self.dsp.mmio.aram_dma.aram_base & 0x00FF_FFFF;
             match self.dsp.mmio.aram_dma.control.direction() {
                 AramDmaDirection::FromRamToAram => {
                     tracing::debug!(
@@ -122,9 +124,8 @@ impl System {
         if self.dsp.mmio.dsp_dma.length != 0 {
             let ram_base = self
                 .mmu
-                .translate_data_addr(Address(self.dsp.mmio.dsp_dma.ram_base))
-                .unwrap()
-                .value();
+                .translate_data_addr(self.dsp.mmio.dsp_dma.ram_base)
+                .unwrap_or(self.dsp.mmio.dsp_dma.ram_base);
 
             let dsp_base = self.dsp.mmio.dsp_dma.dsp_base;
             let length = self.dsp.mmio.dsp_dma.length / 2;

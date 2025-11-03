@@ -135,3 +135,10 @@ impl From<u32> for Address {
         Self(value)
     }
 }
+
+impl Into<u32> for Address {
+    #[inline(always)]
+    fn into(self) -> u32 {
+        self.0
+    }
+}
