@@ -9,7 +9,7 @@ use crate::render::{
 };
 use glam::Mat4;
 use hemisphere::{
-    render::{self, Action, TevConfig, Viewport},
+    render::{Action, TevConfig, Viewport},
     system::gpu::{
         Topology, VertexAttributes,
         command::attributes::Rgba,

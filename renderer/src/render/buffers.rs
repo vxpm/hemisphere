@@ -13,10 +13,12 @@ impl Buffers {
         }
     }
 
+    #[expect(dead_code, reason = "will be used later")]
     pub fn count(&self) -> usize {
         self.free.len() + self.allocated.len()
     }
 
+    #[expect(dead_code, reason = "will be used later")]
     pub fn total_size(&self) -> u64 {
         self.free
             .iter()
