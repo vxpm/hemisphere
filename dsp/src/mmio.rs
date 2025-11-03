@@ -1,9 +1,19 @@
-use bitos::{bitos, integer::u31};
+use bitos::{
+    bitos,
+    integer::{u15, u31},
+};
 use common::Address;
 
 #[bitos(32)]
 #[derive(Debug, Default)]
 pub struct Mailbox {
+    #[bits(0..16)]
+    pub low: u16,
+    #[bits(16..31)]
+    pub high: u15,
+    #[bits(16..32)]
+    pub high_and_status: u16,
+
     #[bits(0..31)]
     pub data: u31,
     #[bits(31)]
@@ -61,6 +71,6 @@ pub struct Mmio {
     pub cpu_mailbox: Mailbox,
     pub control: Control,
     pub aram_dma_ram: Address,
-    pub aram_dma_aram: Address,
+    pub aram_dma_aram: u32,
     pub aram_dma_control: AramDmaControl,
 }

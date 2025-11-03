@@ -7,7 +7,7 @@ use crate::{
     ins::{ExtensionOpcode, Opcode},
     mmio::Mmio,
 };
-use bitos::{BitUtils, bitos};
+use bitos::{BitUtils, bitos, integer::u15};
 use common::util::boxed_array;
 use strum::FromRepr;
 use tinyvec::ArrayVec;
@@ -345,11 +345,12 @@ impl Dsp {
         }
     }
 
-    /// Resets the DSP.
+    /// Soft resets the DSP.
     pub fn reset(&mut self) {
-        self.regs = Default::default();
-        self.mem = Default::default();
         self.loop_counter = None;
+
+        self.regs.call_stack.push(self.regs.pc);
+        self.regs.data_stack.push(self.regs.status.to_bits());
 
         self.regs.pc = if self.mmio.control.reset_high() {
             0x8000
@@ -360,13 +361,27 @@ impl Dsp {
 
     pub fn read_mmio(&mut self, offset: u8) -> u16 {
         match offset {
-            _ => unimplemented!(),
+            0xFC => self.mmio.dsp_mailbox.high_and_status(),
+            0xFD => self.mmio.dsp_mailbox.low(),
+            0xFE => self.mmio.cpu_mailbox.high_and_status(),
+            0xFF => {
+                self.mmio.cpu_mailbox.set_status(false);
+                self.mmio.cpu_mailbox.low()
+            }
+            _ => unimplemented!("read from {offset:02X}"),
         }
     }
 
-    pub fn write_mmio(&mut self, offset: u8) {
+    pub fn write_mmio(&mut self, offset: u8, value: u16) {
         match offset {
-            _ => unimplemented!(),
+            0xFC => {
+                self.mmio.dsp_mailbox.set_high(u15::new(value));
+            }
+            0xFD => {
+                self.mmio.dsp_mailbox.set_low(value);
+                self.mmio.dsp_mailbox.set_status(true);
+            }
+            _ => unimplemented!("write to {offset:02X}"),
         }
     }
 
@@ -387,7 +402,7 @@ impl Dsp {
         match addr {
             0x0000..0x1000 => self.mem.dram[addr as usize] = value,
             0x1000..0x1800 => self.mem.coef[addr as usize - 0x1000] = value,
-            0xFF00.. => self.write_mmio(addr as u8),
+            0xFF00.. => self.write_mmio(addr as u8, value),
             _ => (),
         }
     }
@@ -410,15 +425,15 @@ impl Dsp {
 
         let extra = opcode
             .needs_extra()
-            .then_some(self.read_imem(self.regs.pc + 1));
+            .then_some(self.read_imem(self.regs.pc.wrapping_add(1)));
 
         if let Some(extra) = extra {
             ins.extra = extra;
         }
 
-        if opcode != Opcode::Nop {
-            println!("executing {:?} at {:04X}", ins, self.regs.pc);
-        }
+        // if opcode != Opcode::Nop && opcode != Opcode::Lrri {
+        //     println!("executing {:?} at {:04X}", ins, self.regs.pc);
+        // }
 
         // execute
         let regs_previous = self.regs.clone();
@@ -586,7 +601,10 @@ impl Dsp {
                 *loop_counter -= 1;
             }
         } else {
-            self.regs.pc += if extra.is_some() { 2 } else { 1 };
+            self.regs.pc = self
+                .regs
+                .pc
+                .wrapping_add(if extra.is_some() { 2 } else { 1 });
         }
     }
 }

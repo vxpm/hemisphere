@@ -1,3 +1,6 @@
+use bitos::integer::u31;
+use dsp::mmio::AramDmaDirection;
+
 use crate::system::System;
 
 pub static DSP_ROM: [u16; 4096] = {
@@ -65,6 +68,7 @@ impl System {
             .control
             .set_dsp_interrupt_mask(value.dsp_interrupt_mask());
 
+        tracing::debug!("reset high: {}", value.reset_high());
         self.dsp.mmio.control.set_reset_high(value.reset_high());
 
         if value.reset() {
@@ -72,21 +76,33 @@ impl System {
             self.dsp.reset();
 
             // DMA from main memory
-            if !value.reset_high() {
-                tracing::debug!("DSP DMA stub from main memory");
+            tracing::debug!("DSP DMA stub from main memory");
 
-                let data = self.mem.ram[0x0100_0000..][..1024]
-                    .chunks_exact(2)
-                    .map(|c| u16::from_be_bytes([c[0], c[1]]));
+            let data = self.mem.ram[0x0100_0000..][..1024]
+                .chunks_exact(2)
+                .map(|c| u16::from_be_bytes([c[0], c[1]]));
 
-                for (word, data) in self.dsp.mem.iram[..512].iter_mut().zip(data) {
-                    *word = data;
-                }
+            for (word, data) in self.dsp.mem.iram[..512].iter_mut().zip(data) {
+                *word = data;
             }
         }
     }
 
     pub fn dsp_aram_dma(&mut self) {
-        println!("{:#?} at {}", self.dsp.mmio.aram_dma_control, self.cpu.pc);
+        let length = 4 * self.dsp.mmio.aram_dma_control.length().value() as usize;
+        if length != 0 {
+            tracing::debug!("DMAd ARAM shit");
+
+            assert!(self.dsp.mmio.aram_dma_control.direction() == AramDmaDirection::FromRamToAram);
+
+            let base = self.dsp.mmio.aram_dma_ram;
+            let aram = self.dsp.mmio.aram_dma_aram;
+
+            self.dsp.mem.aram[aram as usize..][..length]
+                .copy_from_slice(&self.mem.ram[base.value() as usize..][..length]);
+
+            self.dsp.mmio.aram_dma_control.set_length(u31::new(0));
+            self.dsp.mmio.control.set_aram_interrupt(true);
+        }
     }
 }
