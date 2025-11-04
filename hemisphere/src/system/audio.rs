@@ -30,10 +30,10 @@ pub struct Control {
 #[bitos(16)]
 #[derive(Debug, Clone, Copy, Default)]
 pub struct DmaControl {
-    #[bits(0)]
-    pub transfer_ongoing: bool,
-    #[bits(1..16)]
+    #[bits(0..15)]
     pub length: u15,
+    #[bits(15)]
+    pub transfer_ongoing: bool,
 }
 
 #[derive(Default)]
