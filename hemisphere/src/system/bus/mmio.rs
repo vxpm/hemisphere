@@ -182,6 +182,7 @@ mmio! {
 impl Mmio {
     pub(super) fn log_reads(self) -> bool {
         match self {
+            Mmio::DiskControl => false,
             Mmio::DspSendMailbox => false,
             Mmio::DspRecvMailbox => false,
             _ => true,

@@ -1603,6 +1603,7 @@ impl Dsp {
         let addr = self.regs.get(Reg::new(r));
 
         if self.condition(code) {
+            tracing::warn!("jumping to {addr:04X}");
             self.regs.pc = addr.wrapping_sub(1);
         }
     }

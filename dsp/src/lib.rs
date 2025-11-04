@@ -428,14 +428,15 @@ impl Dsp {
 
     pub fn write_mmio(&mut self, offset: u8, value: u16) {
         match offset {
+            // Coefficients
             0xA0..=0xAF => (),
 
             // DMA
-            0xC9 => {
-                self.mmio.dsp_dma.control = mmio::DspDmaControl::from_bits(value)
-                    .with_transfer_ongoing(self.mmio.dsp_dma.control.transfer_ongoing())
+            0xC9 => self.mmio.dsp_dma.control = mmio::DspDmaControl::from_bits(value),
+            0xCB => {
+                self.mmio.dsp_dma.length = value;
+                self.mmio.dsp_dma.control.set_transfer_ongoing(true);
             }
-            0xCB => self.mmio.dsp_dma.length = value, // TODO: this
             0xCD => self.mmio.dsp_dma.dsp_base = value,
             0xCE => {
                 self.mmio.dsp_dma.ram_base =
@@ -448,8 +449,13 @@ impl Dsp {
 
             // Interrupt
             0xFB => {
-                self.mmio.control.set_dsp_interrupt(true);
+                if value > 0 {
+                    self.mmio.control.set_dsp_interrupt(true);
+                }
             }
+
+            // Accelerator
+            0xD1..=0xED => tracing::warn!("writing 0x{value:04X} to accelerator 0x{offset:02X}"),
 
             // Mailboxes
             0xFC => {
@@ -521,6 +527,8 @@ impl Dsp {
         if let Some(extra) = extra {
             ins.extra = extra;
         }
+
+        // println!("executing {:?} at 0x{:04X}", ins, self.regs.pc);
 
         // execute
         let regs_previous = self.regs.clone();

@@ -1,5 +1,6 @@
 use crate::system::System;
 use bitos::{bitos, integer::u15};
+use common::Address;
 
 #[bitos(1)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -39,6 +40,7 @@ pub struct DmaControl {
 #[derive(Default)]
 pub struct Interface {
     pub control: Control,
+    pub dma_base: Address,
     pub dma_control: DmaControl,
     pub last_updated_counter: u64,
     pub sample_counter: f64,
@@ -50,7 +52,7 @@ impl Interface {
         self.control.set_aux_sample_rate(value.aux_sample_rate());
         self.control.set_interrupt_mask(value.interrupt_mask());
         self.control
-            .set_interrupt_mask(self.control.interrupt() & !value.interrupt());
+            .set_interrupt(self.control.interrupt() & !value.interrupt());
         self.control.set_interrupt_valid(value.interrupt_valid());
 
         if value.sample_counter_reset() {

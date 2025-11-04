@@ -42,7 +42,7 @@ pub struct Control {
     #[bits(8)]
     pub dsp_interrupt_mask: bool,
     #[bits(9)]
-    pub aram_dma_ongoing: bool,
+    pub dsp_dma_ongoing: bool,
     #[bits(10)]
     pub unknown: bool,
     #[bits(11)]
@@ -60,7 +60,7 @@ impl Control {
         let ai = self.ai_interrupt() && self.ai_interrupt_mask();
         let aram = self.aram_interrupt() && self.aram_interrupt_mask();
         let dsp = self.dsp_interrupt() && self.dsp_interrupt_mask();
-        self.interrupt() || ai || aram || dsp
+        ai || aram || dsp
     }
 }
 

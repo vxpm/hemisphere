@@ -131,7 +131,7 @@ impl System {
 
     /// Performs the DSP DMA if length is not zero.
     pub fn dsp_dma(&mut self) {
-        if self.dsp.mmio.dsp_dma.length != 0 {
+        if self.dsp.mmio.dsp_dma.control.transfer_ongoing() {
             let ram_base = self
                 .mmu
                 .translate_data_addr(self.dsp.mmio.dsp_dma.ram_base)
@@ -193,6 +193,7 @@ impl System {
                 }
             };
 
+            self.dsp.mmio.dsp_dma.control.set_transfer_ongoing(false);
             self.dsp.mmio.dsp_dma.length = 0;
         }
     }

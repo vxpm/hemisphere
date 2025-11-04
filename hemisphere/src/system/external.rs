@@ -273,13 +273,23 @@ impl System {
         }
     }
 
+    pub fn exi_channel2_transfer(&mut self) {
+        assert_eq!(
+            self.external.channel2.parameter.device2(),
+            Some(Device2::AD16)
+        );
+
+        self.external.channel2.immediate = 0;
+        self.external.channel2.control.set_transfer_ongoing(false);
+    }
+
     pub fn exi_update(&mut self) {
         if self.external.channel0.control.transfer_ongoing() {
             self.exi_channel0_transfer();
         }
 
         if self.external.channel2.control.transfer_ongoing() {
-            // self.exi_channel2_transfer();
+            self.exi_channel2_transfer();
         }
     }
 }

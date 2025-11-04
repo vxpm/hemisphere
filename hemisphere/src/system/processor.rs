@@ -37,6 +37,12 @@ pub struct InterruptSources {
     pub high_speed_port: bool,
 }
 
+// impl std::fmt::Debug for InterruptSources {
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//         let mut set = f.debug_set();
+//     }
+// }
+
 #[bitos(32)]
 #[derive(Default, Debug, Clone, Copy)]
 pub struct InterruptMask {
@@ -119,6 +125,7 @@ impl System {
 
         let raised = self.get_raised_interrupts();
         if raised.to_bits().value() != 0 {
+            tracing::debug!("raising interrupt exception for {raised:?}");
             self.cpu.raise_exception(Exception::Interrupt);
         }
     }
