@@ -149,7 +149,14 @@ impl System {
             Mmio::DspSendMailbox => ne!(self.dsp.mmio.cpu_mailbox.as_bytes()),
             Mmio::DspRecvMailbox => {
                 let data = ne!(self.dsp.mmio.dsp_mailbox.as_bytes());
-                if range_overlap(mmio_range, 0..2) {
+                let status = self.dsp.mmio.dsp_mailbox.status();
+
+                if range_overlap(mmio_range, 0..2) && status {
+                    tracing::debug!(
+                        "received from DSP mailbox: 0x{:08X}",
+                        self.dsp.mmio.dsp_mailbox.data().value()
+                    );
+
                     self.dsp.mmio.dsp_mailbox.set_status(false);
                 }
 
@@ -203,14 +210,16 @@ impl System {
             }
         };
 
-        tracing::debug!(
-            pc = ?self.cpu.pc,
-            "reading from {:?}[{}..{}]: {:08X}",
-            reg,
-            offset,
-            offset + size_of::<P>(),
-            value
-        );
+        if reg.log_reads() {
+            tracing::debug!(
+                pc = ?self.cpu.pc,
+                "reading from {:?}[{}..{}]: {:08X}",
+                reg,
+                offset,
+                offset + size_of::<P>(),
+                value
+            );
+        }
 
         value
     }

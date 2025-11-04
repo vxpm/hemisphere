@@ -390,8 +390,10 @@ impl Dsp {
         self.mmio.cpu_mailbox = mmio::Mailbox::from_bits(0);
 
         self.regs.pc = if self.mmio.control.reset_high() {
+            tracing::debug!("resetting at IROM (0x8000)");
             0x8000
         } else {
+            tracing::debug!("resetting at IRAM (0x0000)");
             0x0000
         };
     }
@@ -410,7 +412,14 @@ impl Dsp {
             0xFD => self.mmio.dsp_mailbox.low(),
             0xFE => self.mmio.cpu_mailbox.high_and_status(),
             0xFF => {
-                self.mmio.cpu_mailbox.set_status(false);
+                if self.mmio.cpu_mailbox.status() {
+                    tracing::debug!(
+                        "received from CPU mailbox: 0x{:08X}",
+                        self.mmio.cpu_mailbox.data().value()
+                    );
+                    self.mmio.cpu_mailbox.set_status(false);
+                }
+
                 self.mmio.cpu_mailbox.low()
             }
             _ => unimplemented!("read from {offset:02X}"),
@@ -419,6 +428,8 @@ impl Dsp {
 
     pub fn write_mmio(&mut self, offset: u8, value: u16) {
         match offset {
+            0xA0..=0xAF => (),
+
             // DMA
             0xC9 => {
                 self.mmio.dsp_dma.control = mmio::DspDmaControl::from_bits(value)
@@ -492,6 +503,10 @@ impl Dsp {
     }
 
     pub fn step(&mut self) {
+        if self.mmio.control.halt() {
+            return;
+        }
+
         self.check_external_interrupt();
         self.check_stacks();
 

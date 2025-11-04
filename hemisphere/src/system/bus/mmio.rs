@@ -178,3 +178,13 @@ mmio! {
     // === PI FIFO===
     0x8000, 32, ProcessorFifo;
 }
+
+impl Mmio {
+    pub(super) fn log_reads(self) -> bool {
+        match self {
+            Mmio::DspSendMailbox => false,
+            Mmio::DspRecvMailbox => false,
+            _ => true,
+        }
+    }
+}

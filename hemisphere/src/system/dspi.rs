@@ -1,6 +1,7 @@
 use crate::system::Event;
 use crate::system::System;
 use bitos::integer::u31;
+use common::Address;
 use common::Primitive;
 use dsp::mmio::{AramDmaDirection, DspDmaDirection, DspDmaTarget};
 
@@ -37,7 +38,10 @@ impl System {
     pub fn dsp_write_control(&mut self, value: dsp::mmio::Control) {
         self.dsp.mmio.control.set_halt(value.halt());
 
+        // DSP external interrupt
         self.dsp.mmio.control.set_interrupt(value.interrupt());
+
+        // PI DMA interrupts
         self.dsp
             .mmio
             .control
@@ -66,14 +70,13 @@ impl System {
             .set_dsp_interrupt_mask(value.dsp_interrupt_mask());
 
         self.dsp.mmio.control.set_unknown(value.unknown());
+
+        let old_reset_high = self.dsp.mmio.control.reset_high();
         self.dsp.mmio.control.set_reset_high(value.reset_high());
 
-        if value.reset() {
-            tracing::debug!("DSP reset");
-            self.dsp.reset();
-
-            // DMA from main memory
-            if value.reset_high() {
+        if value.reset() || (!value.reset_high() && old_reset_high) {
+            // DMA from main memory if resetting at low
+            if !value.reset_high() {
                 tracing::debug!("DSP DMA stub from main memory");
                 let data = self.mem.ram[0x0100_0000..][..1024]
                     .chunks_exact(2)
@@ -83,6 +86,9 @@ impl System {
                     *word = data;
                 }
             }
+
+            tracing::debug!("DSP reset");
+            self.dsp.reset();
         }
     }
 
@@ -99,7 +105,8 @@ impl System {
             match self.dsp.mmio.aram_dma.control.direction() {
                 AramDmaDirection::FromRamToAram => {
                     tracing::debug!(
-                        "ARAM DMA {length} bytes from RAM {ram_base} to ARAM {aram_base:08X}"
+                        "ARAM DMA {length} bytes from RAM {} to ARAM {aram_base:08X}",
+                        Address(ram_base)
                     );
 
                     self.dsp.mem.aram[aram_base as usize..][..length]
@@ -107,7 +114,8 @@ impl System {
                 }
                 AramDmaDirection::FromAramToRam => {
                     tracing::debug!(
-                        "ARAM DMA {length} bytes from ARAM {aram_base:08X} to RAM {ram_base}"
+                        "ARAM DMA {length} bytes from ARAM {aram_base:08X} to RAM {}",
+                        Address(ram_base)
                     );
 
                     self.mem.ram[ram_base as usize..][..length]
@@ -164,8 +172,8 @@ impl System {
                     }
                 }
                 (DspDmaTarget::Imem, DspDmaDirection::FromRamToDsp) => {
-                    tracing::debug!(
-                        "DSP DMA {length:04X} bytes from RAM {ram_base:08X} to IMEM {dsp_base:04X}"
+                    tracing::info!(
+                        "DSP DMA {length:04X} bytes from RAM {ram_base:08X} to IMEM {dsp_base:04X} (ucode)"
                     );
 
                     // let mut file = std::fs::File::create("IMEM.DUMP").unwrap();

@@ -21,7 +21,7 @@ pub struct Mailbox {
 }
 
 #[bitos(16)]
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy)]
 pub struct Control {
     #[bits(0)]
     pub reset: bool,
@@ -47,6 +47,12 @@ pub struct Control {
     pub unknown: bool,
     #[bits(11)]
     pub reset_high: bool,
+}
+
+impl Default for Control {
+    fn default() -> Self {
+        Self::from_bits(0).with_reset_high(true)
+    }
 }
 
 impl Control {

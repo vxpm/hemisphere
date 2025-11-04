@@ -318,6 +318,7 @@ impl System {
                         self.dsp.step();
                     }
                 }
+
                 self.dsp_dma();
                 self.scheduler
                     .schedule(Event::AdvanceDsp, 6 * dspi::STEP_SIZE);
