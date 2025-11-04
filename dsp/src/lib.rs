@@ -344,6 +344,17 @@ pub struct Dsp {
 }
 
 impl Dsp {
+    fn check_external_interrupt(&mut self) {
+        if self.mmio.control.interrupt() && self.regs.status.external_interrupt_enable() {
+            self.mmio.control.set_interrupt(false);
+
+            // raise exception
+            self.regs.call_stack.push(self.regs.pc);
+            self.regs.data_stack.push(self.regs.status.to_bits());
+            self.regs.pc = 0x000E;
+        }
+    }
+
     fn check_stacks(&mut self) {
         if self
             .regs
@@ -370,11 +381,13 @@ impl Dsp {
         self.loop_counter = None;
 
         self.regs.wrapping = [0xFFFF; 4];
+        self.regs.call_stack.clear();
+        self.regs.data_stack.clear();
+        self.regs.loop_stack.clear();
+        self.regs.loop_count.clear();
+
         self.mmio.dsp_mailbox = mmio::Mailbox::from_bits(0);
         self.mmio.cpu_mailbox = mmio::Mailbox::from_bits(0);
-
-        // self.regs.call_stack.push(self.regs.pc);
-        // self.regs.data_stack.push(self.regs.status.to_bits());
 
         self.regs.pc = if self.mmio.control.reset_high() {
             0x8000
@@ -447,7 +460,6 @@ impl Dsp {
 
     /// Reads from data memory.
     pub fn read_dmem(&mut self, addr: u16) -> u16 {
-        println!("read dmem 0x{addr:04X}");
         let value = match addr {
             0x0000..0x1000 => self.mem.dram[addr as usize],
             0x1000..0x1800 => self.mem.coef[addr as usize - 0x1000],
@@ -486,6 +498,7 @@ impl Dsp {
     }
 
     pub fn step(&mut self) {
+        self.check_external_interrupt();
         self.check_stacks();
 
         // fetch
@@ -498,10 +511,6 @@ impl Dsp {
 
         if let Some(extra) = extra {
             ins.extra = extra;
-        }
-
-        if opcode != Opcode::Nop && opcode != Opcode::Lrri {
-            println!("executing {:?} at {:04X}", ins, self.regs.pc);
         }
 
         // execute

@@ -438,7 +438,10 @@ impl System {
             }
             Mmio::AudioDmaControl => {
                 ne!(self.audio.dma_control.as_mut_bytes());
-                self.scheduler.schedule_now(Event::AiInterrupt);
+                if self.audio.dma_control.transfer_ongoing() {
+                    println!("audio DMA");
+                    self.scheduler.schedule_now(Event::AiInterrupt);
+                }
             }
 
             // === Disk Interface ===
