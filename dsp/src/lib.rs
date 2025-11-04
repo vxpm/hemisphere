@@ -419,9 +419,6 @@ impl Dsp {
 
     pub fn write_mmio(&mut self, offset: u8, value: u16) {
         match offset {
-            // Coefficients
-            0xA0..=0xAF => (),
-
             // DMA
             0xC9 => {
                 self.mmio.dsp_dma.control = mmio::DspDmaControl::from_bits(value)
@@ -437,9 +434,6 @@ impl Dsp {
                 self.mmio.dsp_dma.ram_base =
                     self.mmio.dsp_dma.ram_base.with_bits(0, 16, value as u32)
             }
-
-            // ARAM
-            0xD1..=0xED => (),
 
             // Interrupt
             0xFB => {
