@@ -4,7 +4,6 @@ use crate::system::{
     Event, System, disk, external,
     mem::{IPL_LEN, RAM_LEN},
 };
-use bitos::integer::u15;
 use common::{Address, Primitive};
 use std::ops::Range;
 use zerocopy::IntoBytes;
@@ -450,14 +449,9 @@ impl System {
             Mmio::AudioDmaBase => ne!(self.audio.dma_base.as_mut_bytes()),
             Mmio::AudioDmaControl => {
                 ne!(self.audio.dma_control.as_mut_bytes());
-                // if self.audio.dma_control.transfer_ongoing() {
-                //     println!("audio DMA");
-                //     tracing::debug!("AI DMA INTERRUPT!!!");
-                //     self.audio.dma_control.set_length(u15::new(0));
-                //     self.audio.dma_control.set_transfer_ongoing(false);
-                //     self.dsp.mmio.control.set_ai_interrupt(true);
-                //     self.scheduler.schedule_now(Event::CheckInterrupts);
-                // }
+                if self.audio.dma_control.transfer_ongoing() {
+                    self.scheduler.schedule(Event::AudioDma, 1000000);
+                }
             }
 
             // === Disk Interface ===

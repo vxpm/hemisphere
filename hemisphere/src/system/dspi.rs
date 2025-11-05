@@ -132,13 +132,9 @@ impl System {
     /// Performs the DSP DMA if length is not zero.
     pub fn dsp_dma(&mut self) {
         if self.dsp.mmio.dsp_dma.control.transfer_ongoing() {
-            let ram_base = self
-                .mmu
-                .translate_data_addr(self.dsp.mmio.dsp_dma.ram_base)
-                .unwrap_or(self.dsp.mmio.dsp_dma.ram_base);
-
+            let ram_base = self.dsp.mmio.dsp_dma.ram_base & 0x3FF_FFFF;
             let dsp_base = self.dsp.mmio.dsp_dma.dsp_base;
-            let length = self.dsp.mmio.dsp_dma.length / 2;
+            let length = self.dsp.mmio.dsp_dma.length;
 
             let (target, direction) = (
                 self.dsp.mmio.dsp_dma.control.dsp_target(),
@@ -151,7 +147,7 @@ impl System {
                         "DSP DMA {length:04X} bytes from RAM {ram_base:08X} to DMEM {dsp_base:04X}"
                     );
 
-                    for word in 0..length {
+                    for word in 0..(length / 2) {
                         let data = u16::read_be_bytes(
                             &self.mem.ram[(ram_base + 2 * word as u32) as usize..],
                         );
@@ -164,7 +160,7 @@ impl System {
                         "DSP DMA {length:04X} bytes from DMEM {dsp_base:04X} to RAM {ram_base:08X}"
                     );
 
-                    for word in 0..length {
+                    for word in 0..(length / 2) {
                         let data = self.dsp.read_dmem(dsp_base + word);
                         data.write_be_bytes(
                             &mut self.mem.ram[(ram_base + 2 * word as u32) as usize..],
@@ -177,7 +173,7 @@ impl System {
                     );
 
                     // let mut file = std::fs::File::create("IMEM.DUMP").unwrap();
-                    for word in 0..length {
+                    for word in 0..(length / 2) {
                         let data = u16::read_be_bytes(
                             &self.mem.ram[(ram_base + 2 * word as u32) as usize..],
                         );

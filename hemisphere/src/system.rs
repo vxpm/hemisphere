@@ -26,6 +26,7 @@ use crate::{
         scheduler::Scheduler,
     },
 };
+use bitos::integer::u15;
 use common::{
     Address,
     arch::{Cpu, Exception, FREQUENCY},
@@ -62,6 +63,8 @@ pub enum Event {
     DiskTransferComplete,
     /// Advance DSP forward
     AdvanceDsp,
+    /// Finish audio DMA
+    AudioDma,
 }
 
 /// System state.
@@ -320,6 +323,13 @@ impl System {
                 self.dsp_dma();
                 self.scheduler
                     .schedule(Event::AdvanceDsp, 6 * dspi::STEP_SIZE);
+            }
+            Event::AudioDma => {
+                tracing::debug!("AI DMA finished");
+                self.audio.dma_control.set_length(u15::new(0));
+                self.audio.dma_control.set_transfer_ongoing(false);
+                self.dsp.mmio.control.set_ai_interrupt(true);
+                self.pi_check_interrupts();
             }
         }
     }
