@@ -1,0 +1,7 @@
+# Lists all recipes
+list:
+    @just --list
+
+# Runs the tests
+test *args:
+    @cargo test -p dsp --features zayd-tests {{args}}

@@ -11,6 +11,10 @@ workspace = true
 name = "zayd-tests"
 path = "zayd-tests/main.rs"
 harness = false
+required-features = ["zayd-tests"]
+
+[features]
+zayd-tests = []
 
 [dev-dependencies]
 binrw.workspace = true

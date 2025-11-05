@@ -1,4 +1,5 @@
 mod fake-ipl
+mod dsp
 
 export RUSTDOCFLAGS := "-Zunstable-options --show-type-layout --generate-link-to-definition --default-theme dark"
 

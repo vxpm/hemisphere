@@ -14,7 +14,12 @@ use tinyvec::ArrayVec;
 
 pub use ins::Ins;
 
-const ARAM_LEN: usize = 16 * bytesize::MIB as usize;
+const ARAM_LEN: usize = if cfg!(feature = "zayd-tests") {
+    0
+} else {
+    16 * bytesize::MIB as usize
+};
+
 const IRAM_LEN: usize = 0x1000;
 const IROM_LEN: usize = 0x1000;
 const DRAM_LEN: usize = 0x1000;
@@ -513,8 +518,8 @@ impl Dsp {
             return;
         }
 
-        self.check_external_interrupt();
         self.check_stacks();
+        self.check_external_interrupt();
 
         // fetch
         let mut ins = Ins::new(self.read_imem(self.regs.pc));
@@ -528,7 +533,7 @@ impl Dsp {
             ins.extra = extra;
         }
 
-        // println!("executing {:?} at 0x{:04X}", ins, self.regs.pc);
+        let ins_len = if extra.is_some() { 2 } else { 1 };
 
         // execute
         let regs_previous = self.regs.clone();
@@ -691,15 +696,12 @@ impl Dsp {
         if let Some(loop_counter) = &mut self.loop_counter {
             if *loop_counter == 0 {
                 self.loop_counter = None;
-                self.regs.pc += 1;
+                self.regs.pc += ins_len;
             } else {
                 *loop_counter -= 1;
             }
         } else {
-            self.regs.pc = self
-                .regs
-                .pc
-                .wrapping_add(if extra.is_some() { 2 } else { 1 });
+            self.regs.pc = self.regs.pc.wrapping_add(ins_len);
         }
     }
 }
