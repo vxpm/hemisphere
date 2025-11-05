@@ -132,7 +132,7 @@ impl System {
     /// Performs the DSP DMA if length is not zero.
     pub fn dsp_dma(&mut self) {
         if self.dsp.mmio.dsp_dma.control.transfer_ongoing() {
-            let ram_base = self.dsp.mmio.dsp_dma.ram_base & 0x3FF_FFFF;
+            let ram_base = self.dsp.mmio.dsp_dma.ram_base & 0xFF_FFFF;
             let dsp_base = self.dsp.mmio.dsp_dma.dsp_base;
             let length = self.dsp.mmio.dsp_dma.length;
 

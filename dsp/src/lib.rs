@@ -533,7 +533,7 @@ impl Dsp {
             ins.extra = extra;
         }
 
-        let ins_len = if extra.is_some() { 2 } else { 1 };
+        let ins_len = opcode.len();
 
         // execute
         let regs_previous = self.regs.clone();

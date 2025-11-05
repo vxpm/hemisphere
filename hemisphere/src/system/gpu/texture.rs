@@ -98,18 +98,20 @@ impl Format {
 
     // Size, in bytes, of the texture.
     pub fn size(&self) -> u32 {
-        let pixels = self.width() * self.height();
+        let pixels = |n| self.width().next_multiple_of(n) * self.height().next_multiple_of(n);
+        let pixels_ab = |a, b| self.width().next_multiple_of(a) * self.height().next_multiple_of(b);
+
         match self.data_format() {
-            DataFormat::Intensity4 => pixels / 2,
-            DataFormat::Intensity8 => pixels,
-            DataFormat::Intensity4Alpha => pixels,
-            DataFormat::Intensity8Alpha => pixels * 2,
-            DataFormat::Rgb565 => pixels * 2,
-            DataFormat::Rgb5A3 => pixels * 2,
-            DataFormat::Rgba8 => pixels * 4,
-            DataFormat::Cmp => pixels / 2,
-            DataFormat::C8 => pixels,
-            DataFormat::C4 => pixels / 2,
+            DataFormat::Intensity4 => pixels(8) / 2,
+            DataFormat::Intensity8 => pixels_ab(8, 4),
+            DataFormat::Intensity4Alpha => pixels(8),
+            DataFormat::Intensity8Alpha => pixels(4) * 2,
+            DataFormat::Rgb565 => pixels(4) * 2,
+            DataFormat::Rgb5A3 => pixels(4) * 2,
+            DataFormat::Rgba8 => pixels(4) * 4,
+            DataFormat::Cmp => pixels(8) / 2,
+            DataFormat::C8 => pixels(1),
+            DataFormat::C4 => pixels(1) / 2,
             _ => todo!("format {:?}", self.data_format()),
         }
     }
