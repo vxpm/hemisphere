@@ -368,7 +368,7 @@ impl Dsp {
             .is_some_and(|v| *v == self.regs.pc)
         {
             let counter = self.regs.loop_count.last_mut().unwrap();
-            *counter -= 1;
+            *counter = counter.saturating_sub(1);
 
             if *counter == 0 {
                 self.regs.call_stack.pop();

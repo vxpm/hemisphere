@@ -450,7 +450,7 @@ impl System {
             Mmio::AudioDmaControl => {
                 ne!(self.audio.dma_control.as_mut_bytes());
                 if self.audio.dma_control.transfer_ongoing() {
-                    self.scheduler.schedule(Event::AudioDma, 1000000);
+                    self.scheduler.schedule(Event::AudioDma, 100000);
                 }
             }
 
