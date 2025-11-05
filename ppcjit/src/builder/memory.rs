@@ -1143,4 +1143,29 @@ impl BlockBuilder<'_> {
 
         STORE_INFO
     }
+
+    pub fn psq_stu(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let addr = if ins.field_ra() == 0 {
+            self.ir_value(ins.field_ps_offset() as i32)
+        } else {
+            let ra = self.get(ins.gpr_a());
+            self.bd.ins().iadd_imm(ra, ins.field_ps_offset() as i64)
+        };
+
+        let ps0 = self.get(ins.fpr_s());
+        let ps1 = self.get(Reg::PS1(ins.fpr_s()));
+        let index = self.ir_value(ins.field_ps_i());
+
+        let size = self.write_quantized(addr, index, ps0);
+        if ins.field_ps_w() == 0 {
+            let addr = self.bd.ins().iadd(addr, size);
+            self.write_quantized(addr, index, ps1);
+        }
+
+        self.set(ins.gpr_a(), addr);
+
+        STORE_INFO
+    }
 }

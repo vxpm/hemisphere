@@ -535,6 +535,7 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::PsSum1 => self.ps_sum1(ins),
             Opcode::PsqL => self.psq_l(ins),
             Opcode::PsqSt => self.psq_st(ins),
+            Opcode::PsqStu => self.psq_stu(ins),
             Opcode::Rfi => self.rfi(ins),
             Opcode::Rlwimi => self.rlwimi(ins),
             Opcode::Rlwinm => self.rlwinm(ins),
@@ -584,6 +585,7 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Stfsux => self.stfsux(ins),
             Opcode::Stfdx => self.stfdx(ins),
             Opcode::Stfdux => self.stfdux(ins),
+            Opcode::Dcbtst => self.stub(ins),
             Opcode::Illegal => {
                 return Err(BuilderError::Illegal(ins));
             }
