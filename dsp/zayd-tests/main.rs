@@ -83,19 +83,16 @@ fn run_test(file: file::TestFile, quiet: bool) -> Result<(), Failed> {
     let total = file.cases.len();
     let mut failures = vec![];
     for (i, case) in file.cases.into_iter().enumerate() {
-        // if i != 13 {
-        //     continue;
-        // }
-
         let Err(failure) = run_case(case) else {
             continue;
         };
 
-        let ins = failure
-            .code
-            .iter()
-            .map(|i| format!("{:?}\r\n", i))
-            .collect::<String>();
+        let mut pc = 62;
+        let mut disasm = String::new();
+        for ins in failure.code.iter() {
+            writeln!(&mut disasm, "{pc:04X} {ins:?}").unwrap();
+            pc += ins.len();
+        }
 
         let divergences = failure
             .divergences
@@ -105,7 +102,7 @@ fn run_test(file: file::TestFile, quiet: bool) -> Result<(), Failed> {
 
         if early_exit {
             failures.push(format!(
-                "Case {i} failed:\r\nINITIAL: {:04X?}\r\nEXPECTED: {:04X?}\r\nDIVERGENCES: {}\r\nCODE:\r\n{ins}",
+                "Case {i} failed:\r\nINITIAL: {:04X?}\r\nEXPECTED: {:04X?}\r\nDIVERGENCES: {}\r\nCODE:\r\n{disasm}",
                 failure.initial,
                 failure.expected,
                 divergences.trim_suffix(", "),
@@ -115,7 +112,7 @@ fn run_test(file: file::TestFile, quiet: bool) -> Result<(), Failed> {
             failures.push(format!(
                 "Case {i} failed: {}\r\n{}",
                 divergences.trim_suffix(", "),
-                ins
+                disasm
             ));
         }
     }

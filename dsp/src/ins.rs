@@ -291,6 +291,10 @@ impl Opcode {
         )
     }
 
+    pub fn len(self) -> u16 {
+        if self.needs_extra() { 2 } else { 1 }
+    }
+
     pub fn has_extension(self) -> bool {
         use Opcode::*;
 
@@ -445,6 +449,10 @@ impl Ins {
 
     pub fn opcode(self) -> Opcode {
         Opcode::new(self.base)
+    }
+
+    pub fn len(self) -> u16 {
+        self.opcode().len()
     }
 
     pub fn extension_opcode(self) -> ExtensionOpcode {
