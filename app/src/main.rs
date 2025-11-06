@@ -7,6 +7,7 @@ mod disasm;
 mod efb;
 mod registers;
 mod subsystem;
+mod variables;
 mod windows;
 mod xfb;
 
@@ -194,6 +195,10 @@ impl eframe::App for App {
 
                     if ui.button("Call Stack").clicked() {
                         self.create_window(debug::Window::default());
+                    }
+
+                    if ui.button("Variables").clicked() {
+                        self.create_window(variables::Window::default());
                     }
 
                     if ui.button("XFB").clicked() {
