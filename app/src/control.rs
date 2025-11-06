@@ -1,7 +1,8 @@
 use crate::{Ctx, windows::AppWindow};
-use eframe::egui;
+use eframe::egui::{self};
 use hemisphere::{Address, runner::State};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Default, Serialize, Deserialize)]
 pub struct Window {
@@ -13,6 +14,8 @@ pub struct Window {
     breakpoint_to_remove: Option<u32>,
     #[serde(skip)]
     breakpoint_text: String,
+    #[serde(default)]
+    labels: HashMap<u32, String>,
 }
 
 impl Window {}
@@ -35,6 +38,8 @@ impl AppWindow for Window {
         self.breakpoints.clear();
         self.breakpoints
             .extend(state.breakpoints().iter().map(|b| b.value()));
+
+        self.labels.retain(|b, _| self.breakpoints.contains(b));
     }
 
     fn show(&mut self, ui: &mut egui::Ui, ctx: &mut Ctx) {
@@ -76,6 +81,9 @@ impl AppWindow for Window {
 
                         ui.label(Address(*breakpoint).to_string());
                     });
+
+                    let label = self.labels.entry(*breakpoint).or_default();
+                    ui.text_edit_singleline(label);
                 }
             });
     }
