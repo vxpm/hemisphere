@@ -26,7 +26,6 @@ use crate::{
         scheduler::Scheduler,
     },
 };
-use bitos::integer::u15;
 use common::{
     Address,
     arch::{Cpu, Exception, FREQUENCY},
@@ -327,10 +326,9 @@ impl System {
             }
             Event::AudioDma => {
                 tracing::debug!("AI DMA finished");
-                self.audio.dma_control.set_length(u15::new(0));
-                self.audio.dma_control.set_transfer_ongoing(false);
                 self.dsp.mmio.control.set_ai_interrupt(true);
                 self.pi_check_interrupts();
+                self.scheduler.schedule(Event::AudioDma, 1620000);
             }
             Event::AramDma => {
                 self.dsp_aram_dma();

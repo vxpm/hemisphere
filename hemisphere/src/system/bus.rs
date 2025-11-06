@@ -445,14 +445,19 @@ impl System {
             Mmio::DspAramDmaControl => {
                 ne!(self.dsp.mmio.aram_dma.control.as_mut_bytes());
                 if self.dsp.mmio.aram_dma.control.length().value() != 0 {
-                    self.scheduler.schedule(Event::AramDma, 100000);
+                    self.scheduler.schedule(Event::AramDma, 10000);
                 }
             }
             Mmio::AudioDmaBase => ne!(self.audio.dma_base.as_mut_bytes()),
             Mmio::AudioDmaControl => {
+                let ongoing = self.audio.dma_control.transfer_ongoing();
                 ne!(self.audio.dma_control.as_mut_bytes());
-                if self.audio.dma_control.transfer_ongoing() {
-                    self.scheduler.schedule(Event::AudioDma, 100000);
+
+                if !ongoing && self.audio.dma_control.transfer_ongoing() {
+                    self.scheduler.schedule(Event::AudioDma, 1620000);
+                } else if !self.audio.dma_control.transfer_ongoing() {
+                    self.scheduler
+                        .retain(|e| !matches!(e.event, Event::AudioDma));
                 }
             }
 

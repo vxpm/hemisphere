@@ -156,9 +156,6 @@ impl System {
 
                     for word in 0..(length / 2) {
                         let data = self.dsp.read_dmem(dsp_base + word);
-                        if data != 0 {
-                            println!("{data:04X}");
-                        }
                         data.write_be_bytes(
                             &mut self.mem.ram[(ram_base + 2 * word as u32) as usize..],
                         );
@@ -189,7 +186,6 @@ impl System {
             self.dsp.mmio.dsp_dma.length = 0;
             self.dsp.mmio.dsp_dma.control.set_transfer_ongoing(false);
             self.dsp.mmio.control.set_dsp_dma_ongoing(false);
-            self.dsp.mmio.control.set_dsp_interrupt(true);
         }
     }
 }
