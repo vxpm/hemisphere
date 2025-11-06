@@ -67,7 +67,7 @@ impl System {
     pub fn ai_update_sample_counter(&mut self) {
         if self.audio.control.playing() {
             let elapsed = self.scheduler.elapsed() - self.audio.last_updated_counter;
-            self.audio.sample_counter += elapsed as f64 / 9750.0;
+            self.audio.sample_counter += elapsed as f64 / 10125.0;
         }
 
         self.audio.last_updated_counter = self.scheduler.elapsed();

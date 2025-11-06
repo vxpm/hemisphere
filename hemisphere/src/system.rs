@@ -65,6 +65,7 @@ pub enum Event {
     AdvanceDsp,
     /// Finish audio DMA
     AudioDma,
+    AramDma,
 }
 
 /// System state.
@@ -329,6 +330,10 @@ impl System {
                 self.audio.dma_control.set_length(u15::new(0));
                 self.audio.dma_control.set_transfer_ongoing(false);
                 self.dsp.mmio.control.set_ai_interrupt(true);
+                self.pi_check_interrupts();
+            }
+            Event::AramDma => {
+                self.dsp_aram_dma();
                 self.pi_check_interrupts();
             }
         }

@@ -1,4 +1,3 @@
-use crate::system::Event;
 use crate::system::System;
 use bitos::integer::u31;
 use common::Address;
@@ -24,15 +23,11 @@ const fn convert_to_dsp_words<const N: usize>(bytes: &[u8]) -> [u16; N] {
     result
 }
 
-pub static DSP_ROM: [u16; 4096] = {
-    let bytes = include_bytes!("../../../resources/dsp_rom.bin");
-    convert_to_dsp_words(bytes)
-};
+pub static DSP_ROM: [u16; 4096] =
+    convert_to_dsp_words(include_bytes!("../../../resources/dsp_rom.bin"));
 
-pub static DSP_COEF: [u16; 2048] = {
-    let bytes = include_bytes!("../../../resources/dsp_coef.bin");
-    convert_to_dsp_words(bytes)
-};
+pub static DSP_COEF: [u16; 2048] =
+    convert_to_dsp_words(include_bytes!("../../../resources/dsp_coef.bin"));
 
 impl System {
     pub fn dsp_write_control(&mut self, value: dsp::mmio::Control) {
@@ -125,11 +120,10 @@ impl System {
 
             self.dsp.mmio.aram_dma.control.set_length(u31::new(0));
             self.dsp.mmio.control.set_aram_interrupt(true);
-            self.scheduler.schedule_now(Event::CheckInterrupts);
         }
     }
 
-    /// Performs the DSP DMA if length is not zero.
+    /// Performs the DSP DMA if the transfer is ongoing.
     pub fn dsp_dma(&mut self) {
         if self.dsp.mmio.dsp_dma.control.transfer_ongoing() {
             let ram_base = self.dsp.mmio.dsp_dma.ram_base & 0xFF_FFFF;
@@ -162,6 +156,9 @@ impl System {
 
                     for word in 0..(length / 2) {
                         let data = self.dsp.read_dmem(dsp_base + word);
+                        if data != 0 {
+                            println!("{data:04X}");
+                        }
                         data.write_be_bytes(
                             &mut self.mem.ram[(ram_base + 2 * word as u32) as usize..],
                         );
@@ -189,8 +186,10 @@ impl System {
                 }
             };
 
-            self.dsp.mmio.dsp_dma.control.set_transfer_ongoing(false);
             self.dsp.mmio.dsp_dma.length = 0;
+            self.dsp.mmio.dsp_dma.control.set_transfer_ongoing(false);
+            self.dsp.mmio.control.set_dsp_dma_ongoing(false);
+            self.dsp.mmio.control.set_dsp_interrupt(true);
         }
     }
 }

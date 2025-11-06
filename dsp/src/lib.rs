@@ -123,7 +123,7 @@ impl Product {
 }
 
 #[bitos(16)]
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy)]
 pub struct Status {
     #[bits(0)]
     pub carry: bool,
@@ -151,6 +151,14 @@ pub struct Status {
     pub sign_extend_to_40: bool,
     #[bits(15)]
     pub unsigned_mul: bool,
+}
+
+impl Default for Status {
+    fn default() -> Self {
+        Self::from_bits(0)
+            .with_interrupt_enable(true)
+            .with_external_interrupt_enable(true)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, FromRepr)]
@@ -441,6 +449,7 @@ impl Dsp {
             0xCB => {
                 self.mmio.dsp_dma.length = value;
                 self.mmio.dsp_dma.control.set_transfer_ongoing(true);
+                self.mmio.control.set_dsp_dma_ongoing(true);
             }
             0xCD => self.mmio.dsp_dma.dsp_base = value,
             0xCE => {
