@@ -12,6 +12,16 @@ pub struct Location<'a> {
     pub column: Option<u32>,
 }
 
+impl<'a> Location<'a> {
+    pub fn into_owned(self) -> Location<'static> {
+        Location {
+            file: self.file.map(|s| Cow::Owned(s.into_owned())),
+            line: self.line,
+            column: self.column,
+        }
+    }
+}
+
 pub trait DebugInfo: Send {
     fn find_symbol(&self, addr: Address) -> Option<String>;
     fn find_location(&self, addr: Address) -> Option<Location<'_>>;

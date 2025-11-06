@@ -1,11 +1,16 @@
 use crate::{Ctx, windows::AppWindow};
 use eframe::egui::{self, Color32};
 use egui_extras::{Column, TableBuilder};
-use hemisphere::{runner::State, system::eabi::CallStack};
+use hemisphere::{
+    runner::State,
+    system::{eabi::CallStack, executable::Location},
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Default, Serialize, Deserialize)]
 pub struct Window {
+    #[serde(skip)]
+    location: Option<Location<'static>>,
     #[serde(skip)]
     call_stack: CallStack,
 }
@@ -17,11 +22,34 @@ impl AppWindow for Window {
     }
 
     fn prepare(&mut self, state: &mut State) {
-        self.call_stack = state.core().system.call_stack();
+        let core = state.core();
+
+        self.call_stack = core.system.call_stack();
+        self.location = core
+            .system
+            .config
+            .debug_info
+            .as_ref()
+            .and_then(|d| d.find_location(core.system.cpu.pc).map(|l| l.into_owned()));
     }
 
     fn show(&mut self, ui: &mut egui::Ui, _: &mut Ctx) {
         egui::ScrollArea::both().auto_shrink(false).show(ui, |ui| {
+            ui.horizontal(|ui| {
+                if let Some(location) = &self.location {
+                    ui.label(format!(
+                        "Location of PC: {}:{}:{}",
+                        location.file.as_deref().unwrap_or("<unknown>"),
+                        location.line.unwrap_or(0),
+                        location.column.unwrap_or(0)
+                    ));
+                } else {
+                    ui.label("Location of PC: <unknown>");
+                }
+            });
+
+            ui.separator();
+
             let builder = TableBuilder::new(ui)
                 .auto_shrink(egui::Vec2b::new(false, true))
                 .striped(true)
