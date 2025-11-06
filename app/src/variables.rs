@@ -41,15 +41,18 @@ impl AppWindow for Window {
     fn prepare(&mut self, state: &mut State) {
         let core = state.core();
         for variable in self.variables.iter_mut() {
-            variable.value = core
+            let physical = core
                 .system
-                .read_pure(Address(variable.address))
+                .mmu
+                .translate_data_addr(variable.address)
                 .unwrap_or(0);
+
+            variable.value = core.system.read_pure(Address(physical)).unwrap_or(0);
         }
     }
 
     fn show(&mut self, ui: &mut egui::Ui, _: &mut Ctx) {
-        ui.set_max_width(200.0);
+        ui.set_max_width(250.0);
 
         egui::ScrollArea::both().auto_shrink(false).show(ui, |ui| {
             ui.scope(|ui| {
@@ -71,7 +74,7 @@ impl AppWindow for Window {
                         });
 
                     if ui.button("Add").clicked() {
-                        let address = self.variable_label.trim_prefix("0x").replace("_", "");
+                        let address = self.variable_address.trim_prefix("0x").replace("_", "");
                         let label = self.variable_label.clone();
                         let kind = self.variable_kind;
 

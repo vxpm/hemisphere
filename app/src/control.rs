@@ -1,11 +1,13 @@
 use crate::{Ctx, windows::AppWindow};
-use eframe::egui::{self};
+use eframe::egui::{self, RichText};
 use hemisphere::{Address, runner::State};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[derive(Default, Serialize, Deserialize)]
 pub struct Window {
+    #[serde(skip)]
+    current_pc: u32,
     #[serde(rename(serialize = "breakpoints_to_add"), skip_deserializing)]
     breakpoints: Vec<u32>,
     #[serde(skip_serializing)]
@@ -38,8 +40,9 @@ impl AppWindow for Window {
         self.breakpoints.clear();
         self.breakpoints
             .extend(state.breakpoints().iter().map(|b| b.value()));
-
         self.labels.retain(|b, _| self.breakpoints.contains(b));
+
+        self.current_pc = state.core().system.cpu.pc.value();
     }
 
     fn show(&mut self, ui: &mut egui::Ui, ctx: &mut Ctx) {
@@ -79,7 +82,15 @@ impl AppWindow for Window {
                             self.breakpoint_to_remove = Some(*breakpoint);
                         }
 
-                        ui.label(Address(*breakpoint).to_string());
+                        let text = RichText::new(Address(*breakpoint).to_string()).color(
+                            if *breakpoint == self.current_pc {
+                                egui::Color32::LIGHT_RED
+                            } else {
+                                egui::Color32::GRAY
+                            },
+                        );
+
+                        ui.label(text);
                     });
 
                     let label = self.labels.entry(*breakpoint).or_default();
