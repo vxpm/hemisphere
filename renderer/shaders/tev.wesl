@@ -67,6 +67,7 @@ struct State {
     diffuse: vec4f,
     specular: vec4f,
     coords: array<vec3f, 8>,
+    constants: array<vec4f, 4>,
     
     // per stage
     current_map: u32,
@@ -273,16 +274,17 @@ fn compute_stage_alpha(a: f32, b: f32, c: f32, d: f32, sign: f32, bias: f32, sca
 
 fn compute(config: Config, diffuse: vec4f, specular: vec4f, coords: array<vec3f, 8>) -> vec4f {
     var state: State;
-    state.regs = array(
+    state.diffuse = diffuse;
+    state.specular = specular;
+    state.coords = coords;
+    state.constants = array(
         config.constants.color0,
         config.constants.color1,
         config.constants.color2,
         config.constants.color3,
     );
 
-    state.diffuse = diffuse;
-    state.specular = specular;
-    state.coords = coords;
+    state.regs = state.constants;
 
     var last_color_output = PLACEHOLDER_RGB;
     var last_alpha_output = 1.0;

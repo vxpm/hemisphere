@@ -357,14 +357,16 @@ pub struct Dsp {
 }
 
 impl Dsp {
+    fn raise_exception(&mut self, exception: Exception) {
+        self.regs.call_stack.push(self.regs.pc);
+        self.regs.data_stack.push(self.regs.status.to_bits());
+        self.regs.pc = exception as u16 * 2;
+    }
+
     fn check_external_interrupt(&mut self) {
         if self.mmio.control.interrupt() && self.regs.status.external_interrupt_enable() {
             self.mmio.control.set_interrupt(false);
-
-            // raise exception
-            self.regs.call_stack.push(self.regs.pc);
-            self.regs.data_stack.push(self.regs.status.to_bits());
-            self.regs.pc = 0x000E;
+            self.raise_exception(Exception::Interrupt);
         }
     }
 
@@ -419,6 +421,12 @@ impl Dsp {
             0xCD => self.mmio.dsp_dma.dsp_base,
             0xCE => (self.mmio.dsp_dma.ram_base >> 16) as u16,
             0xCF => self.mmio.dsp_dma.ram_base as u16,
+
+            // Accelerator
+            0xD1..=0xED => {
+                tracing::warn!("reading from accelerator 0x{offset:02X}");
+                0
+            }
 
             // Mailboxes
             0xFC => self.mmio.dsp_mailbox.high_and_status(),
