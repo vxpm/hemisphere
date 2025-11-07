@@ -630,18 +630,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "common"
-version = "0.1.0"
-dependencies = [
- "bitos",
- "bytesize",
- "powerpc",
- "strum",
- "tracing",
- "zerocopy",
-]
-
-[[package]]
 name = "concurrent-queue"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1066,7 +1054,7 @@ dependencies = [
  "binrw",
  "bitos",
  "bytesize",
- "common",
+ "gekko",
  "libtest-mimic",
  "strum",
  "tinyvec",
@@ -1526,6 +1514,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e575fab7d1e0dcb8d0c7bcf9a63ee213816ab51902e6d244a95819acacf1d4f7"
 
 [[package]]
+name = "gekko"
+version = "0.1.0"
+dependencies = [
+ "bitos",
+ "bytesize",
+ "powerpc",
+ "strum",
+ "tracing",
+ "zerocopy",
+]
+
+[[package]]
 name = "generic-array"
 version = "0.14.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1774,10 +1774,10 @@ dependencies = [
  "bitos",
  "bytesize",
  "color-backtrace",
- "common",
  "dol",
  "dsp",
  "easyerr",
+ "gekko",
  "glam",
  "iso",
  "parking_lot",
@@ -3073,9 +3073,9 @@ name = "ppcjit"
 version = "0.1.0"
 dependencies = [
  "bitos",
- "common",
  "cranelift",
  "easyerr",
+ "gekko",
  "iced-x86",
  "memmap2",
  "rustc-hash 2.1.1",

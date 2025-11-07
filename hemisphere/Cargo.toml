@@ -8,11 +8,12 @@ edition = "2024"
 workspace = true
 
 [dependencies]
-common = { path = "../common" }
-ppcjit = { path = "../ppcjit", features = ["disasm"] }
-dol = { path = "../dol" }
-iso = { path = "../iso" }
-dsp = { path = "../dsp" }
+gekko.workspace = true
+ppcjit.workspace = true
+dol.workspace = true
+iso.workspace = true
+dsp.workspace = true
+
 bitos.workspace = true
 bytesize.workspace = true
 easyerr.workspace = true

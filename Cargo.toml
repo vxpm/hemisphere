@@ -1,7 +1,7 @@
 [workspace]
 resolver = "3"
 members = [
-    "common",
+    "gekko",
     "dol",
     "iso",
     "cubetool",
@@ -13,7 +13,7 @@ members = [
     "app",
 ]
 default-members = [
-    "common",
+    "gekko",
     "ppcjit",
     "dol",
     "iso",
@@ -69,6 +69,14 @@ codegen-units = 384
 panic = "abort"
 
 [workspace.dependencies]
+# Workspace crates
+gekko = { path = "./gekko" }
+ppcjit = { path = "./ppcjit", features = ["disasm"] }
+dol = { path = "./dol" }
+iso = { path = "./iso" }
+dsp = { path = "./dsp" }
+
+# Actual dependencies
 binrw = { version = "0.15", features = ["std"], default-features = false }
 bitos = { git = "https://github.com/vxpm/bitos.git", features = ["zerocopy"] }
 bytesize = "2"
@@ -103,6 +111,7 @@ wesl = { git = "https://github.com/wgsl-tooling-wg/wesl-rs", features = [
 eyre-pretty = { git = "https://github.com/vxpm/eyre-pretty" }
 nanorand = "0.8"
 
+# Lints
 [workspace.lints.clippy]
 assigning_clones = "warn"
 bool_to_int_with_if = "warn"

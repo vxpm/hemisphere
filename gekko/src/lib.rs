@@ -1,15 +1,15 @@
-//! Items related to the PowerPC architecture, specifically in the context of the Gekko CPU.
-//!
-//! The `powerpc` crate, which is a disasembler of PowerPC instructions, is re-exported under
+//! The `powerpc` crate, which is a disassembler of PowerPC instructions, is re-exported under
 //! [`disasm`].
 
-use crate::Address;
+#![feature(cold_path)]
+
 use bitos::{
     BitUtils, bitos,
     integer::{i6, u2, u4, u7, u11, u15, u27},
 };
-use std::{fmt::Debug, time::Duration};
+use std::time::Duration;
 use strum::{FromRepr, VariantArray};
+use zerocopy::{FromBytes, Immutable, IntoBytes};
 
 /// Disassembling of PowerPC instructions. Re-export of the [`powerpc`] crate.
 pub use powerpc as disasm;
@@ -25,6 +25,283 @@ macro_rules! offset_of {
 
         OFFSET
     }}
+}
+
+/// An address in the Gekko's memory address space. This is a thin wrapper around an [`u32`].
+#[repr(transparent)]
+#[derive(
+    Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Hash, IntoBytes, FromBytes, Immutable,
+)]
+pub struct Address(pub u32);
+
+impl std::fmt::Display for Address {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "0x{:04X}_{:04X}",
+            (self.0 & 0xFFFF_0000) >> 16,
+            self.0 & 0xFFFF
+        )
+    }
+}
+
+impl std::fmt::Debug for Address {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self)
+    }
+}
+
+impl Address {
+    /// Returns the value of this address. Equivalent to `self.0`.
+    #[inline(always)]
+    pub const fn value(self) -> u32 {
+        self.0
+    }
+}
+
+impl std::ops::Add<u32> for Address {
+    type Output = Self;
+
+    #[inline(always)]
+    fn add(self, rhs: u32) -> Self::Output {
+        Self(self.0.wrapping_add(rhs))
+    }
+}
+
+impl std::ops::Add<i32> for Address {
+    type Output = Self;
+
+    #[inline(always)]
+    fn add(self, rhs: i32) -> Self::Output {
+        Self(self.0.wrapping_add_signed(rhs))
+    }
+}
+
+impl std::ops::AddAssign<u32> for Address {
+    #[inline(always)]
+    fn add_assign(&mut self, rhs: u32) {
+        *self = *self + rhs;
+    }
+}
+
+impl std::ops::AddAssign<i32> for Address {
+    #[inline(always)]
+    fn add_assign(&mut self, rhs: i32) {
+        *self = *self + rhs;
+    }
+}
+
+impl std::ops::Sub<u32> for Address {
+    type Output = Self;
+
+    #[inline(always)]
+    fn sub(self, rhs: u32) -> Self::Output {
+        Self(self.0.wrapping_sub(rhs))
+    }
+}
+
+impl std::ops::Sub<i32> for Address {
+    type Output = Self;
+
+    #[inline(always)]
+    fn sub(self, rhs: i32) -> Self::Output {
+        Self(self.0.wrapping_sub_signed(rhs))
+    }
+}
+
+impl std::ops::Sub<Address> for Address {
+    type Output = i64;
+
+    #[inline(always)]
+    fn sub(self, rhs: Address) -> Self::Output {
+        self.0 as i64 - rhs.0 as i64
+    }
+}
+
+impl std::ops::SubAssign<u32> for Address {
+    #[inline(always)]
+    fn sub_assign(&mut self, rhs: u32) {
+        *self = *self - rhs;
+    }
+}
+
+impl std::ops::SubAssign<i32> for Address {
+    #[inline(always)]
+    fn sub_assign(&mut self, rhs: i32) {
+        *self = *self - rhs;
+    }
+}
+
+impl PartialEq<u32> for Address {
+    #[inline(always)]
+    fn eq(&self, other: &u32) -> bool {
+        self.0 == *other
+    }
+}
+
+impl From<u32> for Address {
+    #[inline(always)]
+    fn from(value: u32) -> Self {
+        Self(value)
+    }
+}
+
+impl From<Address> for u32 {
+    #[inline(always)]
+    fn from(value: Address) -> Self {
+        value.0
+    }
+}
+
+/// The CPU frequency.
+pub const FREQUENCY: u64 = 486_000_000;
+
+/// An amount of cycles of the Gekko CPU. This is a thin wrapper around an [`u64`].
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Default,
+    Hash,
+    IntoBytes,
+    FromBytes,
+    Immutable,
+)]
+pub struct Cycles(pub u64);
+
+impl std::fmt::Display for Cycles {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl Cycles {
+    /// Cycles per second of the CPU. This is an alias for the [`FREQUENCY`] constant, wrapped in
+    /// [`Cycles`].
+    pub const PER_SECOND: Self = Self(FREQUENCY);
+
+    /// Returns the value of this address. Equivalent to `self.0`.
+    #[inline(always)]
+    pub const fn value(self) -> u64 {
+        self.0
+    }
+
+    #[inline(always)]
+    pub const fn from_secs_f64(secs: f64) -> Self {
+        Self((secs * Self::PER_SECOND.0 as f64).round() as u64)
+    }
+
+    #[inline(always)]
+    pub const fn from_duration(duration: Duration) -> Self {
+        Self::from_secs_f64(duration.as_secs_f64())
+    }
+
+    #[inline(always)]
+    pub fn to_duration(&self) -> Duration {
+        Duration::from_secs_f64(self.0 as f64 / Self::PER_SECOND.0 as f64)
+    }
+}
+
+impl std::ops::Add<u64> for Cycles {
+    type Output = Self;
+
+    #[inline(always)]
+    fn add(self, rhs: u64) -> Self::Output {
+        Self(self.0 + rhs)
+    }
+}
+
+impl std::ops::Add<i64> for Cycles {
+    type Output = Self;
+
+    #[inline(always)]
+    fn add(self, rhs: i64) -> Self::Output {
+        if rhs >= 0 {
+            self + (rhs as u64)
+        } else {
+            self - ((-rhs) as u64)
+        }
+    }
+}
+
+impl std::ops::AddAssign<u64> for Cycles {
+    #[inline(always)]
+    fn add_assign(&mut self, rhs: u64) {
+        *self = *self + rhs;
+    }
+}
+
+impl std::ops::AddAssign<i64> for Cycles {
+    #[inline(always)]
+    fn add_assign(&mut self, rhs: i64) {
+        *self = *self + rhs;
+    }
+}
+
+impl std::ops::Sub<u64> for Cycles {
+    type Output = Self;
+
+    #[inline(always)]
+    fn sub(self, rhs: u64) -> Self::Output {
+        Self(self.0 - rhs)
+    }
+}
+
+impl std::ops::Sub<i64> for Cycles {
+    type Output = Self;
+
+    #[inline(always)]
+    fn sub(self, rhs: i64) -> Self::Output {
+        self + (-rhs)
+    }
+}
+
+impl std::ops::Sub<Cycles> for Cycles {
+    type Output = i64;
+
+    #[inline(always)]
+    fn sub(self, rhs: Cycles) -> Self::Output {
+        self.0 as i64 - rhs.0 as i64
+    }
+}
+
+impl std::ops::SubAssign<u64> for Cycles {
+    #[inline(always)]
+    fn sub_assign(&mut self, rhs: u64) {
+        *self = *self - rhs;
+    }
+}
+
+impl std::ops::SubAssign<i64> for Cycles {
+    #[inline(always)]
+    fn sub_assign(&mut self, rhs: i64) {
+        *self = *self - rhs;
+    }
+}
+
+impl PartialEq<u64> for Cycles {
+    #[inline(always)]
+    fn eq(&self, other: &u64) -> bool {
+        self.0 == *other
+    }
+}
+
+impl From<u64> for Cycles {
+    #[inline(always)]
+    fn from(value: u64) -> Self {
+        Self(value)
+    }
+}
+
+impl From<Cycles> for u64 {
+    #[inline(always)]
+    fn from(value: Cycles) -> Self {
+        value.0
+    }
 }
 
 /// Extension trait for [`Ins`](disasm::Ins).
@@ -103,23 +380,7 @@ impl InsExt for disasm::Ins {
     }
 }
 
-/// The CPU frequency.
-pub const FREQUENCY: u32 = 486_000_000;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Cycles(pub u64);
-
-impl Cycles {
-    pub fn from_duration(duration: Duration) -> Self {
-        Cycles((duration.as_secs_f64() * FREQUENCY as f64) as u64)
-    }
-
-    pub fn to_duration(&self) -> Duration {
-        Duration::from_secs_f64(self.0 as f64 / FREQUENCY as f64)
-    }
-}
-
-/// An exception which can be generated by the CPU. The variants have the lower 16 bits of the
+/// An exception which can be generated by the Gekko CPU. The variants have the lower 16 bits of the
 /// exception vector as their values.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u16)]
@@ -140,9 +401,9 @@ pub enum Exception {
 }
 
 impl Exception {
-    #[rustfmt::skip]    pub const SPECIAL_SRR1_BITS_MASK:   u32 = 0b0111_1000_0011_1100_0000_0000_0000_0000_u32;
-    #[rustfmt::skip]    pub const MSR_TO_SRR1_MASK:         u32 = 0b0000_0111_1100_0000_1111_1111_1111_1111_u32;
-    #[rustfmt::skip]    pub const SRR1_TO_MSR_MASK:         u32 = 0b1000_0111_1100_0000_1111_1111_0111_0011_u32;
+    #[rustfmt::skip]    pub const SPECIAL_SRR1_BITS_MASK: u32 = 0b0111_1000_0011_1100_0000_0000_0000_0000_u32;
+    #[rustfmt::skip]    pub const MSR_TO_SRR1_MASK:       u32 = 0b0000_0111_1100_0000_1111_1111_1111_1111_u32;
+    #[rustfmt::skip]    pub const SRR1_TO_MSR_MASK:       u32 = 0b1000_0111_1100_0000_1111_1111_0111_0011_u32;
 
     pub fn srr0_skip(self) -> bool {
         matches!(self, Self::Syscall)
@@ -525,6 +786,7 @@ pub struct MemoryManagement {
 }
 
 impl MemoryManagement {
+    /// Default configuration for BATs used by the Dolphin OS.
     pub fn setup_default_bats(&mut self) {
         let bat = |upper, lower| {
             use zerocopy::{

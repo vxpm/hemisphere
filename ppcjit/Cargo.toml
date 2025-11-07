@@ -1,6 +1,6 @@
 [package]
 name = "ppcjit"
-description = "JIT for PowerPC code using cranelift"
+description = "JIT for Gekko PowerPC code using cranelift"
 version = "0.1.0"
 edition = "2024"
 
@@ -11,9 +11,9 @@ workspace = true
 disasm = ["dep:iced-x86"]
 
 [dependencies]
-common = { path = "../common" }
+gekko.workspace = true
+
 bitos.workspace = true
-# bytesize.workspace = true
 easyerr.workspace = true
 iced-x86 = { workspace = true, optional = true }
 memmap2.workspace = true

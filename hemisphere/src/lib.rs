@@ -5,6 +5,7 @@
 
 #![feature(cold_path)]
 
+pub mod primitive;
 pub mod jit;
 pub mod panic;
 pub mod render;

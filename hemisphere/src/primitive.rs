@@ -4,9 +4,6 @@ use zerocopy::{FromBytes, Immutable, IntoBytes};
 ///
 /// A primitive is either a byte, half-word, word or double word.
 /// That is, [`u8`], [`i8`], [`u16`], [`i16`], [`u32`], [`i32`], [`u64`] or [`i64`].
-///
-/// # Safety
-/// TODO
 pub unsafe trait Primitive:
     std::fmt::Debug
     + std::fmt::UpperHex
@@ -19,9 +16,6 @@ pub unsafe trait Primitive:
     + Sync
     + 'static
 {
-    /// The size of this primitive. Must be equal to `size_of::<Self>()`.
-    const SIZE: u32;
-
     /// Reads a value of this primitive from the bytes of a buffer (in native endian). If `buf`
     /// does not contain enough data, it's going to be completed with zeros.
     fn read_ne_bytes(buf: &[u8]) -> Self;
@@ -51,8 +45,6 @@ macro_rules! impl_primitive {
     ($($type:ty),*) => {
         $(
             unsafe impl Primitive for $type {
-                const SIZE: u32 = size_of::<Self>() as u32;
-
                 #[inline(always)]
                 fn read_ne_bytes(buf: &[u8]) -> Self {
                     const SELF_SIZE: usize = size_of::<$type>();
@@ -73,8 +65,7 @@ macro_rules! impl_primitive {
                     if buf.len() < SELF_SIZE {
                         unsafe { read_unhappy(buf) }
                     } else {
-                        // TODO: seal the trait to enforce this
-                        // SAFETY: this is safe because all primitives are integers, which are POD
+                        // SAFETY: all primitives are IntoBytes, FromBytes and Immutable
                         <$type>::from_ne_bytes(unsafe { buf.as_ptr().cast::<[u8; SELF_SIZE]>().read_unaligned() })
                     }
                 }
@@ -97,8 +88,7 @@ macro_rules! impl_primitive {
                     if buf.len() < SELF_SIZE {
                         unsafe { write_unhappy(self, buf) };
                     } else {
-                        // TODO: seal the trait to enforce this
-                        // SAFETY: this is safe because all primitives are integers, which are POD
+                        // SAFETY: all primitives are IntoBytes, FromBytes and Immutable
                         unsafe { buf.as_mut_ptr().cast::<[u8; SELF_SIZE]>().write_unaligned(self.to_ne_bytes()) };
                     }
                 }
@@ -123,8 +113,7 @@ macro_rules! impl_primitive {
                     if buf.len() < SELF_SIZE {
                         unsafe { read_unhappy(buf) }
                     } else {
-                        // TODO: seal the trait to enforce this
-                        // SAFETY: this is safe because all primitives are integers, which are POD
+                        // SAFETY: all primitives are IntoBytes, FromBytes and Immutable
                         <$type>::from_le_bytes(unsafe { buf.as_ptr().cast::<[u8; SELF_SIZE]>().read_unaligned() })
                     }
                 }
@@ -147,8 +136,7 @@ macro_rules! impl_primitive {
                     if buf.len() < SELF_SIZE {
                         unsafe { write_unhappy(self, buf) };
                     } else {
-                        // TODO: seal the trait to enforce this
-                        // SAFETY: this is safe because all primitives are integers, which are POD
+                        // SAFETY: all primitives are IntoBytes, FromBytes and Immutable
                         unsafe { buf.as_mut_ptr().cast::<[u8; SELF_SIZE]>().write_unaligned(self.to_le_bytes()) };
                     }
                 }
@@ -173,8 +161,7 @@ macro_rules! impl_primitive {
                     if buf.len() < SELF_SIZE {
                         unsafe { read_unhappy(buf) }
                     } else {
-                        // TODO: seal the trait to enforce this
-                        // SAFETY: this is safe because all primitives are integers, which are POD
+                        // SAFETY: all primitives are IntoBytes, FromBytes and Immutable
                         <$type>::from_be_bytes(unsafe { buf.as_ptr().cast::<[u8; SELF_SIZE]>().read_unaligned() })
                     }
                 }
@@ -197,8 +184,7 @@ macro_rules! impl_primitive {
                     if buf.len() < SELF_SIZE {
                         unsafe { write_unhappy(self, buf) };
                     } else {
-                        // TODO: seal the trait to enforce this
-                        // SAFETY: this is safe because all primitives are integers, which are POD
+                        // SAFETY: all primitives are IntoBytes, FromBytes and Immutable
                         unsafe { buf.as_mut_ptr().cast::<[u8; SELF_SIZE]>().write_unaligned(self.to_be_bytes()) };
                     }
                 }
