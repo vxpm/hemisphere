@@ -171,13 +171,13 @@ impl System {
         // load apploader
         let entry = self.load_apploader().unwrap();
 
-        // load fake-ipl
-        let mut cursor = Cursor::new(include_bytes!("../../local/fake-ipl.dol"));
+        // load ipl-hle
+        let mut cursor = Cursor::new(include_bytes!("../../local/ipl-hle.dol"));
         let ipl = dol::Dol::read(&mut cursor).unwrap();
         self.config.sideload = Some(Executable::Dol(ipl));
         self.load_executable();
 
-        // setup apploader entrypoint for fake-ipl
+        // setup apploader entrypoint for ipl-hle
         self.cpu.user.gpr[3] = entry.value();
 
         // load dolphin-os globals

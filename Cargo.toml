@@ -5,7 +5,7 @@ members = [
     "dol",
     "iso",
     "cubetool",
-    "fake-ipl",
+    "ipl-hle",
     "ppcjit",
     "dsp",
     "hemisphere",
