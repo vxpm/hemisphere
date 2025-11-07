@@ -1,11 +1,11 @@
 mod unwind;
 
 use crate::{Sequence, block::unwind::UnwindHandle};
-use common::{Address, arch::Cpu};
 use cranelift::{
     codegen::{CompiledCode, ir},
     prelude::isa,
 };
+use gekko::{Address, Cpu};
 use memmap2::{Mmap, MmapOptions};
 use std::fmt::Display;
 
@@ -128,18 +128,25 @@ impl Hooks {
     }
 }
 
+/// Information regarding a block's execution.
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Executed {
+    /// How many instructions were executed.
     pub instructions: u32,
+    /// How many cycles were executed.
     pub cycles: u32,
 }
 
 pub type BlockFn = extern "sysv64-unwind" fn(*mut Context, *const Hooks) -> Executed;
 
+/// Meta information regarding a block.
 pub struct Meta {
+    /// The sequence of instructions this block contains.
     pub seq: Sequence,
+    /// The Cranelift IR of this block. Only available if `cfg!(debug_assertions)` is true.
     pub clir: Option<String>,
+    /// How many cycles this block executes at most.
     pub cycles: u32,
 }
 
@@ -176,13 +183,14 @@ impl Block {
         &self.code
     }
 
+    /// Meta information regarding this block.
     pub fn meta(&self) -> &Meta {
         &self.meta
     }
 
     /// Executes this block of instructions and returns how many cycles were executed.
     #[inline(always)]
-    pub fn call(&self, ctx: *mut Context, hooks: &Hooks) -> Executed {
+    pub fn call(&self, ctx: *mut Context, hooks: *const Hooks) -> Executed {
         let func: BlockFn = unsafe { std::mem::transmute(self.code.as_ptr()) };
         func(ctx, hooks)
     }

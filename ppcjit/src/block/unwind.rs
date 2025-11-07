@@ -51,7 +51,7 @@ mod unix {
     impl Drop for UnwindHandle {
         fn drop(&mut self) {
             unsafe {
-                __deregister_frame(self.0.as_ptr() as _);
+                __deregister_frame(self.0.as_ptr());
             }
         }
     }

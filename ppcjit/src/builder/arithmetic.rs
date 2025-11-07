@@ -1,10 +1,10 @@
 use super::{Action, BlockBuilder};
 use crate::builder::Info;
-use common::arch::{InsExt, Reg, SPR, disasm::Ins};
 use cranelift::{
     codegen::ir,
     prelude::{InstBuilder, IntCC},
 };
+use gekko::{InsExt, Reg, SPR, disasm::Ins};
 
 const INT_INFO: Info = Info {
     cycles: 1,

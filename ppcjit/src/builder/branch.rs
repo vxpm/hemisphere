@@ -1,7 +1,7 @@
 use super::BlockBuilder;
 use crate::builder::{Action, Info, util::IntoIrValue};
 use bitos::{bitos, integer::u5};
-use common::arch::{Reg, SPR, disasm::Ins};
+use gekko::{Reg, SPR, disasm::Ins};
 use cranelift::{codegen::ir, prelude::InstBuilder};
 
 const JUMP_INFO: Info = Info {

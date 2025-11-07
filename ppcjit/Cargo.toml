@@ -20,4 +20,4 @@ memmap2.workspace = true
 rustc-hash.workspace = true
 zerocopy.workspace = true
 tracing.workspace = true
-cranelift = { version = "0.124", features = ["frontend", "native"] }
+cranelift = { version = "0.125", features = ["frontend", "native"] }

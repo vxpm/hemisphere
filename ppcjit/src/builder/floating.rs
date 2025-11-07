@@ -1,6 +1,6 @@
 use super::BlockBuilder;
 use crate::builder::{Action, Info};
-use common::arch::{InsExt, Reg, disasm::Ins};
+use gekko::{InsExt, Reg, disasm::Ins};
 use cranelift::{codegen::ir, prelude::InstBuilder};
 
 const FLOAT_INFO: Info = Info {

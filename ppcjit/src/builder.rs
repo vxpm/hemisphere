@@ -9,16 +9,16 @@ mod others;
 mod util;
 
 use crate::{Sequence, block::Hooks, builder::util::IntoIrValue};
-use common::arch::{
-    FPR, Reg, SPR,
-    disasm::{Ins, Opcode},
-};
 use cranelift::{
     codegen::ir::{self, SigRef},
     frontend,
     prelude::{InstBuilder, isa::TargetIsa},
 };
 use easyerr::Error;
+use gekko::{
+    FPR, Reg, SPR,
+    disasm::{Ins, Opcode},
+};
 use rustc_hash::FxHashMap;
 use std::mem::offset_of;
 

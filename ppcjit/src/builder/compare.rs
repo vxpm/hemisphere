@@ -1,6 +1,6 @@
 use super::BlockBuilder;
 use crate::builder::{Action, Info};
-use common::arch::{InsExt, SPR, disasm::Ins};
+use gekko::{InsExt, SPR, disasm::Ins};
 use cranelift::{
     codegen::ir,
     prelude::{FloatCC, InstBuilder, IntCC},

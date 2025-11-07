@@ -4,7 +4,7 @@ use crate::{
     builder::{Action, Info},
 };
 use bitos::BitUtils;
-use common::arch::{InsExt, Reg, SPR, disasm::Ins};
+use gekko::{InsExt, Reg, SPR, disasm::Ins};
 use cranelift::{codegen::ir, prelude::InstBuilder};
 use std::mem::offset_of;
 

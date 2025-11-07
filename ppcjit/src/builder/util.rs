@@ -1,6 +1,6 @@
 use super::{Action, BlockBuilder};
 use crate::builder::Info;
-use common::arch::{
+use gekko::{
     Reg, SPR,
     disasm::{Ins, ParsedIns},
 };

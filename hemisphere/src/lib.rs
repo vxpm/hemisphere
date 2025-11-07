@@ -16,7 +16,7 @@ use crate::{
     jit::{CTX_HOOKS, Context, JIT},
     system::System,
 };
-use common::arch::disasm::{Extensions, Ins};
+use gekko::disasm::{Extensions, Ins};
 use ppcjit::block::Executed;
 
 pub use common::{self, Address, Primitive, arch};

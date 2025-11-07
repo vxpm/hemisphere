@@ -5,7 +5,7 @@ use crate::{
     block::Hooks,
     builder::{Action, Info},
 };
-use common::arch::{Cpu, Exception, Reg, SPR, disasm::Ins};
+use gekko::{Cpu, Exception, Reg, SPR, disasm::Ins};
 use cranelift::{
     codegen::ir,
     prelude::{InstBuilder, isa},

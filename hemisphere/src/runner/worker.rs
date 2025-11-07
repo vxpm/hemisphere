@@ -1,6 +1,6 @@
 use crate::{Limits, runner::Shared};
 use color_backtrace::BacktracePrinter;
-use common::arch::FREQUENCY;
+use gekko::FREQUENCY;
 use std::{
     sync::Arc,
     time::{Duration, Instant},

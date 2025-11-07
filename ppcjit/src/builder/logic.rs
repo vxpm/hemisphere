@@ -1,7 +1,7 @@
 use super::BlockBuilder;
 use crate::builder::{Action, Info};
 use bitos::BitUtils;
-use common::arch::{InsExt, disasm::Ins};
+use gekko::{InsExt, disasm::Ins};
 use cranelift::{
     codegen::ir,
     prelude::{InstBuilder, IntCC},

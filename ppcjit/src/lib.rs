@@ -6,13 +6,13 @@ mod sequence;
 pub mod block;
 
 use crate::{block::Meta, builder::BlockBuilder};
-use common::arch::disasm::Ins;
 use cranelift::{
     codegen::{self, ir},
     frontend, native,
     prelude::Configurable,
 };
 use easyerr::{Error, ResultExt};
+use gekko::disasm::Ins;
 use std::sync::Arc;
 
 pub use block::{Block, BlockFn};
@@ -78,7 +78,8 @@ impl Compiler {
         }
     }
 
-    /// Compiles a block with the given instructions (up until a terminal instruction or the end).
+    /// Compiles a block with the given instructions (up until a terminal instruction or the end of
+    /// the iterator).
     pub fn compile(
         &mut self,
         instructions: impl Iterator<Item = Ins>,

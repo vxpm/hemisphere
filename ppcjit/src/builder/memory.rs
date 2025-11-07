@@ -3,7 +3,7 @@ use crate::{
     block::Hooks,
     builder::{Action, Info},
 };
-use common::arch::{Exception, GPR, InsExt, Reg, disasm::Ins};
+use gekko::{Exception, GPR, InsExt, Reg, disasm::Ins};
 use cranelift::{codegen::ir, prelude::InstBuilder};
 use std::mem::offset_of;
 

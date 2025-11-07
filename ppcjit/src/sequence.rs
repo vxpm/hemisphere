@@ -1,4 +1,4 @@
-use common::arch::disasm::{Ins, ParsedIns};
+use gekko::disasm::{Ins, ParsedIns};
 use std::ops::Deref;
 
 /// A sequence of PowerPC instructions.
