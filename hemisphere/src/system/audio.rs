@@ -1,6 +1,6 @@
 use crate::system::System;
 use bitos::{bitos, integer::u15};
-use common::Address;
+use gekko::Address;
 
 #[bitos(1)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

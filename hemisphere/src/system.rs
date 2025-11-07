@@ -26,7 +26,7 @@ use crate::{
         scheduler::Scheduler,
     },
 };
-use common::{
+use gekko::{
     Address,
     arch::{Cpu, Exception, FREQUENCY},
 };

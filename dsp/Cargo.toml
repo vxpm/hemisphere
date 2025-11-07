@@ -21,7 +21,7 @@ binrw.workspace = true
 libtest-mimic = "0.8"
 
 [dependencies]
-gekko.workspace = true
+util.workspace = true
 
 bitos.workspace = true
 bytesize.workspace = true

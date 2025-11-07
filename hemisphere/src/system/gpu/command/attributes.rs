@@ -1,6 +1,6 @@
 use crate::system::gpu::command::{ArrayDescriptor, Arrays, AttributeMode, VertexDescriptor};
 use bitos::{BitUtils, bitos, integer::u5};
-use common::bin::BinReader;
+use gekko::bin::BinReader;
 use glam::{Vec2, Vec3};
 use zerocopy::{Immutable, IntoBytes};
 

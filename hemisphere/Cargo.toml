@@ -9,10 +9,8 @@ workspace = true
 
 [dependencies]
 gekko.workspace = true
-ppcjit.workspace = true
 dol.workspace = true
 iso.workspace = true
-dsp.workspace = true
 
 bitos.workspace = true
 bytesize.workspace = true

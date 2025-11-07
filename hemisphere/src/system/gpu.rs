@@ -19,7 +19,7 @@ use bitos::{
     BitUtils, bitos,
     integer::{UnsignedInt, u3, u4},
 };
-use common::{
+use gekko::{
     Address, Primitive,
     bin::{BinReader, BinaryStream},
 };

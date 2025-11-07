@@ -1,5 +1,5 @@
 use crate::{System, system::Event};
-use common::{
+use gekko::{
     Address, Primitive,
     arch::{Cpu, QuantizedType},
     util::boxed_array,

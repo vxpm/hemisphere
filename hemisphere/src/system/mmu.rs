@@ -1,5 +1,5 @@
 use bitos::BitUtils;
-use common::{
+use gekko::{
     Address,
     arch::{Bat, MemoryManagement},
     util::boxed_array,

@@ -1,4 +1,4 @@
-use common::Address;
+use gekko::Address;
 use dol::{
     Dol,
     binrw::{BinRead, io::BufReader},

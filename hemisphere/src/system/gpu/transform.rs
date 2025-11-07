@@ -3,7 +3,7 @@ use crate::{
     system::{System, gpu::command::ArrayDescriptor},
 };
 use bitos::{BitUtils, bitos, integer::u3};
-use common::util;
+use gekko::util;
 use glam::{Mat3, Mat4};
 use strum::FromRepr;
 

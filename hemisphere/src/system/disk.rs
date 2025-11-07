@@ -1,6 +1,6 @@
 use crate::system::{Event, System};
 use bitos::bitos;
-use common::Address;
+use gekko::Address;
 use std::io::SeekFrom;
 
 #[bitos(32)]

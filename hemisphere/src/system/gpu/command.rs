@@ -9,7 +9,7 @@ use bitos::{
     BitUtils, bitos,
     integer::{u3, u6},
 };
-use common::{
+use gekko::{
     Address, Primitive,
     bin::{BinRingBuffer, BinaryStream},
 };

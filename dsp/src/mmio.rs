@@ -2,7 +2,6 @@ use bitos::{
     bitos,
     integer::{u15, u31},
 };
-use common::Address;
 
 #[bitos(32)]
 #[derive(Debug, Default)]

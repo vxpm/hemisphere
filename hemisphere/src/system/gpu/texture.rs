@@ -2,8 +2,8 @@ use bitos::{
     BitUtils, bitos,
     integer::{u2, u10},
 };
-use common::Address;
-use common::Primitive;
+use gekko::Address;
+use gekko::Primitive;
 use rustc_hash::FxBuildHasher;
 use std::collections::HashMap;
 use zerocopy::{Immutable, IntoBytes};

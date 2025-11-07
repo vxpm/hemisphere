@@ -2,7 +2,7 @@
 
 use crate::system::System;
 use bitos::{bitos, integer::u26};
-use common::{Address, arch::Exception};
+use gekko::{Address, arch::Exception};
 
 #[bitos(14)]
 #[derive(Default, Debug, Clone, Copy)]

@@ -1,7 +1,7 @@
 use crate::system::System;
 use bitos::integer::u31;
-use common::Address;
-use common::Primitive;
+use gekko::Address;
+use gekko::Primitive;
 use dsp::mmio::{AramDmaDirection, DspDmaDirection, DspDmaTarget};
 
 pub const STEP_SIZE: u64 = 512;

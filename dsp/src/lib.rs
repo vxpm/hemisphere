@@ -1,16 +1,13 @@
 mod exec;
 
 pub mod ins;
-pub mod mmio;
+// pub mod mmio;
 
-use crate::{
-    ins::{ExtensionOpcode, Opcode},
-    mmio::Mmio,
-};
+use crate::ins::{ExtensionOpcode, Opcode};
 use bitos::{BitUtils, bitos, integer::u15};
-use common::util::boxed_array;
 use strum::FromRepr;
 use tinyvec::ArrayVec;
+use util::boxed_array;
 
 pub use ins::Ins;
 
@@ -26,7 +23,6 @@ const DRAM_LEN: usize = 0x1000;
 const COEF_LEN: usize = 0x0800;
 
 pub struct Memory {
-    pub aram: Box<[u8; ARAM_LEN]>,
     pub iram: Box<[u16; IRAM_LEN]>,
     pub irom: Box<[u16; IROM_LEN]>,
     pub dram: Box<[u16; DRAM_LEN]>,
@@ -36,7 +32,6 @@ pub struct Memory {
 impl Default for Memory {
     fn default() -> Self {
         Self {
-            aram: boxed_array(0),
             iram: boxed_array(0),
             irom: boxed_array(0),
             dram: boxed_array(0),
@@ -352,7 +347,6 @@ impl Registers {
 pub struct Dsp {
     pub regs: Registers,
     pub mem: Memory,
-    pub mmio: Mmio,
     pub loop_counter: Option<u16>,
 }
 
@@ -363,9 +357,9 @@ impl Dsp {
         self.regs.pc = exception as u16 * 2;
     }
 
-    fn check_external_interrupt(&mut self) {
-        if self.mmio.control.interrupt() && self.regs.status.external_interrupt_enable() {
-            self.mmio.control.set_interrupt(false);
+    fn check_external_interrupt(&mut self, sys: &mut System) {
+        if sys.dsp.control.interrupt() && self.regs.status.external_interrupt_enable() {
+            sys.dsp.control.set_interrupt(false);
             self.raise_exception(Exception::Interrupt);
         }
     }

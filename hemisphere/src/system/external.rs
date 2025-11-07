@@ -3,7 +3,7 @@ use bitos::{
     bitos,
     integer::{u2, u3},
 };
-use common::{Address, Primitive};
+use gekko::{Address, Primitive};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Device0 {

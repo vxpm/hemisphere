@@ -4,7 +4,7 @@ use crate::system::{
     Event, System, disk, external,
     mem::{IPL_LEN, RAM_LEN},
 };
-use common::{Address, Primitive};
+use gekko::{Address, Primitive};
 use std::ops::Range;
 use zerocopy::IntoBytes;
 

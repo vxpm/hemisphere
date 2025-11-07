@@ -3,7 +3,7 @@
 mod worker;
 
 use crate::Hemisphere;
-use common::Address;
+use gekko::Address;
 use parking_lot::Mutex;
 use std::{
     sync::{

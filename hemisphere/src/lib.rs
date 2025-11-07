@@ -5,22 +5,18 @@
 
 #![feature(cold_path)]
 
-pub mod primitive;
+pub mod cores;
 pub mod jit;
 pub mod panic;
+pub mod primitive;
 pub mod render;
 pub mod runner;
 pub mod system;
 
-use crate::{
-    jit::{CTX_HOOKS, Context, JIT},
-    system::System,
-};
-use gekko::disasm::{Extensions, Ins};
-use ppcjit::block::Executed;
+use crate::{cores::Cores, system::System};
 
-pub use common::{self, Address, Primitive, arch};
 pub use dol;
+pub use gekko::{self, Address};
 pub use iso;
 
 /// Represents limits for execution.
@@ -50,84 +46,20 @@ impl Limits {
     }
 }
 
-/// Emulator configuration.
-pub struct Config {
-    pub system: system::Config,
-    pub jit: jit::Config,
-}
-
 /// The Hemisphere emulator.
 pub struct Hemisphere {
+    /// Cores of the emulator.
+    pub cores: Cores,
+    /// System state.
     pub system: System,
-    pub jit: JIT,
 }
 
 impl Hemisphere {
-    pub fn new(config: Config) -> Self {
+    pub fn new(cores: Cores, config: system::Config) -> Self {
         Self {
-            system: System::new(config.system),
-            jit: JIT::new(config.jit),
+            cores,
+            system: System::new(config),
         }
-    }
-
-    /// Compiles a sequence of at most `limit` instructions starting at `addr` into a JIT block.
-    fn compile(&mut self, addr: Address, limit: u32) -> ppcjit::Block {
-        let _span =
-            tracing::trace_span!("compiling new block", addr = ?self.system.cpu.pc).entered();
-
-        let mut count = 0;
-        let instructions = std::iter::from_fn(|| {
-            if count >= limit {
-                return None;
-            }
-
-            let current = addr + 4 * count;
-            let physical = self.system.translate_instr_addr(current)?;
-
-            let ins = Ins::new(self.system.read(physical), Extensions::gekko_broadway());
-            count += 1;
-
-            Some(ins)
-        });
-
-        let block = self.jit.compiler.compile(instructions).unwrap();
-        tracing::trace!(
-            instructions = block.meta().seq.len(),
-            "block sequence built"
-        );
-
-        block
-    }
-
-    #[inline(always)]
-    fn exec_inner(&mut self, instr_limit: u32) -> Executed {
-        let block = self
-            .jit
-            .blocks
-            .mapping
-            .get(self.system.cpu.pc)
-            .and_then(|id| self.jit.blocks.storage.get(id))
-            .filter(|b| b.meta().seq.len() <= instr_limit as usize);
-
-        let compiled: ppcjit::Block;
-        let block = match block {
-            Some(block) => block,
-            None => {
-                std::hint::cold_path();
-
-                compiled = self.compile(self.system.cpu.pc, instr_limit);
-                &compiled
-            }
-        };
-
-        let mut ctx = Context {
-            system: &mut self.system,
-            mapping: &mut self.jit.blocks.mapping,
-        };
-
-        // tracing::debug!("block:\n{block}");
-
-        block.call(&raw mut ctx as *mut ppcjit::block::Context, &CTX_HOOKS)
     }
 
     fn exec(&mut self, limits: Limits) -> Executed {

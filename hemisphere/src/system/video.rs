@@ -4,7 +4,7 @@ use bitos::{
     bitos,
     integer::{u4, u7, u9, u10, u24},
 };
-use common::{Address, arch::FREQUENCY};
+use gekko::{Address, arch::FREQUENCY};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Event {

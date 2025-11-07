@@ -1,4 +1,4 @@
-use common::util::boxed_array;
+use gekko::util::boxed_array;
 
 pub const RAM_LEN: u32 = 24 * bytesize::MIB as u32;
 pub const L2C_LEN: u32 = 16 * bytesize::KIB as u32;

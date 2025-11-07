@@ -1,6 +1,7 @@
 [workspace]
 resolver = "3"
 members = [
+    "util",
     "gekko",
     "dol",
     "iso",
@@ -13,6 +14,7 @@ members = [
     "app",
 ]
 default-members = [
+    "util",
     "gekko",
     "ppcjit",
     "dol",
@@ -70,11 +72,13 @@ panic = "abort"
 
 [workspace.dependencies]
 # Workspace crates
+util = { path = "./util" }
 gekko = { path = "./gekko" }
-ppcjit = { path = "./ppcjit", features = ["disasm"] }
 dol = { path = "./dol" }
 iso = { path = "./iso" }
+ppcjit = { path = "./ppcjit", features = ["disasm"] }
 dsp = { path = "./dsp" }
+hemisphere = { path = "./hemisphere" }
 
 # Actual dependencies
 binrw = { version = "0.15", features = ["std"], default-features = false }
