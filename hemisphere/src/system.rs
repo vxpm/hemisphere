@@ -208,6 +208,11 @@ impl System {
         // done :)
     }
 
+    fn load_ipl(&mut self) {
+        self.cpu.supervisor.config.msr.set_exception_prefix(true);
+        self.cpu.pc = Address(0xFFF0_0100);
+    }
+
     pub fn new(mut config: Config) -> Self {
         let mut dsp = dsp::Dsp::default();
         dsp.mem.irom.copy_from_slice(&dspi::DSP_ROM[..]);
@@ -242,6 +247,8 @@ impl System {
             system.load_executable();
         } else if system.config.iso.is_some() {
             system.load_iso();
+        } else {
+            system.load_ipl();
         }
 
         system

@@ -69,7 +69,7 @@ impl AppWindow for Window {
             self.target = self.pc;
         }
 
-        let mut current = Address(self.target - 4 * (self.rows / 2));
+        let mut current = Address(self.target.wrapping_sub(4 * (self.rows / 2)));
         for _ in 0..self.rows {
             let translated = core
                 .system
@@ -126,7 +126,7 @@ impl AppWindow for Window {
                 ui.spacing_mut().item_spacing = egui::Vec2::new(5.0, 0.0);
                 ui.set_max_width(ui.available_width());
 
-                let mut current = self.target - 4 * (self.rows / 2);
+                let mut current = self.target.wrapping_sub(4 * (self.rows / 2));
                 self.rows = (body.ui_mut().available_height() / 20.0) as u32;
 
                 for ins in self.instructions.drain(..) {
@@ -182,7 +182,7 @@ impl AppWindow for Window {
                         });
                     });
 
-                    current += 4;
+                    current = current.wrapping_add(4);
                 }
             });
         });
