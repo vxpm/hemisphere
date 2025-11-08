@@ -14,4 +14,4 @@ util.workspace = true
 
 tracing.workspace = true
 slotmap.workspace = true
-# dspint.workspace = true
+dspint.workspace = true

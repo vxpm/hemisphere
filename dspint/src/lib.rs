@@ -341,13 +341,13 @@ impl Registers {
 }
 
 #[derive(Default)]
-pub struct Dsp {
+pub struct Interpreter {
     pub regs: Registers,
     pub mem: Memory,
     pub loop_counter: Option<u16>,
 }
 
-impl Dsp {
+impl Interpreter {
     fn raise_exception(&mut self, exception: Exception) {
         self.regs.call_stack.push(self.regs.pc);
         self.regs.data_stack.push(self.regs.status.to_bits());

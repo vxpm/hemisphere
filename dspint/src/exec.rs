@@ -1,4 +1,4 @@
-use crate::{Acc40, Dsp, Ins, Reg, Registers, Status, ins::CondCode};
+use crate::{Acc40, Ins, Interpreter, Reg, Registers, Status, ins::CondCode};
 use bitos::BitUtils;
 use hemisphere::system::System;
 
@@ -106,7 +106,7 @@ fn sub_from_addr_reg(ar: u16, wr: u16, value: i16) -> u16 {
     result
 }
 
-impl Dsp {
+impl Interpreter {
     fn base_flags(&mut self, value: i64) {
         self.regs.status.set_sign(value < 0);
         self.regs.status.set_arithmetic_zero(value == 0);
@@ -1844,7 +1844,7 @@ impl Dsp {
     }
 }
 
-impl Dsp {
+impl Interpreter {
     pub fn ext_dr(&mut self, _: &mut System, ins: Ins, regs: &Registers) {
         let r = ins.base.bits(0, 2) as usize;
 
