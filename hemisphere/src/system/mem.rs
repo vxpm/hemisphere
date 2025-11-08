@@ -1,12 +1,14 @@
 pub const RAM_LEN: u32 = 24 * bytesize::MIB as u32;
 pub const L2C_LEN: u32 = 16 * bytesize::KIB as u32;
 pub const IPL_LEN: u32 = 2 * bytesize::MIB as u32;
+pub const ARAM_LEN: u32 = 16 * bytesize::MIB as u32;
 pub const SRAM_LEN: u32 = 64;
 
 pub struct Memory {
     pub ram: Box<[u8; RAM_LEN as usize]>,
     pub l2c: Box<[u8; L2C_LEN as usize]>,
     pub ipl: Box<[u8; IPL_LEN as usize]>,
+    pub aram: Box<[u8; ARAM_LEN as usize]>,
     pub sram: Box<[u8; SRAM_LEN as usize]>,
 }
 
@@ -70,10 +72,11 @@ impl Memory {
         decode_ipl(&mut ipl[0x0000_0100..0x001A_EEE8]);
 
         Self {
-            ram: util::boxed_array(0x00),
-            l2c: util::boxed_array(0x00),
+            ram: util::boxed_array(0),
+            l2c: util::boxed_array(0),
             ipl: ipl.try_into().unwrap(),
-            sram: util::boxed_array(0x00),
+            aram: util::boxed_array(0),
+            sram: util::boxed_array(0),
         }
     }
 }

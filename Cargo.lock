@@ -712,6 +712,7 @@ dependencies = [
 name = "cores"
 version = "0.1.0"
 dependencies = [
+ "hemisphere",
  "ppcjit",
 ]
 
