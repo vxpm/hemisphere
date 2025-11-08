@@ -46,7 +46,7 @@ fn add_to_addr_reg(ar: u16, wr: u16, value: i16) -> u16 {
     let n = (16 - wr.leading_zeros()).max(1);
 
     // create a mask of n bits
-    let mask = 1u16.checked_shl(n).map(|r| r - 1).unwrap_or(!0);
+    let mask = 1u16.checked_shl(n).map_or(!0, |r| r - 1);
 
     // compute the carry out of bit n
     let carry = ((ar & mask) as u32 + (value as u16 & mask) as u32) > mask as u32;
@@ -82,7 +82,7 @@ fn sub_from_addr_reg(ar: u16, wr: u16, value: i16) -> u16 {
     let n = (16 - wr.leading_zeros()).max(1);
 
     // create a mask of n bits
-    let mask = 1u16.checked_shl(n).map(|r| r - 1).unwrap_or(!0);
+    let mask = 1u16.checked_shl(n).map_or(!0, |r| r - 1);
 
     // compute the carry out of bit n
     let carry = ((ar & mask) as u32 + (value as u16 & mask) as u32 + 1) > mask as u32;
@@ -569,7 +569,7 @@ impl Dsp {
     }
 
     fn condition(&self, code: CondCode) -> bool {
-        let status = self.regs.status.clone();
+        let status = self.regs.status;
         match code {
             CondCode::GreaterOrEqual => status.overflow() == status.sign(),
             CondCode::Less => status.overflow() != status.sign(),
@@ -977,7 +977,7 @@ impl Dsp {
 
     // NOTE: carry flag issue
     pub fn mulaxh(&mut self, _: &mut System, _: Ins) {
-        let val = (self.regs.acc32[0] >> 16) as i64;
+        let val = self.regs.acc32[0] >> 16;
         let mul = val * val;
         let result = if self.regs.status.dont_double_result() {
             mul

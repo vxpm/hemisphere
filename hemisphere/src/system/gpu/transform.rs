@@ -347,7 +347,7 @@ impl System {
         for offset in 0..length {
             let current = array.address + (index as u32 + offset as u32) * array.stride;
             let value = self.read::<u32>(current);
-            self.xf_write(base as u16 + offset as u16, value);
+            self.xf_write(base + offset as u16, value);
         }
     }
 }

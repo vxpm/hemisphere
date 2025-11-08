@@ -181,18 +181,18 @@ impl System {
         self.write::<u8>(Address(0x08), header.audio_streaming);
         self.write::<u8>(Address(0x09), header.stream_buffer_size);
 
-        self.write::<u32>(Address(0x1C), 0xC2339F3D); // DVD Magic Word
-        self.write::<u32>(Address(0x20), 0x0D15EA5E); // Boot kind
-        self.write::<u32>(Address(0x24), 0x00000001); // Version
-        self.write::<u32>(Address(0x28), 0x01800000); // Physical Memory Size
-        self.write::<u32>(Address(0x2C), 0x00000001); // Console Type
-        self.write::<u32>(Address(0x30), 0x00000000); // Arena Low
-        self.write::<u32>(Address(0x34), 0x817fe8c0); // Arena High
-        self.write::<u32>(Address(0x38), 0x817fe8c0); // FST address
-        self.write::<u32>(Address(0x3C), 0x00000024); // FST max length
+        self.write::<u32>(Address(0x1C), 0xC233_9F3D); // DVD Magic Word
+        self.write::<u32>(Address(0x20), 0x0D15_EA5E); // Boot kind
+        self.write::<u32>(Address(0x24), 0x0000_0001); // Version
+        self.write::<u32>(Address(0x28), 0x0180_0000); // Physical Memory Size
+        self.write::<u32>(Address(0x2C), 0x0000_0001); // Console Type
+        self.write::<u32>(Address(0x30), 0x0000_0000); // Arena Low
+        self.write::<u32>(Address(0x34), 0x817F_E8C0); // Arena High
+        self.write::<u32>(Address(0x38), 0x817F_E8C0); // FST address
+        self.write::<u32>(Address(0x3C), 0x0000_0024); // FST max length
         self.write::<u32>(Address(0xD0), 16 * 1024 * 1024); // ARAM size
-        self.write::<u32>(Address(0xF8), 0x09A7EC80); // Bus clock
-        self.write::<u32>(Address(0xFC), 0x1CF7C580); // CPU clock
+        self.write::<u32>(Address(0xF8), 0x09A7_EC80); // Bus clock
+        self.write::<u32>(Address(0xFC), 0x1CF7_C580); // CPU clock
 
         // setup MSR
         self.cpu.supervisor.config.msr.set_exception_prefix(false);

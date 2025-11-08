@@ -145,11 +145,8 @@ impl Interface {
     /// Given an address and the texture data present there, returns whether the data hash matches
     /// with the one in the cache. If not, the hash is inserted into the cache.
     pub fn insert_cache(&mut self, addr: Address, data: &[u8]) -> bool {
-        use std::hash::{BuildHasher, Hash, Hasher};
-        let mut hasher = self.hasher.build_hasher();
-        data.hash(&mut hasher);
-
-        let new_hash = hasher.finish();
+        use std::hash::BuildHasher;
+        let new_hash = self.hasher.hash_one(data);
         if let Some(old_hash) = self.cache.get(&addr) {
             if *old_hash == new_hash {
                 true
@@ -173,7 +170,7 @@ pub struct Rgba8 {
 }
 
 impl Rgba8 {
-    fn lerp(&self, rhs: Self, t: f32) -> Self {
+    fn lerp(self, rhs: Self, t: f32) -> Self {
         let lerp = |a, b, t| a * (1.0 - t) + b * t;
         Self {
             r: lerp(self.r as f32, rhs.r as f32, t).round() as u8,

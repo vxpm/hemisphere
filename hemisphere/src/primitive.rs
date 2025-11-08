@@ -4,7 +4,7 @@ use zerocopy::{FromBytes, Immutable, IntoBytes};
 ///
 /// A primitive is either a byte, half-word, word or double word.
 /// That is, [`u8`], [`i8`], [`u16`], [`i16`], [`u32`], [`i32`], [`u64`] or [`i64`].
-pub unsafe trait Primitive:
+pub trait Primitive:
     std::fmt::Debug
     + std::fmt::UpperHex
     + Copy
@@ -44,7 +44,7 @@ pub unsafe trait Primitive:
 macro_rules! impl_primitive {
     ($($type:ty),*) => {
         $(
-            unsafe impl Primitive for $type {
+            impl Primitive for $type {
                 #[inline(always)]
                 fn read_ne_bytes(buf: &[u8]) -> Self {
                     const SELF_SIZE: usize = size_of::<$type>();

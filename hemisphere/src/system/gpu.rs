@@ -629,8 +629,8 @@ impl System {
                 .environment
                 .stage_ops
                 .iter()
-                .cloned()
                 .take(self.gpu.environment.active_stages as usize)
+                .cloned()
                 .enumerate()
                 .map(|(i, ops)| {
                     let pair = &self.gpu.environment.stage_refs[i / 2];
