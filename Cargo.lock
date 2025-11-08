@@ -712,7 +712,6 @@ dependencies = [
 name = "cores"
 version = "0.1.0"
 dependencies = [
- "dspint",
  "ppcjit",
 ]
 

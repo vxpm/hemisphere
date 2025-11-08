@@ -9,4 +9,4 @@ workspace = true
 
 [dependencies]
 ppcjit.workspace = true
-dspint.workspace = true
+# dspint.workspace = true
