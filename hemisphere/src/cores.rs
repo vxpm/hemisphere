@@ -1,24 +1,21 @@
 use crate::system::System;
+use gekko::Address;
 
+#[derive(Default, Clone, Copy)]
 pub struct Executed {
+    /// How many instructions have been executed.
     pub instructions: u32,
+    /// How many cycles have been executed.
     pub cycles: u32,
-}
-
-/// Limits for CPU core execution.
-pub struct Limits {
-    /// A hard-limit on how many instructions can be executed. This means that the number of
-    /// executed instructions must always be less than or equal to this value.
-    pub instructions: u32,
-    /// A soft-limit on how many cycles can be executed. This means that the number of executed
-    /// instructions can be less than this value or, at most, slightly above it.
-    pub cycles: u32,
+    /// Whether a breakpoint was hit.
+    pub hit_breakpoint: bool,
 }
 
 /// Trait for CPU cores.
 pub trait CpuCore {
-    /// Drives the CPU core forward within specific limits.
-    fn exec(&mut self, sys: &mut System, limits: Limits) -> Executed;
+    /// Drives the CPU core forward by approximatedly the given number of `cycles`, stopping at any
+    /// address in `breakpoints`.
+    fn exec(&mut self, sys: &mut System, cycles: u32, breakpoints: &[Address]) -> Executed;
 }
 
 /// Trait for DSP cores.

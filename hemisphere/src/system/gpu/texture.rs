@@ -1,9 +1,9 @@
+use crate::Primitive;
 use bitos::{
     BitUtils, bitos,
     integer::{u2, u10},
 };
 use gekko::Address;
-use gekko::Primitive;
 use rustc_hash::FxBuildHasher;
 use std::collections::HashMap;
 use zerocopy::{Immutable, IntoBytes};

@@ -1,9 +1,8 @@
+use crate::system::gpu::command::attributes::Rgba;
 use bitos::{
     bitos,
     integer::{u2, u3},
 };
-
-use crate::system::gpu::command::attributes::Rgba;
 
 #[bitos(3)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

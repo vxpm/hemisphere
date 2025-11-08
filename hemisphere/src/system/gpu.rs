@@ -4,9 +4,10 @@ pub mod pixel;
 pub mod texture;
 pub mod transform;
 
-use super::System;
 use crate::{
+    Primitive, System,
     render::{Action, TevConfig, TevStage},
+    stream::{BinReader, BinaryStream},
     system::{
         Event,
         gpu::command::{
@@ -19,10 +20,7 @@ use bitos::{
     BitUtils, bitos,
     integer::{UnsignedInt, u3, u4},
 };
-use gekko::{
-    Address, Primitive,
-    bin::{BinReader, BinaryStream},
-};
+use gekko::Address;
 use glam::{Mat3, Mat4, Vec2, Vec3};
 use strum::FromRepr;
 use zerocopy::IntoBytes;

@@ -18,6 +18,7 @@ pub mod video;
 use crate::{
     render::Renderer,
     system::{
+        dspi::Dsp,
         executable::{DebugInfo, Executable},
         gpu::Gpu,
         lazy::Lazy,
@@ -26,15 +27,10 @@ use crate::{
         scheduler::Scheduler,
     },
 };
-use gekko::{
-    Address,
-    arch::{Cpu, Exception, FREQUENCY},
-};
 use dol::binrw::BinRead;
+use gekko::{Address, Cpu, Exception, FREQUENCY};
 use iso::Iso;
 use std::io::{Cursor, Read, Seek};
-
-pub type Callback = Box<dyn FnMut() + Send + Sync + 'static>;
 
 pub trait ReadAndSeek: Read + Seek + Send + 'static {}
 impl<T> ReadAndSeek for T where T: Read + Seek + Send + 'static {}
@@ -46,7 +42,6 @@ pub struct Config {
     pub iso: Option<Iso<Box<dyn ReadAndSeek>>>,
     pub sideload: Option<Executable>,
     pub debug_info: Option<Box<dyn DebugInfo>>,
-    pub vsync_callback: Option<Callback>,
 }
 
 /// An event which can be scheduled to happen at a specific time.
@@ -60,11 +55,8 @@ pub enum Event {
     Video(video::Event),
     /// Check external interrupts.
     DiskTransferComplete,
-    /// Advance DSP forward
-    AdvanceDsp,
     /// Finish audio DMA
     AudioDma,
-    AramDma,
 }
 
 /// System state.
@@ -77,8 +69,8 @@ pub struct System {
     pub cpu: Cpu,
     /// The GPU state.
     pub gpu: Gpu,
-    /// The DSP interface.
-    pub dsp: dsp::Dsp,
+    /// The DSP state.
+    pub dsp: Dsp,
     /// System memory.
     pub mem: Memory,
     /// State of memory mapping.
@@ -214,18 +206,11 @@ impl System {
     }
 
     pub fn new(mut config: Config) -> Self {
-        let mut dsp = dsp::Dsp::default();
-        dsp.mem.irom.copy_from_slice(&dspi::DSP_ROM[..]);
-        dsp.mem.coef.copy_from_slice(&dspi::DSP_COEF[..]);
-
-        let mut scheduler = Scheduler::default();
-        scheduler.schedule(Event::AdvanceDsp, 6 * dspi::STEP_SIZE);
-
         let mut system = System {
-            scheduler,
-            dsp,
+            scheduler: Scheduler::default(),
             cpu: Cpu::default(),
             gpu: Gpu::default(),
+            dsp: Dsp::default(),
             mem: Memory::new(
                 config
                     .ipl
@@ -298,16 +283,6 @@ impl System {
                 self.video.vertical_count += 1;
                 if self.video.vertical_count as u32 > self.video.lines_per_frame() {
                     self.video.vertical_count = 1;
-                    if let Some(callback) = &mut self.config.vsync_callback {
-                        callback();
-                    }
-                }
-
-                if !self.video.display_config.progressive()
-                    && self.video.vertical_count as u32 == self.video.lines_per_even_field() + 1
-                    && let Some(callback) = &mut self.config.vsync_callback
-                {
-                    callback();
                 }
 
                 let cycles_per_frame = (FREQUENCY as f64 / self.video.refresh_rate()) as u32;
@@ -320,26 +295,11 @@ impl System {
                     cycles_per_line as u64,
                 );
             }
-            Event::AdvanceDsp => {
-                if !self.dsp.mmio.control.halt() {
-                    for _ in 0..dspi::STEP_SIZE {
-                        self.dsp.step();
-                    }
-                }
-
-                self.dsp_dma();
-                self.scheduler
-                    .schedule(Event::AdvanceDsp, 6 * dspi::STEP_SIZE);
-            }
             Event::AudioDma => {
                 tracing::debug!("AI DMA finished");
-                self.dsp.mmio.control.set_ai_interrupt(true);
+                self.dsp.control.set_ai_interrupt(true);
                 self.pi_check_interrupts();
                 self.scheduler.schedule(Event::AudioDma, 1620000);
-            }
-            Event::AramDma => {
-                self.dsp_aram_dma();
-                self.pi_check_interrupts();
             }
         }
     }

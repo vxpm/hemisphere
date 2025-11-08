@@ -1,18 +1,19 @@
 pub mod attributes;
 
-use crate::system::{
-    System,
-    gpu::{Gpu, Reg as GxReg, Topology, command::attributes::AttributeDescriptor},
+use crate::{
+    Primitive,
+    stream::{BinRingBuffer, BinaryStream},
+    system::{
+        System,
+        gpu::{Gpu, Reg as GxReg, Topology, command::attributes::AttributeDescriptor},
+    },
 };
 use attributes::VertexAttributeTable;
 use bitos::{
     BitUtils, bitos,
     integer::{u3, u6},
 };
-use gekko::{
-    Address, Primitive,
-    bin::{BinRingBuffer, BinaryStream},
-};
+use gekko::Address;
 use strum::FromRepr;
 use zerocopy::IntoBytes;
 

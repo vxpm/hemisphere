@@ -2,7 +2,7 @@
 
 use crate::system::System;
 use bitos::{bitos, integer::u26};
-use gekko::{Address, arch::Exception};
+use gekko::{Address, Exception};
 
 #[bitos(14)]
 #[derive(Default, Debug, Clone, Copy)]
@@ -101,7 +101,7 @@ impl System {
         sources.set_audio_interface(self.audio.control.interrupt());
 
         // DSP
-        sources.set_dsp_interface(self.dsp.mmio.control.any_interrupt());
+        sources.set_dsp_interface(self.dsp.control.any_interrupt());
 
         // DI
         sources.set_dvd_interface(self.disk.status.any_interrupt());

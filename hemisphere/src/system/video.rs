@@ -4,7 +4,7 @@ use bitos::{
     bitos,
     integer::{u4, u7, u9, u10, u24},
 };
-use gekko::{Address, arch::FREQUENCY};
+use gekko::{Address, FREQUENCY};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Event {
@@ -211,7 +211,7 @@ impl Interface {
 
     /// How many CPU cycles long a sample (~ pixel) is.
     pub fn cycles_per_sample(&self) -> u32 {
-        2 * FREQUENCY / self.video_clock()
+        2 * FREQUENCY as u32 / self.video_clock()
     }
 
     /// How many CPU cycles long a halfline is.

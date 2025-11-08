@@ -1,9 +1,10 @@
+use crate::Primitive;
 use crate::system::System;
 use bitos::{
     bitos,
     integer::{u2, u3},
 };
-use gekko::{Address, Primitive};
+use gekko::Address;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Device0 {

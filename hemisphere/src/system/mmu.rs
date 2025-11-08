@@ -1,9 +1,5 @@
 use bitos::BitUtils;
-use gekko::{
-    Address,
-    arch::{Bat, MemoryManagement},
-    util::boxed_array,
-};
+use gekko::{Address, Bat, MemoryManagement};
 use tracing::{info_span, trace, warn};
 
 const BASES_COUNT: usize = 1 << 15;
@@ -20,8 +16,8 @@ pub struct Mmu {
 impl Default for Mmu {
     fn default() -> Self {
         Self {
-            data_bat_lut: boxed_array(NO_BAT),
-            instr_bat_lut: boxed_array(NO_BAT),
+            data_bat_lut: util::boxed_array(NO_BAT),
+            instr_bat_lut: util::boxed_array(NO_BAT),
         }
     }
 }

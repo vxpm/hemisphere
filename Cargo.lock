@@ -1777,6 +1777,7 @@ dependencies = [
  "slotmap",
  "strum",
  "tracing",
+ "util",
  "zerocopy",
 ]
 

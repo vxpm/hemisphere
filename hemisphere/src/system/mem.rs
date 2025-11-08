@@ -1,5 +1,3 @@
-use gekko::util::boxed_array;
-
 pub const RAM_LEN: u32 = 24 * bytesize::MIB as u32;
 pub const L2C_LEN: u32 = 16 * bytesize::KIB as u32;
 pub const IPL_LEN: u32 = 2 * bytesize::MIB as u32;
@@ -12,14 +10,14 @@ pub struct Memory {
     pub sram: Box<[u8; SRAM_LEN as usize]>,
 }
 
-/// IPL decryption function, thanks hazelwiss!!
-fn decrypt_ipl(ipl: &mut [u8]) {
+/// IPL decoding function, thanks hazelwiss!!
+fn decode_ipl(ipl: &mut [u8]) {
     let mut acc = 0u8;
     let mut nacc = 0u8;
 
     let mut t = 0x2953u16;
-    let mut u = 0xd9c2u16;
-    let mut v = 0x3ff1u16;
+    let mut u = 0xD9C2u16;
+    let mut v = 0x3FF1u16;
 
     let mut x = 1u8;
 
@@ -67,13 +65,15 @@ fn decrypt_ipl(ipl: &mut [u8]) {
 impl Memory {
     pub fn new(mut ipl: Vec<u8>) -> Self {
         assert_eq!(ipl.len(), IPL_LEN as usize);
-        decrypt_ipl(&mut ipl[0x0000_0100..0x001A_EEE8]);
+
+        // TODO: the range depends on the IPL ROM! this is hardcoded for PAL
+        decode_ipl(&mut ipl[0x0000_0100..0x001A_EEE8]);
 
         Self {
-            ram: boxed_array(0x00),
-            l2c: boxed_array(0x00),
+            ram: util::boxed_array(0x00),
+            l2c: util::boxed_array(0x00),
             ipl: ipl.try_into().unwrap(),
-            sram: boxed_array(0x00),
+            sram: util::boxed_array(0x00),
         }
     }
 }
