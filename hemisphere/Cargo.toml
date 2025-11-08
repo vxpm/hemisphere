@@ -16,7 +16,6 @@ iso.workspace = true
 bitos.workspace = true
 bytesize.workspace = true
 easyerr.workspace = true
-slotmap.workspace = true
 tracing.workspace = true
 zerocopy.workspace = true
 strum.workspace = true

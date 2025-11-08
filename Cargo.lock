@@ -714,6 +714,9 @@ version = "0.1.0"
 dependencies = [
  "hemisphere",
  "ppcjit",
+ "slotmap",
+ "tracing",
+ "util",
 ]
 
 [[package]]
@@ -1782,7 +1785,6 @@ dependencies = [
  "iso",
  "parking_lot",
  "rustc-hash 2.1.1",
- "slotmap",
  "strum",
  "tracing",
  "util",

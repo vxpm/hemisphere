@@ -318,6 +318,12 @@ impl PartialEq<u64> for Cycles {
     }
 }
 
+impl PartialOrd<u64> for Cycles {
+    fn partial_cmp(&self, other: &u64) -> Option<std::cmp::Ordering> {
+        Some(self.0.cmp(other))
+    }
+}
+
 impl From<u64> for Cycles {
     #[inline(always)]
     fn from(value: u64) -> Self {

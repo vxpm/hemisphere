@@ -10,4 +10,8 @@ workspace = true
 [dependencies]
 hemisphere.workspace = true
 ppcjit.workspace = true
+util.workspace = true
+
+tracing.workspace = true
+slotmap.workspace = true
 # dspint.workspace = true
