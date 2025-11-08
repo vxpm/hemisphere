@@ -1,27 +1,35 @@
 [workspace]
 resolver = "3"
 members = [
+    # libraries
     "util",
     "gekko",
     "dol",
     "iso",
-    "cubetool",
-    "ipl-hle",
     "ppcjit",
     "dspint",
     "hemisphere",
+    "cores",
     "renderer",
+
+    # binaries
+    "ipl-hle",
+    "cubetool",
     "app",
 ]
 default-members = [
+    # libraries
     "util",
     "gekko",
-    "ppcjit",
-    "dspint",
     "dol",
     "iso",
+    "ppcjit",
+    "dspint",
     "hemisphere",
+    "cores",
     "renderer",
+
+    # binaries
     "app",
 ]
 
@@ -78,8 +86,10 @@ gekko = { path = "./gekko" }
 dol = { path = "./dol" }
 iso = { path = "./iso" }
 ppcjit = { path = "./ppcjit", features = ["disasm"] }
-dsp = { path = "./dsp" }
+dspint = { path = "./dspint" }
+cores = { path = "./cores" }
 hemisphere = { path = "./hemisphere" }
+renderer = { path = "./renderer" }
 
 # Actual dependencies
 binrw = { version = "0.15", features = ["std"], default-features = false }

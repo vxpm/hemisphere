@@ -709,6 +709,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "cores"
+version = "0.1.0"
+dependencies = [
+ "dspint",
+ "ppcjit",
+]
+
+[[package]]
 name = "cpp_demangle"
 version = "0.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
