@@ -45,16 +45,25 @@ impl Hemisphere {
             let remaining = cycles - executed.cycles;
             let until_next_dsp_step =
                 Cycles((6.0 * ((DSP_STEP as f64) - self.dsp_pending)).ceil() as u64);
-            let can_execute = until_next_dsp_step.min(remaining);
+            let until_next_event = Cycles(self.system.scheduler.until_next().unwrap_or(u64::MAX));
+            let can_execute = until_next_dsp_step.min(until_next_event).min(remaining);
 
+            // execute CPU
             let e = self.cores.cpu.exec(&mut self.system, can_execute, &[]);
             executed.instructions += e.instructions;
             executed.cycles += e.cycles;
             self.dsp_pending += e.cycles.to_dsp_cycles();
 
+            // execute DSP
             while self.dsp_pending > DSP_STEP as f64 {
                 self.cores.dsp.exec(&mut self.system, DSP_STEP);
-                self.dsp_pending %= DSP_STEP as f64;
+                self.dsp_pending -= DSP_STEP as f64;
+            }
+
+            // process events
+            self.system.scheduler.advance(e.cycles.0);
+            while let Some(event) = self.system.scheduler.pop() {
+                self.system.process(event);
             }
         }
 
