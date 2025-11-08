@@ -204,6 +204,20 @@ impl Cycles {
     pub fn to_duration(&self) -> Duration {
         Duration::from_secs_f64(self.0 as f64 / Self::PER_SECOND.0 as f64)
     }
+
+    #[inline(always)]
+    pub fn to_dsp_cycles(&self) -> f64 {
+        self.0 as f64 / 6.0
+    }
+}
+
+impl std::ops::Add<Cycles> for Cycles {
+    type Output = Self;
+
+    #[inline(always)]
+    fn add(self, rhs: Cycles) -> Self::Output {
+        Self(self.0 + rhs.0)
+    }
 }
 
 impl std::ops::Add<u64> for Cycles {
@@ -225,6 +239,13 @@ impl std::ops::Add<i64> for Cycles {
         } else {
             self - ((-rhs) as u64)
         }
+    }
+}
+
+impl std::ops::AddAssign<Cycles> for Cycles {
+    #[inline(always)]
+    fn add_assign(&mut self, rhs: Cycles) {
+        *self = *self + rhs;
     }
 }
 
@@ -261,11 +282,18 @@ impl std::ops::Sub<i64> for Cycles {
 }
 
 impl std::ops::Sub<Cycles> for Cycles {
-    type Output = i64;
+    type Output = Cycles;
 
     #[inline(always)]
     fn sub(self, rhs: Cycles) -> Self::Output {
-        self.0 as i64 - rhs.0 as i64
+        Self(self.0.checked_sub(rhs.0).expect("cycles sub overflow"))
+    }
+}
+
+impl std::ops::SubAssign<Cycles> for Cycles {
+    #[inline(always)]
+    fn sub_assign(&mut self, rhs: Cycles) {
+        *self = *self - rhs;
     }
 }
 

@@ -8,7 +8,7 @@ members = [
     "cubetool",
     "ipl-hle",
     "ppcjit",
-    "dsp",
+    "dspint",
     "hemisphere",
     "renderer",
     "app",
@@ -17,6 +17,7 @@ default-members = [
     "util",
     "gekko",
     "ppcjit",
+    "dspint",
     "dol",
     "iso",
     "hemisphere",
@@ -60,7 +61,7 @@ opt-level = 2
 [profile.dev.package."dol"]
 opt-level = 2
 
-[profile.dev.package."dsp"]
+[profile.dev.package."dspint"]
 opt-level = 3
 
 [profile.dev]

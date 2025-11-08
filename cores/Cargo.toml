@@ -1,0 +1,12 @@
+[package]
+name = "cores"
+description = "Cores for the emulator"
+version = "0.1.0"
+edition = "2024"
+
+[lints]
+workspace = true
+
+[dependencies]
+ppcjit.workspace = true
+dspint.workspace = true

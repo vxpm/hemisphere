@@ -1,12 +1,12 @@
 use crate::system::System;
-use gekko::Address;
+use gekko::{Address, Cycles};
 
 #[derive(Default, Clone, Copy)]
 pub struct Executed {
     /// How many instructions have been executed.
     pub instructions: u32,
     /// How many cycles have been executed.
-    pub cycles: u32,
+    pub cycles: Cycles,
     /// Whether a breakpoint was hit.
     pub hit_breakpoint: bool,
 }
@@ -15,7 +15,7 @@ pub struct Executed {
 pub trait CpuCore {
     /// Drives the CPU core forward by approximatedly the given number of `cycles`, stopping at any
     /// address in `breakpoints`.
-    fn exec(&mut self, sys: &mut System, cycles: u32, breakpoints: &[Address]) -> Executed;
+    fn exec(&mut self, sys: &mut System, cycles: Cycles, breakpoints: &[Address]) -> Executed;
 }
 
 /// Trait for DSP cores.
