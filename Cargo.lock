@@ -1065,6 +1065,7 @@ dependencies = [
  "binrw",
  "bitos",
  "bytesize",
+ "hemisphere",
  "libtest-mimic",
  "strum",
  "tinyvec",

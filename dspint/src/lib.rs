@@ -1,21 +1,18 @@
 mod exec;
 
 pub mod ins;
-// pub mod mmio;
 
 use crate::ins::{ExtensionOpcode, Opcode};
 use bitos::{BitUtils, bitos, integer::u15};
+use hemisphere::system::{
+    System,
+    dspi::{DspDmaControl, Mailbox},
+};
 use strum::FromRepr;
 use tinyvec::ArrayVec;
 use util::boxed_array;
 
 pub use ins::Ins;
-
-const ARAM_LEN: usize = if cfg!(feature = "zayd-tests") {
-    0
-} else {
-    16 * bytesize::MIB as usize
-};
 
 const IRAM_LEN: usize = 0x1000;
 const IROM_LEN: usize = 0x1000;
@@ -386,7 +383,7 @@ impl Dsp {
     }
 
     /// Soft resets the DSP.
-    pub fn reset(&mut self) {
+    pub fn reset(&mut self, sys: &mut System) {
         self.loop_counter = None;
 
         self.regs.wrapping = [0xFFFF; 4];
@@ -395,10 +392,10 @@ impl Dsp {
         self.regs.loop_stack.clear();
         self.regs.loop_count.clear();
 
-        self.mmio.dsp_mailbox = mmio::Mailbox::from_bits(0);
-        self.mmio.cpu_mailbox = mmio::Mailbox::from_bits(0);
+        sys.dsp.dsp_mailbox = Mailbox::from_bits(0);
+        sys.dsp.cpu_mailbox = Mailbox::from_bits(0);
 
-        self.regs.pc = if self.mmio.control.reset_high() {
+        self.regs.pc = if sys.dsp.control.reset_high() {
             tracing::debug!("resetting at IROM (0x8000)");
             0x8000
         } else {
@@ -407,14 +404,14 @@ impl Dsp {
         };
     }
 
-    pub fn read_mmio(&mut self, offset: u8) -> u16 {
+    pub fn read_mmio(&mut self, sys: &mut System, offset: u8) -> u16 {
         match offset {
             // DMA
-            0xC9 => self.mmio.dsp_dma.control.to_bits(),
-            0xCB => self.mmio.dsp_dma.length,
-            0xCD => self.mmio.dsp_dma.dsp_base,
-            0xCE => (self.mmio.dsp_dma.ram_base >> 16) as u16,
-            0xCF => self.mmio.dsp_dma.ram_base as u16,
+            0xC9 => sys.dsp.dsp_dma.control.to_bits(),
+            0xCB => sys.dsp.dsp_dma.length,
+            0xCD => sys.dsp.dsp_dma.dsp_base,
+            0xCE => (sys.dsp.dsp_dma.ram_base >> 16) as u16,
+            0xCF => sys.dsp.dsp_dma.ram_base as u16,
 
             // Accelerator
             0xD1..=0xED => {
@@ -423,50 +420,48 @@ impl Dsp {
             }
 
             // Mailboxes
-            0xFC => self.mmio.dsp_mailbox.high_and_status(),
-            0xFD => self.mmio.dsp_mailbox.low(),
-            0xFE => self.mmio.cpu_mailbox.high_and_status(),
+            0xFC => sys.dsp.dsp_mailbox.high_and_status(),
+            0xFD => sys.dsp.dsp_mailbox.low(),
+            0xFE => sys.dsp.cpu_mailbox.high_and_status(),
             0xFF => {
-                if self.mmio.cpu_mailbox.status() {
+                if sys.dsp.cpu_mailbox.status() {
                     tracing::debug!(
                         "received from CPU mailbox: 0x{:08X}",
-                        self.mmio.cpu_mailbox.data().value()
+                        sys.dsp.cpu_mailbox.data().value()
                     );
-                    self.mmio.cpu_mailbox.set_status(false);
+                    sys.dsp.cpu_mailbox.set_status(false);
                 }
 
-                self.mmio.cpu_mailbox.low()
+                sys.dsp.cpu_mailbox.low()
             }
             _ => unimplemented!("read from {offset:02X}"),
         }
     }
 
-    pub fn write_mmio(&mut self, offset: u8, value: u16) {
+    pub fn write_mmio(&mut self, sys: &mut System, offset: u8, value: u16) {
         match offset {
             // Coefficients
             0xA0..=0xAF => (),
 
             // DMA
-            0xC9 => self.mmio.dsp_dma.control = mmio::DspDmaControl::from_bits(value),
+            0xC9 => sys.dsp.dsp_dma.control = DspDmaControl::from_bits(value),
             0xCB => {
-                self.mmio.dsp_dma.length = value;
-                self.mmio.dsp_dma.control.set_transfer_ongoing(true);
-                self.mmio.control.set_dsp_dma_ongoing(true);
+                sys.dsp.dsp_dma.length = value;
+                sys.dsp.dsp_dma.control.set_transfer_ongoing(true);
+                sys.dsp.control.set_dsp_dma_ongoing(true);
             }
-            0xCD => self.mmio.dsp_dma.dsp_base = value,
+            0xCD => sys.dsp.dsp_dma.dsp_base = value,
             0xCE => {
-                self.mmio.dsp_dma.ram_base =
-                    self.mmio.dsp_dma.ram_base.with_bits(16, 32, value as u32)
+                sys.dsp.dsp_dma.ram_base = sys.dsp.dsp_dma.ram_base.with_bits(16, 32, value as u32)
             }
             0xCF => {
-                self.mmio.dsp_dma.ram_base =
-                    self.mmio.dsp_dma.ram_base.with_bits(0, 16, value as u32)
+                sys.dsp.dsp_dma.ram_base = sys.dsp.dsp_dma.ram_base.with_bits(0, 16, value as u32)
             }
 
             // Interrupt
             0xFB => {
                 if value > 0 {
-                    self.mmio.control.set_dsp_interrupt(true);
+                    sys.dsp.control.set_dsp_interrupt(true);
                 }
             }
 
@@ -475,22 +470,22 @@ impl Dsp {
 
             // Mailboxes
             0xFC => {
-                self.mmio.dsp_mailbox.set_high(u15::new(value));
+                sys.dsp.dsp_mailbox.set_high(u15::new(value));
             }
             0xFD => {
-                self.mmio.dsp_mailbox.set_low(value);
-                self.mmio.dsp_mailbox.set_status(true);
+                sys.dsp.dsp_mailbox.set_low(value);
+                sys.dsp.dsp_mailbox.set_status(true);
             }
             _ => unimplemented!("write to {offset:02X}"),
         }
     }
 
     /// Reads from data memory.
-    pub fn read_dmem(&mut self, addr: u16) -> u16 {
+    pub fn read_dmem(&mut self, sys: &mut System, addr: u16) -> u16 {
         let value = match addr {
             0x0000..0x1000 => self.mem.dram[addr as usize],
             0x1000..0x1800 => self.mem.coef[addr as usize - 0x1000],
-            0xFF00.. => self.read_mmio(addr as u8),
+            0xFF00.. => self.read_mmio(sys, addr as u8),
             _ => 0,
         };
 
@@ -498,11 +493,11 @@ impl Dsp {
     }
 
     /// Writes to data memory.
-    pub fn write_dmem(&mut self, addr: u16, value: u16) {
+    pub fn write_dmem(&mut self, sys: &mut System, addr: u16, value: u16) {
         match addr {
             0x0000..0x1000 => self.mem.dram[addr as usize] = value,
             0x1000..0x1800 => self.mem.coef[addr as usize - 0x1000] = value,
-            0xFF00.. => self.write_mmio(addr as u8, value),
+            0xFF00.. => self.write_mmio(sys, addr as u8, value),
             _ => (),
         }
     }
@@ -524,13 +519,13 @@ impl Dsp {
         }
     }
 
-    pub fn step(&mut self) {
-        if self.mmio.control.halt() {
+    pub fn step(&mut self, sys: &mut System) {
+        if sys.dsp.control.halt() {
             return;
         }
 
         self.check_stacks();
-        self.check_external_interrupt();
+        self.check_external_interrupt(sys);
 
         // fetch
         let mut ins = Ins::new(self.read_imem(self.regs.pc));
@@ -549,157 +544,157 @@ impl Dsp {
         // execute
         let regs_previous = self.regs.clone();
         match ins.opcode() {
-            Opcode::Abs => self.abs(ins),
-            Opcode::Add => self.add(ins),
-            Opcode::Addarn => self.addarn(ins),
-            Opcode::Addax => self.addax(ins),
-            Opcode::Addaxl => self.addaxl(ins),
-            Opcode::Addi => self.addi(ins),
-            Opcode::Addis => self.addis(ins),
-            Opcode::Addp => self.addp(ins),
-            Opcode::Addpaxz => self.addpaxz(ins),
-            Opcode::Addr => self.addr(ins),
-            Opcode::Andc => self.andc(ins),
-            Opcode::Andcf => self.andcf(ins),
-            Opcode::Andf => self.andf(ins),
-            Opcode::Andi => self.andi(ins),
-            Opcode::Andr => self.andr(ins),
-            Opcode::Asl => self.asl(ins),
-            Opcode::Asr => self.asr(ins),
-            Opcode::Asr16 => self.asr16(ins),
-            Opcode::Asrn => self.asrn(ins),
-            Opcode::Asrnr => self.asrnr(ins),
-            Opcode::Asrnrx => self.asrnrx(ins),
-            Opcode::Bloop => self.bloop(ins),
-            Opcode::Bloopi => self.bloopi(ins),
-            Opcode::Call => self.call(ins),
-            Opcode::Callr => self.callr(ins),
-            Opcode::Clr => self.clr(ins),
-            Opcode::Clr15 => self.clr15(ins),
-            Opcode::Clrl => self.clrl(ins),
-            Opcode::Clrp => self.clrp(ins),
-            Opcode::Cmp => self.cmp(ins),
-            Opcode::Cmpaxh => self.cmpaxh(ins),
-            Opcode::Cmpi => self.cmpi(ins),
-            Opcode::Cmpis => self.cmpis(ins),
-            Opcode::Dar => self.dar(ins),
-            Opcode::Dec => self.dec(ins),
-            Opcode::Decm => self.decm(ins),
-            Opcode::Halt => self.halt(ins),
-            Opcode::Iar => self.iar(ins),
-            Opcode::If => self.ifcc(ins),
-            Opcode::Ilrr => self.ilrr(ins),
-            Opcode::Ilrrd => self.ilrrd(ins),
-            Opcode::Ilrri => self.ilrri(ins),
-            Opcode::Ilrrn => self.ilrrn(ins),
-            Opcode::Inc => self.inc(ins),
-            Opcode::Incm => self.incm(ins),
-            Opcode::Jmp => self.jmp(ins),
-            Opcode::Jr => self.jmpr(ins),
-            Opcode::Loop => self.loop_(ins),
-            Opcode::Loopi => self.loopi(ins),
-            Opcode::Lr => self.lr(ins),
-            Opcode::Lri => self.lri(ins),
-            Opcode::Lris => self.lris(ins),
-            Opcode::Lrr => self.lrr(ins),
-            Opcode::Lrrd => self.lrrd(ins),
-            Opcode::Lrri => self.lrri(ins),
-            Opcode::Lrrn => self.lrrn(ins),
-            Opcode::Lrs => self.lrs(ins),
-            Opcode::Lsl => self.lsl(ins),
-            Opcode::Lsl16 => self.lsl16(ins),
-            Opcode::Lsr => self.lsr(ins),
-            Opcode::Lsr16 => self.lsr16(ins),
-            Opcode::Lsrn => self.lsrn(ins),
-            Opcode::Lsrnr => self.lsrnr(ins),
-            Opcode::Lsrnrx => self.lsrnrx(ins),
-            Opcode::M0 => self.m0(ins),
-            Opcode::M2 => self.m2(ins),
-            Opcode::Madd => self.madd(ins),
-            Opcode::Maddc => self.maddc(ins),
-            Opcode::Maddx => self.maddx(ins),
-            Opcode::Mov => self.mov(ins),
-            Opcode::Movax => self.movax(ins),
-            Opcode::Movnp => self.movnp(ins),
-            Opcode::Movp => self.movp(ins),
-            Opcode::Movpz => self.movpz(ins),
-            Opcode::Movr => self.movr(ins),
-            Opcode::Mrr => self.mrr(ins),
-            Opcode::Msub => self.msub(ins),
-            Opcode::Msubc => self.msubc(ins),
-            Opcode::Msubx => self.msubx(ins),
-            Opcode::Mul => self.mul(ins),
-            Opcode::Mulac => self.mulac(ins),
-            Opcode::Mulaxh => self.mulaxh(ins),
-            Opcode::Mulc => self.mulc(ins),
-            Opcode::Mulcac => self.mulcac(ins),
-            Opcode::Mulcmv => self.mulcmv(ins),
-            Opcode::Mulcmvz => self.mulcmvz(ins),
-            Opcode::Mulmv => self.mulmv(ins),
-            Opcode::Mulmvz => self.mulmvz(ins),
-            Opcode::Mulx => self.mulx(ins),
-            Opcode::Mulxac => self.mulxac(ins),
-            Opcode::Mulxmv => self.mulxmv(ins),
-            Opcode::Mulxmvz => self.mulxmvz(ins),
-            Opcode::Neg => self.neg(ins),
+            Opcode::Abs => self.abs(sys, ins),
+            Opcode::Add => self.add(sys, ins),
+            Opcode::Addarn => self.addarn(sys, ins),
+            Opcode::Addax => self.addax(sys, ins),
+            Opcode::Addaxl => self.addaxl(sys, ins),
+            Opcode::Addi => self.addi(sys, ins),
+            Opcode::Addis => self.addis(sys, ins),
+            Opcode::Addp => self.addp(sys, ins),
+            Opcode::Addpaxz => self.addpaxz(sys, ins),
+            Opcode::Addr => self.addr(sys, ins),
+            Opcode::Andc => self.andc(sys, ins),
+            Opcode::Andcf => self.andcf(sys, ins),
+            Opcode::Andf => self.andf(sys, ins),
+            Opcode::Andi => self.andi(sys, ins),
+            Opcode::Andr => self.andr(sys, ins),
+            Opcode::Asl => self.asl(sys, ins),
+            Opcode::Asr => self.asr(sys, ins),
+            Opcode::Asr16 => self.asr16(sys, ins),
+            Opcode::Asrn => self.asrn(sys, ins),
+            Opcode::Asrnr => self.asrnr(sys, ins),
+            Opcode::Asrnrx => self.asrnrx(sys, ins),
+            Opcode::Bloop => self.bloop(sys, ins),
+            Opcode::Bloopi => self.bloopi(sys, ins),
+            Opcode::Call => self.call(sys, ins),
+            Opcode::Callr => self.callr(sys, ins),
+            Opcode::Clr => self.clr(sys, ins),
+            Opcode::Clr15 => self.clr15(sys, ins),
+            Opcode::Clrl => self.clrl(sys, ins),
+            Opcode::Clrp => self.clrp(sys, ins),
+            Opcode::Cmp => self.cmp(sys, ins),
+            Opcode::Cmpaxh => self.cmpaxh(sys, ins),
+            Opcode::Cmpi => self.cmpi(sys, ins),
+            Opcode::Cmpis => self.cmpis(sys, ins),
+            Opcode::Dar => self.dar(sys, ins),
+            Opcode::Dec => self.dec(sys, ins),
+            Opcode::Decm => self.decm(sys, ins),
+            Opcode::Halt => self.halt(sys, ins),
+            Opcode::Iar => self.iar(sys, ins),
+            Opcode::If => self.ifcc(sys, ins),
+            Opcode::Ilrr => self.ilrr(sys, ins),
+            Opcode::Ilrrd => self.ilrrd(sys, ins),
+            Opcode::Ilrri => self.ilrri(sys, ins),
+            Opcode::Ilrrn => self.ilrrn(sys, ins),
+            Opcode::Inc => self.inc(sys, ins),
+            Opcode::Incm => self.incm(sys, ins),
+            Opcode::Jmp => self.jmp(sys, ins),
+            Opcode::Jr => self.jmpr(sys, ins),
+            Opcode::Loop => self.loop_(sys, ins),
+            Opcode::Loopi => self.loopi(sys, ins),
+            Opcode::Lr => self.lr(sys, ins),
+            Opcode::Lri => self.lri(sys, ins),
+            Opcode::Lris => self.lris(sys, ins),
+            Opcode::Lrr => self.lrr(sys, ins),
+            Opcode::Lrrd => self.lrrd(sys, ins),
+            Opcode::Lrri => self.lrri(sys, ins),
+            Opcode::Lrrn => self.lrrn(sys, ins),
+            Opcode::Lrs => self.lrs(sys, ins),
+            Opcode::Lsl => self.lsl(sys, ins),
+            Opcode::Lsl16 => self.lsl16(sys, ins),
+            Opcode::Lsr => self.lsr(sys, ins),
+            Opcode::Lsr16 => self.lsr16(sys, ins),
+            Opcode::Lsrn => self.lsrn(sys, ins),
+            Opcode::Lsrnr => self.lsrnr(sys, ins),
+            Opcode::Lsrnrx => self.lsrnrx(sys, ins),
+            Opcode::M0 => self.m0(sys, ins),
+            Opcode::M2 => self.m2(sys, ins),
+            Opcode::Madd => self.madd(sys, ins),
+            Opcode::Maddc => self.maddc(sys, ins),
+            Opcode::Maddx => self.maddx(sys, ins),
+            Opcode::Mov => self.mov(sys, ins),
+            Opcode::Movax => self.movax(sys, ins),
+            Opcode::Movnp => self.movnp(sys, ins),
+            Opcode::Movp => self.movp(sys, ins),
+            Opcode::Movpz => self.movpz(sys, ins),
+            Opcode::Movr => self.movr(sys, ins),
+            Opcode::Mrr => self.mrr(sys, ins),
+            Opcode::Msub => self.msub(sys, ins),
+            Opcode::Msubc => self.msubc(sys, ins),
+            Opcode::Msubx => self.msubx(sys, ins),
+            Opcode::Mul => self.mul(sys, ins),
+            Opcode::Mulac => self.mulac(sys, ins),
+            Opcode::Mulaxh => self.mulaxh(sys, ins),
+            Opcode::Mulc => self.mulc(sys, ins),
+            Opcode::Mulcac => self.mulcac(sys, ins),
+            Opcode::Mulcmv => self.mulcmv(sys, ins),
+            Opcode::Mulcmvz => self.mulcmvz(sys, ins),
+            Opcode::Mulmv => self.mulmv(sys, ins),
+            Opcode::Mulmvz => self.mulmvz(sys, ins),
+            Opcode::Mulx => self.mulx(sys, ins),
+            Opcode::Mulxac => self.mulxac(sys, ins),
+            Opcode::Mulxmv => self.mulxmv(sys, ins),
+            Opcode::Mulxmvz => self.mulxmvz(sys, ins),
+            Opcode::Neg => self.neg(sys, ins),
             Opcode::Nop | Opcode::Nx => (),
-            Opcode::Not => self.not(ins),
-            Opcode::Orc => self.orc(ins),
-            Opcode::Ori => self.ori(ins),
-            Opcode::Orr => self.orr(ins),
-            Opcode::Ret => self.ret(ins),
-            Opcode::Rti => self.rti(ins),
-            Opcode::Sbclr => self.sbclr(ins),
-            Opcode::Sbset => self.sbset(ins),
-            Opcode::Set15 => self.set15(ins),
-            Opcode::Set16 => self.set16(ins),
-            Opcode::Set40 => self.set40(ins),
-            Opcode::Si => self.si(ins),
-            Opcode::Sr => self.sr(ins),
-            Opcode::Srr => self.srr(ins),
-            Opcode::Srrd => self.srrd(ins),
-            Opcode::Srri => self.srri(ins),
-            Opcode::Srrn => self.srrn(ins),
-            Opcode::Srs => self.srs(ins),
-            Opcode::Srsh => self.srsh(ins),
-            Opcode::Sub => self.sub(ins),
-            Opcode::Subarn => self.subarn(ins),
-            Opcode::Subax => self.subax(ins),
-            Opcode::Subp => self.subp(ins),
-            Opcode::Subr => self.subr(ins),
-            Opcode::Tst => self.tst(ins),
-            Opcode::Tstaxh => self.tstaxh(ins),
-            Opcode::Tstprod => self.tstprod(ins),
-            Opcode::Xorc => self.xorc(ins),
-            Opcode::Xori => self.xori(ins),
-            Opcode::Xorr => self.xorr(ins),
+            Opcode::Not => self.not(sys, ins),
+            Opcode::Orc => self.orc(sys, ins),
+            Opcode::Ori => self.ori(sys, ins),
+            Opcode::Orr => self.orr(sys, ins),
+            Opcode::Ret => self.ret(sys, ins),
+            Opcode::Rti => self.rti(sys, ins),
+            Opcode::Sbclr => self.sbclr(sys, ins),
+            Opcode::Sbset => self.sbset(sys, ins),
+            Opcode::Set15 => self.set15(sys, ins),
+            Opcode::Set16 => self.set16(sys, ins),
+            Opcode::Set40 => self.set40(sys, ins),
+            Opcode::Si => self.si(sys, ins),
+            Opcode::Sr => self.sr(sys, ins),
+            Opcode::Srr => self.srr(sys, ins),
+            Opcode::Srrd => self.srrd(sys, ins),
+            Opcode::Srri => self.srri(sys, ins),
+            Opcode::Srrn => self.srrn(sys, ins),
+            Opcode::Srs => self.srs(sys, ins),
+            Opcode::Srsh => self.srsh(sys, ins),
+            Opcode::Sub => self.sub(sys, ins),
+            Opcode::Subarn => self.subarn(sys, ins),
+            Opcode::Subax => self.subax(sys, ins),
+            Opcode::Subp => self.subp(sys, ins),
+            Opcode::Subr => self.subr(sys, ins),
+            Opcode::Tst => self.tst(sys, ins),
+            Opcode::Tstaxh => self.tstaxh(sys, ins),
+            Opcode::Tstprod => self.tstprod(sys, ins),
+            Opcode::Xorc => self.xorc(sys, ins),
+            Opcode::Xori => self.xori(sys, ins),
+            Opcode::Xorr => self.xorr(sys, ins),
             Opcode::Illegal => (),
         }
 
         if opcode.has_extension() {
             let extension = ins.extension_opcode();
             match extension {
-                ExtensionOpcode::Dr => self.ext_dr(ins, &regs_previous),
-                ExtensionOpcode::Ir => self.ext_ir(ins, &regs_previous),
-                ExtensionOpcode::L => self.ext_l(ins, &regs_previous),
-                ExtensionOpcode::Ld => self.ext_ld(ins, &regs_previous),
-                ExtensionOpcode::Ldm => self.ext_ldm(ins, &regs_previous),
-                ExtensionOpcode::Ldn => self.ext_ldn(ins, &regs_previous),
-                ExtensionOpcode::Ldnm => self.ext_ldnm(ins, &regs_previous),
-                ExtensionOpcode::Ln => self.ext_ln(ins, &regs_previous),
-                ExtensionOpcode::Ls => self.ext_ls(ins, &regs_previous),
-                ExtensionOpcode::Lsm => self.ext_lsm(ins, &regs_previous),
-                ExtensionOpcode::Lsn => self.ext_lsn(ins, &regs_previous),
-                ExtensionOpcode::Lsnm => self.ext_lsnm(ins, &regs_previous),
-                ExtensionOpcode::Mv => self.ext_mv(ins, &regs_previous),
+                ExtensionOpcode::Dr => self.ext_dr(sys, ins, &regs_previous),
+                ExtensionOpcode::Ir => self.ext_ir(sys, ins, &regs_previous),
+                ExtensionOpcode::L => self.ext_l(sys, ins, &regs_previous),
+                ExtensionOpcode::Ld => self.ext_ld(sys, ins, &regs_previous),
+                ExtensionOpcode::Ldm => self.ext_ldm(sys, ins, &regs_previous),
+                ExtensionOpcode::Ldn => self.ext_ldn(sys, ins, &regs_previous),
+                ExtensionOpcode::Ldnm => self.ext_ldnm(sys, ins, &regs_previous),
+                ExtensionOpcode::Ln => self.ext_ln(sys, ins, &regs_previous),
+                ExtensionOpcode::Ls => self.ext_ls(sys, ins, &regs_previous),
+                ExtensionOpcode::Lsm => self.ext_lsm(sys, ins, &regs_previous),
+                ExtensionOpcode::Lsn => self.ext_lsn(sys, ins, &regs_previous),
+                ExtensionOpcode::Lsnm => self.ext_lsnm(sys, ins, &regs_previous),
+                ExtensionOpcode::Mv => self.ext_mv(sys, ins, &regs_previous),
                 ExtensionOpcode::Nop => (),
-                ExtensionOpcode::Nr => self.ext_nr(ins, &regs_previous),
-                ExtensionOpcode::S => self.ext_s(ins, &regs_previous),
-                ExtensionOpcode::Sl => self.ext_sl(ins, &regs_previous),
-                ExtensionOpcode::Slm => self.ext_slm(ins, &regs_previous),
-                ExtensionOpcode::Sln => self.ext_sln(ins, &regs_previous),
-                ExtensionOpcode::Slnm => self.ext_slnm(ins, &regs_previous),
-                ExtensionOpcode::Sn => self.ext_sn(ins, &regs_previous),
+                ExtensionOpcode::Nr => self.ext_nr(sys, ins, &regs_previous),
+                ExtensionOpcode::S => self.ext_s(sys, ins, &regs_previous),
+                ExtensionOpcode::Sl => self.ext_sl(sys, ins, &regs_previous),
+                ExtensionOpcode::Slm => self.ext_slm(sys, ins, &regs_previous),
+                ExtensionOpcode::Sln => self.ext_sln(sys, ins, &regs_previous),
+                ExtensionOpcode::Slnm => self.ext_slnm(sys, ins, &regs_previous),
+                ExtensionOpcode::Sn => self.ext_sn(sys, ins, &regs_previous),
                 ExtensionOpcode::Illegal => panic!("illegal extension opcode"),
             }
         }
