@@ -3,7 +3,7 @@ use hemisphere::{
     cores::{CpuCore, Executed},
     gekko::{
         Cpu, QuantizedType,
-        disasm::{Extensions, Ins, Opcode},
+        disasm::{Extensions, Ins},
     },
     system::{Event, System},
 };
@@ -511,13 +511,17 @@ impl JitCore {
 
     #[inline(always)]
     fn is_idle_looping(&self, sys: &mut System) -> bool {
-        let pc = sys.cpu.pc;
-        let Some(physical) = sys.translate_instr_addr(pc) else {
+        let Some(physical) = sys.translate_instr_addr(sys.cpu.pc) else {
+            std::hint::cold_path();
             return false;
         };
 
-        let ins = Ins::new(sys.read(physical), Extensions::gekko_broadway());
-        ins.op == Opcode::B && !ins.field_aa() && ins.field_li() == 0
+        let Some(ins) = sys.read_pure::<u32>(physical) else {
+            std::hint::cold_path();
+            return false;
+        };
+
+        ins == 0x4800_0000
     }
 }
 
