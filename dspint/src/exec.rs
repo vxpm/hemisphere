@@ -1558,9 +1558,14 @@ impl Interpreter {
         let r = ins.base.bits(0, 5) as u8;
 
         let counter = self.regs.get(Reg::new(r));
-        self.regs.call_stack.push(self.regs.pc.wrapping_add(2));
-        self.regs.loop_stack.push(ins.extra + 1);
-        self.regs.loop_count.push(counter);
+
+        if counter != 0 {
+            self.regs.call_stack.push(self.regs.pc.wrapping_add(2));
+            self.regs.loop_stack.push(ins.extra + 1);
+            self.regs.loop_count.push(counter);
+        } else {
+            self.regs.pc = (ins.extra + 1) - 2;
+        }
     }
 
     pub fn bloopi(&mut self, _: &mut System, ins: Ins) {
