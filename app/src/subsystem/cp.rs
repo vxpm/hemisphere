@@ -1,6 +1,6 @@
-use crate::{Ctx, subsystem::mmio_dbg, windows::AppWindow};
+use crate::{Ctx, State, subsystem::mmio_dbg, windows::AppWindow};
 use eframe::egui;
-use hemisphere::{runner::State, system::gpu::command::*};
+use hemisphere::system::gpu::command::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Default, Serialize, Deserialize)]
@@ -20,8 +20,8 @@ impl AppWindow for Window {
     }
 
     fn prepare(&mut self, state: &mut State) {
-        let core = state.core();
-        let cp = &core.system.gpu.command;
+        let emulator = &state.emulator;
+        let cp = &emulator.system.gpu.command;
 
         self.status = cp.status.clone();
         self.control = cp.control.clone();

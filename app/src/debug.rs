@@ -1,10 +1,7 @@
-use crate::{Ctx, windows::AppWindow};
+use crate::{Ctx, State, windows::AppWindow};
 use eframe::egui::{self, Color32};
 use egui_extras::{Column, TableBuilder};
-use hemisphere::{
-    runner::State,
-    system::{eabi::CallStack, executable::Location},
-};
+use hemisphere::system::{eabi::CallStack, executable::Location};
 use serde::{Deserialize, Serialize};
 
 #[derive(Default, Serialize, Deserialize)]
@@ -22,15 +19,12 @@ impl AppWindow for Window {
     }
 
     fn prepare(&mut self, state: &mut State) {
-        let core = state.core();
-
-        self.call_stack = core.system.call_stack();
-        self.location = core
-            .system
-            .config
-            .debug_info
-            .as_ref()
-            .and_then(|d| d.find_location(core.system.cpu.pc).map(|l| l.into_owned()));
+        let emulator = &state.emulator;
+        self.call_stack = emulator.system.call_stack();
+        self.location = emulator.system.config.debug_info.as_ref().and_then(|d| {
+            d.find_location(emulator.system.cpu.pc)
+                .map(|l| l.into_owned())
+        });
     }
 
     fn show(&mut self, ui: &mut egui::Ui, _: &mut Ctx) {

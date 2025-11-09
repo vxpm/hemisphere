@@ -8,6 +8,9 @@ pub struct InterpreterCore {
 
 impl DspCore for InterpreterCore {
     fn exec(&mut self, sys: &mut System, instructions: u32) -> u32 {
+        self.interpreter.do_dma(sys);
+        self.interpreter.check_reset(sys);
+
         for _ in 0..instructions {
             self.interpreter.step(sys);
         }

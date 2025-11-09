@@ -1,6 +1,6 @@
-use crate::{AppWindow, Ctx, subsystem::mmio_dbg};
+use crate::{AppWindow, Ctx, State, subsystem::mmio_dbg};
 use eframe::egui;
-use hemisphere::{Address, runner::State};
+use hemisphere::Address;
 use serde::{Deserialize, Serialize};
 
 #[derive(Default, Serialize, Deserialize)]
@@ -20,7 +20,7 @@ impl AppWindow for Window {
     }
 
     fn prepare(&mut self, state: &mut State) {
-        let core = state.core();
+        let core = &state.emulator;
         let pi = &core.system.processor;
         self.fifo_start = pi.fifo_start;
         self.fifo_end = pi.fifo_end;

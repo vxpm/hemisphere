@@ -1,6 +1,6 @@
-use crate::{Ctx, windows::AppWindow};
+use crate::{Ctx, State, windows::AppWindow};
 use eframe::egui::{self, RichText};
-use hemisphere::{Address, runner::State};
+use hemisphere::Address;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -39,10 +39,10 @@ impl AppWindow for Window {
 
         self.breakpoints.clear();
         self.breakpoints
-            .extend(state.breakpoints().iter().map(|b| b.value()));
+            .extend(state.breakpoints.iter().map(|b| b.value()));
         self.labels.retain(|b, _| self.breakpoints.contains(b));
 
-        self.current_pc = state.core().system.cpu.pc.value();
+        self.current_pc = state.emulator.system.cpu.pc.value();
     }
 
     fn show(&mut self, ui: &mut egui::Ui, ctx: &mut Ctx) {

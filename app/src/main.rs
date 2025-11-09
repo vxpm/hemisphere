@@ -20,7 +20,7 @@ use eframe::{
 };
 use eyre_pretty::eyre::Result;
 use hemisphere::{
-    Address, Hemisphere,
+    Address, Cycles, Hemisphere,
     cores::Cores,
     iso,
     system::{
@@ -34,10 +34,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     borrow::Cow,
     io::BufReader,
-    sync::{
-        Arc,
-        atomic::{AtomicU64, Ordering},
-    },
+    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -73,6 +70,24 @@ struct Ctx<'a> {
     renderer: &'a mut WgpuRenderer,
 }
 
+struct State {
+    running: bool,
+    emulator: Hemisphere,
+    breakpoints: Vec<Address>,
+}
+
+impl State {
+    fn add_breakpoint(&mut self, breakpoint: Address) {
+        if !self.breakpoints.contains(&breakpoint) {
+            self.breakpoints.push(breakpoint);
+        }
+    }
+
+    fn remove_breakpoint(&mut self, breakpoint: Address) {
+        self.breakpoints.retain(|b| *b != breakpoint);
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 struct AppWindowState {
     id: egui::Id,
@@ -83,8 +98,7 @@ struct AppWindowState {
 struct App {
     last_update: Instant,
     renderer: WgpuRenderer,
-    hemisphere: Hemisphere,
-    vsync_count: Arc<AtomicU64>,
+    state: State,
     windows: Vec<AppWindowState>,
 }
 
@@ -119,14 +133,6 @@ impl App {
             .and_then(|p| addr2line::Loader::new(p).ok())
             .map(|l| Box::new(Addr2LineDebug(l)) as _);
 
-        let vsync_count = Arc::new(AtomicU64::new(0));
-        let vsync_callback = {
-            let vsync_count = vsync_count.clone();
-            Box::new(move || {
-                vsync_count.fetch_add(1, Ordering::Relaxed);
-            })
-        };
-
         let wgpu_state = cc.wgpu_render_state.as_ref().unwrap();
         tracing::info!("wgpu device limits: {:?}", wgpu_state.device.limits());
 
@@ -152,6 +158,12 @@ impl App {
             },
         );
 
+        let state = State {
+            running: args.run,
+            emulator: hemisphere,
+            breakpoints: vec![],
+        };
+
         let windows: Vec<AppWindowState> = cc
             .storage
             .as_ref()
@@ -163,8 +175,7 @@ impl App {
         Ok(Self {
             last_update: Instant::now(),
             renderer,
-            hemisphere,
-            vsync_count,
+            state,
             windows,
         })
     }
@@ -179,6 +190,8 @@ impl App {
         });
     }
 }
+
+const FRAMETIME: Duration = Duration::new(0, (1_000_000_000.0 / 60.0) as u32);
 
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
@@ -228,10 +241,10 @@ impl eframe::App for App {
         });
 
         for window_state in &mut self.windows {
-            window_state.window.prepare(state);
+            window_state.window.prepare(&mut self.state);
         }
 
-        let running = self.runner.running();
+        let running = self.state.running;
         let mut context = Ctx {
             step: false,
             running,
@@ -262,23 +275,18 @@ impl eframe::App for App {
         });
 
         if context.running != running {
-            self.runner.set_run(context.running);
+            self.state.running = context.running;
         }
 
         if context.step {
-            self.runner.step();
+            // TODO
+            // self.state.hemisphere.step();
         }
 
-        const FRAMETIME: Duration = Duration::new(0, (1_000_000_000.0 / 60.0) as u32);
-        let vsyncs = self.vsync_count.load(Ordering::Relaxed);
-        loop {
-            if self.last_update.elapsed() >= FRAMETIME
-                || vsyncs < self.vsync_count.load(Ordering::Relaxed)
-            {
-                break;
+        if self.state.running {
+            while self.last_update.elapsed() < FRAMETIME {
+                self.state.emulator.exec(Cycles(4096));
             }
-
-            std::thread::yield_now();
         }
 
         ctx.request_repaint();

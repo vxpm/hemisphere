@@ -1,6 +1,6 @@
-use crate::{Ctx, windows::AppWindow};
+use crate::{Ctx, State, windows::AppWindow};
 use eframe::egui::{self};
-use hemisphere::{Address, runner::State};
+use hemisphere::Address;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -39,15 +39,15 @@ impl AppWindow for Window {
     }
 
     fn prepare(&mut self, state: &mut State) {
-        let core = state.core();
+        let emulator = &state.emulator;
         for variable in self.variables.iter_mut() {
-            let physical = core
+            let physical = emulator
                 .system
                 .mmu
                 .translate_data_addr(variable.address)
                 .unwrap_or(0);
 
-            variable.value = core.system.read_pure(Address(physical)).unwrap_or(0);
+            variable.value = emulator.system.read_pure(Address(physical)).unwrap_or(0);
         }
     }
 

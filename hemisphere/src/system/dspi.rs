@@ -156,7 +156,7 @@ pub struct Dsp {
 }
 
 impl System {
-    pub fn dsp_write_control(&mut self, value: Control) {
+    pub fn dspi_write_control(&mut self, value: Control) {
         self.dsp.control.set_halt(value.halt());
 
         // DSP external interrupt
@@ -186,124 +186,41 @@ impl System {
 
         self.dsp.control.set_unknown(value.unknown());
         self.dsp.control.set_reset_high(value.reset_high());
-
-        // if value.reset() || (!value.reset_high() && old_reset_high) {
-        //     // DMA from main memory if resetting at low
-        //     if !value.reset_high() {
-        //         tracing::debug!("DSP DMA stub from main memory");
-        //         let data = self.mem.ram[0x0100_0000..][..1024]
-        //             .chunks_exact(2)
-        //             .map(|c| u16::from_be_bytes([c[0], c[1]]));
-        //
-        //         for (word, data) in self.dsp.mem.iram[..512].iter_mut().zip(data) {
-        //             *word = data;
-        //         }
-        //     }
-        //
-        //     tracing::debug!("DSP reset");
-        //     self.dsp.reset();
-        // }
     }
 
-    ///// Performs the ARAM DMA if length is not zero.
-    //pub fn dsp_aram_dma(&mut self) {
-    //    let length = 4 * self.dsp.aram_dma.control.length().value() as usize;
-    //    if length != 0 {
-    //        let ram_base = self
-    //            .mmu
-    //            .translate_data_addr(self.dsp.aram_dma.ram_base.value())
-    //            .unwrap_or(self.dsp.aram_dma.ram_base.value());
-    //
-    //        let aram_base = self.dsp.aram_dma.aram_base & 0x00FF_FFFF;
-    //        match self.dsp.aram_dma.control.direction() {
-    //            AramDmaDirection::FromRamToAram => {
-    //                tracing::debug!(
-    //                    "ARAM DMA {length} bytes from RAM {} to ARAM {aram_base:08X}",
-    //                    Address(ram_base)
-    //                );
-    //
-    //                self.dsp.mem.aram[aram_base as usize..][..length]
-    //                    .copy_from_slice(&self.mem.ram[ram_base as usize..][..length]);
-    //            }
-    //            AramDmaDirection::FromAramToRam => {
-    //                tracing::debug!(
-    //                    "ARAM DMA {length} bytes from ARAM {aram_base:08X} to RAM {}",
-    //                    Address(ram_base)
-    //                );
-    //
-    //                self.mem.ram[ram_base as usize..][..length]
-    //                    .copy_from_slice(&self.dsp.mem.aram[aram_base as usize..][..length]);
-    //            }
-    //        }
-    //
-    //        self.dsp.aram_dma.control.set_length(u31::new(0));
-    //        self.dsp.control.set_aram_interrupt(true);
-    //    }
-    //}
-    //
-    ///// Performs the DSP DMA if the transfer is ongoing.
-    //pub fn dsp_dma(&mut self) {
-    //    if self.dsp.dsp_dma.control.transfer_ongoing() {
-    //        let ram_base = self.dsp.dsp_dma.ram_base & 0xFF_FFFF;
-    //        let dsp_base = self.dsp.dsp_dma.dsp_base;
-    //        let length = self.dsp.dsp_dma.length;
-    //
-    //        let (target, direction) = (
-    //            self.dsp.dsp_dma.control.dsp_target(),
-    //            self.dsp.dsp_dma.control.direction(),
-    //        );
-    //
-    //        match (target, direction) {
-    //            (DspDmaTarget::Dmem, DspDmaDirection::FromRamToDsp) => {
-    //                tracing::debug!(
-    //                    "DSP DMA {length:04X} bytes from RAM {ram_base:08X} to DMEM {dsp_base:04X}"
-    //                );
-    //
-    //                for word in 0..(length / 2) {
-    //                    let data = u16::read_be_bytes(
-    //                        &self.mem.ram[(ram_base + 2 * word as u32) as usize..],
-    //                    );
-    //
-    //                    self.dsp.write_dmem(dsp_base + word, data);
-    //                }
-    //            }
-    //            (DspDmaTarget::Dmem, DspDmaDirection::FromDspToRam) => {
-    //                tracing::debug!(
-    //                    "DSP DMA {length:04X} bytes from DMEM {dsp_base:04X} to RAM {ram_base:08X}"
-    //                );
-    //
-    //                for word in 0..(length / 2) {
-    //                    let data = self.dsp.read_dmem(dsp_base + word);
-    //                    data.write_be_bytes(
-    //                        &mut self.mem.ram[(ram_base + 2 * word as u32) as usize..],
-    //                    );
-    //                }
-    //            }
-    //            (DspDmaTarget::Imem, DspDmaDirection::FromRamToDsp) => {
-    //                tracing::info!(
-    //                    "DSP DMA {length:04X} bytes from RAM {ram_base:08X} to IMEM {dsp_base:04X} (ucode)"
-    //                );
-    //
-    //                // let mut file = std::fs::File::create("IMEM.DUMP").unwrap();
-    //                for word in 0..(length / 2) {
-    //                    let data = u16::read_be_bytes(
-    //                        &self.mem.ram[(ram_base + 2 * word as u32) as usize..],
-    //                    );
-    //
-    //                    // file.write_all(data.to_be().as_bytes()).unwrap();
-    //                    self.dsp.write_imem(dsp_base + word, data);
-    //                }
-    //
-    //                // panic!()
-    //            }
-    //            (DspDmaTarget::Imem, DspDmaDirection::FromDspToRam) => {
-    //                todo!()
-    //            }
-    //        };
-    //
-    //        self.dsp.dsp_dma.length = 0;
-    //        self.dsp.dsp_dma.control.set_transfer_ongoing(false);
-    //        self.dsp.control.set_dsp_dma_ongoing(false);
-    //    }
-    //}
+    /// Performs the ARAM DMA if length is not zero.
+    pub fn dspi_aram_dma(&mut self) {
+        let length = 4 * self.dsp.aram_dma.control.length().value() as usize;
+        if length != 0 {
+            let ram_base = self
+                .mmu
+                .translate_data_addr(self.dsp.aram_dma.ram_base.value())
+                .unwrap_or(self.dsp.aram_dma.ram_base.value());
+
+            let aram_base = self.dsp.aram_dma.aram_base & 0x00FF_FFFF;
+            match self.dsp.aram_dma.control.direction() {
+                AramDmaDirection::FromRamToAram => {
+                    tracing::debug!(
+                        "ARAM DMA {length} bytes from RAM {} to ARAM {aram_base:08X}",
+                        Address(ram_base)
+                    );
+
+                    self.mem.aram[aram_base as usize..][..length]
+                        .copy_from_slice(&self.mem.ram[ram_base as usize..][..length]);
+                }
+                AramDmaDirection::FromAramToRam => {
+                    tracing::debug!(
+                        "ARAM DMA {length} bytes from ARAM {aram_base:08X} to RAM {}",
+                        Address(ram_base)
+                    );
+
+                    self.mem.ram[ram_base as usize..][..length]
+                        .copy_from_slice(&self.mem.aram[aram_base as usize..][..length]);
+                }
+            }
+
+            self.dsp.aram_dma.control.set_length(u31::new(0));
+            self.dsp.control.set_aram_interrupt(true);
+        }
+    }
 }

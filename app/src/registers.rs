@@ -1,7 +1,7 @@
-use crate::{Ctx, windows::AppWindow};
+use crate::{Ctx, State, windows::AppWindow};
 use eframe::egui::{self, Color32};
 use egui_extras::{Column, TableBuilder};
-use hemisphere::{arch::Cpu, runner::State};
+use hemisphere::gekko::Cpu;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -202,7 +202,7 @@ impl AppWindow for Window {
     }
 
     fn prepare(&mut self, state: &mut State) {
-        self.cpu = state.core().system.cpu.clone();
+        self.cpu = state.emulator.system.cpu.clone();
     }
 
     fn show(&mut self, ui: &mut egui::Ui, _: &mut Ctx) {

@@ -1,12 +1,15 @@
+#![feature(cold_path)]
+
 mod exec;
 
 pub mod ins;
 
 use crate::ins::{ExtensionOpcode, Opcode};
 use bitos::{BitUtils, bitos, integer::u15};
+use hemisphere::Primitive;
 use hemisphere::system::{
     System,
-    dspi::{DspDmaControl, Mailbox},
+    dspi::{DspDmaControl, DspDmaDirection, DspDmaTarget, Mailbox},
 };
 use strum::FromRepr;
 use tinyvec::ArrayVec;
@@ -345,6 +348,7 @@ pub struct Interpreter {
     pub regs: Registers,
     pub mem: Memory,
     pub loop_counter: Option<u16>,
+    pub old_reset_high: bool,
 }
 
 impl Interpreter {
@@ -402,6 +406,94 @@ impl Interpreter {
             tracing::debug!("resetting at IRAM (0x0000)");
             0x0000
         };
+    }
+
+    /// Checks for reset.
+    pub fn check_reset(&mut self, sys: &mut System) {
+        if sys.dsp.control.reset() || (!sys.dsp.control.reset_high() && self.old_reset_high) {
+            std::hint::cold_path();
+
+            // DMA from main memory if resetting at low
+            if !sys.dsp.control.reset_high() {
+                tracing::debug!("DSP DMA stub from main memory");
+                let data = sys.mem.ram[0x0100_0000..][..1024]
+                    .chunks_exact(2)
+                    .map(|c| u16::from_be_bytes([c[0], c[1]]));
+
+                for (word, data) in self.mem.iram[..512].iter_mut().zip(data) {
+                    *word = data;
+                }
+            }
+
+            tracing::debug!("DSP reset");
+            self.reset(sys);
+        }
+
+        self.old_reset_high = sys.dsp.control.reset_high();
+    }
+
+    /// Performs the DSP DMA if the transfer is ongoing.
+    pub fn do_dma(&mut self, sys: &mut System) {
+        if sys.dsp.dsp_dma.control.transfer_ongoing() {
+            std::hint::cold_path();
+
+            let ram_base = sys.dsp.dsp_dma.ram_base & 0xFF_FFFF;
+            let dsp_base = sys.dsp.dsp_dma.dsp_base;
+            let length = sys.dsp.dsp_dma.length;
+
+            let (target, direction) = (
+                sys.dsp.dsp_dma.control.dsp_target(),
+                sys.dsp.dsp_dma.control.direction(),
+            );
+
+            match (target, direction) {
+                (DspDmaTarget::Dmem, DspDmaDirection::FromRamToDsp) => {
+                    tracing::debug!(
+                        "DSP DMA {length:04X} bytes from RAM {ram_base:08X} to DMEM {dsp_base:04X}"
+                    );
+
+                    for word in 0..(length / 2) {
+                        let data = u16::read_be_bytes(
+                            &sys.mem.ram[(ram_base + 2 * word as u32) as usize..],
+                        );
+
+                        self.write_dmem(sys, dsp_base + word, data);
+                    }
+                }
+                (DspDmaTarget::Dmem, DspDmaDirection::FromDspToRam) => {
+                    tracing::debug!(
+                        "DSP DMA {length:04X} bytes from DMEM {dsp_base:04X} to RAM {ram_base:08X}"
+                    );
+
+                    for word in 0..(length / 2) {
+                        let data = self.read_dmem(sys, dsp_base + word);
+                        data.write_be_bytes(
+                            &mut sys.mem.ram[(ram_base + 2 * word as u32) as usize..],
+                        );
+                    }
+                }
+                (DspDmaTarget::Imem, DspDmaDirection::FromRamToDsp) => {
+                    tracing::info!(
+                        "DSP DMA {length:04X} bytes from RAM {ram_base:08X} to IMEM {dsp_base:04X} (ucode)"
+                    );
+
+                    for word in 0..(length / 2) {
+                        let data = u16::read_be_bytes(
+                            &sys.mem.ram[(ram_base + 2 * word as u32) as usize..],
+                        );
+
+                        self.write_imem(dsp_base + word, data);
+                    }
+                }
+                (DspDmaTarget::Imem, DspDmaDirection::FromDspToRam) => {
+                    todo!()
+                }
+            };
+
+            sys.dsp.dsp_dma.length = 0;
+            sys.dsp.dsp_dma.control.set_transfer_ongoing(false);
+            sys.dsp.control.set_dsp_dma_ongoing(false);
+        }
     }
 
     pub fn read_mmio(&mut self, sys: &mut System, offset: u8) -> u16 {

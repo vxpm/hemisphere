@@ -21,7 +21,7 @@ const DSP_STEP: u32 = 512;
 /// The Hemisphere emulator.
 pub struct Hemisphere {
     /// System state.
-    system: System,
+    pub system: System,
     /// Cores of the emulator.
     cores: Cores,
     /// How many DSP cycles are pending.
@@ -55,7 +55,7 @@ impl Hemisphere {
             self.dsp_pending += e.cycles.to_dsp_cycles();
 
             // execute DSP
-            while self.dsp_pending > DSP_STEP as f64 {
+            while self.dsp_pending >= DSP_STEP as f64 {
                 self.cores.dsp.exec(&mut self.system, DSP_STEP);
                 self.dsp_pending -= DSP_STEP as f64;
             }

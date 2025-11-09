@@ -1,6 +1,5 @@
-use crate::{Ctx, windows::AppWindow};
+use crate::{Ctx, State, windows::AppWindow};
 use eframe::egui;
-use hemisphere::runner::State;
 use serde::{Deserialize, Serialize};
 
 #[inline]
@@ -35,17 +34,17 @@ impl AppWindow for Window {
     }
 
     fn prepare(&mut self, state: &mut State) {
-        let core = state.core();
-        if !core.system.video.display_config.enable() {
+        let emulator = &state.emulator;
+        if !emulator.system.video.display_config.enable() {
             self.xfb_enabled = false;
             return;
         }
 
-        self.xfb_resolution = core.system.video.xfb_resolution();
+        self.xfb_resolution = emulator.system.video.xfb_resolution();
         let Some(xfb) = (if self.bottom {
-            core.system.bottom_xfb()
+            emulator.system.bottom_xfb()
         } else {
-            core.system.top_xfb()
+            emulator.system.top_xfb()
         }) else {
             return;
         };

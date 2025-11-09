@@ -1,9 +1,8 @@
-use crate::{Ctx, windows::AppWindow};
+use crate::{Ctx, State, windows::AppWindow};
 use eframe::{
     egui::{self, Vec2},
     egui_wgpu::{self, CallbackTrait},
 };
-use hemisphere::runner::State;
 use renderer::WgpuRenderer;
 use serde::{Deserialize, Serialize};
 

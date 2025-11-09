@@ -1,10 +1,9 @@
-use crate::{Ctx, windows::AppWindow};
+use crate::{Ctx, State, windows::AppWindow};
 use eframe::egui;
 use egui_extras::{Column, TableBuilder};
 use hemisphere::{
     Address,
-    arch::disasm::{Extensions, Ins, ParsedIns},
-    runner::State,
+    gekko::disasm::{Extensions, Ins, ParsedIns},
 };
 use serde::{Deserialize, Serialize};
 
@@ -56,14 +55,14 @@ impl AppWindow for Window {
     fn prepare(&mut self, state: &mut State) {
         self.breakpoints.clear();
         self.breakpoints
-            .extend(state.breakpoints().iter().map(|b| b.value()));
+            .extend(state.breakpoints.iter().map(|b| b.value()));
 
         if let Some(breakpoint) = self.breakpoint_to_add.take() {
             state.add_breakpoint(Address(breakpoint));
         }
 
-        let core = state.core();
-        self.pc = core.system.cpu.pc.value();
+        let emulator = &state.emulator;
+        self.pc = emulator.system.cpu.pc.value();
 
         if self.follow_pc {
             self.target = self.pc;
@@ -71,12 +70,12 @@ impl AppWindow for Window {
 
         let mut current = Address(self.target.wrapping_sub(4 * (self.rows / 2)));
         for _ in 0..self.rows {
-            let translated = core
+            let translated = emulator
                 .system
                 .translate_instr_addr(current)
                 .unwrap_or_default();
 
-            let code = core.system.read_pure(translated).unwrap_or(0);
+            let code = emulator.system.read_pure(translated).unwrap_or(0);
             let ins = Ins::new(code, Extensions::gekko_broadway());
             self.instructions.push(ins);
 

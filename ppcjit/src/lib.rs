@@ -41,7 +41,7 @@ impl Default for Compiler {
         settings.set("opt_level", opt_level).unwrap();
         settings.set("enable_verifier", verifier).unwrap();
         settings.enable("enable_alias_analysis").unwrap();
-        settings.enable("enable_jump_tables").unwrap();
+        // settings.enable("enable_jump_tables").unwrap();
 
         let isa_builder = native::builder().unwrap_or_else(|msg| {
             panic!("host machine is not supported: {}", msg);

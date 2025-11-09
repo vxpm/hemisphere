@@ -439,11 +439,14 @@ impl System {
             Mmio::DspControl => {
                 let mut written = self.dsp.control;
                 ne!(written.as_mut_bytes());
-                self.dsp_write_control(written);
+                self.dspi_write_control(written);
             }
             Mmio::DspAramDmaRamBase => ne!(self.dsp.aram_dma.ram_base.as_mut_bytes()),
             Mmio::DspAramDmaAramBase => ne!(self.dsp.aram_dma.aram_base.as_mut_bytes()),
-            Mmio::DspAramDmaControl => ne!(self.dsp.aram_dma.control.as_mut_bytes()),
+            Mmio::DspAramDmaControl => {
+                ne!(self.dsp.aram_dma.control.as_mut_bytes());
+                self.dspi_aram_dma();
+            }
             Mmio::AudioDmaBase => ne!(self.audio.dma_base.as_mut_bytes()),
             Mmio::AudioDmaControl => {
                 let ongoing = self.audio.dma_control.transfer_ongoing();
