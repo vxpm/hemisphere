@@ -1,8 +1,8 @@
 use super::BlockBuilder;
 use crate::builder::{Action, Info, util::IntoIrValue};
 use bitos::{bitos, integer::u5};
-use gekko::{Reg, SPR, disasm::Ins};
 use cranelift::{codegen::ir, prelude::InstBuilder};
+use gekko::{Reg, SPR, disasm::Ins};
 
 const JUMP_INFO: Info = Info {
     cycles: 2,
@@ -65,7 +65,7 @@ impl BlockBuilder<'_> {
         self.setup_jump(!ins.field_aa(), ins.field_lk(), target);
 
         if !ins.field_aa() && ins.field_li() == 0 {
-            // PERF: spin loop - lie and say we executed more cycles instead
+            // PERF: idle loop - lie and say we executed more cycles instead
             Info {
                 cycles: 64,
                 ..JUMP_INFO

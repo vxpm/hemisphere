@@ -3,7 +3,7 @@ use hemisphere::{
     cores::{CpuCore, Executed},
     gekko::{
         Cpu, QuantizedType,
-        disasm::{Extensions, Ins},
+        disasm::{Extensions, Ins, Opcode},
     },
     system::{Event, System},
 };
@@ -508,6 +508,17 @@ impl JitCore {
 
         self.uncached_exec(sys, max_instructions)
     }
+
+    #[inline(always)]
+    fn is_idle_looping(&self, sys: &mut System) -> bool {
+        let pc = sys.cpu.pc;
+        let Some(physical) = sys.translate_instr_addr(pc) else {
+            return false;
+        };
+
+        let ins = Ins::new(sys.read(physical), Extensions::gekko_broadway());
+        ins.op == Opcode::B && !ins.field_aa() && ins.field_li() == 0
+    }
 }
 
 fn closest_breakpoint(pc: Address, breakpoints: &[Address]) -> Address {
@@ -531,6 +542,13 @@ impl CpuCore for JitCore {
     fn exec(&mut self, sys: &mut System, cycles: Cycles, breakpoints: &[Address]) -> Executed {
         let mut executed = Executed::default();
         while executed.cycles < cycles {
+            if self.is_idle_looping(sys) {
+                std::hint::cold_path();
+                executed.instructions += 1;
+                executed.cycles = cycles;
+                break;
+            }
+
             // find closest breakpoint
             let closest_breakpoint = closest_breakpoint(sys.cpu.pc, breakpoints);
             let breakpoint_distance = (closest_breakpoint.value() - sys.cpu.pc.value()) / 4;
