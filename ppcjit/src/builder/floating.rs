@@ -1,7 +1,10 @@
 use super::BlockBuilder;
 use crate::builder::{Action, Info};
+use cranelift::{
+    codegen::ir,
+    prelude::{FloatCC, InstBuilder},
+};
 use gekko::{InsExt, Reg, disasm::Ins};
-use cranelift::{codegen::ir, prelude::InstBuilder};
 
 const FLOAT_INFO: Info = Info {
     cycles: 1,
@@ -265,6 +268,26 @@ impl BlockBuilder<'_> {
             .bitcast(ir::types::F64, ir::MemFlags::new(), extended);
 
         self.set(ins.fpr_d(), float);
+
+        if ins.field_rc() {
+            self.update_cr1_float();
+        }
+
+        FLOAT_INFO
+    }
+
+    pub fn fsel(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let zero = self.ir_value(0.0);
+        let fpr_a = self.get(ins.fpr_a());
+        let fpr_b = self.get(ins.fpr_b());
+        let fpr_c = self.get(ins.fpr_c());
+
+        let cond = self.bd.ins().fcmp(FloatCC::GreaterThanOrEqual, fpr_a, zero);
+        let value = self.bd.ins().select(cond, fpr_c, fpr_b);
+
+        self.set(ins.fpr_d(), value);
 
         if ins.field_rc() {
             self.update_cr1_float();
