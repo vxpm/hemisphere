@@ -589,7 +589,7 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Illegal => {
                 return Err(BuilderError::Illegal(ins));
             }
-            _ => todo!("unimplemneted instruction {ins:?}"),
+            _ => todo!("unimplemented instruction {ins:?}"),
         };
 
         self.executed += 1;

@@ -16,7 +16,7 @@ pub use iso;
 pub use primitive::Primitive;
 
 /// How many DSP cycles to execute per step.
-const DSP_STEP: u32 = 512;
+const DSP_STEP: u32 = 256;
 
 /// The Hemisphere emulator.
 pub struct Hemisphere {
@@ -65,6 +65,26 @@ impl Hemisphere {
             while let Some(event) = self.system.scheduler.pop() {
                 self.system.process(event);
             }
+        }
+
+        executed
+    }
+
+    pub fn step(&mut self) -> cores::Executed {
+        // execute CPU
+        let executed = self.cores.cpu.step(&mut self.system);
+        self.dsp_pending += executed.cycles.to_dsp_cycles();
+
+        // execute DSP
+        while self.dsp_pending >= DSP_STEP as f64 {
+            self.cores.dsp.exec(&mut self.system, DSP_STEP);
+            self.dsp_pending -= DSP_STEP as f64;
+        }
+
+        // process events
+        self.system.scheduler.advance(executed.cycles.0);
+        while let Some(event) = self.system.scheduler.pop() {
+            self.system.process(event);
         }
 
         executed

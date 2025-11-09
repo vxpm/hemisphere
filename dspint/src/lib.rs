@@ -410,7 +410,7 @@ impl Interpreter {
 
     /// Checks for reset.
     pub fn check_reset(&mut self, sys: &mut System) {
-        if sys.dsp.control.reset() || (!sys.dsp.control.reset_high() && self.old_reset_high) {
+        if sys.dsp.control.reset() || (sys.dsp.control.reset_high() != self.old_reset_high) {
             std::hint::cold_path();
 
             // DMA from main memory if resetting at low
@@ -429,6 +429,7 @@ impl Interpreter {
             self.reset(sys);
         }
 
+        sys.dsp.control.set_reset(false);
         self.old_reset_high = sys.dsp.control.reset_high();
     }
 
@@ -613,6 +614,7 @@ impl Interpreter {
 
     pub fn step(&mut self, sys: &mut System) {
         if sys.dsp.control.halt() {
+            std::hint::cold_path();
             return;
         }
 
@@ -632,6 +634,8 @@ impl Interpreter {
         }
 
         let ins_len = opcode.len();
+
+        // tracing::debug!("executing {ins:?} at {:04X}", self.regs.pc);
 
         // execute
         let regs_previous = self.regs.clone();

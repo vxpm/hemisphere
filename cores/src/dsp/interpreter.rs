@@ -1,9 +1,19 @@
+use super::{DSP_COEF, DSP_ROM};
 use dspint::Interpreter;
 use hemisphere::{cores::DspCore, system::System};
 
-#[derive(Default)]
 pub struct InterpreterCore {
     interpreter: Interpreter,
+}
+
+impl Default for InterpreterCore {
+    fn default() -> Self {
+        let mut interpreter = Interpreter::default();
+        interpreter.mem.irom.copy_from_slice(&DSP_ROM[..]);
+        interpreter.mem.coef.copy_from_slice(&DSP_COEF[..]);
+
+        Self { interpreter }
+    }
 }
 
 impl DspCore for InterpreterCore {

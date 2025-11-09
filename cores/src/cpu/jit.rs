@@ -548,4 +548,8 @@ impl CpuCore for JitCore {
 
         executed
     }
+
+    fn step(&mut self, sys: &mut System) -> Executed {
+        self.uncached_exec(sys, 1)
+    }
 }

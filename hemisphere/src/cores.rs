@@ -16,6 +16,8 @@ pub trait CpuCore {
     /// Drives the CPU core forward by approximatedly the given number of `cycles`, stopping at any
     /// address in `breakpoints`.
     fn exec(&mut self, sys: &mut System, cycles: Cycles, breakpoints: &[Address]) -> Executed;
+    /// Steps the CPU, i.e. runs exactly 1 instruction.
+    fn step(&mut self, sys: &mut System) -> Executed;
 }
 
 /// Trait for DSP cores.

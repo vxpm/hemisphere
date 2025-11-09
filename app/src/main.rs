@@ -279,8 +279,7 @@ impl eframe::App for App {
         }
 
         if context.step {
-            // TODO
-            // self.state.hemisphere.step();
+            self.state.emulator.step();
         }
 
         if self.state.running {
