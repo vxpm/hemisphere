@@ -4,8 +4,8 @@ use crate::{
     builder::{Action, Info},
 };
 use bitos::BitUtils;
-use gekko::{InsExt, Reg, SPR, disasm::Ins};
 use cranelift::{codegen::ir, prelude::InstBuilder};
+use gekko::{InsExt, Reg, SPR, disasm::Ins};
 use std::mem::offset_of;
 
 const SPR_INFO: Info = Info {
@@ -312,6 +312,26 @@ impl BlockBuilder<'_> {
         let dst_mask = self.ir_value(0b1111 << (4 * dst_field));
         let value = self.bd.ins().bitselect(dst_mask, new, cr);
 
+        self.set(Reg::CR, value);
+
+        CR_INFO
+    }
+
+    pub fn mcrx(&mut self, ins: Ins) -> Info {
+        let dst_field = 7 - ins.field_crfd();
+
+        // get src
+        let xer = self.get(SPR::XER);
+        let src = self.bd.ins().band_imm(xer, 0b1111u64 as i64);
+        let new_xer = self.bd.ins().band_imm(xer, !0b1111u64 as i64);
+
+        // place src in dst
+        let cr = self.get(Reg::CR);
+        let new = self.bd.ins().ishl_imm(src, 4 * dst_field as u64 as i64);
+        let dst_mask = self.ir_value(0b1111 << (4 * dst_field));
+        let value = self.bd.ins().bitselect(dst_mask, new, cr);
+
+        self.set(SPR::XER, new_xer);
         self.set(Reg::CR, value);
 
         CR_INFO
