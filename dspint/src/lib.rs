@@ -638,7 +638,12 @@ impl Interpreter {
         // tracing::debug!("executing {ins:?} at {:04X}", self.regs.pc);
 
         // execute
-        let regs_previous = self.regs.clone();
+        let regs_previous = if opcode.has_extension() {
+            Some(self.regs.clone())
+        } else {
+            None
+        };
+
         match ins.opcode() {
             Opcode::Abs => self.abs(sys, ins),
             Opcode::Add => self.add(sys, ins),
@@ -768,6 +773,7 @@ impl Interpreter {
         }
 
         if opcode.has_extension() {
+            let regs_previous = regs_previous.unwrap();
             let extension = ins.extension_opcode();
             match extension {
                 ExtensionOpcode::Dr => self.ext_dr(sys, ins, &regs_previous),

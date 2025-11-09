@@ -33,6 +33,7 @@ use renderer::WgpuRenderer;
 use serde::{Deserialize, Serialize};
 use std::{
     borrow::Cow,
+    collections::VecDeque,
     io::BufReader,
     sync::Arc,
     time::{Duration, Instant},
@@ -100,6 +101,7 @@ struct App {
     renderer: WgpuRenderer,
     state: State,
     windows: Vec<AppWindowState>,
+    cycles_per_second: VecDeque<f64>,
 }
 
 impl App {
@@ -177,6 +179,7 @@ impl App {
             renderer,
             state,
             windows,
+            cycles_per_second: VecDeque::with_capacity(16),
         })
     }
 
@@ -237,6 +240,14 @@ impl eframe::App for App {
                         }
                     });
                 });
+
+                let cps = self.cycles_per_second.iter().sum::<f64>()
+                    / self.cycles_per_second.len() as f64;
+
+                ui.label(format!(
+                    "Speed: {}%",
+                    ((cps / hemisphere::gekko::FREQUENCY as f64) * 100.0).round()
+                ));
             });
         });
 
@@ -282,13 +293,29 @@ impl eframe::App for App {
             self.state.emulator.step();
         }
 
+        let remaining = FRAMETIME.saturating_sub(self.last_update.elapsed());
         if self.state.running {
-            while self.last_update.elapsed() < FRAMETIME {
-                self.state.emulator.exec(Cycles(4096));
+            let start = Instant::now();
+            let target = remaining.max(Duration::from_millis(1));
+
+            let mut cycles = 0;
+            while start.elapsed() < target {
+                let executed = self.state.emulator.exec(Cycles(8192));
+                cycles += executed.cycles.0;
             }
+
+            if self.cycles_per_second.len() == 16 {
+                self.cycles_per_second.pop_front();
+            }
+
+            self.cycles_per_second
+                .push_back(cycles as f64 / target.as_secs_f64());
+
+            ctx.request_repaint();
+        } else {
+            ctx.request_repaint_after(remaining);
         }
 
-        ctx.request_repaint();
         self.last_update = Instant::now();
     }
 
