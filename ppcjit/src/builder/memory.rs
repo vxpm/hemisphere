@@ -3,8 +3,8 @@ use crate::{
     block::Hooks,
     builder::{Action, Info},
 };
-use gekko::{Exception, GPR, InsExt, Reg, disasm::Ins};
 use cranelift::{codegen::ir, prelude::InstBuilder};
+use gekko::{Exception, GPR, InsExt, Reg, disasm::Ins};
 use std::mem::offset_of;
 
 trait ReadWriteAble {
@@ -1121,6 +1121,33 @@ impl BlockBuilder<'_> {
         LOAD_INFO
     }
 
+    pub fn psq_lx(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let rb = self.get(ins.gpr_b());
+        let addr = if ins.field_ra() == 0 {
+            rb
+        } else {
+            let ra = self.get(ins.gpr_a());
+            self.bd.ins().iadd(ra, rb)
+        };
+
+        let index = self.ir_value(ins.field_ps_i());
+        let (ps0, size) = self.read_quantized(addr, index);
+        let ps1 = if ins.field_ps_w() == 0 {
+            let addr = self.bd.ins().iadd(addr, size);
+            self.read_quantized(addr, index).0
+        } else {
+            self.ir_value(1.0f64)
+        };
+
+        let fpr_d = ins.fpr_d();
+        self.set(fpr_d, ps0);
+        self.set(Reg::PS1(fpr_d), ps1);
+
+        LOAD_INFO
+    }
+
     pub fn psq_st(&mut self, ins: Ins) -> Info {
         self.check_floats();
 
@@ -1165,6 +1192,30 @@ impl BlockBuilder<'_> {
         }
 
         self.set(ins.gpr_a(), addr);
+
+        STORE_INFO
+    }
+
+    pub fn psq_stx(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let rb = self.get(ins.gpr_b());
+        let addr = if ins.field_ra() == 0 {
+            rb
+        } else {
+            let ra = self.get(ins.gpr_a());
+            self.bd.ins().iadd(ra, rb)
+        };
+
+        let ps0 = self.get(ins.fpr_s());
+        let ps1 = self.get(Reg::PS1(ins.fpr_s()));
+        let index = self.ir_value(ins.field_ps_i());
+
+        let size = self.write_quantized(addr, index, ps0);
+        if ins.field_ps_w() == 0 {
+            let addr = self.bd.ins().iadd(addr, size);
+            self.write_quantized(addr, index, ps1);
+        }
 
         STORE_INFO
     }
