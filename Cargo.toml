@@ -66,10 +66,32 @@ opt-level = 2
 [profile.dev.package."binrw"]
 opt-level = 2
 
+# workspace crates
 [profile.dev.package."dol"]
 opt-level = 2
 
+[profile.dev.package."iso"]
+opt-level = 2
+
+[profile.dev.package."util"]
+opt-level = 3
+
+[profile.dev.package."gekko"]
+opt-level = 3
+
+[profile.dev.package."ppcjit"]
+opt-level = 3
+
 [profile.dev.package."dspint"]
+opt-level = 3
+
+[profile.dev.package."cores"]
+opt-level = 3
+
+[profile.dev.package."hemisphere"]
+opt-level = 3
+
+[profile.dev.package."renderer"]
 opt-level = 3
 
 [profile.dev]
@@ -80,7 +102,7 @@ codegen-units = 384
 panic = "abort"
 
 [workspace.dependencies]
-# Workspace crates
+# workspace crates
 util = { path = "./util" }
 gekko = { path = "./gekko" }
 dol = { path = "./dol" }
@@ -91,7 +113,7 @@ cores = { path = "./cores" }
 hemisphere = { path = "./hemisphere" }
 renderer = { path = "./renderer" }
 
-# Actual dependencies
+# actual dependencies
 binrw = { version = "0.15", features = ["std"], default-features = false }
 bitos = { git = "https://github.com/vxpm/bitos.git", features = ["zerocopy"] }
 bytesize = "2"
@@ -126,7 +148,7 @@ wesl = { git = "https://github.com/wgsl-tooling-wg/wesl-rs", features = [
 eyre-pretty = { git = "https://github.com/vxpm/eyre-pretty" }
 nanorand = "0.8"
 
-# Lints
+# lints
 [workspace.lints.clippy]
 assigning_clones = "warn"
 bool_to_int_with_if = "warn"

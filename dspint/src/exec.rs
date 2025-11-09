@@ -1570,9 +1570,14 @@ impl Interpreter {
 
     pub fn bloopi(&mut self, _: &mut System, ins: Ins) {
         let counter = ins.base.bits(0, 8);
-        self.regs.call_stack.push(self.regs.pc.wrapping_add(2));
-        self.regs.loop_stack.push(ins.extra + 1);
-        self.regs.loop_count.push(counter);
+
+        if counter != 0 {
+            self.regs.call_stack.push(self.regs.pc.wrapping_add(2));
+            self.regs.loop_stack.push(ins.extra + 1);
+            self.regs.loop_count.push(counter);
+        } else {
+            panic!("what the fuck?")
+        }
     }
 
     pub fn call(&mut self, _: &mut System, ins: Ins) {

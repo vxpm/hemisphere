@@ -596,6 +596,7 @@ impl Interpreter {
     }
 
     /// Reads from instruction memory.
+    #[inline(always)]
     pub fn read_imem(&mut self, addr: u16) -> u16 {
         match addr {
             0x0000..0x1000 => self.mem.iram[addr as usize],
@@ -605,11 +606,47 @@ impl Interpreter {
     }
 
     /// Writes to instruction memory.
+    #[inline(always)]
     pub fn write_imem(&mut self, addr: u16, value: u16) {
         match addr {
             0x0000..0x1000 => self.mem.iram[addr as usize] = value,
             _ => (),
         }
+    }
+
+    pub fn is_waiting_for_mail(&mut self) -> bool {
+        let start = self.regs.pc;
+        let pattern_a = [
+            // lrs   $ACM0, @cmbh
+            0b0010_0110_1111_1110,
+            // andcf $ACM0, #0x8000
+            0b0000_0010_1100_0000,
+            0x8000,
+            // jlnz	 start
+            0b0000_0010_1001_1100,
+            start,
+        ];
+
+        let pattern_b = [
+            // lrs   $ACM1, @cmbh
+            0b0010_0111_1111_1110,
+            // andcf $ACM1, #0x8000
+            0b0000_0011_1100_0000,
+            0x8000,
+            // jlnz	 start
+            0b0000_0010_1001_1100,
+            start,
+        ];
+
+        let current = [
+            self.read_imem(start),
+            self.read_imem(start + 1),
+            self.read_imem(start + 2),
+            self.read_imem(start + 3),
+            self.read_imem(start + 4),
+        ];
+
+        current == pattern_a || current == pattern_b
     }
 
     pub fn step(&mut self, sys: &mut System) {
@@ -803,6 +840,7 @@ impl Interpreter {
 
         if let Some(loop_counter) = &mut self.loop_counter {
             if *loop_counter == 0 {
+                std::hint::cold_path();
                 self.loop_counter = None;
                 self.regs.pc += ins_len;
             } else {
