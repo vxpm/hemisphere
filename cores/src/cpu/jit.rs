@@ -2,8 +2,8 @@ use hemisphere::{
     Address, Cycles, Primitive,
     cores::{CpuCore, Executed},
     gekko::{
-        Cpu, QuantizedType,
-        disasm::{Extensions, Ins},
+        Cpu, InsExt, QuantizedType,
+        disasm::{Extensions, Ins, Opcode},
     },
     system::{Event, System},
 };
@@ -410,6 +410,16 @@ impl Default for Config {
     }
 }
 
+#[derive(Clone, Copy)]
+enum IdleLoop {
+    /// Not idle looping
+    None,
+    /// Branching to self
+    Simple,
+    /// Reading from a fixed memory location on a loop
+    VolatileValue,
+}
+
 pub struct JitCore {
     pub config: Config,
     pub compiler: ppcjit::Compiler,
@@ -510,18 +520,52 @@ impl JitCore {
     }
 
     #[inline(always)]
-    fn is_idle_looping(&self, sys: &mut System) -> bool {
-        let Some(physical) = sys.translate_instr_addr(sys.cpu.pc) else {
-            std::hint::cold_path();
-            return false;
+    fn detect_idle_loop(&self, sys: &mut System) -> IdleLoop {
+        let instr = |offset| {
+            let Some(physical) = sys.translate_instr_addr(sys.cpu.pc + 4 * offset) else {
+                std::hint::cold_path();
+                return None;
+            };
+
+            sys.read_pure::<u32>(physical)
         };
 
-        let Some(ins) = sys.read_pure::<u32>(physical) else {
+        let Some(a) = instr(0) else {
             std::hint::cold_path();
-            return false;
+            return IdleLoop::None;
         };
 
-        ins == 0x4800_0000
+        if a == 0x4800_0000 {
+            return IdleLoop::Simple;
+        }
+
+        // now check for the volatile memory read pattern
+        let Some(b) = instr(1) else {
+            std::hint::cold_path();
+            return IdleLoop::None;
+        };
+        let Some(c) = instr(2) else {
+            std::hint::cold_path();
+            return IdleLoop::None;
+        };
+
+        let code = [a, b, c].map(|i| Ins::new(i, Extensions::gekko_broadway()));
+        let is_load = matches!(
+            code[0].op,
+            Opcode::Lbz | Opcode::Lha | Opcode::Lhz | Opcode::Lwa | Opcode::Lwz
+        );
+        let is_cmp_imm = matches!(code[1].op, Opcode::Cmpi | Opcode::Cmpli);
+        let is_branch_cond = matches!(code[2].op, Opcode::Bc);
+        let load_dst_is_cmp_src = code[0].gpr_d() == code[1].gpr_a();
+        let is_rel_jmp_to_start = !code[2].field_aa() && code[2].field_bd() == -8;
+        let code_matches =
+            is_load && is_cmp_imm && is_branch_cond && load_dst_is_cmp_src && is_rel_jmp_to_start;
+
+        if code_matches {
+            IdleLoop::VolatileValue
+        } else {
+            IdleLoop::None
+        }
     }
 }
 
@@ -545,12 +589,25 @@ fn closest_breakpoint(pc: Address, breakpoints: &[Address]) -> Address {
 impl CpuCore for JitCore {
     fn exec(&mut self, sys: &mut System, cycles: Cycles, breakpoints: &[Address]) -> Executed {
         let mut executed = Executed::default();
+        let mut volatile_idle_loop = false;
         while executed.cycles < cycles {
-            if self.is_idle_looping(sys) {
-                std::hint::cold_path();
-                executed.instructions += 1;
-                executed.cycles = cycles;
-                break;
+            match self.detect_idle_loop(sys) {
+                IdleLoop::None => (),
+                IdleLoop::Simple => {
+                    std::hint::cold_path();
+                    executed.instructions += 1;
+                    executed.cycles = cycles;
+                    break;
+                }
+                IdleLoop::VolatileValue => {
+                    std::hint::cold_path();
+                    if !volatile_idle_loop {
+                        volatile_idle_loop = true;
+                    } else {
+                        executed.cycles = cycles;
+                        break;
+                    }
+                }
             }
 
             // find closest breakpoint
