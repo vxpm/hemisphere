@@ -21,7 +21,9 @@ impl DspCore for InterpreterCore {
         self.interpreter.do_dma(sys);
         self.interpreter.check_reset(sys);
 
-        if self.interpreter.is_waiting_for_mail() && !sys.dsp.cpu_mailbox.status() {
+        if sys.dsp.control.halt()
+            || !sys.dsp.cpu_mailbox.status() && self.interpreter.is_waiting_for_mail()
+        {
             std::hint::cold_path();
         } else {
             for _ in 0..instructions {

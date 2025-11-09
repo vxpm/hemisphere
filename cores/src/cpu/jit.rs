@@ -589,7 +589,7 @@ fn closest_breakpoint(pc: Address, breakpoints: &[Address]) -> Address {
 impl CpuCore for JitCore {
     fn exec(&mut self, sys: &mut System, cycles: Cycles, breakpoints: &[Address]) -> Executed {
         let mut executed = Executed::default();
-        let mut volatile_idle_loop = false;
+        let mut volatile_idle_loop = None;
         while executed.cycles < cycles {
             match self.detect_idle_loop(sys) {
                 IdleLoop::None => (),
@@ -601,11 +601,12 @@ impl CpuCore for JitCore {
                 }
                 IdleLoop::VolatileValue => {
                     std::hint::cold_path();
-                    if !volatile_idle_loop {
-                        volatile_idle_loop = true;
-                    } else {
-                        executed.cycles = cycles;
-                        break;
+                    match volatile_idle_loop {
+                        Some(start) if start == sys.cpu.pc => {
+                            executed.cycles = cycles;
+                            break;
+                        }
+                        None | Some(_) => volatile_idle_loop = Some(sys.cpu.pc),
                     }
                 }
             }

@@ -614,8 +614,8 @@ impl Interpreter {
         }
     }
 
-    pub fn is_waiting_for_mail(&mut self) -> bool {
-        let start = self.regs.pc;
+    fn is_waiting_for_mail_inner(&mut self, offset: i16) -> bool {
+        let start = self.regs.pc.wrapping_add_signed(offset);
         let pattern_a = [
             // lrs   $ACM0, @cmbh
             0b0010_0110_1111_1110,
@@ -640,13 +640,20 @@ impl Interpreter {
 
         let current = [
             self.read_imem(start),
-            self.read_imem(start + 1),
-            self.read_imem(start + 2),
-            self.read_imem(start + 3),
-            self.read_imem(start + 4),
+            self.read_imem(start.wrapping_add(1)),
+            self.read_imem(start.wrapping_add(2)),
+            self.read_imem(start.wrapping_add(3)),
+            self.read_imem(start.wrapping_add(4)),
         ];
 
         current == pattern_a || current == pattern_b
+    }
+
+    #[inline(always)]
+    pub fn is_waiting_for_mail(&mut self) -> bool {
+        self.is_waiting_for_mail_inner(0)
+            || self.is_waiting_for_mail_inner(-1)
+            || self.is_waiting_for_mail_inner(-3)
     }
 
     pub fn step(&mut self, sys: &mut System) {
