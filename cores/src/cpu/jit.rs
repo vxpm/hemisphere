@@ -549,10 +549,14 @@ impl JitCore {
             return IdleLoop::None;
         };
 
-        let code = [a, b, c].map(|i| Ins::new(i, Extensions::gekko_broadway()));
+        let code = [
+            Ins::new(a, Extensions::gekko_broadway()),
+            Ins::new(b, Extensions::gekko_broadway()),
+            Ins::new(c, Extensions::gekko_broadway()),
+        ];
         let is_load = matches!(
             code[0].op,
-            Opcode::Lbz | Opcode::Lha | Opcode::Lhz | Opcode::Lwa | Opcode::Lwz
+            Opcode::Lbz | Opcode::Lha | Opcode::Lhz | Opcode::Lwz
         );
         let is_cmp_imm = matches!(code[1].op, Opcode::Cmpi | Opcode::Cmpli);
         let is_branch_cond = matches!(code[2].op, Opcode::Bc);
