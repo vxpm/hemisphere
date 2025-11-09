@@ -184,6 +184,7 @@ version = "0.1.0"
 dependencies = [
  "addr2line",
  "clap",
+ "cores",
  "eframe",
  "egui_extras",
  "eyre-pretty",

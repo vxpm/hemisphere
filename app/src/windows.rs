@@ -1,6 +1,5 @@
 use crate::Ctx;
 use eframe::egui;
-use hemisphere::runner::State;
 
 #[typetag::serde]
 pub(crate) trait AppWindow: 'static {

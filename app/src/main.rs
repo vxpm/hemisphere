@@ -20,8 +20,9 @@ use eframe::{
 };
 use eyre_pretty::eyre::Result;
 use hemisphere::{
-    Address, Config, iso, jit,
-    runner::Runner,
+    Address, Hemisphere,
+    cores::Cores,
+    iso,
     system::{
         self,
         executable::{DebugInfo, Executable, Location},
@@ -39,6 +40,9 @@ use std::{
     },
     time::{Duration, Instant},
 };
+
+use cores::cpu::jit as jitcore;
+use cores::dsp::interpreter as dspcore;
 
 struct Addr2LineDebug(addr2line::Loader);
 
@@ -79,7 +83,7 @@ struct AppWindowState {
 struct App {
     last_update: Instant,
     renderer: WgpuRenderer,
-    runner: Runner,
+    hemisphere: Hemisphere,
     vsync_count: Arc<AtomicU64>,
     windows: Vec<AppWindowState>,
 }
@@ -132,20 +136,21 @@ impl App {
             wgpu_state.target_format,
         );
 
-        let mut runner = Runner::new(Config {
-            system: system::Config {
+        let cores = Cores {
+            cpu: Box::new(jitcore::JitCore::new(jitcore::Config::default())),
+            dsp: Box::new(dspcore::InterpreterCore::default()),
+        };
+
+        let hemisphere = Hemisphere::new(
+            cores,
+            system::Config {
                 renderer: Box::new(renderer.clone()),
                 ipl,
                 iso,
                 sideload: executable,
                 debug_info,
-                vsync_callback: Some(vsync_callback),
             },
-            jit: jit::Config {
-                instr_per_block: args.instr_per_block,
-            },
-        });
-        runner.set_run(args.run);
+        );
 
         let windows: Vec<AppWindowState> = cc
             .storage
@@ -158,7 +163,7 @@ impl App {
         Ok(Self {
             last_update: Instant::now(),
             renderer,
-            runner,
+            hemisphere,
             vsync_count,
             windows,
         })
@@ -222,11 +227,9 @@ impl eframe::App for App {
             });
         });
 
-        self.runner.with_state(|state| {
-            for window_state in &mut self.windows {
-                window_state.window.prepare(state);
-            }
-        });
+        for window_state in &mut self.windows {
+            window_state.window.prepare(state);
+        }
 
         let running = self.runner.running();
         let mut context = Ctx {

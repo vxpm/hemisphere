@@ -1,6 +1,7 @@
 use dspint::Interpreter;
 use hemisphere::{cores::DspCore, system::System};
 
+#[derive(Default)]
 pub struct InterpreterCore {
     interpreter: Interpreter,
 }
