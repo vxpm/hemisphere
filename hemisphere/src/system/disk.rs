@@ -170,6 +170,9 @@ impl System {
 
                     self.scheduler.schedule(Event::DiskTransferComplete, 10000);
                 }
+                0xAB00_0000 => {
+                    self.scheduler.schedule(Event::DiskSeekComplete, 10000);
+                }
                 0x1200_0000 => {
                     let target = self.mmu.translate_data_addr(self.disk.dma_base).unwrap();
                     let length = self.disk.dma_length;

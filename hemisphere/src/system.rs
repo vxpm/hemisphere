@@ -53,8 +53,8 @@ pub enum Event {
     CheckInterrupts,
     /// A video interface event.
     Video(video::Event),
-    /// Check external interrupts.
     DiskTransferComplete,
+    DiskSeekComplete,
     /// Finish audio DMA
     AudioDma,
 }
@@ -266,6 +266,12 @@ impl System {
                 self.disk.dma_length = 0;
                 self.scheduler.schedule_now(Event::CheckInterrupts);
                 tracing::debug!("completed DI transfer");
+            }
+            Event::DiskSeekComplete => {
+                self.disk.status.set_transfer_interrupt(true);
+                self.disk.control.set_transfer_ongoing(false);
+                self.scheduler.schedule_now(Event::CheckInterrupts);
+                tracing::debug!("completed DI seek");
             }
             Event::Decrementer => {
                 self.update_decrementer();
