@@ -171,6 +171,7 @@ impl System {
                     self.scheduler.schedule(Event::DiskTransferComplete, 10000);
                 }
                 0xAB00_0000 => {
+                    tracing::warn!("doing disk seek! current implementation is half assed");
                     self.scheduler.schedule(Event::DiskSeekComplete, 10000);
                 }
                 0x1200_0000 => {
