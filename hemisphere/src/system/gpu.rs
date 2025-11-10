@@ -754,7 +754,7 @@ impl System {
         stream: &VertexAttributeStream,
     ) -> Vec<VertexAttributes> {
         let vat = stream.table_index();
-        let default_matrix_idx = self.gpu.command.internal.mat_indices.view().value();
+        let default_pos_matrix_idx = self.gpu.command.internal.mat_indices.view().value();
 
         let mut vertices = Vec::with_capacity(stream.count() as usize);
         let mut data = stream.data();
@@ -762,7 +762,7 @@ impl System {
         for _ in 0..stream.count() {
             let position_matrix_index = self
                 .gx_read_attribute::<attributes::MatrixIndex>(vat, &mut reader)
-                .unwrap_or(default_matrix_idx);
+                .unwrap_or(default_pos_matrix_idx);
             let position_matrix = self.gpu.transform.matrix(position_matrix_index);
             let normal_matrix = self.gpu.transform.normal_matrix(position_matrix_index);
 
@@ -781,8 +781,7 @@ impl System {
                     .gx_read_attribute::<attributes::MatrixIndex>(vat, &mut reader)
                     .unwrap_or(default);
 
-                let tex_matrix = self.gpu.transform.matrix(tex_matrix_index);
-                tex_coords_matrix[i] = tex_matrix;
+                tex_coords_matrix[i] = self.gpu.transform.matrix(tex_matrix_index);
             }
 
             let position = self
