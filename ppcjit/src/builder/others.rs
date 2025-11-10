@@ -38,6 +38,12 @@ const TB_INFO: Info = Info {
     action: Action::Continue,
 };
 
+const CACHE_INFO: Info = Info {
+    cycles: 2,
+    auto_pc: true,
+    action: Action::Continue,
+};
+
 fn generate_mask(control: u8) -> u32 {
     let mut mask = 0;
     for i in 0..8 {
@@ -351,5 +357,24 @@ impl BlockBuilder<'_> {
         }
 
         CR_INFO
+    }
+
+    pub fn dcbz(&mut self, ins: Ins) -> Info {
+        let rb = self.get(ins.gpr_b());
+        let addr = if ins.field_ra() == 0 {
+            rb
+        } else {
+            let ra = self.get(ins.gpr_a());
+            self.bd.ins().iadd(ra, rb)
+        };
+
+        let zero = self.ir_value(0u32);
+        let block_start = self.bd.ins().band_imm(addr, !0b11111u64 as i64);
+        for i in 0..8 {
+            let current = self.bd.ins().iadd_imm(block_start, 4 * i);
+            self.mem_write::<i32>(current, zero);
+        }
+
+        CACHE_INFO
     }
 }

@@ -7,7 +7,7 @@ use cranelift::{codegen::ir, prelude::InstBuilder};
 use gekko::{Exception, GPR, InsExt, Reg, disasm::Ins};
 use std::mem::offset_of;
 
-trait ReadWriteAble {
+pub trait ReadWriteAble {
     const IR_TYPE: ir::Type;
     const READ_OFFSET: i32;
     const WRITE_OFFSET: i32;
@@ -39,7 +39,7 @@ impl ReadWriteAble for i64 {
 
 /// Helpers
 impl BlockBuilder<'_> {
-    fn read<P: ReadWriteAble>(&mut self, addr: ir::Value) -> ir::Value {
+    pub fn mem_read<P: ReadWriteAble>(&mut self, addr: ir::Value) -> ir::Value {
         let read_fn = self.bd.ins().load(
             self.consts.ptr_type,
             ir::MemFlags::trusted(),
@@ -93,7 +93,7 @@ impl BlockBuilder<'_> {
         self.bd.ins().stack_load(P::IR_TYPE, stack_slot, 0)
     }
 
-    fn write<P: ReadWriteAble>(&mut self, addr: ir::Value, value: ir::Value) {
+    pub fn mem_write<P: ReadWriteAble>(&mut self, addr: ir::Value, value: ir::Value) {
         let write_fn = self.bd.ins().load(
             self.consts.ptr_type,
             ir::MemFlags::trusted(),
@@ -244,7 +244,7 @@ impl BlockBuilder<'_> {
             self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
         };
 
-        let mut value = self.read::<P>(addr);
+        let mut value = self.mem_read::<P>(addr);
         if P::IR_TYPE != ir::types::I32 {
             value = if op.signed {
                 self.bd.ins().sextend(ir::types::I32, value)
@@ -271,7 +271,7 @@ impl BlockBuilder<'_> {
             self.bd.ins().iadd(ra, rb)
         };
 
-        let mut value = self.read::<P>(addr);
+        let mut value = self.mem_read::<P>(addr);
 
         if op.reverse {
             value = self.bd.ins().bswap(value);
@@ -501,7 +501,7 @@ impl BlockBuilder<'_> {
         };
 
         for i in ins.field_rd()..32 {
-            let value = self.read::<i32>(addr);
+            let value = self.mem_read::<i32>(addr);
             self.set(GPR::new(i), value);
 
             addr = self.bd.ins().iadd_imm(addr, 4);
@@ -532,7 +532,7 @@ impl BlockBuilder<'_> {
             let reg = GPR::new((start_reg + i / 4) % 32);
             let shift_count = 8 * (3 - (i as u32 % 4));
 
-            let value = self.read::<i8>(addr);
+            let value = self.mem_read::<i8>(addr);
             let value = self.bd.ins().uextend(ir::types::I32, value);
             let value = self.bd.ins().ishl_imm(value, shift_count as u64 as i64);
 
@@ -563,7 +563,7 @@ impl BlockBuilder<'_> {
             self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
         };
 
-        let value = self.read::<i64>(addr);
+        let value = self.mem_read::<i64>(addr);
         let value = self
             .bd
             .ins()
@@ -585,7 +585,7 @@ impl BlockBuilder<'_> {
             self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
         };
 
-        let value = self.read::<i64>(addr);
+        let value = self.mem_read::<i64>(addr);
         let value = self
             .bd
             .ins()
@@ -609,7 +609,7 @@ impl BlockBuilder<'_> {
             self.bd.ins().iadd(ra, rb)
         };
 
-        let value = self.read::<i64>(addr);
+        let value = self.mem_read::<i64>(addr);
         let value = self
             .bd
             .ins()
@@ -628,7 +628,7 @@ impl BlockBuilder<'_> {
         let rb = self.get(ins.gpr_b());
         let addr = self.bd.ins().iadd(ra, rb);
 
-        let value = self.read::<i64>(addr);
+        let value = self.mem_read::<i64>(addr);
         let value = self
             .bd
             .ins()
@@ -651,7 +651,7 @@ impl BlockBuilder<'_> {
             self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
         };
 
-        let value = self.read::<i32>(addr);
+        let value = self.mem_read::<i32>(addr);
         let value = self
             .bd
             .ins()
@@ -674,7 +674,7 @@ impl BlockBuilder<'_> {
             self.bd.ins().iadd_imm(ra, ins.field_offset() as i64)
         };
 
-        let value = self.read::<i32>(addr);
+        let value = self.mem_read::<i32>(addr);
         let value = self
             .bd
             .ins()
@@ -699,7 +699,7 @@ impl BlockBuilder<'_> {
             self.bd.ins().iadd(ra, rb)
         };
 
-        let value = self.read::<i32>(addr);
+        let value = self.mem_read::<i32>(addr);
         let value = self
             .bd
             .ins()
@@ -719,7 +719,7 @@ impl BlockBuilder<'_> {
         let rb = self.get(ins.gpr_b());
         let addr = self.bd.ins().iadd(ra, rb);
 
-        let value = self.read::<i32>(addr);
+        let value = self.mem_read::<i32>(addr);
         let value = self
             .bd
             .ins()
@@ -759,7 +759,7 @@ impl BlockBuilder<'_> {
             self.set(ins.gpr_a(), addr);
         }
 
-        self.write::<P>(addr, value);
+        self.mem_write::<P>(addr, value);
 
         STORE_INFO
     }
@@ -786,7 +786,7 @@ impl BlockBuilder<'_> {
             self.set(ins.gpr_a(), addr);
         }
 
-        self.write::<P>(addr, value);
+        self.mem_write::<P>(addr, value);
 
         STORE_INFO
     }
@@ -857,7 +857,7 @@ impl BlockBuilder<'_> {
 
         for i in ins.field_rs()..32 {
             let value = self.get(GPR::new(i));
-            self.write::<i32>(addr, value);
+            self.mem_write::<i32>(addr, value);
 
             addr = self.bd.ins().iadd_imm(addr, 4);
         }
@@ -890,7 +890,7 @@ impl BlockBuilder<'_> {
             let value = self.bd.ins().ushr_imm(reg, shift_count as u64 as i64);
             let value = self.bd.ins().ireduce(ir::types::I8, value);
 
-            self.write::<i8>(addr, value);
+            self.mem_write::<i8>(addr, value);
             addr = self.bd.ins().iadd_imm(addr, 1);
         }
 
@@ -916,7 +916,7 @@ impl BlockBuilder<'_> {
             .ins()
             .bitcast(ir::types::I64, ir::MemFlags::new(), value);
 
-        self.write::<i64>(addr, value);
+        self.mem_write::<i64>(addr, value);
 
         STORE_INFO
     }
@@ -937,7 +937,7 @@ impl BlockBuilder<'_> {
             .ins()
             .bitcast(ir::types::I64, ir::MemFlags::new(), value);
 
-        self.write::<i64>(addr, value);
+        self.mem_write::<i64>(addr, value);
         self.set(ins.gpr_a(), addr);
 
         STORE_INFO
@@ -960,7 +960,7 @@ impl BlockBuilder<'_> {
             .ins()
             .bitcast(ir::types::I64, ir::MemFlags::new(), value);
 
-        self.write::<i64>(addr, value);
+        self.mem_write::<i64>(addr, value);
 
         STORE_INFO
     }
@@ -978,7 +978,7 @@ impl BlockBuilder<'_> {
             .ins()
             .bitcast(ir::types::I64, ir::MemFlags::new(), value);
 
-        self.write::<i64>(addr, value);
+        self.mem_write::<i64>(addr, value);
         self.set(ins.gpr_a(), addr);
 
         STORE_INFO
@@ -1001,7 +1001,7 @@ impl BlockBuilder<'_> {
             .ins()
             .bitcast(ir::types::I32, ir::MemFlags::new(), value);
 
-        self.write::<i32>(addr, value);
+        self.mem_write::<i32>(addr, value);
 
         STORE_INFO
     }
@@ -1023,7 +1023,7 @@ impl BlockBuilder<'_> {
             .ins()
             .bitcast(ir::types::I32, ir::MemFlags::new(), value);
 
-        self.write::<i32>(addr, value);
+        self.mem_write::<i32>(addr, value);
         self.set(ins.gpr_a(), addr);
 
         STORE_INFO
@@ -1047,7 +1047,7 @@ impl BlockBuilder<'_> {
             .ins()
             .bitcast(ir::types::I32, ir::MemFlags::new(), value);
 
-        self.write::<i32>(addr, value);
+        self.mem_write::<i32>(addr, value);
 
         STORE_INFO
     }
@@ -1066,7 +1066,7 @@ impl BlockBuilder<'_> {
             .ins()
             .bitcast(ir::types::I32, ir::MemFlags::new(), value);
 
-        self.write::<i32>(addr, value);
+        self.mem_write::<i32>(addr, value);
         self.set(ins.gpr_a(), addr);
 
         STORE_INFO
@@ -1090,7 +1090,7 @@ impl BlockBuilder<'_> {
             .bitcast(ir::types::I64, ir::MemFlags::new(), fpr_s);
         let int32 = self.bd.ins().ireduce(ir::types::I32, int64);
 
-        self.write::<i32>(addr, int32);
+        self.mem_write::<i32>(addr, int32);
 
         STORE_INFO
     }
