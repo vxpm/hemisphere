@@ -712,11 +712,29 @@ impl System {
         let mut reader = data.reader();
         for _ in 0..stream.count() {
             let position_matrix_index = self
-                .gx_read_attribute::<attributes::PositionMatrixIndex>(vat, &mut reader)
+                .gx_read_attribute::<attributes::MatrixIndex>(vat, &mut reader)
                 .unwrap_or(default_matrix_idx);
-
             let position_matrix = self.gpu.transform.matrix(position_matrix_index);
             let normal_matrix = self.gpu.transform.normal_matrix(position_matrix_index);
+
+            let mut tex_coords_matrix = [Mat4::ZERO; 8];
+            for i in 0..8 {
+                let default = self
+                    .gpu
+                    .command
+                    .internal
+                    .mat_indices
+                    .tex_at(i)
+                    .unwrap()
+                    .value();
+
+                let tex_matrix_index = self
+                    .gx_read_attribute::<attributes::MatrixIndex>(vat, &mut reader)
+                    .unwrap_or(default);
+
+                let tex_matrix = self.gpu.transform.matrix(tex_matrix_index);
+                tex_coords_matrix[i] = tex_matrix;
+            }
 
             let position = self
                 .gx_read_attribute::<attributes::Position>(vat, &mut reader)
@@ -728,6 +746,10 @@ impl System {
 
             let diffuse = self
                 .gx_read_attribute::<attributes::Diffuse>(vat, &mut reader)
+                .unwrap_or_default();
+
+            let specular = self
+                .gx_read_attribute::<attributes::Specular>(vat, &mut reader)
                 .unwrap_or_default();
 
             let mut tex_coords = [Vec2::ZERO; 8];
@@ -762,8 +784,9 @@ impl System {
                 normal,
                 normal_matrix,
                 diffuse,
+                specular,
                 tex_coords,
-                ..Default::default()
+                tex_coords_matrix,
             })
         }
 

@@ -472,9 +472,9 @@ pub trait Attribute {
     fn get_array(arrays: &Arrays) -> Option<ArrayDescriptor>;
 }
 
-pub struct PositionMatrixIndex;
+pub struct MatrixIndex;
 
-impl Attribute for PositionMatrixIndex {
+impl Attribute for MatrixIndex {
     type Descriptor = IndexDescriptor;
 
     fn get_mode(vcd: &VertexDescriptor) -> AttributeMode {
@@ -545,6 +545,24 @@ impl Attribute for Diffuse {
 
     fn get_array(arrays: &Arrays) -> Option<ArrayDescriptor> {
         Some(arrays.diffuse)
+    }
+}
+
+pub struct Specular;
+
+impl Attribute for Specular {
+    type Descriptor = ColorDescriptor;
+
+    fn get_mode(vcd: &VertexDescriptor) -> AttributeMode {
+        vcd.specular()
+    }
+
+    fn get_descriptor(vat: &VertexAttributeTable) -> Self::Descriptor {
+        vat.a.specular()
+    }
+
+    fn get_array(arrays: &Arrays) -> Option<ArrayDescriptor> {
+        Some(arrays.specular)
     }
 }
 

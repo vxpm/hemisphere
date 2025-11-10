@@ -358,6 +358,7 @@ pub struct Arrays {
     pub position: ArrayDescriptor,
     pub normal: ArrayDescriptor,
     pub diffuse: ArrayDescriptor,
+    pub specular: ArrayDescriptor,
     pub tex_coords: [ArrayDescriptor; 8],
     pub general_purpose: [ArrayDescriptor; 4],
 }
@@ -672,6 +673,7 @@ impl System {
             Reg::PositionPtr => value.write_ne_bytes(cp.arrays.position.address.as_mut_bytes()),
             Reg::NormalPtr => value.write_ne_bytes(cp.arrays.normal.address.as_mut_bytes()),
             Reg::DiffusePtr => value.write_ne_bytes(cp.arrays.diffuse.address.as_mut_bytes()),
+            Reg::SpecularPtr => value.write_ne_bytes(cp.arrays.specular.address.as_mut_bytes()),
 
             Reg::Tex0CoordPtr => {
                 value.write_ne_bytes(cp.arrays.tex_coords[0].address.as_mut_bytes())
@@ -701,6 +703,7 @@ impl System {
             Reg::PositionStride => value.write_ne_bytes(cp.arrays.position.stride.as_mut_bytes()),
             Reg::NormalStride => value.write_ne_bytes(cp.arrays.normal.stride.as_mut_bytes()),
             Reg::DiffuseStride => value.write_ne_bytes(cp.arrays.diffuse.stride.as_mut_bytes()),
+            Reg::SpecularStride => value.write_ne_bytes(cp.arrays.specular.stride.as_mut_bytes()),
 
             Reg::Tex0CoordStride => {
                 value.write_ne_bytes(cp.arrays.tex_coords[0].stride.as_mut_bytes())
