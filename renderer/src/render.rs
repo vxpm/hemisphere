@@ -57,6 +57,7 @@ pub struct Renderer {
 
     clear_color: wgpu::Color,
     current_config: Box<data::Config>,
+    current_texgen: Vec<TexGenConfig>,
     current_projection_mat: Mat4,
     current_projection_mat_idx: u32,
 
@@ -123,6 +124,7 @@ impl Renderer {
 
             clear_color: wgpu::Color::BLACK,
             current_config: Default::default(),
+            current_texgen: Vec::with_capacity(8),
             current_projection_mat: Default::default(),
             current_projection_mat_idx: 0,
 
@@ -313,12 +315,13 @@ impl Renderer {
     }
 
     pub fn set_texgens(&mut self, texgens: Vec<TexGenConfig>) {
-        let new = data::TexGenConfig::new(texgens, |mat| self.insert_matrix(mat));
-        if self.current_config.texgen == new {
+        let config = data::TexGenConfig::new(&texgens, |mat| self.insert_matrix(mat));
+        if self.current_config.texgen == config {
             return;
         }
 
-        self.current_config.texgen = new;
+        self.current_texgen = texgens;
+        self.current_config.texgen = config;
         self.update_config();
     }
 
@@ -384,6 +387,10 @@ impl Renderer {
         self.indices.clear();
         self.matrices.clear();
         self.matrices_idx.clear();
+
+        let texgen =
+            data::TexGenConfig::new(&self.current_texgen.clone(), |mat| self.insert_matrix(mat));
+        self.current_config.texgen = texgen;
 
         self.update_config();
         self.set_projection_mat(self.current_projection_mat);

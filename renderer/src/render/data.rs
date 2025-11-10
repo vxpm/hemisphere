@@ -154,11 +154,11 @@ pub struct TexGenConfig {
 }
 
 impl TexGenConfig {
-    pub fn new(texgens: Vec<CoreTexGenConfig>, mut insert_matrix: impl FnMut(Mat4) -> u32) -> Self {
+    pub fn new(texgens: &[CoreTexGenConfig], mut insert_matrix: impl FnMut(Mat4) -> u32) -> Self {
         let count = texgens.len() as u32;
         let mut data = std::array::from_fn::<TexGen, 8, _>(|_| TexGen::default());
 
-        for (config, data) in texgens.into_iter().zip(data.iter_mut()) {
+        for (config, data) in texgens.iter().zip(data.iter_mut()) {
             data.kind = config.base.kind() as u32;
             data.input_fmt = config.base.input_kind() as u32;
             data.output_fmt = config.base.output_kind() as u32;
