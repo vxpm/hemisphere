@@ -4,7 +4,7 @@ use crate::{
 };
 use bitos::{
     BitUtils, bitos,
-    integer::{u3, u5, u6},
+    integer::{u3, u6},
 };
 use glam::{Mat3, Mat4};
 use strum::FromRepr;

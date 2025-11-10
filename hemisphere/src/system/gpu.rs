@@ -84,22 +84,22 @@ pub enum Reg {
     TevRefsCD = 0x2E,
     TevRefsEF = 0x2F,
 
-    SetupSsize0 = 0x30,
-    SetupTsize0 = 0x31,
-    SetupSsize1 = 0x32,
-    SetupTsize1 = 0x33,
-    SetupSsize2 = 0x34,
-    SetupTsize2 = 0x35,
-    SetupSsize3 = 0x36,
-    SetupTsize3 = 0x37,
-    SetupSsize4 = 0x38,
-    SetupTsize4 = 0x39,
-    SetupSsize5 = 0x3A,
-    SetupTsize5 = 0x3B,
-    SetupSsize6 = 0x3C,
-    SetupTsize6 = 0x3D,
-    SetupSsize7 = 0x3E,
-    SetupTsize7 = 0x3F,
+    SetupScaleS0 = 0x30,
+    SetupScaleT0 = 0x31,
+    SetupScaleS1 = 0x32,
+    SetupScaleT1 = 0x33,
+    SetupScaleS2 = 0x34,
+    SetupScaleT2 = 0x35,
+    SetupScaleS3 = 0x36,
+    SetupScaleT3 = 0x37,
+    SetupScaleS4 = 0x38,
+    SetupScaleT4 = 0x39,
+    SetupScaleS5 = 0x3A,
+    SetupScaleT5 = 0x3B,
+    SetupScaleS6 = 0x3C,
+    SetupScaleT6 = 0x3D,
+    SetupScaleS7 = 0x3E,
+    SetupScaleT7 = 0x3F,
 
     // Pixel Engine
     PixelZMode = 0x40,
@@ -418,6 +418,55 @@ impl System {
             }
             Reg::TevRefsEF => {
                 value.write_ne_bytes(self.gpu.environment.stage_refs[7].as_mut_bytes())
+            }
+
+            Reg::SetupScaleS0 => {
+                value.write_ne_bytes(self.gpu.texture.maps[0].scaling.s.as_mut_bytes())
+            }
+            Reg::SetupScaleT0 => {
+                value.write_ne_bytes(self.gpu.texture.maps[0].scaling.t.as_mut_bytes())
+            }
+            Reg::SetupScaleS1 => {
+                value.write_ne_bytes(self.gpu.texture.maps[1].scaling.s.as_mut_bytes())
+            }
+            Reg::SetupScaleT1 => {
+                value.write_ne_bytes(self.gpu.texture.maps[1].scaling.t.as_mut_bytes())
+            }
+            Reg::SetupScaleS2 => {
+                value.write_ne_bytes(self.gpu.texture.maps[2].scaling.s.as_mut_bytes())
+            }
+            Reg::SetupScaleT2 => {
+                value.write_ne_bytes(self.gpu.texture.maps[2].scaling.t.as_mut_bytes())
+            }
+            Reg::SetupScaleS3 => {
+                value.write_ne_bytes(self.gpu.texture.maps[3].scaling.s.as_mut_bytes())
+            }
+            Reg::SetupScaleT3 => {
+                value.write_ne_bytes(self.gpu.texture.maps[3].scaling.t.as_mut_bytes())
+            }
+            Reg::SetupScaleS4 => {
+                value.write_ne_bytes(self.gpu.texture.maps[4].scaling.s.as_mut_bytes())
+            }
+            Reg::SetupScaleT4 => {
+                value.write_ne_bytes(self.gpu.texture.maps[4].scaling.t.as_mut_bytes())
+            }
+            Reg::SetupScaleS5 => {
+                value.write_ne_bytes(self.gpu.texture.maps[5].scaling.s.as_mut_bytes())
+            }
+            Reg::SetupScaleT5 => {
+                value.write_ne_bytes(self.gpu.texture.maps[5].scaling.t.as_mut_bytes())
+            }
+            Reg::SetupScaleS6 => {
+                value.write_ne_bytes(self.gpu.texture.maps[6].scaling.s.as_mut_bytes())
+            }
+            Reg::SetupScaleT6 => {
+                value.write_ne_bytes(self.gpu.texture.maps[6].scaling.t.as_mut_bytes())
+            }
+            Reg::SetupScaleS7 => {
+                value.write_ne_bytes(self.gpu.texture.maps[7].scaling.s.as_mut_bytes())
+            }
+            Reg::SetupScaleT7 => {
+                value.write_ne_bytes(self.gpu.texture.maps[7].scaling.t.as_mut_bytes())
             }
 
             Reg::PixelZMode => {

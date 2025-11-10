@@ -14,7 +14,6 @@ use hemisphere::{
         Topology, VertexAttributes,
         command::attributes::Rgba,
         pixel::{BlendFactor, BlendMode, CompareMode, DepthMode},
-        transform::TexGen,
     },
 };
 use ordered_float::OrderedFloat;

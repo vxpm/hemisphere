@@ -117,11 +117,44 @@ impl Format {
     }
 }
 
+#[bitos(32)]
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ScaleS {
+    #[bits(0..16)]
+    pub scale_minus_one: u16,
+    #[bits(16)]
+    pub range_bias_enable: bool,
+    #[bits(17)]
+    pub cylindrical_wrapping: bool,
+    #[bits(18)]
+    pub offset_lines: bool,
+    #[bits(19)]
+    pub offset_points: bool,
+}
+
+#[bitos(32)]
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ScaleT {
+    #[bits(0..16)]
+    pub scale_minus_one: u16,
+    #[bits(16)]
+    pub range_bias_enable: bool,
+    #[bits(17)]
+    pub cylindrical_wrapping: bool,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Scaling {
+    pub s: ScaleS,
+    pub t: ScaleT,
+}
+
 #[derive(Debug, Clone, Copy, Default)]
 pub struct TextureMap {
     pub address: Address,
     pub format: Format,
     pub mode: Mode,
+    pub scaling: Scaling,
     pub dirty: bool,
 }
 
