@@ -280,7 +280,14 @@ impl System {
             Some(Device2::AD16)
         );
 
-        self.external.channel2.immediate = 0;
+        let op = self.external.channel2.immediate;
+        if op == 0 {
+            tracing::warn!("checking AD16 ID");
+            self.external.channel2.immediate = 0x04120000;
+        } else {
+            tracing::warn!("unknown AD16 op");
+        }
+
         self.external.channel2.control.set_transfer_ongoing(false);
     }
 
