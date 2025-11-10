@@ -174,6 +174,10 @@ impl System {
                     tracing::warn!("doing disk seek! current implementation is half assed");
                     self.scheduler.schedule(Event::DiskSeekComplete, 10000);
                 }
+                0xE100_0000 | 0xE101_0000 => {
+                    tracing::warn!("DISK HACK");
+                    self.scheduler.schedule(Event::DiskSeekComplete, 10000);
+                }
                 0x1200_0000 => {
                     let target = self.mmu.translate_data_addr(self.disk.dma_base).unwrap();
                     let length = self.disk.dma_length;
