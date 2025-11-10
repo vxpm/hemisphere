@@ -16,6 +16,7 @@ use tinyvec::ArrayVec;
 use util::boxed_array;
 
 pub use ins::Ins;
+use zerocopy::IntoBytes;
 
 const IRAM_LEN: usize = 0x1000;
 const IROM_LEN: usize = 0x1000;
@@ -344,9 +345,18 @@ impl Registers {
 }
 
 #[derive(Default)]
+pub struct Accelerator {
+    pub format: u16,
+    pub aram_start: u32,
+    pub aram_end: u32,
+    pub aram_curr: u32,
+}
+
+#[derive(Default)]
 pub struct Interpreter {
     pub regs: Registers,
     pub mem: Memory,
+    pub accel: Accelerator,
     pub loop_counter: Option<u16>,
     pub old_reset_high: bool,
 }
@@ -509,9 +519,19 @@ impl Interpreter {
             0xCF => sys.dsp.dsp_dma.ram_base as u16,
 
             // Accelerator
-            0xD1..=0xED => {
-                tracing::warn!("reading from accelerator 0x{offset:02X}");
-                0
+            0xD3 => {
+                let value = u16::read_be_bytes(
+                    sys.mem.aram[self.accel.aram_curr.with_bit(31, false) as usize..].as_bytes(),
+                );
+
+                tracing::debug!(
+                    "accelerator reading 0x{value:04X} from ARAM 0x{:08X} (wraps at 0x{:08X})",
+                    self.accel.aram_curr,
+                    self.accel.aram_end
+                );
+
+                self.accel.aram_curr += 1;
+                value
             }
 
             // Mailboxes
@@ -561,7 +581,26 @@ impl Interpreter {
             }
 
             // Accelerator
-            0xD1..=0xED => tracing::warn!("writing 0x{value:04X} to accelerator 0x{offset:02X}"),
+            0xD1 => self.accel.format = value,
+            0xD3 => {
+                tracing::debug!(
+                    "accelerator writing 0x{value:04X} to ARAM 0x{:08X} (wraps at 0x{:08X})",
+                    self.accel.aram_curr,
+                    self.accel.aram_end
+                );
+
+                value.write_be_bytes(
+                    sys.mem.aram[self.accel.aram_curr.with_bit(31, false) as usize..]
+                        .as_mut_bytes(),
+                );
+                self.accel.aram_curr += 1;
+            }
+            0xD4 => self.accel.aram_end = self.accel.aram_start.with_bits(16, 32, value as u32),
+            0xD5 => self.accel.aram_end = self.accel.aram_start.with_bits(0, 16, value as u32),
+            0xD6 => self.accel.aram_end = self.accel.aram_end.with_bits(16, 32, value as u32),
+            0xD7 => self.accel.aram_end = self.accel.aram_end.with_bits(0, 16, value as u32),
+            0xD8 => self.accel.aram_curr = self.accel.aram_curr.with_bits(16, 32, value as u32),
+            0xD9 => self.accel.aram_curr = self.accel.aram_curr.with_bits(0, 16, value as u32),
 
             // Mailboxes
             0xFC => {
