@@ -454,7 +454,15 @@ impl JitCore {
             Some(ins)
         });
 
-        let block = self.compiler.compile(instructions).unwrap();
+        let block = match self.compiler.compile(instructions) {
+            Ok(b) => b,
+            Err(e) => match &e {
+                ppcjit::BuildError::EmptyBlock => panic!("built empty block at pc {}", sys.cpu.pc),
+                ppcjit::BuildError::Builder { .. } => panic!("block builder error: {}", e),
+                ppcjit::BuildError::Codegen { .. } => panic!("block codegen error: {}", e),
+            },
+        };
+
         tracing::trace!(
             instructions = block.meta().seq.len(),
             "block sequence built"
