@@ -1849,7 +1849,7 @@ impl Interpreter {
             let sr = self.regs.data_stack.pop().unwrap();
             let pc = self.regs.call_stack.pop().unwrap();
             self.regs.set(Reg::Status, sr);
-            self.regs.pc = pc;
+            self.regs.pc = pc - 1;
         }
     }
 }
