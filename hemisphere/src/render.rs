@@ -62,3 +62,11 @@ pub enum Action {
 pub trait Renderer: Send + Sync {
     fn exec(&mut self, action: Action);
 }
+
+pub struct NopRenderer;
+
+impl Renderer for NopRenderer {
+    fn exec(&mut self, _: Action) {
+        ()
+    }
+}

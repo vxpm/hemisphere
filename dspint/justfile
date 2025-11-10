@@ -4,4 +4,4 @@ list:
 
 # Runs the tests
 test *args:
-    @cargo test -p dsp --features zayd-tests {{args}}
+    @cargo test -p dspint --features zayd-tests {{args}}

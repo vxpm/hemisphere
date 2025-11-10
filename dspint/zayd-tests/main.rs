@@ -2,19 +2,23 @@
 
 mod file;
 
-use dsp::{Dsp, Registers};
+use dspint::{Interpreter, Registers};
+use hemisphere::{
+    render::NopRenderer,
+    system::{self, System},
+};
 use libtest_mimic::{Arguments, Failed, Trial};
 use std::fmt::Write;
 
-fn parse_code(mut words: &[u16]) -> Vec<dsp::Ins> {
+fn parse_code(mut words: &[u16]) -> Vec<dspint::Ins> {
     let mut ins = vec![];
     while !words.is_empty() {
-        let opcode = dsp::ins::Opcode::new(words[0]);
+        let opcode = dspint::ins::Opcode::new(words[0]);
         if opcode.needs_extra() {
-            ins.push(dsp::Ins::with_extra(words[0], words[1]));
+            ins.push(dspint::Ins::with_extra(words[0], words[1]));
             words = &words[2..];
         } else {
-            ins.push(dsp::Ins::new(words[0]));
+            ins.push(dspint::Ins::new(words[0]));
             words = &words[1..];
         }
     }
@@ -23,16 +27,17 @@ fn parse_code(mut words: &[u16]) -> Vec<dsp::Ins> {
 }
 
 struct FailedCase {
-    code: Vec<dsp::Ins>,
+    code: Vec<dspint::Ins>,
     initial: Registers,
     expected: Registers,
-    divergences: Vec<(dsp::Reg, u16, u16)>,
+    divergences: Vec<(dspint::Reg, u16, u16)>,
 }
 
-fn run_case(case: file::TestCase) -> Result<(), FailedCase> {
-    let mut dsp = Dsp::default();
+fn run_case(sys: &mut System, case: file::TestCase) -> Result<(), FailedCase> {
+    let mut dsp = Interpreter::default();
 
     // setup
+    sys.dsp.control.set_halt(false);
     dsp.regs = case.initial_regs();
     dsp.regs.pc = 62;
     dsp.mem.iram[62..][..case.instructions.len()].copy_from_slice(&case.instructions);
@@ -40,8 +45,8 @@ fn run_case(case: file::TestCase) -> Result<(), FailedCase> {
 
     // run until halt
     let code = parse_code(&case.instructions);
-    while !dsp.mmio.control.halt() {
-        dsp.step();
+    while !sys.dsp.control.halt() {
+        dsp.step(sys);
     }
 
     // check
@@ -49,16 +54,16 @@ fn run_case(case: file::TestCase) -> Result<(), FailedCase> {
     let expected = case.expected_regs();
     let mut divergences = vec![];
     for i in 0..32 {
-        let reg = dsp::Reg::new(i);
+        let reg = dspint::Reg::new(i);
         let value = dsp.regs.get(reg);
         let expected = expected.get(reg);
 
         if value != expected {
-            if allow_status && reg == dsp::Reg::Status {
+            if allow_status && reg == dspint::Reg::Status {
                 continue;
             }
 
-            if reg == dsp::Reg::Config {
+            if reg == dspint::Reg::Config {
                 continue;
             }
 
@@ -82,8 +87,17 @@ fn run_test(file: file::TestFile, quiet: bool) -> Result<(), Failed> {
     let early_exit = std::env::var("EARLY_EXIT").is_ok();
     let total = file.cases.len();
     let mut failures = vec![];
+
+    let mut system = System::new(system::Config {
+        renderer: Box::new(NopRenderer),
+        ipl: None,
+        iso: None,
+        sideload: None,
+        debug_info: None,
+    });
+
     for (i, case) in file.cases.into_iter().enumerate() {
-        let Err(failure) = run_case(case) else {
+        let Err(failure) = run_case(&mut system, case) else {
             continue;
         };
 

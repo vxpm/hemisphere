@@ -1,5 +1,5 @@
 mod ipl-hle
-mod dsp
+mod dspint
 
 export RUSTDOCFLAGS := "-Zunstable-options --show-type-layout --generate-link-to-definition --default-theme dark"
 

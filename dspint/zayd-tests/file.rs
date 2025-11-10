@@ -12,8 +12,8 @@ pub struct TestCase {
     pub initial: [u16; 31],
 }
 
-fn regs(arr: [u16; 31]) -> dsp::Registers {
-    let mut regs = dsp::Registers::default();
+fn regs(arr: [u16; 31]) -> dspint::Registers {
+    let mut regs = dspint::Registers::default();
     for i in 0..31 {
         // reg 18 is not in the data
         let reg_index = if i < 18 { i } else { i + 1 };
@@ -23,18 +23,18 @@ fn regs(arr: [u16; 31]) -> dsp::Registers {
             continue;
         }
 
-        regs.set(dsp::Reg::new(reg_index), arr[i as usize]);
+        regs.set(dspint::Reg::new(reg_index), arr[i as usize]);
     }
 
     regs
 }
 
 impl TestCase {
-    pub fn expected_regs(&self) -> dsp::Registers {
+    pub fn expected_regs(&self) -> dspint::Registers {
         regs(self.expected)
     }
 
-    pub fn initial_regs(&self) -> dsp::Registers {
+    pub fn initial_regs(&self) -> dspint::Registers {
         regs(self.initial)
     }
 }
