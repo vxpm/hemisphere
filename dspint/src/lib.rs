@@ -360,6 +360,8 @@ impl Interpreter {
 
     fn check_external_interrupt(&mut self, sys: &mut System) {
         if sys.dsp.control.interrupt() && self.regs.status.external_interrupt_enable() {
+            tracing::warn!("DSP external interrupt raised");
+
             sys.dsp.control.set_interrupt(false);
             self.raise_exception(Exception::Interrupt);
         }
@@ -663,7 +665,9 @@ impl Interpreter {
         }
 
         self.check_stacks();
-        self.check_external_interrupt(sys);
+        if self.loop_counter.is_none() {
+            self.check_external_interrupt(sys);
+        }
 
         // fetch
         let mut ins = Ins::new(self.read_imem(self.regs.pc));
