@@ -722,7 +722,7 @@ impl Interpreter {
 
         let ins_len = opcode.len();
 
-        // tracing::debug!("executing {ins:?} at {:04X}", self.regs.pc);
+        // println!("executing {ins:?} at {:04X}", self.regs.pc);
 
         // execute
         let regs_previous = if opcode.has_extension() {

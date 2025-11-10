@@ -33,6 +33,7 @@ pub struct Hooks {
     pub write_i64: WriteHook<i64>,
     pub read_quantized: ReadQuantizedHook,
     pub write_quantized: WriteQuantizedHook,
+    pub cache_dma: GenericHook,
 
     // msr
     pub msr_changed: GenericHook,

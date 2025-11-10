@@ -79,6 +79,7 @@ impl BlockBuilder<'_> {
         match spr {
             SPR::DEC => self.call_generic_hook(offset_of!(Hooks, dec_changed)),
             SPR::TBL | SPR::TBU => self.call_generic_hook(offset_of!(Hooks, tb_changed)),
+            SPR::DMAL | SPR::DMAU => self.call_generic_hook(offset_of!(Hooks, cache_dma)),
             SPR::WPAR => tracing::warn!("write to WPAR"),
             spr if spr.is_data_bat() => self.dbat_changed = true,
             spr if spr.is_instr_bat() => self.ibat_changed = true,

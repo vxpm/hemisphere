@@ -5,7 +5,7 @@
 
 use bitos::{
     BitUtils, bitos,
-    integer::{i6, u2, u4, u7, u11, u15, u27},
+    integer::{i6, u2, u4, u5, u7, u11, u15, u27},
 };
 use std::time::Duration;
 use strum::{FromRepr, VariantArray};
@@ -887,6 +887,58 @@ impl WriteGatherPipe {
     }
 }
 
+#[bitos(32)]
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct DmaConfigUpper {
+    #[bits(0..5)]
+    pub length_upper: u5,
+    #[bits(5..32)]
+    pub mem_base: u27,
+}
+
+#[bitos(1)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum DmaDirection {
+    #[default]
+    FromCacheToRam = 0,
+    FromRamToCache = 1,
+}
+
+#[bitos(32)]
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct DmaConfigLower {
+    #[bits(0)]
+    pub flush: bool,
+    #[bits(1)]
+    pub trigger: bool,
+    #[bits(2..4)]
+    pub length_lower: u2,
+    #[bits(4)]
+    pub direction: DmaDirection,
+    #[bits(5..32)]
+    pub cache_base: u27,
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct DmaConfig {
+    pub upper: DmaConfigUpper,
+    pub lower: DmaConfigLower,
+}
+
+impl DmaConfig {
+    pub fn mem_address(&self) -> Address {
+        Address(self.upper.mem_base().value() << 5)
+    }
+
+    pub fn cache_address(&self) -> Address {
+        Address(self.lower.cache_base().value() << 5)
+    }
+
+    pub fn length(&self) -> u32 {
+        (self.upper.length_upper().value() << 2 | self.lower.length_lower().value()) as u32 * 32
+    }
+}
+
 /// Configuration registers.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Configuration {
@@ -896,6 +948,8 @@ pub struct Configuration {
     pub hid: [u32; 3],
     /// Write Gather Pipe configuration
     pub wpar: WriteGatherPipe,
+    /// DMA configuration
+    pub dma: DmaConfig,
 }
 
 /// A quantized type.
@@ -1187,6 +1241,8 @@ pub enum SPR {
     GQR7 = 919,
     HID2 = 920,
     WPAR = 921,
+    DMAU = 922,
+    DMAL = 923,
     MMCR0 = 952,
     PMC1 = 953,
     PMC2 = 954,
@@ -1254,6 +1310,8 @@ impl SPR {
             Self::GQR7 => offset_of!(Cpu, supervisor.gq[7]),
             Self::HID2 => offset_of!(Cpu, supervisor.config.hid[2]),
             Self::WPAR => offset_of!(Cpu, supervisor.config.wpar),
+            Self::DMAU => offset_of!(Cpu, supervisor.config.dma.upper),
+            Self::DMAL => offset_of!(Cpu, supervisor.config.dma.lower),
             Self::MMCR0 => offset_of!(Cpu, supervisor.performance.control[0]),
             Self::PMC1 => offset_of!(Cpu, supervisor.performance.counters[0]),
             Self::PMC2 => offset_of!(Cpu, supervisor.performance.counters[1]),

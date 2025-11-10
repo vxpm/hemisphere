@@ -2,7 +2,7 @@ use hemisphere::{
     Address, Cycles, Primitive,
     cores::{CpuCore, Executed},
     gekko::{
-        Cpu, InsExt, QuantizedType,
+        self, Cpu, InsExt, QuantizedType,
         disasm::{Extensions, Ins, Opcode},
     },
     system::{Event, System},
@@ -276,6 +276,35 @@ static CTX_HOOKS: Hooks = {
         gqr.store_type().size()
     }
 
+    extern "sysv64-unwind" fn cache_dma(ctx: &mut Context) {
+        let dma = ctx.system.cpu.supervisor.config.dma.clone();
+
+        if dma.lower.trigger() {
+            let ram = &mut ctx.system.mem.ram[dma.mem_address().value() as usize..]
+                [..dma.length() as usize];
+            let l2c = &mut ctx.system.mem.l2c[dma.cache_address().value() as usize - 0xE000_0000..]
+                [..dma.length() as usize];
+
+            match dma.lower.direction() {
+                gekko::DmaDirection::FromCacheToRam => {
+                    ram.copy_from_slice(l2c);
+                }
+                gekko::DmaDirection::FromRamToCache => {
+                    l2c.copy_from_slice(ram);
+                }
+            }
+        }
+
+        ctx.system
+            .cpu
+            .supervisor
+            .config
+            .dma
+            .lower
+            .set_trigger(false)
+            .set_flush(false);
+    }
+
     extern "sysv64-unwind" fn msr_changed(ctx: &mut Context) {
         ctx.system.scheduler.schedule_now(Event::CheckInterrupts);
     }
@@ -354,6 +383,7 @@ static CTX_HOOKS: Hooks = {
         let write_quantized = transmute::<_, WriteQuantizedHook>(
             write_quantized as extern "sysv64-unwind" fn(_, _, _, _) -> _,
         );
+        let cache_dma = transmute::<_, GenericHook>(cache_dma as extern "sysv64-unwind" fn(_));
 
         let msr_changed = transmute::<_, GenericHook>(msr_changed as extern "sysv64-unwind" fn(_));
 
@@ -381,6 +411,7 @@ static CTX_HOOKS: Hooks = {
             write_i64,
             read_quantized,
             write_quantized,
+            cache_dma,
 
             msr_changed,
 

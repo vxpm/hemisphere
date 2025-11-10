@@ -1,6 +1,7 @@
 mod mmio;
 
 use crate::Primitive;
+use crate::system::mem::L2C_LEN;
 use crate::system::{
     Event, System, disk, external,
     mem::{IPL_LEN, RAM_LEN},
@@ -232,6 +233,7 @@ impl System {
         map! {
             offset, addr;
             0x0000_0000, RAM_LEN => P::read_be_bytes(&self.mem.ram[offset..]),
+            0xE000_0000, L2C_LEN => P::read_be_bytes(&self.mem.l2c[offset..]),
             0xFFF0_0000, IPL_LEN / 2 => P::read_be_bytes(&self.mem.ipl[offset..]),
             @default => {
                 std::hint::cold_path();
@@ -563,6 +565,7 @@ impl System {
         map! {
             offset, addr;
             0x0000_0000, RAM_LEN => value.write_be_bytes(&mut self.mem.ram[offset..]),
+            0xE000_0000, L2C_LEN => value.write_be_bytes(&mut self.mem.l2c[offset..]),
             0xFFF0_0000, IPL_LEN / 2 => value.write_be_bytes(&mut self.mem.ipl[offset..]),
             @default => {
                 std::hint::cold_path();
