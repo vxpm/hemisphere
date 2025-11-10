@@ -179,7 +179,7 @@ impl App {
             renderer,
             state,
             windows,
-            cycles_per_second: VecDeque::with_capacity(16),
+            cycles_per_second: VecDeque::with_capacity(120),
         })
     }
 
@@ -241,11 +241,11 @@ impl eframe::App for App {
                     });
                 });
 
-                let cps = self.cycles_per_second.iter().sum::<f64>()
-                    / self.cycles_per_second.len() as f64;
+                let cps = self.cycles_per_second.iter().sum::<f64>().abs()
+                    / self.cycles_per_second.len().max(1) as f64;
 
                 ui.label(format!(
-                    "Speed: {}%",
+                    "CPS: {}%",
                     ((cps / hemisphere::gekko::FREQUENCY as f64) * 100.0).round()
                 ));
             });
@@ -293,13 +293,13 @@ impl eframe::App for App {
             self.state.emulator.step();
         }
 
-        let remaining = FRAMETIME.saturating_sub(self.last_update.elapsed());
         if self.state.running {
             let start = Instant::now();
-            let target = remaining.max(Duration::from_millis(1));
+            let elapsed = self.last_update.elapsed();
+            let target = Cycles::from_duration(elapsed);
 
-            let mut cycles = 0;
-            while start.elapsed() < target {
+            let mut cycles = 0u64;
+            while cycles < target && self.last_update.elapsed() <= FRAMETIME {
                 let executed = self
                     .state
                     .emulator
@@ -313,15 +313,16 @@ impl eframe::App for App {
                 }
             }
 
-            if self.cycles_per_second.len() == 16 {
+            if self.cycles_per_second.len() == 120 {
                 self.cycles_per_second.pop_front();
             }
 
             self.cycles_per_second
-                .push_back(cycles as f64 / target.as_secs_f64());
+                .push_back(cycles as f64 / start.elapsed().as_secs_f64());
 
             ctx.request_repaint();
         } else {
+            let remaining = FRAMETIME.saturating_sub(self.last_update.elapsed());
             ctx.request_repaint_after(remaining);
         }
 

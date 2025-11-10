@@ -318,9 +318,22 @@ impl PartialEq<u64> for Cycles {
     }
 }
 
+impl PartialEq<Cycles> for u64 {
+    #[inline(always)]
+    fn eq(&self, other: &Cycles) -> bool {
+        *self == other.0
+    }
+}
+
 impl PartialOrd<u64> for Cycles {
     fn partial_cmp(&self, other: &u64) -> Option<std::cmp::Ordering> {
         Some(self.0.cmp(other))
+    }
+}
+
+impl PartialOrd<Cycles> for u64 {
+    fn partial_cmp(&self, other: &Cycles) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(&other.0))
     }
 }
 
