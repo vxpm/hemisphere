@@ -568,7 +568,7 @@ impl System {
                 std::hint::cold_path();
                 if addr.value() & 0xFFFF_0000 != 0x0C00_0000 {
                     std::hint::cold_path();
-                    tracing::error!("writing 0x{value:08X} to {addr} (unknown region)");
+                    tracing::error!(pc = ?self.cpu.pc, "writing 0x{value:08X} to {addr} (unknown region)");
                     return;
                 }
 
