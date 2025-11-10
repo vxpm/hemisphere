@@ -300,8 +300,17 @@ impl eframe::App for App {
 
             let mut cycles = 0;
             while start.elapsed() < target {
-                let executed = self.state.emulator.exec(Cycles(8192));
+                let executed = self
+                    .state
+                    .emulator
+                    .exec(Cycles(8192), &self.state.breakpoints);
+
                 cycles += executed.cycles.0;
+
+                if executed.hit_breakpoint {
+                    self.state.running = false;
+                    break;
+                }
             }
 
             if self.cycles_per_second.len() == 16 {

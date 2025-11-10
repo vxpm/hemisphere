@@ -38,7 +38,7 @@ impl Hemisphere {
     }
 
     /// Advances emulation by the specified number of CPU cycles.
-    pub fn exec(&mut self, cycles: Cycles) -> cores::Executed {
+    pub fn exec(&mut self, cycles: Cycles, breakpoints: &[Address]) -> cores::Executed {
         let mut executed = cores::Executed::default();
         while executed.cycles < cycles {
             // how many CPU cycles can we execute?
@@ -49,9 +49,13 @@ impl Hemisphere {
             let can_execute = until_next_dsp_step.min(until_next_event).min(remaining);
 
             // execute CPU
-            let e = self.cores.cpu.exec(&mut self.system, can_execute, &[]);
+            let e = self
+                .cores
+                .cpu
+                .exec(&mut self.system, can_execute, breakpoints);
             executed.instructions += e.instructions;
             executed.cycles += e.cycles;
+            executed.hit_breakpoint = e.hit_breakpoint;
             self.dsp_pending += e.cycles.to_dsp_cycles();
 
             // execute DSP
@@ -64,6 +68,10 @@ impl Hemisphere {
             self.system.scheduler.advance(e.cycles.0);
             while let Some(event) = self.system.scheduler.pop() {
                 self.system.process(event);
+            }
+
+            if e.hit_breakpoint {
+                break;
             }
         }
 
