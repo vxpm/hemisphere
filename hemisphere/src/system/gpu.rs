@@ -130,6 +130,10 @@ pub enum Reg {
     ScissorOffset = 0x59,
 
     // TX
+    TexLoadBlock0 = 0x60,
+    TexLoadBlock1 = 0x61,
+    TexLoadBlock2 = 0x62,
+    TexLoadBlock3 = 0x63,
     TexLoadLut0 = 0x64,
     TexLoadLut1 = 0x65,
     TexInvTags = 0x66,
