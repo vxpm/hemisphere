@@ -768,8 +768,8 @@ impl Interpreter {
         let t = ins.base.bit(8) as usize;
         let s = ins.base.bit(9) as usize;
 
-        let lhs = self.regs.acc40[s].mid as i16 as i32;
-        let rhs = self.regs.acc32[t] >> 16;
+        let lhs = self.regs.acc40[s].mid as i16 as i64;
+        let rhs = (self.regs.acc32[t] >> 16) as i64;
         let mul = lhs * rhs;
         let result = if self.regs.status.dont_double_result() {
             mul
@@ -786,8 +786,8 @@ impl Interpreter {
         let t = ins.base.bit(8) as u8;
         let s = ins.base.bit(9) as u8;
 
-        let lhs = self.regs.get(Reg::new(0x18 + 2 * s)) as i16 as i32;
-        let rhs = self.regs.get(Reg::new(0x19 + 2 * t)) as i16 as i32;
+        let lhs = self.regs.get(Reg::new(0x18 + 2 * s)) as i16 as i64;
+        let rhs = self.regs.get(Reg::new(0x19 + 2 * t)) as i16 as i64;
         let mul = lhs * rhs;
         let result = if self.regs.status.dont_double_result() {
             mul
@@ -903,8 +903,8 @@ impl Interpreter {
         let t = ins.base.bit(8) as usize;
         let s = ins.base.bit(9) as usize;
 
-        let lhs = self.regs.acc40[s].mid as i16 as i32;
-        let rhs = self.regs.acc32[t] >> 16;
+        let lhs = self.regs.acc40[s].mid as i16 as i64;
+        let rhs = (self.regs.acc32[t] >> 16) as i64;
         let mul = lhs * rhs;
         let result = if self.regs.status.dont_double_result() {
             mul
@@ -921,8 +921,8 @@ impl Interpreter {
         let t = ins.base.bit(8) as u8;
         let s = ins.base.bit(9) as u8;
 
-        let lhs = self.regs.get(Reg::new(0x18 + 2 * s)) as i16 as i32;
-        let rhs = self.regs.get(Reg::new(0x19 + 2 * t)) as i16 as i32;
+        let lhs = self.regs.get(Reg::new(0x18 + 2 * s)) as i16 as i64;
+        let rhs = self.regs.get(Reg::new(0x19 + 2 * t)) as i16 as i64;
         let mul = lhs * rhs;
         let result = if self.regs.status.dont_double_result() {
             mul
@@ -939,8 +939,8 @@ impl Interpreter {
         let s = ins.base.bit(11) as usize;
 
         let acc = self.regs.acc32[s];
-        let low = (acc << 16) >> 16;
-        let high = acc >> 16;
+        let low = ((acc << 16) >> 16) as i64;
+        let high = (acc >> 16) as i64;
         let mul = low * high;
         let result = if self.regs.status.dont_double_result() {
             mul
@@ -960,8 +960,8 @@ impl Interpreter {
         let new = self.regs.acc40[r].set(acc_r + self.regs.product.get().2);
 
         let acc_s = self.regs.acc32[s];
-        let low = (acc_s << 16) >> 16;
-        let high = acc_s >> 16;
+        let low = ((acc_s << 16) >> 16) as i64;
+        let high = (acc_s >> 16) as i64;
         let mul = low * high;
         let result = if self.regs.status.dont_double_result() {
             mul
@@ -977,7 +977,7 @@ impl Interpreter {
 
     // NOTE: carry flag issue
     pub fn mulaxh(&mut self, _: &mut System, _: Ins) {
-        let val = self.regs.acc32[0] >> 16;
+        let val = (self.regs.acc32[0] >> 16) as i64;
         let mul = val * val;
         let result = if self.regs.status.dont_double_result() {
             mul
@@ -993,8 +993,8 @@ impl Interpreter {
         let t = ins.base.bit(11) as usize;
         let s = ins.base.bit(12) as usize;
 
-        let lhs = self.regs.acc40[s].mid as i16 as i32;
-        let rhs = self.regs.acc32[t] >> 16;
+        let lhs = self.regs.acc40[s].mid as i16 as i64;
+        let rhs = (self.regs.acc32[t] >> 16) as i64;
         let mul = lhs * rhs;
         let result = if self.regs.status.dont_double_result() {
             mul
@@ -1013,8 +1013,8 @@ impl Interpreter {
 
         let (_, _, prod) = self.regs.product.get();
 
-        let lhs = self.regs.acc40[s].mid as i16 as i32;
-        let rhs = self.regs.acc32[t] >> 16;
+        let lhs = self.regs.acc40[s].mid as i16 as i64;
+        let rhs = (self.regs.acc32[t] >> 16) as i64;
         let mul = lhs * rhs;
         let result = if self.regs.status.dont_double_result() {
             mul
@@ -1038,8 +1038,8 @@ impl Interpreter {
 
         let (_, _, prod) = self.regs.product.get();
 
-        let lhs = self.regs.acc40[s].mid as i16 as i32;
-        let rhs = self.regs.acc32[t] >> 16;
+        let lhs = self.regs.acc40[s].mid as i16 as i64;
+        let rhs = (self.regs.acc32[t] >> 16) as i64;
         let mul = lhs * rhs;
         let result = if self.regs.status.dont_double_result() {
             mul
@@ -1062,8 +1062,8 @@ impl Interpreter {
 
         let (_, _, prod) = self.regs.product.get();
 
-        let lhs = self.regs.acc40[s].mid as i16 as i32;
-        let rhs = self.regs.acc32[t] >> 16;
+        let lhs = self.regs.acc40[s].mid as i16 as i64;
+        let rhs = (self.regs.acc32[t] >> 16) as i64;
         let mul = lhs * rhs;
         let result = if self.regs.status.dont_double_result() {
             mul
@@ -1086,8 +1086,8 @@ impl Interpreter {
         let (_, _, prod) = self.regs.product.get();
         let new = self.regs.acc40[r].set(prod);
 
-        let low = (self.regs.acc32[s] << 16) >> 16;
-        let high = self.regs.acc32[s] >> 16;
+        let low = ((self.regs.acc32[s] << 16) >> 16) as i64;
+        let high = (self.regs.acc32[s] >> 16) as i64;
         let mul = low * high;
         let result = if self.regs.status.dont_double_result() {
             mul
@@ -1109,8 +1109,8 @@ impl Interpreter {
         let (_, _, prod) = self.regs.product.get();
         let new = self.regs.acc40[r].set(round_40(prod));
 
-        let low = (self.regs.acc32[s] << 16) >> 16;
-        let high = self.regs.acc32[s] >> 16;
+        let low = ((self.regs.acc32[s] << 16) >> 16) as i64;
+        let high = (self.regs.acc32[s] >> 16) as i64;
         let mul = low * high;
         let result = if self.regs.status.dont_double_result() {
             mul
