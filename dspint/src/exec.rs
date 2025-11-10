@@ -89,7 +89,7 @@ fn sub_from_addr_reg(ar: u16, wr: u16, value: i16) -> u16 {
 
     // compute result
     let mut result = ar.wrapping_add_signed(value).wrapping_add(1);
-    if (value.wrapping_add(1)) > 0 {
+    if (value.wrapping_add(1)) > 0 || value.wrapping_add(1) == -0x8000 {
         if carry {
             result = result.wrapping_sub(wr.wrapping_add(1));
         }
