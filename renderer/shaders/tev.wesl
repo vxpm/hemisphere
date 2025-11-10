@@ -5,10 +5,10 @@ const PLACEHOLDER_RGB: vec3f = vec3f(1.0, 0.0, 0.8627);
 const PLACEHOLDER_RGBA: vec4f = vec4f(1.0, 0.0, 0.8627, 0.5);
 
 alias Reg = u32;
-const R3: Reg = 0;
 const R0: Reg = 1;
 const R1: Reg = 2;
 const R2: Reg = 3;
+const R3: Reg = 0;
 
 // Configuration for a TEV operation.
 struct OpConfig {
@@ -149,28 +149,28 @@ fn get_color_input(state: ptr<function, State>, value: Input) -> vec3f {
     switch value {
         // Registers
         case input::COLOR_R3C: {
-            return state.regs[3].rgb;
+            return state.regs[R3].rgb;
         }
         case input::COLOR_R3A: {
-            return state.regs[3].aaa;
+            return state.regs[R3].aaa;
         }
         case input::COLOR_R0C: {
-            return state.regs[0].rgb;
+            return state.regs[R0].rgb;
         }
         case input::COLOR_R0A: {
-            return state.regs[0].aaa;
+            return state.regs[R0].aaa;
         }
         case input::COLOR_R1C: {
-            return state.regs[1].rgb;
+            return state.regs[R1].rgb;
         }
         case input::COLOR_R1A: {
-            return state.regs[1].aaa;
+            return state.regs[R1].aaa;
         }
         case input::COLOR_R2C: {
-            return state.regs[2].rgb;
+            return state.regs[R2].rgb;
         }
         case input::COLOR_R2A: {
-            return state.regs[2].aaa;
+            return state.regs[R2].aaa;
         }
 
         // Texture colors
@@ -214,16 +214,16 @@ fn get_alpha_input(state: ptr<function, State>, value: Input) -> f32 {
     switch value {
         // Registers
         case input::ALPHA_R3: {
-            return state.regs[3].a;
+            return state.regs[R3].a;
         }
         case input::ALPHA_R0: {
-            return state.regs[0].a;
+            return state.regs[R0].a;
         }
         case input::ALPHA_R1: {
-            return state.regs[1].a;
+            return state.regs[R1].a;
         }
         case input::ALPHA_R2: {
-            return state.regs[2].a;
+            return state.regs[R2].a;
         }
 
         // Texture colors
@@ -277,19 +277,16 @@ fn compute(config: Config, diffuse: vec4f, specular: vec4f, coords: array<vec3f,
     state.diffuse = diffuse;
     state.specular = specular;
     state.coords = coords;
-    state.constants = array(
-        config.constants.color0,
-        config.constants.color1,
-        config.constants.color2,
-        config.constants.color3,
-    );
-
+    state.constants[R0] = config.constants.color0;
+    state.constants[R1] = config.constants.color1;
+    state.constants[R2] = config.constants.color2;
+    state.constants[R3] = config.constants.color3;
     state.regs = state.constants;
 
     var last_color_output = PLACEHOLDER_RGB;
     var last_alpha_output = 1.0;
 
-    for (var i = 0u; i < config.count; i ++) {
+    for (var i = 0u; i < config.count; i++) {
         let stage = config.stages[i];
         state.current_map = stage.refs.map;
         state.current_coord = stage.refs.coord;
