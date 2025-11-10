@@ -1,8 +1,11 @@
 use crate::{
-    render::Action,
+    render::{self, Action},
     system::{System, gpu::command::ArrayDescriptor},
 };
-use bitos::{BitUtils, bitos, integer::u3};
+use bitos::{
+    BitUtils, bitos,
+    integer::{u3, u5, u6},
+};
 use glam::{Mat3, Mat4};
 use strum::FromRepr;
 
@@ -53,14 +56,14 @@ pub enum Reg {
     TexGen5 = 0x45,
     TexGen6 = 0x46,
     TexGen7 = 0x47,
-    DualTexGen0 = 0x50,
-    DualTexGen1 = 0x51,
-    DualTexGen2 = 0x52,
-    DualTexGen3 = 0x53,
-    DualTexGen4 = 0x54,
-    DualTexGen5 = 0x55,
-    DualTexGen6 = 0x56,
-    DualTexGen7 = 0x57,
+    PostTexGen0 = 0x50,
+    PostTexGen1 = 0x51,
+    PostTexGen2 = 0x52,
+    PostTexGen3 = 0x53,
+    PostTexGen4 = 0x54,
+    PostTexGen5 = 0x55,
+    PostTexGen6 = 0x56,
+    PostTexGen7 = 0x57,
 }
 
 impl Reg {
@@ -147,7 +150,7 @@ pub enum TexGenSource {
 
 #[bitos(32)]
 #[derive(Debug, Clone, Default)]
-pub struct TexGen {
+pub struct BaseTexGen {
     #[bits(1)]
     pub output_kind: TexGenOutputKind,
     #[bits(2)]
@@ -160,6 +163,23 @@ pub struct TexGen {
     pub emboss_source: u3,
     #[bits(15..18)]
     pub emboss_light: u3,
+}
+
+#[bitos(32)]
+#[derive(Debug, Clone, Default)]
+pub struct PostTexGen {
+    #[bits(0..6)]
+    pub mat_index: u6,
+    #[bits(8)]
+    pub normalize: bool,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct TexGen {
+    /// Base TexGen transform
+    pub base: BaseTexGen,
+    /// Post TexGen transform (Dual)
+    pub post: PostTexGen,
 }
 
 #[derive(Debug, Default)]
@@ -177,7 +197,8 @@ pub struct Internal {
     pub viewport: Viewport,
     pub projection_params: [f32; 6],
     pub projection_orthographic: bool,
-    pub texgens: [TexGen; 8],
+    pub texgen: [TexGen; 8],
+    pub post_texgen: [PostTexGen; 8],
     pub active_texgens: u8,
 }
 
@@ -250,6 +271,21 @@ impl Interface {
         }
         .transpose()
     }
+
+    /// Returns the post matrix at `index` in internal memory.
+    pub fn post_matrix(&self, index: u8) -> Mat4 {
+        let offset = 4 * index as usize;
+        let data = &self.ram[0x500 + offset..][..16];
+        let m: &[f32] = zerocopy::transmute_ref!(data);
+
+        Mat4::from_cols_array_2d(&[
+            [m[0], m[1], m[2], m[3]],
+            [m[4], m[5], m[6], m[7]],
+            [m[8], m[9], m[10], m[11]],
+            [0.0, 0.0, 0.0, 1.0],
+        ])
+        .transpose()
+    }
 }
 
 impl System {
@@ -259,12 +295,21 @@ impl System {
             .gpu
             .transform
             .internal
-            .texgens
+            .texgen
             .iter()
             .take(self.gpu.transform.internal.active_texgens as usize)
             .cloned()
         {
-            texgens.push(texgen);
+            let config = render::TexGenConfig {
+                base: texgen.base,
+                normalize: texgen.post.normalize(),
+                post_matrix: self
+                    .gpu
+                    .transform
+                    .post_matrix(texgen.post.mat_index().value()),
+            };
+
+            texgens.push(config);
         }
 
         self.config.renderer.exec(Action::SetTexGens(texgens));
@@ -292,14 +337,22 @@ impl System {
             Reg::ProjectionOrthographic => xf.projection_orthographic = value != 0,
 
             Reg::TexGenCount => xf.active_texgens = value as u8,
-            Reg::TexGen0 => xf.texgens[0] = TexGen::from_bits(value),
-            Reg::TexGen1 => xf.texgens[1] = TexGen::from_bits(value),
-            Reg::TexGen2 => xf.texgens[2] = TexGen::from_bits(value),
-            Reg::TexGen3 => xf.texgens[3] = TexGen::from_bits(value),
-            Reg::TexGen4 => xf.texgens[4] = TexGen::from_bits(value),
-            Reg::TexGen5 => xf.texgens[5] = TexGen::from_bits(value),
-            Reg::TexGen6 => xf.texgens[6] = TexGen::from_bits(value),
-            Reg::TexGen7 => xf.texgens[7] = TexGen::from_bits(value),
+            Reg::TexGen0 => xf.texgen[0].base = BaseTexGen::from_bits(value),
+            Reg::TexGen1 => xf.texgen[1].base = BaseTexGen::from_bits(value),
+            Reg::TexGen2 => xf.texgen[2].base = BaseTexGen::from_bits(value),
+            Reg::TexGen3 => xf.texgen[3].base = BaseTexGen::from_bits(value),
+            Reg::TexGen4 => xf.texgen[4].base = BaseTexGen::from_bits(value),
+            Reg::TexGen5 => xf.texgen[5].base = BaseTexGen::from_bits(value),
+            Reg::TexGen6 => xf.texgen[6].base = BaseTexGen::from_bits(value),
+            Reg::TexGen7 => xf.texgen[7].base = BaseTexGen::from_bits(value),
+            Reg::PostTexGen0 => xf.texgen[0].post = PostTexGen::from_bits(value),
+            Reg::PostTexGen1 => xf.texgen[1].post = PostTexGen::from_bits(value),
+            Reg::PostTexGen2 => xf.texgen[2].post = PostTexGen::from_bits(value),
+            Reg::PostTexGen3 => xf.texgen[3].post = PostTexGen::from_bits(value),
+            Reg::PostTexGen4 => xf.texgen[4].post = PostTexGen::from_bits(value),
+            Reg::PostTexGen5 => xf.texgen[5].post = PostTexGen::from_bits(value),
+            Reg::PostTexGen6 => xf.texgen[6].post = PostTexGen::from_bits(value),
+            Reg::PostTexGen7 => xf.texgen[7].post = PostTexGen::from_bits(value),
 
             _ => tracing::warn!("unimplemented write to internal XF register {reg:?}"),
         }

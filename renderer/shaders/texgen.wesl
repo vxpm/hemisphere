@@ -36,8 +36,8 @@ struct TexGen {
     source: Source,
     emboss_source: u32,
     emboss_light: u32,
-    _pad0: u32,
-    _pad1: u32,
+    normalize: u32,
+    post_matrix_index: u32,
 };
 
 /// All TexGen configurations.
@@ -111,18 +111,26 @@ fn compute(vertex: Vertex, texgen: TexGen, matrix: mat4x4f) -> vec3f {
         }
     }
 
-    var output: vec3f;
+    var reduced: vec3f;
     switch texgen.output_fmt {
         case OUT_FMT_VEC2: {
-            output = vec3f(computed.xy, 0.0);
+            reduced = vec3f(computed.xy, 0.0);
         }
         case OUT_FMT_VEC3: {
-            output = computed;
+            reduced = computed;
         }
         default: {
-            output = vec3f(0.0);
+            reduced = vec3f(0.0);
         }
     }
 
+    var normalized: vec3f;
+    if texgen.normalize != 0 {
+        normalized = normalize(reduced);
+    } else {
+        normalized = reduced;   
+    }
+
+    var output: vec3f = (matrices[texgen.post_matrix_index] * vec4f(normalized, 1.0)).xyz;
     return output;
 }

@@ -9,7 +9,7 @@ use crate::render::{
 };
 use glam::Mat4;
 use hemisphere::{
-    render::{Action, TevConfig, Viewport},
+    render::{Action, TevConfig, TexGenConfig, Viewport},
     system::gpu::{
         Topology, VertexAttributes,
         command::attributes::Rgba,
@@ -313,8 +313,8 @@ impl Renderer {
         self.update_config();
     }
 
-    pub fn set_texgens(&mut self, texgens: Vec<TexGen>) {
-        let new = data::TexGenConfig::new(texgens);
+    pub fn set_texgens(&mut self, texgens: Vec<TexGenConfig>) {
+        let new = data::TexGenConfig::new(texgens, |mat| self.insert_matrix(mat));
         if self.current_config.texgen == new {
             return;
         }

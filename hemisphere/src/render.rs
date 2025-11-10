@@ -6,7 +6,7 @@ use crate::system::gpu::{
     environment::{StageOps, StageRefs},
     pixel::{BlendMode, DepthMode},
     texture::Rgba8,
-    transform::TexGen,
+    transform::BaseTexGen,
 };
 use glam::Mat4;
 
@@ -28,6 +28,13 @@ pub struct TevConfig {
     pub constants: [Rgba; 4],
 }
 
+#[derive(Debug, Clone)]
+pub struct TexGenConfig {
+    pub base: BaseTexGen,
+    pub normalize: bool,
+    pub post_matrix: Mat4,
+}
+
 pub enum Action {
     SetViewport(Viewport),
     SetClearColor(Rgba),
@@ -35,7 +42,7 @@ pub enum Action {
     SetBlendMode(BlendMode),
     SetProjectionMatrix(Mat4),
     SetTevConfig(TevConfig),
-    SetTexGens(Vec<TexGen>),
+    SetTexGens(Vec<TexGenConfig>),
     LoadTexture {
         id: u32,
         width: u32,

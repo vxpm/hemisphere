@@ -1,6 +1,6 @@
-use glam::{Vec2, Vec3};
+use glam::{Mat4, Vec2, Vec3};
 use hemisphere::{
-    render, system::gpu::command::attributes::Rgba, system::gpu::transform::TexGen as GpuTexGen,
+    render, render::TexGenConfig as CoreTexGenConfig, system::gpu::command::attributes::Rgba,
 };
 use zerocopy::{Immutable, IntoBytes};
 
@@ -137,8 +137,8 @@ pub struct TexGen {
     pub source: u32,
     pub emboss_source: u32,
     pub emboss_light: u32,
-    pub _pad0: u32,
-    pub _pad1: u32,
+    pub normalize: u32,
+    pub post_matrix_index: u32,
 }
 
 #[derive(Debug, Clone, Immutable, IntoBytes, Default, PartialEq)]
@@ -154,17 +154,19 @@ pub struct TexGenConfig {
 }
 
 impl TexGenConfig {
-    pub fn new(texgens: Vec<GpuTexGen>) -> Self {
+    pub fn new(texgens: Vec<CoreTexGenConfig>, mut insert_matrix: impl FnMut(Mat4) -> u32) -> Self {
         let count = texgens.len() as u32;
         let mut data = std::array::from_fn::<TexGen, 8, _>(|_| TexGen::default());
 
-        for (texgen, data) in texgens.into_iter().zip(data.iter_mut()) {
-            data.kind = texgen.kind() as u32;
-            data.input_fmt = texgen.input_kind() as u32;
-            data.output_fmt = texgen.output_kind() as u32;
-            data.source = texgen.source() as u32;
-            data.emboss_source = texgen.emboss_source().value() as u32;
-            data.emboss_light = texgen.emboss_light().value() as u32;
+        for (config, data) in texgens.into_iter().zip(data.iter_mut()) {
+            data.kind = config.base.kind() as u32;
+            data.input_fmt = config.base.input_kind() as u32;
+            data.output_fmt = config.base.output_kind() as u32;
+            data.source = config.base.source() as u32;
+            data.emboss_source = config.base.emboss_source().value() as u32;
+            data.emboss_light = config.base.emboss_light().value() as u32;
+            data.normalize = config.normalize as u32;
+            data.post_matrix_index = insert_matrix(config.post_matrix);
         }
 
         Self {
