@@ -186,11 +186,11 @@ impl System {
         self.write::<u32>(Address(0x24), 0x0000_0001); // Version
         self.write::<u32>(Address(0x28), 0x0180_0000); // Physical Memory Size
         self.write::<u32>(Address(0x2C), 0x0000_0001); // Console Type
-        self.write::<u32>(Address(0x30), 0x0000_0000); // Arena Low
+        self.write::<u32>(Address(0x30), 0x8042_E260); // Arena Low
         self.write::<u32>(Address(0x34), 0x817F_E8C0); // Arena High
         self.write::<u32>(Address(0x38), 0x817F_E8C0); // FST address
         self.write::<u32>(Address(0x3C), 0x0000_0024); // FST max length
-        self.write::<u32>(Address(0xD0), 16 * 1024 * 1024); // ARAM size
+        self.write::<u32>(Address(0xD0), 0x0100_0000); // ARAM size
         self.write::<u32>(Address(0xF8), 0x09A7_EC80); // Bus clock
         self.write::<u32>(Address(0xFC), 0x1CF7_C580); // CPU clock
 

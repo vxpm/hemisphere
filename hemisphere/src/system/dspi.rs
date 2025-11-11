@@ -174,8 +174,8 @@ impl System {
                 .mmu
                 .translate_data_addr(self.dsp.aram_dma.ram_base.value())
                 .unwrap_or(self.dsp.aram_dma.ram_base.value());
-
             let aram_base = self.dsp.aram_dma.aram_base & 0x00FF_FFFF;
+
             match self.dsp.aram_dma.control.direction() {
                 AramDmaDirection::FromRamToAram => {
                     tracing::debug!(
