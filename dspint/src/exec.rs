@@ -1833,12 +1833,17 @@ impl Interpreter {
 
     pub fn loop_(&mut self, _: &mut System, ins: Ins) {
         let r = ins.base.bits(0, 5) as u8;
-        self.loop_counter = Some(self.regs.get(Reg::new(r)));
+
+        let counter = self.regs.get(Reg::new(r));
+        tracing::debug!("starting loop with counter {counter}");
+
+        self.loop_counter = Some(counter);
         self.regs.pc += 1;
     }
 
     pub fn loopi(&mut self, _: &mut System, ins: Ins) {
         let imm = ins.base.bits(0, 8) as u8;
+        tracing::debug!("starting loop with counter {imm}");
         self.loop_counter = Some(imm as u16);
         self.regs.pc += 1;
     }
@@ -2159,7 +2164,7 @@ impl Interpreter {
         let s = ins.base.bits(3, 5) as u8;
 
         let ar = regs.addressing[d];
-        let data = self.regs.get(Reg::new(0x1C + s));
+        let data = regs.get(Reg::new(0x1C + s));
         self.write_dmem(sys, ar, data);
 
         let ar = regs.addressing[d];
@@ -2172,7 +2177,7 @@ impl Interpreter {
         let s = ins.base.bits(3, 5) as u8;
 
         let ar = regs.addressing[d];
-        let data = self.regs.get(Reg::new(0x1C + s));
+        let data = regs.get(Reg::new(0x1C + s));
         self.write_dmem(sys, ar, data);
 
         let ar = regs.addressing[d];
@@ -2190,7 +2195,7 @@ impl Interpreter {
         self.regs.set(Reg::new(0x18 + d), data);
 
         let ar = regs.addressing[3];
-        let data = self.regs.acc40[s].mid;
+        let data = regs.acc40[s].mid;
         self.write_dmem(sys, ar, data);
 
         let ar = regs.addressing[0];
@@ -2211,7 +2216,7 @@ impl Interpreter {
         self.regs.set(Reg::new(0x18 + d), data);
 
         let ar = regs.addressing[3];
-        let data = self.regs.acc40[s].mid;
+        let data = regs.acc40[s].mid;
         self.write_dmem(sys, ar, data);
 
         let ar = regs.addressing[0];
@@ -2233,7 +2238,7 @@ impl Interpreter {
         self.regs.set(Reg::new(0x18 + d), data);
 
         let ar = regs.addressing[3];
-        let data = self.regs.acc40[s].mid;
+        let data = regs.acc40[s].mid;
         self.write_dmem(sys, ar, data);
 
         let ar = regs.addressing[0];
@@ -2256,7 +2261,7 @@ impl Interpreter {
         self.regs.set(Reg::new(0x18 + d), data);
 
         let ar = regs.addressing[3];
-        let data = self.regs.acc40[s].mid;
+        let data = regs.acc40[s].mid;
         self.write_dmem(sys, ar, data);
 
         let ar = regs.addressing[0];
@@ -2274,7 +2279,7 @@ impl Interpreter {
         let d = ins.base.bits(4, 6) as u8;
 
         let ar = regs.addressing[0];
-        let data = self.regs.acc40[s].mid;
+        let data = regs.acc40[s].mid;
         self.write_dmem(sys, ar, data);
 
         let ar = regs.addressing[3];
@@ -2295,7 +2300,7 @@ impl Interpreter {
         let d = ins.base.bits(4, 6) as u8;
 
         let ar = regs.addressing[0];
-        let data = self.regs.acc40[s].mid;
+        let data = regs.acc40[s].mid;
         self.write_dmem(sys, ar, data);
 
         let ar = regs.addressing[3];
@@ -2317,7 +2322,7 @@ impl Interpreter {
         let d = ins.base.bits(4, 6) as u8;
 
         let ar = regs.addressing[0];
-        let data = self.regs.acc40[s].mid;
+        let data = regs.acc40[s].mid;
         self.write_dmem(sys, ar, data);
 
         let ar = regs.addressing[3];
@@ -2340,7 +2345,7 @@ impl Interpreter {
         let d = ins.base.bits(4, 6) as u8;
 
         let ar = regs.addressing[0];
-        let data = self.regs.acc40[s].mid;
+        let data = regs.acc40[s].mid;
         self.write_dmem(sys, ar, data);
 
         let ar = regs.addressing[3];

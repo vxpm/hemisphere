@@ -347,6 +347,8 @@ impl Registers {
 #[derive(Default)]
 pub struct Accelerator {
     pub format: u16,
+    pub gain: u16,
+    pub pred_scale: u16,
     pub aram_start: u32,
     pub aram_end: u32,
     pub aram_curr: u32,
@@ -450,7 +452,7 @@ impl Interpreter {
         if sys.dsp.dsp_dma.control.transfer_ongoing() {
             std::hint::cold_path();
 
-            let ram_base = sys.dsp.dsp_dma.ram_base & 0xFF_FFFF;
+            let ram_base = sys.dsp.dsp_dma.ram_base.with_bits(26, 32, 0);
             let dsp_base = sys.dsp.dsp_dma.dsp_base;
             let length = sys.dsp.dsp_dma.length;
 
@@ -462,7 +464,7 @@ impl Interpreter {
             match (target, direction) {
                 (DspDmaTarget::Dmem, DspDmaDirection::FromRamToDsp) => {
                     tracing::debug!(
-                        "DSP DMA {length:04X} bytes from RAM {ram_base:08X} to DMEM {dsp_base:04X}"
+                        "DSP DMA {length:04X} bytes from RAM {ram_base:08X} to DMEM {dsp_base:04X}",
                     );
 
                     for word in 0..(length / 2) {
@@ -533,6 +535,17 @@ impl Interpreter {
                 self.accel.aram_curr += 1;
                 value
             }
+            0xD4 => self.accel.aram_start.bits(16, 32) as u16,
+            0xD5 => self.accel.aram_start.bits(0, 16) as u16,
+            0xD6 => self.accel.aram_end.bits(16, 32) as u16,
+            0xD7 => self.accel.aram_end.bits(0, 16) as u16,
+            0xD8 => self.accel.aram_curr.bits(16, 32) as u16,
+            0xD9 => self.accel.aram_curr.bits(0, 16) as u16,
+            0xDA => self.accel.pred_scale,
+            0xDB => 0,
+            0xDC => 0,
+            0xDD => 0,
+            0xDE => self.accel.gain,
 
             // Mailboxes
             0xFC => sys.dsp.dsp_mailbox.high_and_status(),
@@ -595,12 +608,16 @@ impl Interpreter {
                 );
                 self.accel.aram_curr += 1;
             }
-            0xD4 => self.accel.aram_end = self.accel.aram_start.with_bits(16, 32, value as u32),
-            0xD5 => self.accel.aram_end = self.accel.aram_start.with_bits(0, 16, value as u32),
+            0xD4 => self.accel.aram_start = self.accel.aram_start.with_bits(16, 32, value as u32),
+            0xD5 => self.accel.aram_start = self.accel.aram_start.with_bits(0, 16, value as u32),
             0xD6 => self.accel.aram_end = self.accel.aram_end.with_bits(16, 32, value as u32),
             0xD7 => self.accel.aram_end = self.accel.aram_end.with_bits(0, 16, value as u32),
             0xD8 => self.accel.aram_curr = self.accel.aram_curr.with_bits(16, 32, value as u32),
             0xD9 => self.accel.aram_curr = self.accel.aram_curr.with_bits(0, 16, value as u32),
+            0xDA => self.accel.pred_scale = value,
+            0xDB => (),
+            0xDC => (),
+            0xDE => self.accel.gain = value,
 
             // Mailboxes
             0xFC => {
@@ -630,7 +647,7 @@ impl Interpreter {
     pub fn write_dmem(&mut self, sys: &mut System, addr: u16, value: u16) {
         match addr {
             0x0000..0x1000 => self.mem.dram[addr as usize] = value,
-            0x1000..0x1800 => self.mem.coef[addr as usize - 0x1000] = value,
+            0x1000..0x1800 => tracing::warn!("writing to coefficient data"),
             0xFF00.. => self.write_mmio(sys, addr as u8, value),
             _ => (),
         }
@@ -721,8 +738,6 @@ impl Interpreter {
         }
 
         let ins_len = opcode.len();
-
-        // println!("executing {ins:?} at {:04X}", self.regs.pc);
 
         // execute
         let regs_previous = if opcode.has_extension() {
@@ -892,7 +907,7 @@ impl Interpreter {
             if *loop_counter == 0 {
                 std::hint::cold_path();
                 self.loop_counter = None;
-                self.regs.pc += ins_len;
+                self.regs.pc += 1;
             } else {
                 *loop_counter -= 1;
             }
