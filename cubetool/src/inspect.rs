@@ -160,7 +160,13 @@ fn print_dir(graph: &VfsGraph, id: VfsEntryId, depth: u8, current: &str) {
         match entry {
             VirtualEntry::File(file) => {
                 indent(2);
-                println!("{} ({}/{})", file.name, base, file.name);
+                println!(
+                    "{} ({}/{}) ({})",
+                    file.name,
+                    base,
+                    file.name,
+                    ByteSize(file.data_length as u64)
+                );
             }
             VirtualEntry::Dir(_) => {
                 print_dir(graph, child, depth + 2, &base);
