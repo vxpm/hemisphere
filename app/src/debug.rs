@@ -1,8 +1,69 @@
+use std::{borrow::Cow, path::Path};
+
 use crate::{Ctx, State, windows::AppWindow};
+use addr2line::gimli;
 use eframe::egui::{self, Color32};
 use egui_extras::{Column, TableBuilder};
-use hemisphere::system::{eabi::CallStack, executable::Location};
+use hemisphere::{
+    Address,
+    system::{
+        eabi::CallStack,
+        executable::{DebugInfo, Location},
+    },
+};
+use mapfile_parser::MapFile;
 use serde::{Deserialize, Serialize};
+
+pub struct Addr2LineDebug(pub addr2line::Loader);
+
+impl DebugInfo for Addr2LineDebug {
+    fn find_symbol(&self, addr: Address) -> Option<String> {
+        self.0
+            .find_symbol(addr.value() as u64)
+            .map(|s| addr2line::demangle_auto(Cow::Borrowed(s), Some(gimli::DW_LANG_C_plus_plus)))
+            .map(|s| s.into_owned())
+    }
+
+    fn find_location(&self, addr: Address) -> Option<Location<'_>> {
+        self.0
+            .find_location(addr.value() as u64)
+            .ok()
+            .flatten()
+            .map(|l| Location {
+                file: l.file.map(Cow::Borrowed),
+                line: l.line,
+                column: l.column,
+            })
+    }
+}
+
+pub struct MapFileDebug(MapFile);
+
+impl MapFileDebug {
+    pub fn new(path: impl AsRef<Path>) -> Self {
+        Self(MapFile::new_from_map_file(path.as_ref()))
+    }
+}
+
+impl DebugInfo for MapFileDebug {
+    fn find_symbol(&self, addr: Address) -> Option<String> {
+        self.0
+            .find_symbol_by_vram(addr.0 as u64)
+            .0
+            .map(|s| addr2line::demangle_auto(Cow::Borrowed(&s.symbol.name), None).into_owned())
+    }
+
+    fn find_location(&self, addr: Address) -> Option<Location<'_>> {
+        self.0
+            .find_symbol_by_vram(addr.0 as u64)
+            .0
+            .map(|s| Location {
+                file: Some(s.section.filepath.to_string_lossy()),
+                line: None,
+                column: None,
+            })
+    }
+}
 
 #[derive(Default, Serialize, Deserialize)]
 pub struct Window {

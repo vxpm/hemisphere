@@ -20,7 +20,7 @@ pub struct Args {
     pub ipl: Option<PathBuf>,
     /// Path to a file to use as a debug info provider.
     #[arg(long)]
-    pub dwarf: Option<PathBuf>,
+    pub debug: Option<PathBuf>,
     /// Whether to start running right away
     #[arg(short, long, default_value_t = false)]
     pub run: bool,

@@ -12,7 +12,6 @@ mod windows;
 mod xfb;
 
 use crate::windows::AppWindow;
-use addr2line::gimli;
 use clap::Parser;
 use eframe::{
     egui,
@@ -23,16 +22,12 @@ use hemisphere::{
     Address, Cycles, Hemisphere,
     cores::Cores,
     iso,
-    system::{
-        self,
-        executable::{DebugInfo, Executable, Location},
-    },
+    system::{self, executable::Executable},
 };
 use nanorand::Rng;
 use renderer::WgpuRenderer;
 use serde::{Deserialize, Serialize};
 use std::{
-    borrow::Cow,
     collections::VecDeque,
     io::BufReader,
     sync::Arc,
@@ -41,29 +36,6 @@ use std::{
 
 use cores::cpu::jit as jitcore;
 use cores::dsp::interpreter as dspcore;
-
-struct Addr2LineDebug(addr2line::Loader);
-
-impl DebugInfo for Addr2LineDebug {
-    fn find_symbol(&self, addr: Address) -> Option<String> {
-        self.0
-            .find_symbol(addr.value() as u64)
-            .map(|s| addr2line::demangle_auto(Cow::Borrowed(s), Some(gimli::DW_LANG_C_plus_plus)))
-            .map(|s| s.into_owned())
-    }
-
-    fn find_location(&self, addr: Address) -> Option<Location<'_>> {
-        self.0
-            .find_location(addr.value() as u64)
-            .ok()
-            .flatten()
-            .map(|l| Location {
-                file: l.file.map(Cow::Borrowed),
-                line: l.line,
-                column: l.column,
-            })
-    }
-}
 
 struct Ctx<'a> {
     step: bool,
@@ -129,11 +101,23 @@ impl App {
             None
         };
 
-        let debug_info = args
-            .dwarf
-            .as_deref()
-            .and_then(|p| addr2line::Loader::new(p).ok())
-            .map(|l| Box::new(Addr2LineDebug(l)) as _);
+        let debug_info = if let Some(path) = args.debug.as_deref() {
+            match path
+                .extension()
+                .and_then(|e| e.to_str())
+                .map(|s| s.to_ascii_lowercase())
+                .as_deref()
+            {
+                Some("elf") => {
+                    let loader = addr2line::Loader::new(path).ok();
+                    loader.map(|l| Box::new(debug::Addr2LineDebug(l)) as _)
+                }
+                Some("map") => Some(Box::new(debug::MapFileDebug::new(path)) as _),
+                _ => None,
+            }
+        } else {
+            None
+        };
 
         let wgpu_state = cc.wgpu_render_state.as_ref().unwrap();
         tracing::info!("wgpu device limits: {:?}", wgpu_state.device.limits());
@@ -348,7 +332,7 @@ fn setup_tracing() -> tracing_appender::non_blocking::WorkerGuard {
     let (file_nb, _guard_file) = tracing_appender::non_blocking(file);
     let file_layer = fmt::layer().with_writer(file_nb).with_ansi(false);
     let env_filter = EnvFilter::try_from_default_env().unwrap_or(EnvFilter::new(
-        "cli=debug,hemisphere=debug,hemisphere::system::gpu=info,common=debug,ppcjit=debug,renderer=debug,dsp=debug",
+        "cli=debug,hemisphere=debug,hemisphere::system::gpu=debug,common=debug,ppcjit=debug,renderer=debug,dsp=debug",
     ));
 
     let subscriber = tracing_subscriber::registry()

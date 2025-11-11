@@ -39,3 +39,4 @@ addr2line = { version = "0.25", features = [
     "cpp_demangle",
     "loader",
 ], default-features = false }
+mapfile_parser = "2.12"

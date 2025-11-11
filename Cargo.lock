@@ -189,6 +189,7 @@ dependencies = [
  "egui_extras",
  "eyre-pretty",
  "hemisphere",
+ "mapfile_parser",
  "nanorand 0.8.0",
  "renderer",
  "ron",
@@ -2330,6 +2331,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "62bb907fe88d54d8d9ce32a3cceab4218ed2f6b7d35617cafe9adf84e43919cb"
 dependencies = [
  "libc",
+]
+
+[[package]]
+name = "mapfile_parser"
+version = "2.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e2238b8fefa60d6ee5bbc1620b27430c9219d9060f28cb4875663e8f01c086a"
+dependencies = [
+ "lazy_static",
+ "regex",
 ]
 
 [[package]]
