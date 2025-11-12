@@ -56,19 +56,19 @@ impl Hemisphere {
             executed.instructions += e.instructions;
             executed.cycles += e.cycles;
             executed.hit_breakpoint = e.hit_breakpoint;
-            self.dsp_pending += e.cycles.to_dsp_cycles();
 
             // execute DSP
+            self.dsp_pending += e.cycles.to_dsp_cycles();
             while self.dsp_pending >= DSP_STEP as f64 {
                 self.cores.dsp.exec(&mut self.system, DSP_STEP);
                 self.dsp_pending -= DSP_STEP as f64;
             }
 
-            // process events
             self.system.scheduler.advance(e.cycles.0);
             self.system.process_events();
 
             if e.hit_breakpoint {
+                std::hint::cold_path();
                 break;
             }
         }

@@ -323,7 +323,7 @@ impl System {
 
         self.scheduler.cancel(System::vi_vertical_count);
         if self.video.display_config.enable() {
-            self.vi_vertical_count();
+            self.scheduler.schedule_now(System::vi_vertical_count);
         }
     }
 

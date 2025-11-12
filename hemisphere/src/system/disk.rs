@@ -99,18 +99,18 @@ impl Interface {
 
 impl System {
     pub fn di_complete_transfer(&mut self) {
+        tracing::debug!("completed DI transfer");
         self.disk.status.set_transfer_interrupt(true);
         self.disk.control.set_transfer_ongoing(false);
         self.disk.dma_length = 0;
         self.pi_check_interrupts();
-        tracing::debug!("completed DI transfer");
     }
 
     pub fn di_complete_seek(&mut self) {
+        tracing::debug!("completed DI seek");
         self.disk.status.set_transfer_interrupt(true);
         self.disk.control.set_transfer_ongoing(false);
         self.pi_check_interrupts();
-        tracing::debug!("completed DI seek");
     }
 
     pub fn di_write_control(&mut self, value: Control) {

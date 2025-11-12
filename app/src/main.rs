@@ -129,7 +129,9 @@ impl App {
         );
 
         let cores = Cores {
-            cpu: Box::new(jitcore::JitCore::new(jitcore::Config::default())),
+            cpu: Box::new(jitcore::JitCore::new(jitcore::Config {
+                instr_per_block: args.instr_per_block,
+            })),
             dsp: Box::new(dspcore::InterpreterCore::default()),
         };
 
@@ -296,7 +298,7 @@ impl eframe::App for App {
                 }
             }
 
-            if self.cycles_per_second.len() == 120 {
+            if self.cycles_per_second.len() == 30 {
                 self.cycles_per_second.pop_front();
             }
 
@@ -330,7 +332,7 @@ fn setup_tracing() -> tracing_appender::non_blocking::WorkerGuard {
     let (file_nb, _guard_file) = tracing_appender::non_blocking(file);
     let file_layer = fmt::layer().with_writer(file_nb).with_ansi(false);
     let env_filter = EnvFilter::try_from_default_env().unwrap_or(EnvFilter::new(
-        "cli=debug,hemisphere=debug,hemisphere::system::gpu=debug,common=debug,ppcjit=debug,renderer=debug,dsp=debug",
+        "cli=debug,hemisphere=debug,hemisphere::system::gpu=debug,common=debug,ppcjit=debug,renderer=debug,dspint=debug,cores=debug",
     ));
 
     let subscriber = tracing_subscriber::registry()

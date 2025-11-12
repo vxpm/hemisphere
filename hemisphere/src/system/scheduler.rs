@@ -66,7 +66,9 @@ impl Scheduler {
 
     #[inline(always)]
     pub fn until_next(&self) -> Option<u64> {
-        self.scheduled.front().map(|e| e.cycle - self.elapsed)
+        self.scheduled
+            .front()
+            .map(|e| e.cycle.saturating_sub(self.elapsed))
     }
 
     #[inline(always)]
