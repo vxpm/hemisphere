@@ -286,7 +286,7 @@ impl eframe::App for App {
                 let executed = self
                     .state
                     .emulator
-                    .exec(Cycles(8192), &self.state.breakpoints);
+                    .exec(Cycles(1 << 16), &self.state.breakpoints);
 
                 cycles += executed.cycles.0;
 
@@ -300,13 +300,14 @@ impl eframe::App for App {
                 self.cycles_per_second.pop_front();
             }
 
-            self.cycles_per_second
-                .push_back(cycles as f64 / start.elapsed().as_secs_f64());
+            let cps = cycles as f64 / start.elapsed().as_secs_f64();
+            self.cycles_per_second.push_back(cps);
         }
 
         let remaining = FRAMETIME.saturating_sub(self.last_update.elapsed());
-        ctx.request_repaint_after(remaining);
+        std::thread::sleep(remaining);
 
+        ctx.request_repaint();
         self.last_update = Instant::now();
     }
 
