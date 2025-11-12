@@ -97,111 +97,109 @@ impl Interface {
     }
 }
 
-impl System {
-    pub fn di_complete_transfer(&mut self) {
-        tracing::debug!("completed DI transfer");
-        self.disk.status.set_transfer_interrupt(true);
-        self.disk.control.set_transfer_ongoing(false);
-        self.disk.dma_length = 0;
-        self.pi_check_interrupts();
-    }
+pub fn complete_transfer(sys: &mut System) {
+    tracing::debug!("completed DI transfer");
+    sys.disk.status.set_transfer_interrupt(true);
+    sys.disk.control.set_transfer_ongoing(false);
+    sys.disk.dma_length = 0;
+    sys.pi_check_interrupts();
+}
 
-    pub fn di_complete_seek(&mut self) {
-        tracing::debug!("completed DI seek");
-        self.disk.status.set_transfer_interrupt(true);
-        self.disk.control.set_transfer_ongoing(false);
-        self.pi_check_interrupts();
-    }
+pub fn complete_seek(sys: &mut System) {
+    tracing::debug!("completed DI seek");
+    sys.disk.status.set_transfer_interrupt(true);
+    sys.disk.control.set_transfer_ongoing(false);
+    sys.pi_check_interrupts();
+}
 
-    pub fn di_write_control(&mut self, value: Control) {
-        self.disk.control.set_dma(value.dma());
-        self.disk.control.set_mode(value.mode());
+pub fn write_control(sys: &mut System, value: Control) {
+    sys.disk.control.set_dma(value.dma());
+    sys.disk.control.set_mode(value.mode());
 
-        if value.transfer_ongoing() && !self.disk.control.transfer_ongoing() {
-            tracing::debug!("starting DI transfer");
-            self.disk.control.set_transfer_ongoing(true);
+    if value.transfer_ongoing() && !sys.disk.control.transfer_ongoing() {
+        tracing::debug!("starting DI transfer");
+        sys.disk.control.set_transfer_ongoing(true);
 
-            let command = self.disk.command[0];
-            match command {
-                0xA800_0000 => {
-                    assert!(self.disk.control.dma());
+        let command = sys.disk.command[0];
+        match command {
+            0xA800_0000 => {
+                assert!(sys.disk.control.dma());
 
-                    // load from disk!
-                    let target = self.disk.dma_base;
-                    let offset = self.disk.command[1] << 2;
-                    let length = self.disk.dma_length;
+                // load from disk!
+                let target = sys.disk.dma_base;
+                let offset = sys.disk.command[1] << 2;
+                let length = sys.disk.dma_length;
 
-                    if length == 0 {
-                        tracing::warn!(
-                            "ignoring zero sized disk read from 0x{offset:08X} into {target}"
-                        );
-                        self.disk.control.set_transfer_ongoing(false);
-                        return;
-                    }
-
-                    tracing::debug!(
-                        "reading 0x{length:08X} bytes from disk at 0x{offset:08X} into {target}"
+                if length == 0 {
+                    tracing::warn!(
+                        "ignoring zero sized disk read from 0x{offset:08X} into {target}"
                     );
-
-                    let iso = self.config.iso.as_mut().unwrap();
-                    let reader = iso.reader();
-
-                    let target = self.mmu.translate_instr_addr(target).unwrap();
-                    reader.seek(SeekFrom::Start(offset as u64)).unwrap();
-                    reader
-                        .read_exact(&mut self.mem.ram[target.value() as usize..][..length as usize])
-                        .unwrap();
-
-                    self.scheduler.schedule(10000, System::di_complete_transfer);
+                    sys.disk.control.set_transfer_ongoing(false);
+                    return;
                 }
-                0xA800_0040 => {
-                    assert!(self.disk.control.dma());
 
-                    // load from disk!
-                    let target = self.disk.dma_base;
-                    let offset = 0;
-                    let length = self.disk.dma_length;
+                tracing::debug!(
+                    "reading 0x{length:08X} bytes from disk at 0x{offset:08X} into {target}"
+                );
 
-                    if length == 0 {
-                        tracing::warn!(
-                            "ignoring zero sized disk read from 0x{offset:08X} into {target}"
-                        );
-                        self.disk.control.set_transfer_ongoing(false);
-                        return;
-                    }
+                let iso = sys.config.iso.as_mut().unwrap();
+                let reader = iso.reader();
 
-                    tracing::debug!(
-                        "reading 0x{length:08X} bytes from disk at 0x{offset:08X} into {target}"
-                    );
+                let target = sys.mmu.translate_instr_addr(target).unwrap();
+                reader.seek(SeekFrom::Start(offset as u64)).unwrap();
+                reader
+                    .read_exact(&mut sys.mem.ram[target.value() as usize..][..length as usize])
+                    .unwrap();
 
-                    let iso = self.config.iso.as_mut().unwrap();
-                    let reader = iso.reader();
-
-                    let target = self.mmu.translate_instr_addr(target).unwrap();
-                    reader.seek(SeekFrom::Start(offset as u64)).unwrap();
-                    reader
-                        .read_exact(&mut self.mem.ram[target.value() as usize..][..length as usize])
-                        .unwrap();
-
-                    self.scheduler.schedule(10000, System::di_complete_transfer);
-                }
-                0xAB00_0000 => {
-                    tracing::warn!("doing disk seek! current implementation is half assed");
-                    self.scheduler.schedule(10000, System::di_complete_seek);
-                }
-                0xE100_0000 | 0xE101_0000 => {
-                    tracing::warn!("DISK HACK");
-                    self.scheduler.schedule(10000, System::di_complete_seek);
-                }
-                0x1200_0000 => {
-                    let target = self.mmu.translate_data_addr(self.disk.dma_base).unwrap();
-                    let length = self.disk.dma_length;
-                    self.mem.ram[target.value() as usize..][..length as usize].fill(0);
-
-                    self.scheduler.schedule(10000, System::di_complete_transfer);
-                }
-                _ => todo!("{:08X}", command),
+                sys.scheduler.schedule(10000, complete_transfer);
             }
+            0xA800_0040 => {
+                assert!(sys.disk.control.dma());
+
+                // load from disk!
+                let target = sys.disk.dma_base;
+                let offset = 0;
+                let length = sys.disk.dma_length;
+
+                if length == 0 {
+                    tracing::warn!(
+                        "ignoring zero sized disk read from 0x{offset:08X} into {target}"
+                    );
+                    sys.disk.control.set_transfer_ongoing(false);
+                    return;
+                }
+
+                tracing::debug!(
+                    "reading 0x{length:08X} bytes from disk at 0x{offset:08X} into {target}"
+                );
+
+                let iso = sys.config.iso.as_mut().unwrap();
+                let reader = iso.reader();
+
+                let target = sys.mmu.translate_instr_addr(target).unwrap();
+                reader.seek(SeekFrom::Start(offset as u64)).unwrap();
+                reader
+                    .read_exact(&mut sys.mem.ram[target.value() as usize..][..length as usize])
+                    .unwrap();
+
+                sys.scheduler.schedule(10000, complete_transfer);
+            }
+            0xAB00_0000 => {
+                tracing::warn!("doing disk seek! current implementation is half assed");
+                sys.scheduler.schedule(10000, complete_seek);
+            }
+            0xE100_0000 | 0xE101_0000 => {
+                tracing::warn!("DISK HACK");
+                sys.scheduler.schedule(10000, complete_seek);
+            }
+            0x1200_0000 => {
+                let target = sys.mmu.translate_data_addr(sys.disk.dma_base).unwrap();
+                let length = sys.disk.dma_length;
+                sys.mem.ram[target.value() as usize..][..length as usize].fill(0);
+
+                sys.scheduler.schedule(10000, complete_transfer);
+            }
+            _ => todo!("{:08X}", command),
         }
     }
 }

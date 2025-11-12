@@ -491,7 +491,7 @@ impl System {
             Mmio::DiskControl => {
                 let mut written = disk::Control::from_bits(0);
                 ne!(written.as_mut_bytes());
-                self.di_write_control(written);
+                disk::write_control(self, written);
             }
             Mmio::DiskConfiguration => {
                 ne!(self.disk.config.as_mut_bytes());
