@@ -279,11 +279,10 @@ impl eframe::App for App {
 
         if self.state.running {
             let start = Instant::now();
-            let elapsed = self.last_update.elapsed();
-            let target = Cycles::from_duration(elapsed);
+            let target = Cycles::from_duration(FRAMETIME);
 
             let mut cycles = 0u64;
-            while cycles < target && self.last_update.elapsed() <= 2 * FRAMETIME {
+            while cycles < target && self.last_update.elapsed() <= FRAMETIME {
                 let executed = self
                     .state
                     .emulator
@@ -303,12 +302,10 @@ impl eframe::App for App {
 
             self.cycles_per_second
                 .push_back(cycles as f64 / start.elapsed().as_secs_f64());
-
-            ctx.request_repaint();
-        } else {
-            let remaining = FRAMETIME.saturating_sub(self.last_update.elapsed());
-            ctx.request_repaint_after(remaining);
         }
+
+        let remaining = FRAMETIME.saturating_sub(self.last_update.elapsed());
+        ctx.request_repaint_after(remaining);
 
         self.last_update = Instant::now();
     }
