@@ -1835,15 +1835,12 @@ impl Interpreter {
         let r = ins.base.bits(0, 5) as u8;
 
         let counter = self.regs.get(Reg::new(r));
-        tracing::debug!("starting loop with counter {counter}");
-
         self.loop_counter = Some(counter);
         self.regs.pc += 1;
     }
 
     pub fn loopi(&mut self, _: &mut System, ins: Ins) {
         let imm = ins.base.bits(0, 8) as u8;
-        tracing::debug!("starting loop with counter {imm}");
         self.loop_counter = Some(imm as u16);
         self.regs.pc += 1;
     }

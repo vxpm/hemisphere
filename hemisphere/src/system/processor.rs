@@ -5,7 +5,7 @@ use bitos::{bitos, integer::u26};
 use gekko::{Address, Exception};
 
 #[bitos(14)]
-#[derive(Default, Debug, Clone, Copy)]
+#[derive(Default, Clone, Copy)]
 pub struct InterruptSources {
     #[bits(0)]
     pub gp_error: bool,
@@ -37,11 +37,39 @@ pub struct InterruptSources {
     pub high_speed_port: bool,
 }
 
-// impl std::fmt::Debug for InterruptSources {
-//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//         let mut set = f.debug_set();
-//     }
-// }
+impl std::fmt::Debug for InterruptSources {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut set = f.debug_set();
+        macro_rules! debug {
+            ($($ident:ident),*) => {
+                $(
+                    if self.$ident() {
+                        set.entry(&stringify!($ident));
+                    }
+                )*
+            };
+        }
+
+        debug! {
+            gp_error,
+            reset,
+            dvd_interface,
+            serial_interface,
+            external_interface,
+            audio_interface,
+            dsp_interface,
+            memory_interface,
+            video_interface,
+            pe_token,
+            pe_finish,
+            command_processor,
+            debug,
+            high_speed_port
+        }
+
+        set.finish_non_exhaustive()
+    }
+}
 
 #[bitos(32)]
 #[derive(Default, Debug, Clone, Copy)]
