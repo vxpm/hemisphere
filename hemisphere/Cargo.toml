@@ -24,4 +24,3 @@ rustc-hash.workspace = true
 
 backtrace = "0.3"
 color-backtrace = "0.7"
-smallbox = "0.8"

@@ -5,7 +5,7 @@ use hemisphere::{
         self, Cpu, InsExt, QuantizedType,
         disasm::{Extensions, Ins, Opcode},
     },
-    system::{System, lazy::DecrementerEvent},
+    system::System,
 };
 use ppcjit::{
     Block,
@@ -332,7 +332,7 @@ static CTX_HOOKS: Hooks = {
 
     extern "sysv64-unwind" fn dec_changed(ctx: &mut Context) {
         ctx.system.lazy.last_updated_dec = ctx.system.scheduler.elapsed_time_base();
-        ctx.system.scheduler.cancel::<DecrementerEvent>();
+        ctx.system.scheduler.cancel(System::decrementer_overflow);
 
         let dec = ctx.system.cpu.supervisor.misc.dec;
         tracing::trace!("decrementer changed to {dec}");

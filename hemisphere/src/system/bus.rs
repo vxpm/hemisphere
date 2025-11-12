@@ -1,7 +1,6 @@
 mod mmio;
 
 use crate::Primitive;
-use crate::system::audio::AudioDmaEvent;
 use crate::system::mem::L2C_LEN;
 use crate::system::{
     System, disk, external,
@@ -456,10 +455,9 @@ impl System {
                 ne!(self.audio.dma_control.as_mut_bytes());
 
                 if !ongoing && self.audio.dma_control.transfer_ongoing() {
-                    self.scheduler
-                        .schedule_tagged::<AudioDmaEvent>(1620000, System::ai_do_dma);
+                    self.scheduler.schedule(1620000, System::ai_do_dma);
                 } else if !self.audio.dma_control.transfer_ongoing() {
-                    self.scheduler.cancel::<AudioDmaEvent>();
+                    self.scheduler.cancel(System::ai_do_dma)
                 }
             }
 

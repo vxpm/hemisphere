@@ -315,15 +315,13 @@ impl Interface {
     }
 }
 
-pub struct VerticalCountEvent;
-
 /// Video Interface
 impl System {
     pub fn update_video_interface(&mut self) {
         self.video.horizontal_count = 1;
         self.video.vertical_count = 1;
 
-        self.scheduler.cancel::<VerticalCountEvent>();
+        self.scheduler.cancel(System::vi_vertical_count);
         if self.video.display_config.enable() {
             self.vi_vertical_count();
         }
@@ -360,10 +358,8 @@ impl System {
             .checked_div(self.video.lines_per_frame())
             .unwrap_or(cycles_per_frame);
 
-        self.scheduler.schedule_tagged::<VerticalCountEvent>(
-            cycles_per_line as u64,
-            System::vi_vertical_count,
-        );
+        self.scheduler
+            .schedule(cycles_per_line as u64, System::vi_vertical_count);
     }
 
     fn xfb_inner(&self, base: Address) -> Option<&[u8]> {

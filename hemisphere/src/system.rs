@@ -245,7 +245,7 @@ impl System {
     /// Processes scheduled events.
     #[inline(always)]
     pub fn process_events(&mut self) {
-        while let Some(mut event) = self.scheduler.pop() {
+        while let Some(event) = self.scheduler.pop() {
             event(self);
         }
     }

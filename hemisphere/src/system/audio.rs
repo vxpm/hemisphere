@@ -63,8 +63,6 @@ impl Interface {
     }
 }
 
-pub struct AudioDmaEvent;
-
 impl System {
     pub fn ai_update_sample_counter(&mut self) {
         if self.audio.control.playing() {
@@ -81,8 +79,7 @@ impl System {
         self.pi_check_interrupts();
 
         if self.audio.dma_control.transfer_ongoing() {
-            self.scheduler
-                .schedule_tagged::<AudioDmaEvent>(1620000, System::ai_do_dma);
+            self.scheduler.schedule(1620000, System::ai_do_dma);
         }
     }
 }
