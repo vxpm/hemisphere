@@ -1,12 +1,12 @@
 mod mmio;
 
 use crate::Primitive;
-use crate::system::audio;
 use crate::system::mem::L2C_LEN;
 use crate::system::{
     System, disk, external,
     mem::{IPL_LEN, RAM_LEN},
 };
+use crate::system::{audio, dspi};
 use gekko::Address;
 use std::ops::Range;
 use zerocopy::IntoBytes;
@@ -447,13 +447,13 @@ impl System {
             Mmio::DspControl => {
                 let mut written = self.dsp.control;
                 ne!(written.as_mut_bytes());
-                self.dspi_write_control(written);
+                dspi::write_control(self, written);
             }
             Mmio::DspAramDmaRamBase => ne!(self.dsp.aram_dma.ram_base.as_mut_bytes()),
             Mmio::DspAramDmaAramBase => ne!(self.dsp.aram_dma.aram_base.as_mut_bytes()),
             Mmio::DspAramDmaControl => {
                 ne!(self.dsp.aram_dma.control.as_mut_bytes());
-                self.dspi_aram_dma();
+                dspi::aram_dma(self);
             }
             Mmio::AudioDmaBase => ne!(self.audio.dma_base.as_mut_bytes()),
             Mmio::AudioDmaControl => {
