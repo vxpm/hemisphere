@@ -39,15 +39,6 @@ opt-level = 0
 [profile.dev.package."wayland-protocols"]
 opt-level = 0
 
-[profile.dev.package."pxfm"]
-opt-level = 0
-
-[profile.dev.package."moxcms"]
-opt-level = 0
-
-[profile.dev.package."image"]
-opt-level = 0
-
 [profile.dev.package."wgsl-types"]
 opt-level = 0
 
