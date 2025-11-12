@@ -180,6 +180,11 @@ impl System {
             Mmio::DiskControl => ne!(self.disk.control.as_bytes()),
             Mmio::DiskConfiguration => ne!(self.disk.config.as_bytes()),
 
+            // === Serial Interface ===
+            Mmio::SerialPoll => ne!(self.serial.poll.as_bytes()),
+            Mmio::SerialCommControl => ne!(self.serial.comm_control.as_bytes()),
+            Mmio::SerialStatus => ne!(self.serial.status.as_bytes()),
+
             // === External Interface ===
             Mmio::ExiChannel0Param => ne!(self.external.channel0.parameter.as_bytes()),
             Mmio::ExiChannel0DmaBase => ne!(self.external.channel0.dma_base.as_bytes()),
@@ -489,6 +494,20 @@ impl System {
             }
             Mmio::DiskConfiguration => {
                 ne!(self.disk.config.as_mut_bytes());
+            }
+
+            // === Serial Interface ===
+            Mmio::SerialPoll => {
+                ne!(self.serial.poll.as_mut_bytes());
+                tracing::debug!("SI poll: {:?}", self.serial.poll);
+            }
+            Mmio::SerialCommControl => {
+                ne!(self.serial.comm_control.as_mut_bytes());
+                tracing::debug!("SI comm: {:?}", self.serial.comm_control);
+            }
+            Mmio::SerialStatus => {
+                ne!(self.serial.status.as_mut_bytes());
+                tracing::debug!("SI status: {:?}", self.serial.status);
             }
 
             // === External Interface ===

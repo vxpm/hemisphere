@@ -143,7 +143,7 @@ mmio! {
 
     // === Serial Interface ===
     0x6430, 4, SerialPoll;
-    0x6434, 4, SerialComControl;
+    0x6434, 4, SerialCommControl;
     0x6438, 4, SerialStatus;
     0x643C, 4, SerialExiClock;
     0x6480, 4, SerialBuffer;

@@ -13,6 +13,7 @@ pub mod mem;
 pub mod mmu;
 pub mod processor;
 pub mod scheduler;
+pub mod serial;
 pub mod video;
 
 use crate::{
@@ -72,6 +73,8 @@ pub struct System {
     pub audio: audio::Interface,
     /// The disk interface.
     pub disk: disk::Interface,
+    /// The serial interface.
+    pub serial: serial::Interface,
 }
 
 impl System {
@@ -209,6 +212,7 @@ impl System {
             external: external::Interface::default(),
             audio: audio::Interface::default(),
             disk: disk::Interface::default(),
+            serial: serial::Interface::default(),
 
             config,
         };
