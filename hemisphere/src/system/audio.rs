@@ -63,23 +63,21 @@ impl Interface {
     }
 }
 
-impl System {
-    pub fn ai_update_sample_counter(&mut self) {
-        if self.audio.control.playing() {
-            let elapsed = self.scheduler.elapsed() - self.audio.last_updated_counter;
-            self.audio.sample_counter += elapsed as f64 / 10125.0;
-        }
-
-        self.audio.last_updated_counter = self.scheduler.elapsed();
+pub fn update_sample_counter(sys: &mut System) {
+    if sys.audio.control.playing() {
+        let elapsed = sys.scheduler.elapsed() - sys.audio.last_updated_counter;
+        sys.audio.sample_counter += elapsed as f64 / 10125.0;
     }
 
-    pub fn ai_do_dma(&mut self) {
-        tracing::debug!("AI DMA finished");
-        self.dsp.control.set_ai_interrupt(true);
-        self.pi_check_interrupts();
+    sys.audio.last_updated_counter = sys.scheduler.elapsed();
+}
 
-        if self.audio.dma_control.transfer_ongoing() {
-            self.scheduler.schedule(1620000, System::ai_do_dma);
-        }
+pub fn do_dma(sys: &mut System) {
+    tracing::debug!("AI DMA finished");
+    sys.dsp.control.set_ai_interrupt(true);
+    sys.pi_check_interrupts();
+
+    if sys.audio.dma_control.transfer_ongoing() {
+        sys.scheduler.schedule(1620000, do_dma);
     }
 }

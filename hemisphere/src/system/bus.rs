@@ -1,6 +1,7 @@
 mod mmio;
 
 use crate::Primitive;
+use crate::system::audio;
 use crate::system::mem::L2C_LEN;
 use crate::system::{
     System, disk, external,
@@ -206,7 +207,7 @@ impl System {
 
             // === Audio Interface ===
             Mmio::AudioSampleCounter => {
-                self.ai_update_sample_counter();
+                audio::update_sample_counter(self);
                 let sample = self.audio.sample_counter.floor() as u32;
                 ne!(sample.as_bytes())
             }
@@ -460,9 +461,9 @@ impl System {
                 ne!(self.audio.dma_control.as_mut_bytes());
 
                 if !ongoing && self.audio.dma_control.transfer_ongoing() {
-                    self.scheduler.schedule(1620000, System::ai_do_dma);
+                    self.scheduler.schedule(1620000, audio::do_dma);
                 } else if !self.audio.dma_control.transfer_ongoing() {
-                    self.scheduler.cancel(System::ai_do_dma)
+                    self.scheduler.cancel(audio::do_dma)
                 }
             }
 
