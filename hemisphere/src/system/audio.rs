@@ -63,6 +63,8 @@ impl Interface {
     }
 }
 
+pub struct AudioDmaEvent;
+
 impl System {
     pub fn ai_update_sample_counter(&mut self) {
         if self.audio.control.playing() {
@@ -71,5 +73,16 @@ impl System {
         }
 
         self.audio.last_updated_counter = self.scheduler.elapsed();
+    }
+
+    pub fn ai_do_dma(&mut self) {
+        tracing::debug!("AI DMA finished");
+        self.dsp.control.set_ai_interrupt(true);
+        self.pi_check_interrupts();
+
+        if self.audio.dma_control.transfer_ongoing() {
+            self.scheduler
+                .schedule_tagged::<AudioDmaEvent>(1620000, System::ai_do_dma);
+        }
     }
 }

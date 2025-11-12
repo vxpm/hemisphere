@@ -1,10 +1,13 @@
 use crate::system::System;
+use gekko::Exception;
 
 #[derive(Debug, Default)]
 pub struct Lazy {
     pub last_updated_tb: u64,
     pub last_updated_dec: u64,
 }
+
+pub struct DecrementerEvent;
 
 impl System {
     pub fn update_time_base(&mut self) {
@@ -37,5 +40,17 @@ impl System {
 
         self.lazy.last_updated_dec = now;
         self.cpu.supervisor.misc.dec = new;
+    }
+
+    pub fn decrementer_overflow(&mut self) {
+        self.update_decrementer();
+        if self.cpu.supervisor.config.msr.interrupts() {
+            self.cpu.raise_exception(Exception::Decrementer);
+            self.scheduler
+                .schedule_tagged::<DecrementerEvent>(u32::MAX as u64, System::decrementer_overflow);
+        } else {
+            self.scheduler
+                .schedule_tagged::<DecrementerEvent>(32, System::decrementer_overflow);
+        }
     }
 }

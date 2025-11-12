@@ -8,12 +8,9 @@ use crate::{
     Primitive, System,
     render::{Action, TevConfig, TevStage},
     stream::{BinReader, BinaryStream},
-    system::{
-        Event,
-        gpu::command::{
-            ArrayDescriptor, AttributeMode, VertexAttributeStream,
-            attributes::{self, Attribute, AttributeDescriptor, Rgba},
-        },
+    system::gpu::command::{
+        ArrayDescriptor, AttributeMode, VertexAttributeStream,
+        attributes::{self, Attribute, AttributeDescriptor, Rgba},
     },
 };
 use bitos::{
@@ -487,14 +484,14 @@ impl System {
             }
             Reg::PixelDone => {
                 self.gpu.pixel.interrupt.set_finish(true);
-                self.scheduler.schedule_now(Event::CheckInterrupts);
+                self.scheduler.schedule_now(System::pi_check_interrupts);
             }
             Reg::PixelToken => {
                 self.gpu.pixel.token = value;
             }
             Reg::PixelTokenInt => {
                 self.gpu.pixel.interrupt.set_token(true);
-                self.scheduler.schedule_now(Event::CheckInterrupts);
+                self.scheduler.schedule_now(System::pi_check_interrupts);
             }
             Reg::PixelCopyClearAr => {
                 self.gpu.pixel.clear_color.set_r(value.bits(0, 8) as u8);

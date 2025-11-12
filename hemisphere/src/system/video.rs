@@ -1,15 +1,9 @@
-use super::Event as SystemEvent;
 use crate::system::System;
 use bitos::{
     bitos,
     integer::{u4, u7, u9, u10, u24},
 };
 use gekko::{Address, FREQUENCY};
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Event {
-    VerticalCount,
-}
 
 #[bitos(16)]
 #[derive(Debug, Clone, Copy, Default)]
@@ -321,17 +315,17 @@ impl Interface {
     }
 }
 
+pub struct VerticalCountEvent;
+
 /// Video Interface
 impl System {
     pub fn update_video_interface(&mut self) {
         self.video.horizontal_count = 1;
         self.video.vertical_count = 1;
 
-        self.scheduler
-            .retain(|e| !matches!(e.event, SystemEvent::Video(_)));
-
+        self.scheduler.cancel::<VerticalCountEvent>();
         if self.video.display_config.enable() {
-            self.process(SystemEvent::Video(Event::VerticalCount));
+            self.vi_vertical_count();
         }
     }
 
@@ -351,6 +345,25 @@ impl System {
         if raised {
             self.pi_check_interrupts();
         }
+    }
+
+    pub fn vi_vertical_count(&mut self) {
+        self.update_display_interrupts();
+
+        self.video.vertical_count += 1;
+        if self.video.vertical_count as u32 > self.video.lines_per_frame() {
+            self.video.vertical_count = 1;
+        }
+
+        let cycles_per_frame = (FREQUENCY as f64 / self.video.refresh_rate()) as u32;
+        let cycles_per_line = cycles_per_frame
+            .checked_div(self.video.lines_per_frame())
+            .unwrap_or(cycles_per_frame);
+
+        self.scheduler.schedule_tagged::<VerticalCountEvent>(
+            cycles_per_line as u64,
+            System::vi_vertical_count,
+        );
     }
 
     fn xfb_inner(&self, base: Address) -> Option<&[u8]> {

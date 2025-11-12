@@ -28,7 +28,7 @@ use crate::{
     },
 };
 use dol::binrw::BinRead;
-use gekko::{Address, Cpu, Exception, FREQUENCY};
+use gekko::{Address, Cpu};
 use iso::Iso;
 use std::io::{Cursor, Read, Seek};
 
@@ -42,21 +42,6 @@ pub struct Config {
     pub iso: Option<Iso<Box<dyn ReadAndSeek>>>,
     pub sideload: Option<Executable>,
     pub debug_info: Option<Box<dyn DebugInfo>>,
-}
-
-/// An event which can be scheduled to happen at a specific time.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Event {
-    /// Decrementer has underflowed.
-    Decrementer,
-    /// Check external interrupts.
-    CheckInterrupts,
-    /// A video interface event.
-    Video(video::Event),
-    DiskTransferComplete,
-    DiskSeekComplete,
-    /// Finish audio DMA
-    AudioDma,
 }
 
 /// System state.
@@ -257,56 +242,11 @@ impl System {
         self.mmu.translate_instr_addr(addr)
     }
 
-    /// Processes the given event.
-    pub fn process(&mut self, event: Event) {
-        match event {
-            Event::DiskTransferComplete => {
-                self.disk.status.set_transfer_interrupt(true);
-                self.disk.control.set_transfer_ongoing(false);
-                self.disk.dma_length = 0;
-                self.scheduler.schedule_now(Event::CheckInterrupts);
-                tracing::debug!("completed DI transfer");
-            }
-            Event::DiskSeekComplete => {
-                self.disk.status.set_transfer_interrupt(true);
-                self.disk.control.set_transfer_ongoing(false);
-                self.scheduler.schedule_now(Event::CheckInterrupts);
-                tracing::debug!("completed DI seek");
-            }
-            Event::Decrementer => {
-                self.update_decrementer();
-                if self.cpu.supervisor.config.msr.interrupts() {
-                    self.cpu.raise_exception(Exception::Decrementer);
-                    self.scheduler.schedule(Event::Decrementer, u32::MAX as u64);
-                } else {
-                    self.scheduler.schedule(Event::Decrementer, 32);
-                }
-            }
-            Event::CheckInterrupts => self.pi_check_interrupts(),
-            Event::Video(video::Event::VerticalCount) => {
-                self.update_display_interrupts();
-
-                self.video.vertical_count += 1;
-                if self.video.vertical_count as u32 > self.video.lines_per_frame() {
-                    self.video.vertical_count = 1;
-                }
-
-                let cycles_per_frame = (FREQUENCY as f64 / self.video.refresh_rate()) as u32;
-                let cycles_per_line = cycles_per_frame
-                    .checked_div(self.video.lines_per_frame())
-                    .unwrap_or(cycles_per_frame);
-
-                self.scheduler.schedule(
-                    Event::Video(video::Event::VerticalCount),
-                    cycles_per_line as u64,
-                );
-            }
-            Event::AudioDma => {
-                tracing::debug!("AI DMA finished");
-                self.dsp.control.set_ai_interrupt(true);
-                self.pi_check_interrupts();
-                self.scheduler.schedule(Event::AudioDma, 1620000);
-            }
+    /// Processes scheduled events.
+    #[inline(always)]
+    pub fn process_events(&mut self) {
+        while let Some(mut event) = self.scheduler.pop() {
+            event(self);
         }
     }
 }

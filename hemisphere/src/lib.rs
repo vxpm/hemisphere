@@ -66,9 +66,7 @@ impl Hemisphere {
 
             // process events
             self.system.scheduler.advance(e.cycles.0);
-            while let Some(event) = self.system.scheduler.pop() {
-                self.system.process(event);
-            }
+            self.system.process_events();
 
             if e.hit_breakpoint {
                 break;
@@ -91,9 +89,7 @@ impl Hemisphere {
 
         // process events
         self.system.scheduler.advance(executed.cycles.0);
-        while let Some(event) = self.system.scheduler.pop() {
-            self.system.process(event);
-        }
+        self.system.process_events();
 
         executed
     }

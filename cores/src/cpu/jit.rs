@@ -5,7 +5,7 @@ use hemisphere::{
         self, Cpu, InsExt, QuantizedType,
         disasm::{Extensions, Ins, Opcode},
     },
-    system::{Event, System},
+    system::{System, lazy::DecrementerEvent},
 };
 use ppcjit::{
     Block,
@@ -306,7 +306,9 @@ static CTX_HOOKS: Hooks = {
     }
 
     extern "sysv64-unwind" fn msr_changed(ctx: &mut Context) {
-        ctx.system.scheduler.schedule_now(Event::CheckInterrupts);
+        ctx.system
+            .scheduler
+            .schedule_now(System::pi_check_interrupts);
     }
 
     extern "sysv64-unwind" fn ibat_changed(ctx: &mut Context) {
@@ -330,16 +332,14 @@ static CTX_HOOKS: Hooks = {
 
     extern "sysv64-unwind" fn dec_changed(ctx: &mut Context) {
         ctx.system.lazy.last_updated_dec = ctx.system.scheduler.elapsed_time_base();
-        ctx.system
-            .scheduler
-            .retain(|e| e.event != Event::Decrementer);
+        ctx.system.scheduler.cancel::<DecrementerEvent>();
 
         let dec = ctx.system.cpu.supervisor.misc.dec;
         tracing::trace!("decrementer changed to {dec}");
 
         ctx.system
             .scheduler
-            .schedule(Event::Decrementer, dec as u64);
+            .schedule(dec as u64, System::decrementer_overflow);
     }
 
     extern "sysv64-unwind" fn tb_read(ctx: &mut Context) {

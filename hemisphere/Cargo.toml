@@ -24,4 +24,4 @@ rustc-hash.workspace = true
 
 backtrace = "0.3"
 color-backtrace = "0.7"
-parking_lot = "0.12"
+smallbox = "0.8"

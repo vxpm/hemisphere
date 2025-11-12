@@ -1,15 +1,53 @@
-use crate::system::Event;
+use crate::system::System;
+use smallbox::{SmallBox, smallbox, space::S4};
+use std::{
+    any::{Any, TypeId},
+    ops::{Deref, DerefMut},
+};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ScheduledEvent {
-    pub cycle: u64,
-    pub event: Event,
+pub trait EventHandler: FnMut(&mut System) + 'static {}
+impl<T> EventHandler for T where T: FnMut(&mut System) + 'static {}
+
+pub struct ErasedEventHandler(SmallBox<dyn EventHandler, S4>);
+
+impl Deref for ErasedEventHandler {
+    type Target = dyn FnMut(&mut System);
+
+    fn deref(&self) -> &Self::Target {
+        &*self.0
+    }
 }
 
-#[derive(Debug)]
+impl DerefMut for ErasedEventHandler {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut *self.0
+    }
+}
+
+pub struct ScheduledEvent {
+    pub tag: TypeId,
+    pub cycle: u64,
+    pub handler: ErasedEventHandler,
+}
+
+impl PartialEq for ScheduledEvent {
+    fn eq(&self, other: &Self) -> bool {
+        self.tag == other.tag
+    }
+}
+
 pub struct Scheduler {
     elapsed: u64,
     scheduled: Vec<ScheduledEvent>,
+}
+
+impl std::fmt::Debug for Scheduler {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Scheduler")
+            .field("elapsed", &self.elapsed)
+            .field("scheduled", &self.scheduled.len())
+            .finish()
+    }
 }
 
 impl Default for Scheduler {
@@ -21,25 +59,45 @@ impl Default for Scheduler {
     }
 }
 
+struct Untagged;
+
 impl Scheduler {
-    #[inline(always)]
-    pub fn schedule(&mut self, event: Event, after: u64) {
+    pub fn schedule_tagged<Tag>(&mut self, after: u64, handler: impl EventHandler)
+    where
+        Tag: Any,
+    {
         self.scheduled.push(ScheduledEvent {
+            tag: TypeId::of::<Tag>(),
             cycle: self.elapsed + after,
-            event,
+            handler: ErasedEventHandler(smallbox!(handler)),
         });
 
         self.scheduled.sort_unstable_by_key(|e| e.cycle);
     }
 
     #[inline(always)]
-    pub fn schedule_now(&mut self, event: Event) {
-        self.scheduled.push(ScheduledEvent {
-            cycle: self.elapsed,
-            event,
-        });
+    pub fn schedule<E>(&mut self, after: u64, handler: E)
+    where
+        E: EventHandler,
+    {
+        self.schedule_tagged::<Untagged>(after, handler);
+    }
 
-        self.scheduled.sort_unstable_by_key(|e| e.cycle);
+    #[inline(always)]
+    pub fn schedule_now<E>(&mut self, handler: E)
+    where
+        E: EventHandler,
+    {
+        self.schedule(0, handler)
+    }
+
+    #[inline(always)]
+    pub fn cancel<T>(&mut self)
+    where
+        T: Any,
+    {
+        let tag = TypeId::of::<T>();
+        self.scheduled.retain(|x| x.tag != tag);
     }
 
     #[inline(always)]
@@ -63,18 +121,14 @@ impl Scheduler {
     }
 
     #[inline(always)]
-    pub fn pop(&mut self) -> Option<Event> {
+    pub fn pop(&mut self) -> Option<ErasedEventHandler> {
         self.scheduled
             .iter()
             .position(|e| e.cycle <= self.elapsed)
-            .map(|i| self.scheduled.swap_remove(i).event)
+            .map(|i| self.scheduled.swap_remove(i).handler)
     }
 
-    #[inline(always)]
-    pub fn retain(&mut self, f: impl FnMut(&ScheduledEvent) -> bool) {
-        self.scheduled.retain(f);
-    }
-
+    /// How many CPU cycles have elapsed.
     #[inline(always)]
     pub fn elapsed(&self) -> u64 {
         self.elapsed

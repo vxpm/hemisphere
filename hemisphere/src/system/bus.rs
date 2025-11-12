@@ -1,9 +1,10 @@
 mod mmio;
 
 use crate::Primitive;
+use crate::system::audio::AudioDmaEvent;
 use crate::system::mem::L2C_LEN;
 use crate::system::{
-    Event, System, disk, external,
+    System, disk, external,
     mem::{IPL_LEN, RAM_LEN},
 };
 use gekko::Address;
@@ -415,7 +416,7 @@ impl System {
             // Interrupts
             Mmio::ProcessorInterruptMask => {
                 ne!(self.processor.mask.as_mut_bytes());
-                self.scheduler.schedule_now(Event::CheckInterrupts);
+                self.scheduler.schedule_now(System::pi_check_interrupts);
             }
 
             // FIFO
@@ -455,10 +456,10 @@ impl System {
                 ne!(self.audio.dma_control.as_mut_bytes());
 
                 if !ongoing && self.audio.dma_control.transfer_ongoing() {
-                    self.scheduler.schedule(Event::AudioDma, 1620000);
-                } else if !self.audio.dma_control.transfer_ongoing() {
                     self.scheduler
-                        .retain(|e| !matches!(e.event, Event::AudioDma));
+                        .schedule_tagged::<AudioDmaEvent>(1620000, System::ai_do_dma);
+                } else if !self.audio.dma_control.transfer_ongoing() {
+                    self.scheduler.cancel::<AudioDmaEvent>();
                 }
             }
 
@@ -468,7 +469,7 @@ impl System {
                 ne!(written.as_mut_bytes());
                 self.disk.write_status(written);
                 tracing::debug!(diskstatus = ?self.disk.status);
-                self.scheduler.schedule_now(Event::CheckInterrupts);
+                self.scheduler.schedule_now(System::pi_check_interrupts);
             }
             Mmio::DiskCover => {
                 let mut written = disk::Cover::from_bits(0);
@@ -476,7 +477,7 @@ impl System {
                 self.disk.write_cover(written);
                 self.disk.cover.set_open(false);
                 tracing::debug!(diskcover = ?self.disk.cover);
-                self.scheduler.schedule_now(Event::CheckInterrupts);
+                self.scheduler.schedule_now(System::pi_check_interrupts);
             }
             Mmio::DiskCommand0 => ne!(self.disk.command[0].as_mut_bytes()),
             Mmio::DiskCommand1 => ne!(self.disk.command[1].as_mut_bytes()),

@@ -1,4 +1,4 @@
-use crate::system::{Event, System};
+use crate::system::System;
 use bitos::bitos;
 use gekko::Address;
 use std::io::SeekFrom;
@@ -98,6 +98,21 @@ impl Interface {
 }
 
 impl System {
+    pub fn di_complete_transfer(&mut self) {
+        self.disk.status.set_transfer_interrupt(true);
+        self.disk.control.set_transfer_ongoing(false);
+        self.disk.dma_length = 0;
+        self.pi_check_interrupts();
+        tracing::debug!("completed DI transfer");
+    }
+
+    pub fn di_complete_seek(&mut self) {
+        self.disk.status.set_transfer_interrupt(true);
+        self.disk.control.set_transfer_ongoing(false);
+        self.pi_check_interrupts();
+        tracing::debug!("completed DI seek");
+    }
+
     pub fn di_write_control(&mut self, value: Control) {
         self.disk.control.set_dma(value.dma());
         self.disk.control.set_mode(value.mode());
@@ -137,7 +152,7 @@ impl System {
                         .read_exact(&mut self.mem.ram[target.value() as usize..][..length as usize])
                         .unwrap();
 
-                    self.scheduler.schedule(Event::DiskTransferComplete, 10000);
+                    self.scheduler.schedule(10000, System::di_complete_transfer);
                 }
                 0xA800_0040 => {
                     assert!(self.disk.control.dma());
@@ -168,22 +183,22 @@ impl System {
                         .read_exact(&mut self.mem.ram[target.value() as usize..][..length as usize])
                         .unwrap();
 
-                    self.scheduler.schedule(Event::DiskTransferComplete, 10000);
+                    self.scheduler.schedule(10000, System::di_complete_transfer);
                 }
                 0xAB00_0000 => {
                     tracing::warn!("doing disk seek! current implementation is half assed");
-                    self.scheduler.schedule(Event::DiskSeekComplete, 10000);
+                    self.scheduler.schedule(10000, System::di_complete_seek);
                 }
                 0xE100_0000 | 0xE101_0000 => {
                     tracing::warn!("DISK HACK");
-                    self.scheduler.schedule(Event::DiskSeekComplete, 10000);
+                    self.scheduler.schedule(10000, System::di_complete_seek);
                 }
                 0x1200_0000 => {
                     let target = self.mmu.translate_data_addr(self.disk.dma_base).unwrap();
                     let length = self.disk.dma_length;
                     self.mem.ram[target.value() as usize..][..length as usize].fill(0);
 
-                    self.scheduler.schedule(Event::DiskTransferComplete, 10000);
+                    self.scheduler.schedule(10000, System::di_complete_transfer);
                 }
                 _ => todo!("{:08X}", command),
             }
