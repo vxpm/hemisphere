@@ -33,12 +33,12 @@ pub struct WgpuRenderer {
 impl WgpuRenderer {
     pub fn new(device: wgpu::Device, queue: wgpu::Queue, format: wgpu::TextureFormat) -> Self {
         let blitter = Blitter::new(&device, format);
-        let (inner, shared) = Renderer::new(device.clone(), queue);
+        let (renderer, shared) = Renderer::new(device.clone(), queue);
         let (sender, receiver) = flume::bounded(512);
 
         std::thread::Builder::new()
             .name("hemisphere wgpu renderer".into())
-            .spawn(move || worker(inner, receiver))
+            .spawn(move || worker(renderer, receiver))
             .unwrap();
 
         Self {

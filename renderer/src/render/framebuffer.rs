@@ -79,9 +79,9 @@ impl Framebuffer {
         }
     }
 
-    pub fn resize(&mut self, device: &wgpu::Device, viewport: Viewport) {
+    pub fn resize(&mut self, device: &wgpu::Device, viewport: Viewport) -> bool {
         if viewport == self.viewport {
-            return;
+            return false;
         }
 
         tracing::info!(?viewport, "resizing viewport");
@@ -90,6 +90,8 @@ impl Framebuffer {
         self.color = color;
         self.depth = depth;
         self.viewport = viewport;
+
+        true
     }
 
     pub fn front(&self) -> &wgpu::Texture {

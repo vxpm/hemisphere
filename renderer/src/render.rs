@@ -142,9 +142,10 @@ impl Renderer {
     pub fn exec(&mut self, action: Action) {
         match action {
             Action::SetViewport(viewport) => {
-                self.resize_viewport(viewport);
-                let mut lock = self.shared.lock().unwrap();
-                lock.frontbuffer = self.frontbuffer().clone();
+                if self.resize_viewport(viewport) {
+                    let mut lock = self.shared.lock().unwrap();
+                    lock.frontbuffer = self.frontbuffer().clone();
+                }
             }
             Action::SetClearColor(color) => self.set_clear_color(color),
             Action::SetBlendMode(mode) => self.set_blend_mode(mode),
@@ -234,8 +235,8 @@ impl Renderer {
         self.framebuffer.front().create_view(&Default::default())
     }
 
-    pub fn resize_viewport(&mut self, viewport: Viewport) {
-        self.framebuffer.resize(&self.device, viewport);
+    pub fn resize_viewport(&mut self, viewport: Viewport) -> bool {
+        self.framebuffer.resize(&self.device, viewport)
     }
 
     pub fn set_clear_color(&mut self, rgba: Rgba) {
