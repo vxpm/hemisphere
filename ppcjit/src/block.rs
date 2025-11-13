@@ -141,6 +141,16 @@ pub struct Executed {
 
 pub type BlockFn = extern "sysv64-unwind" fn(*mut Context, *const Hooks) -> Executed;
 
+#[derive(Clone, Copy)]
+pub enum IdleLoop {
+    /// Not an idle loop
+    None,
+    /// Branching to self
+    Simple,
+    /// Reading from a fixed memory location on a loop
+    VolatileValue,
+}
+
 /// Meta information regarding a block.
 pub struct Meta {
     /// The sequence of instructions this block contains.
@@ -149,6 +159,8 @@ pub struct Meta {
     pub clir: Option<String>,
     /// How many cycles this block executes at most.
     pub cycles: u32,
+    /// Whether this block is an idle loop and if so, what kind
+    pub idle_loop: IdleLoop,
 }
 
 /// A compiled block of PowerPC instructions.

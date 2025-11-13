@@ -2,15 +2,15 @@ use hemisphere::{
     Address, Cycles, Primitive,
     cores::{CpuCore, Executed},
     gekko::{
-        self, Cpu, InsExt, QuantizedType,
-        disasm::{Extensions, Ins, Opcode},
+        self, Cpu, QuantizedType,
+        disasm::{Extensions, Ins},
     },
     system::System,
 };
 use ppcjit::{
     Block,
     block::{
-        GenericHook, GetRegistersHook, Hooks, ReadHook, ReadQuantizedHook, WriteHook,
+        GenericHook, GetRegistersHook, Hooks, IdleLoop, ReadHook, ReadQuantizedHook, WriteHook,
         WriteQuantizedHook,
     },
 };
@@ -441,16 +441,6 @@ impl Default for Config {
     }
 }
 
-#[derive(Clone, Copy)]
-enum IdleLoop {
-    /// Not idle looping
-    None,
-    /// Branching to self
-    Simple,
-    /// Reading from a fixed memory location on a loop
-    VolatileValue,
-}
-
 pub struct JitCore {
     pub config: Config,
     pub compiler: ppcjit::Compiler,
@@ -559,56 +549,14 @@ impl JitCore {
     }
 
     #[inline(always)]
-    fn detect_idle_loop(&self, sys: &mut System) -> IdleLoop {
-        let instr = |offset| {
-            let Some(physical) = sys.translate_instr_addr(sys.cpu.pc + 4 * offset) else {
-                std::hint::cold_path();
-                return None;
-            };
+    fn detect_idle_loop(&mut self, sys: &System) -> IdleLoop {
+        let block = self
+            .blocks
+            .mapping
+            .get(sys.cpu.pc)
+            .and_then(|id| self.blocks.storage.get(id));
 
-            sys.read_pure::<u32>(physical)
-        };
-
-        let Some(a) = instr(0) else {
-            std::hint::cold_path();
-            return IdleLoop::None;
-        };
-
-        if a == 0x4800_0000 {
-            return IdleLoop::Simple;
-        }
-
-        // now check for the volatile memory read pattern
-        let Some(b) = instr(1) else {
-            std::hint::cold_path();
-            return IdleLoop::None;
-        };
-        let Some(c) = instr(2) else {
-            std::hint::cold_path();
-            return IdleLoop::None;
-        };
-
-        let code = [
-            Ins::new(a, Extensions::gekko_broadway()),
-            Ins::new(b, Extensions::gekko_broadway()),
-            Ins::new(c, Extensions::gekko_broadway()),
-        ];
-        let is_load = matches!(
-            code[0].op,
-            Opcode::Lbz | Opcode::Lha | Opcode::Lhz | Opcode::Lwz
-        );
-        let is_cmp_imm = matches!(code[1].op, Opcode::Cmpi | Opcode::Cmpli);
-        let is_branch_cond = matches!(code[2].op, Opcode::Bc);
-        let load_dst_is_cmp_src = code[0].gpr_d() == code[1].gpr_a();
-        let is_rel_jmp_to_start = !code[2].field_aa() && code[2].field_bd() == -8;
-        let code_matches =
-            is_load && is_cmp_imm && is_branch_cond && load_dst_is_cmp_src && is_rel_jmp_to_start;
-
-        if code_matches {
-            IdleLoop::VolatileValue
-        } else {
-            IdleLoop::None
-        }
+        block.map(|b| b.meta().idle_loop).unwrap_or(IdleLoop::None)
     }
 }
 

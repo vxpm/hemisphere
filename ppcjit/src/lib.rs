@@ -102,9 +102,10 @@ impl Compiler {
             .context(BuildCtx::Codegen)?;
 
         let meta = Meta {
-            seq: sequence,
+            idle_loop: sequence.detect_idle_loop(),
             clir: ir,
             cycles,
+            seq: sequence,
         };
 
         let block = unsafe { Block::new(meta, &*self.isa, compiled) };
