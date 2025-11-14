@@ -1,4 +1,9 @@
-use hemisphere::render::{TexEnvConfig, TexGenConfig};
+mod texgen;
+
+use hemisphere::{
+    render::{TexEnvConfig, TexGenConfig, TexGenStage},
+    system::gpu::transform::{TexGenInputKind, TexGenSource},
+};
 use wesl::{VirtualResolver, Wesl};
 
 fn base_module() -> wesl::syntax::TranslationUnit {
@@ -70,6 +75,67 @@ fn base_module() -> wesl::syntax::TranslationUnit {
 fn vertex_stage(texgen: &TexGenConfig) -> wesl::syntax::GlobalDeclaration {
     use wesl::syntax::*;
 
+    let mut stages = vec![];
+    for (index, stage) in texgen.stages.iter().enumerate() {
+        let index = index as u32;
+
+        let source = texgen::get_source(stage.base.source());
+        let input = texgen::get_input(stage.base.input_kind(), source);
+        let transformed = texgen::transform(stage.base.kind(), input);
+        let output = texgen::get_output(stage.base.output_kind(), transformed);
+        let normalized = texgen::normalize(stage.normalize, output);
+        let result = texgen::post_transform(&stage.post_matrix, normalized);
+
+        let code = wesl::quote_statement! {
+            {
+                let matrix = base::matrices[vertex.tex_coord_mat[#index]];
+                tex_coords[#index] = #result;
+            }
+        };
+
+        stages.push(code);
+    }
+
+    stages.resize(16, wesl::quote_statement!({}));
+
+    let [
+        s0,
+        s1,
+        s2,
+        s3,
+        s4,
+        s5,
+        s6,
+        s7,
+        s8,
+        s9,
+        s10,
+        s11,
+        s12,
+        s13,
+        s14,
+        s15,
+    ] = stages.try_into().unwrap();
+
+    let compute_texgens = wesl::quote_statement!({
+        @#s0 {}
+        @#s1 {}
+        @#s2 {}
+        @#s3 {}
+        @#s4 {}
+        @#s5 {}
+        @#s6 {}
+        @#s7 {}
+        @#s8 {}
+        @#s9 {}
+        @#s10 {}
+        @#s11 {}
+        @#s12 {}
+        @#s13 {}
+        @#s14 {}
+        @#s15 {}
+    });
+
     wesl::quote_declaration! {
         @vertex
         fn vs_main(@builtin(vertex_index) index: u32) -> base::VertexOutput {
@@ -87,11 +153,7 @@ fn vertex_stage(texgen: &TexGenConfig) -> wesl::syntax::GlobalDeclaration {
             out.specular_color = vertex.specular;
 
             var tex_coords: array<vec3f, 8>;
-            // for (var i = 0u; i < config.texgen.count; i ++) {
-            //     let texgen = config.texgen.texgens[i];
-            //     let matrix = matrices[vertex.tex_coord_mat[i]];
-            //     tex_coords[i] = texgen::compute(vertex, texgen, matrix);
-            // }
+            @#compute_texgens {}
 
             out.tex_coord0 = tex_coords[0];
             out.tex_coord1 = tex_coords[1];
@@ -158,5 +220,8 @@ pub fn compile(texenv: &TexEnvConfig, texgen: &TexGenConfig) -> String {
         }
     };
 
-    compiled.syntax.to_string()
+    let code = compiled.syntax.to_string();
+    println!("{}", code);
+
+    code
 }
