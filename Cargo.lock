@@ -3858,7 +3858,6 @@ dependencies = [
 [[package]]
 name = "tokrepr"
 version = "0.1.1"
-source = "git+https://github.com/wgsl-tooling-wg/wesl-rs#64ae2373605af54be3a4baf251d673683da85fe9"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3868,7 +3867,6 @@ dependencies = [
 [[package]]
 name = "tokrepr-derive"
 version = "0.1.0"
-source = "git+https://github.com/wgsl-tooling-wg/wesl-rs#64ae2373605af54be3a4baf251d673683da85fe9"
 dependencies = [
  "itertools",
  "proc-macro2",
@@ -4373,7 +4371,6 @@ checksum = "a28ac98ddc8b9274cb41bb4d9d4d5c425b6020c50c46f25559911905610b4a88"
 [[package]]
 name = "wesl"
 version = "0.2.0"
-source = "git+https://github.com/wgsl-tooling-wg/wesl-rs#64ae2373605af54be3a4baf251d673683da85fe9"
 dependencies = [
  "annotate-snippets",
  "derive_more",
@@ -4389,7 +4386,6 @@ dependencies = [
 [[package]]
 name = "wesl-macros"
 version = "0.2.0"
-source = "git+https://github.com/wgsl-tooling-wg/wesl-rs#64ae2373605af54be3a4baf251d673683da85fe9"
 dependencies = [
  "itertools",
  "proc-macro-error2",
@@ -4548,7 +4544,6 @@ dependencies = [
 [[package]]
 name = "wgsl-parse"
 version = "0.2.0"
-source = "git+https://github.com/wgsl-tooling-wg/wesl-rs#64ae2373605af54be3a4baf251d673683da85fe9"
 dependencies = [
  "annotate-snippets",
  "derive_more",
@@ -4565,7 +4560,6 @@ dependencies = [
 [[package]]
 name = "wgsl-types"
 version = "0.2.0"
-source = "git+https://github.com/wgsl-tooling-wg/wesl-rs#64ae2373605af54be3a4baf251d673683da85fe9"
 dependencies = [
  "half",
  "itertools",
