@@ -1,15 +1,16 @@
+mod texenv;
 mod texgen;
 
-use hemisphere::{
-    render::{TexEnvConfig, TexGenConfig, TexGenStage},
-    system::gpu::transform::{TexGenInputKind, TexGenSource},
-};
+use hemisphere::render::{TexEnvConfig, TexGenConfig};
 use wesl::{VirtualResolver, Wesl};
 
 fn base_module() -> wesl::syntax::TranslationUnit {
     use wesl::syntax::*;
     wesl::quote_module! {
         alias MatIdx = u32;
+
+        const PLACEHOLDER_RGB: vec3f = vec3f(1.0, 0.0, 0.8627);
+        const PLACEHOLDER_RGBA: vec4f = vec4f(1.0, 0.0, 0.8627, 0.5);
 
         // A primitive vertex
         struct Vertex {
@@ -58,8 +59,8 @@ fn base_module() -> wesl::syntax::TranslationUnit {
 
         struct VertexOutput {
             @builtin(position) clip: vec4f,
-            @location(0) diffuse_color: vec4f,
-            @location(1) specular_color: vec4f,
+            @location(0) diffuse: vec4f,
+            @location(1) specular: vec4f,
             @location(2) tex_coord0: vec3f,
             @location(3) tex_coord1: vec3f,
             @location(4) tex_coord2: vec3f,
@@ -97,7 +98,6 @@ fn vertex_stage(texgen: &TexGenConfig) -> wesl::syntax::GlobalDeclaration {
     }
 
     stages.resize(16, wesl::quote_statement!({}));
-
     let [
         s0,
         s1,
@@ -117,7 +117,7 @@ fn vertex_stage(texgen: &TexGenConfig) -> wesl::syntax::GlobalDeclaration {
         s15,
     ] = stages.try_into().unwrap();
 
-    let compute_texgens = wesl::quote_statement!({
+    let compute_stages = wesl::quote_statement!({
         @#s0 {}
         @#s1 {}
         @#s2 {}
@@ -149,11 +149,11 @@ fn vertex_stage(texgen: &TexGenConfig) -> wesl::syntax::GlobalDeclaration {
             out.clip.z += out.clip.w;
             out.clip.z /= 2.0;
 
-            out.diffuse_color = vertex.diffuse;
-            out.specular_color = vertex.specular;
+            out.diffuse = vertex.diffuse;
+            out.specular = vertex.specular;
 
             var tex_coords: array<vec3f, 8>;
-            @#compute_texgens {}
+            @#compute_stages {}
 
             out.tex_coord0 = tex_coords[0];
             out.tex_coord1 = tex_coords[1];
@@ -169,12 +169,104 @@ fn vertex_stage(texgen: &TexGenConfig) -> wesl::syntax::GlobalDeclaration {
     }
 }
 
-fn fragment_stage() -> wesl::syntax::GlobalDeclaration {
+fn fragment_stage(texenv: &TexEnvConfig) -> wesl::syntax::GlobalDeclaration {
     use wesl::syntax::*;
+
+    let constant = |i: usize| {
+        let r = texenv.constants[i].r;
+        let g = texenv.constants[i].g;
+        let b = texenv.constants[i].b;
+        let a = texenv.constants[i].a;
+        wesl::quote_expression! { vec4f(#r, #g, #b, #a) }
+    };
+
+    let const_0 = constant(0);
+    let const_1 = constant(1);
+    let const_2 = constant(2);
+    let const_3 = constant(3);
+
+    let mut stages = vec![];
+    for stage in texenv.stages.iter() {
+        let input_a = texenv::get_color_input(stage, stage.ops.color.input_a());
+        let input_b = texenv::get_color_input(stage, stage.ops.color.input_b());
+        let input_c = texenv::get_color_input(stage, stage.ops.color.input_c());
+        let input_d = texenv::get_color_input(stage, stage.ops.color.input_d());
+
+        let sign = if stage.ops.color.negate() { -1.0 } else { 1.0 };
+        let bias = stage.ops.color.bias().value();
+        let scale = stage.ops.color.scale().value();
+        let output = stage.ops.color.output() as u32;
+
+        let code = wesl::quote_statement! {
+            {
+                let lerp = #sign * (#input_a * (1.0 - #input_c) + #input_b * #input_c);
+                let result = #scale * (lerp + #input_d + #bias);
+                regs[#output] = vec4f(result, 1.0);
+                last_output = #output;
+            }
+        };
+
+        stages.push(code);
+    }
+
+    stages.resize(16, wesl::quote_statement!({}));
+    let [
+        s0,
+        s1,
+        s2,
+        s3,
+        s4,
+        s5,
+        s6,
+        s7,
+        s8,
+        s9,
+        s10,
+        s11,
+        s12,
+        s13,
+        s14,
+        s15,
+    ] = stages.try_into().unwrap();
+
+    let compute_stages = wesl::quote_statement!({
+        @#s0 {}
+        @#s1 {}
+        @#s2 {}
+        @#s3 {}
+        @#s4 {}
+        @#s5 {}
+        @#s6 {}
+        @#s7 {}
+        @#s8 {}
+        @#s9 {}
+        @#s10 {}
+        @#s11 {}
+        @#s12 {}
+        @#s13 {}
+        @#s14 {}
+        @#s15 {}
+    });
+
     wesl::quote_declaration! {
         @fragment
         fn fs_main(in: base::VertexOutput) -> @location(0) vec4f {
-            return in.diffuse_color;
+            const R3: u32 = 0;
+            const R0: u32 = 1;
+            const R1: u32 = 2;
+            const R2: u32 = 3;
+
+            var last_output = R3;
+            var regs: array<vec4f, 4>;
+
+            regs[R0] = #const_0;
+            regs[R1] = #const_1;
+            regs[R2] = #const_2;
+            regs[R3] = #const_3;
+
+            @#compute_stages {}
+
+            return regs[last_output];
         }
     }
 }
@@ -183,7 +275,7 @@ fn main_module(texenv: &TexEnvConfig, texgen: &TexGenConfig) -> wesl::syntax::Tr
     use wesl::syntax::*;
 
     let vertex = vertex_stage(texgen);
-    let fragment = fragment_stage();
+    let fragment = fragment_stage(texenv);
 
     wesl::quote_module! {
         import package::base;
