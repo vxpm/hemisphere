@@ -21,6 +21,7 @@ zerocopy.workspace = true
 strum.workspace = true
 glam.workspace = true
 rustc-hash.workspace = true
+ordered-float.workspace = true
 
 backtrace = "0.3"
 color-backtrace = "0.7"

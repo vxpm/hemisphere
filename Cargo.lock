@@ -192,7 +192,7 @@ dependencies = [
  "mapfile_parser",
  "nanorand 0.8.0",
  "renderer",
- "ron",
+ "ron 0.12.0",
  "serde",
  "tracing",
  "tracing-appender",
@@ -1160,7 +1160,7 @@ dependencies = [
  "pollster",
  "profiling",
  "raw-window-handle",
- "ron",
+ "ron 0.11.0",
  "serde",
  "static_assertions",
  "wasm-bindgen",
@@ -1186,7 +1186,7 @@ dependencies = [
  "log",
  "nohash-hasher",
  "profiling",
- "ron",
+ "ron 0.11.0",
  "serde",
  "smallvec",
  "unicode-segmentation",
@@ -1813,6 +1813,7 @@ dependencies = [
  "gekko",
  "glam",
  "iso",
+ "ordered-float",
  "rustc-hash 2.1.1",
  "strum",
  "tracing",
@@ -3333,6 +3334,20 @@ dependencies = [
  "bitflags 2.10.0",
  "serde",
  "serde_derive",
+ "unicode-ident",
+]
+
+[[package]]
+name = "ron"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fd490c5b18261893f14449cbd28cb9c0b637aebf161cd77900bfdedaff21ec32"
+dependencies = [
+ "bitflags 2.10.0",
+ "once_cell",
+ "serde",
+ "serde_derive",
+ "typeid",
  "unicode-ident",
 ]
 

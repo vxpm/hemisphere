@@ -142,6 +142,7 @@ wesl = { git = "https://github.com/wgsl-tooling-wg/wesl-rs", features = [
 ], default-features = false }
 eyre-pretty = { git = "https://github.com/vxpm/eyre-pretty" }
 nanorand = "0.8"
+ordered-float = "5"
 
 # lints
 [workspace.lints.clippy]

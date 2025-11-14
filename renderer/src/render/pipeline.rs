@@ -1,5 +1,10 @@
-use std::collections::{HashMap, hash_map::Entry};
-use wesl::include_wesl;
+mod compiler;
+
+use hemisphere::render::{TexEnvConfig, TexGenConfig};
+use std::{
+    borrow::Cow,
+    collections::{HashMap, hash_map::Entry},
+};
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct PipelineSettings {
@@ -14,6 +19,9 @@ pub struct PipelineSettings {
     pub color_write: bool,
     pub alpha_write: bool,
     pub depth_write: bool,
+
+    pub texenv: TexEnvConfig,
+    pub texgen: TexGenConfig,
 }
 
 impl Default for PipelineSettings {
@@ -30,6 +38,9 @@ impl Default for PipelineSettings {
             color_write: true,
             alpha_write: true,
             depth_write: true,
+
+            texenv: Default::default(),
+            texgen: Default::default(),
         }
     }
 }
@@ -39,7 +50,6 @@ pub struct Pipeline {
     group0_layout: wgpu::BindGroupLayout,
     group1_layout: wgpu::BindGroupLayout,
     layout: wgpu::PipelineLayout,
-    module: wgpu::ShaderModule,
     cached: HashMap<PipelineSettings, wgpu::RenderPipeline>,
     pipeline: wgpu::RenderPipeline,
 }
@@ -48,7 +58,6 @@ impl Pipeline {
     fn create_pipeline(
         device: &wgpu::Device,
         layout: &wgpu::PipelineLayout,
-        module: &wgpu::ShaderModule,
         settings: &PipelineSettings,
     ) -> wgpu::RenderPipeline {
         let depth_stencil = if settings.depth_enabled {
@@ -88,6 +97,12 @@ impl Pipeline {
             write_mask |= wgpu::ColorWrites::ALPHA;
         }
 
+        let shader = compiler::compile(&settings.texenv, &settings.texgen);
+        let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: None,
+            source: wgpu::ShaderSource::Wgsl(Cow::Owned(shader)),
+        });
+
         device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("uber render pipeline"),
             layout: Some(layout),
@@ -101,13 +116,13 @@ impl Pipeline {
                 conservative: false,
             },
             vertex: wgpu::VertexState {
-                module,
+                module: &module,
                 entry_point: Some("vs_main"),
                 compilation_options: Default::default(),
                 buffers: &[],
             },
             fragment: Some(wgpu::FragmentState {
-                module,
+                module: &module,
                 entry_point: Some("fs_main"),
                 compilation_options: Default::default(),
                 targets: &[Some(wgpu::ColorTargetState {
@@ -136,7 +151,12 @@ impl Pipeline {
         };
         let group0_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: None,
-            entries: &[storage_buffer(0), storage_buffer(1), storage_buffer(2)],
+            entries: &[
+                // matrices
+                storage_buffer(0),
+                // vertices
+                storage_buffer(1),
+            ],
         });
 
         let tex = |binding| wgpu::BindGroupLayoutEntry {
@@ -183,13 +203,8 @@ impl Pipeline {
             push_constant_ranges: &[],
         });
 
-        let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: None,
-            source: wgpu::ShaderSource::Wgsl(include_wesl!("uber").into()),
-        });
-
         let settings = PipelineSettings::default();
-        let pipeline = Self::create_pipeline(device, &layout, &module, &settings);
+        let pipeline = Self::create_pipeline(device, &layout, &settings);
         let mut cached = HashMap::new();
         cached.insert(settings.clone(), pipeline.clone());
 
@@ -198,7 +213,6 @@ impl Pipeline {
             group0_layout,
             group1_layout,
             layout,
-            module,
             cached,
             pipeline,
         }
@@ -220,12 +234,7 @@ impl Pipeline {
         self.pipeline = match self.cached.entry(self.settings.clone()) {
             Entry::Occupied(o) => o.get().clone(),
             Entry::Vacant(v) => v
-                .insert(Self::create_pipeline(
-                    device,
-                    &self.layout,
-                    &self.module,
-                    &self.settings,
-                ))
+                .insert(Self::create_pipeline(device, &self.layout, &self.settings))
                 .clone(),
         };
     }

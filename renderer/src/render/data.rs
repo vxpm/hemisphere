@@ -1,18 +1,10 @@
-use glam::{Mat4, Vec2, Vec3};
-use hemisphere::{
-    render, render::TexGenConfig as CoreTexGenConfig, system::gpu::command::attributes::Rgba,
-};
+use glam::{Vec2, Vec3};
+use hemisphere::system::gpu::command::attributes::Rgba;
 use zerocopy::{Immutable, IntoBytes};
 
 #[derive(Debug, Clone, Immutable, IntoBytes, Default)]
 #[repr(C)]
 pub struct Vertex {
-    pub config_idx: u32,
-    pub projection_idx: u32,
-
-    pub _pad0: u32,
-    pub _pad1: u32,
-
     pub position: Vec3,
     pub position_mat_idx: u32,
 
@@ -24,164 +16,10 @@ pub struct Vertex {
 
     pub tex_coord: [Vec2; 8],
     pub tex_coord_mat_idx: [u32; 8],
-}
 
-#[derive(Debug, Clone, Immutable, IntoBytes, Default, PartialEq)]
-#[repr(C)]
-pub struct TevOpConfig {
-    pub input_a: u32,
-    pub input_b: u32,
-    pub input_c: u32,
-    pub input_d: u32,
-    pub output: u32,
-
-    pub sign: f32,
-    pub bias: f32,
-    pub scale: f32,
-    pub clamp: u32,
-}
-
-#[derive(Debug, Clone, Immutable, IntoBytes, Default, PartialEq)]
-#[repr(C)]
-pub struct TevStageRefs {
-    pub map: u32,
-    pub coord: u32,
-    pub color: u32,
-}
-
-#[derive(Debug, Clone, Immutable, IntoBytes, Default, PartialEq)]
-#[repr(C)]
-pub struct TevStage {
-    pub color: TevOpConfig,
-    pub alpha: TevOpConfig,
-    pub refs: TevStageRefs,
-}
-
-#[derive(Debug, Clone, Immutable, IntoBytes, Default, PartialEq)]
-#[repr(C)]
-pub struct Constants {
-    pub color0: Rgba,
-    pub color1: Rgba,
-    pub color2: Rgba,
-    pub color3: Rgba,
-}
-
-#[derive(Debug, Clone, Immutable, IntoBytes, Default, PartialEq)]
-#[repr(C)]
-pub struct TevConfig {
-    pub count: u32,
-    pub _pad0: u32,
-    pub _pad1: u32,
-    pub _pad2: u32,
-
-    pub constants: Constants,
-    pub stages: [TevStage; 16],
-}
-
-impl TevConfig {
-    pub fn new(config: render::TevConfig) -> Self {
-        let count = config.stages.len() as u32;
-        let constants = Constants {
-            color0: config.constants[0],
-            color1: config.constants[1],
-            color2: config.constants[2],
-            color3: config.constants[3],
-        };
-
-        let mut data = std::array::from_fn::<TevStage, 16, _>(|_| TevStage::default());
-        for (stage, data) in config.stages.into_iter().zip(data.iter_mut()) {
-            data.color.input_a = stage.ops.color.input_a() as u32;
-            data.color.input_b = stage.ops.color.input_b() as u32;
-            data.color.input_c = stage.ops.color.input_c() as u32;
-            data.color.input_d = stage.ops.color.input_d() as u32;
-            data.color.output = stage.ops.color.output() as u32;
-
-            data.color.sign = if stage.ops.color.negate() { -1.0 } else { 1.0 };
-            data.color.bias = stage.ops.color.bias().value();
-            data.color.scale = stage.ops.color.scale().value();
-            data.color.clamp = stage.ops.color.clamp() as u32;
-
-            data.alpha.input_a = stage.ops.alpha.input_a() as u32;
-            data.alpha.input_b = stage.ops.alpha.input_b() as u32;
-            data.alpha.input_c = stage.ops.alpha.input_c() as u32;
-            data.alpha.input_d = stage.ops.alpha.input_d() as u32;
-            data.alpha.output = stage.ops.alpha.output() as u32;
-
-            data.alpha.sign = if stage.ops.alpha.negate() { -1.0 } else { 1.0 };
-            data.alpha.bias = stage.ops.alpha.bias().value();
-            data.alpha.scale = stage.ops.alpha.scale().value();
-            data.alpha.clamp = stage.ops.color.clamp() as u32;
-
-            data.refs.map = stage.refs.map().value() as u32;
-            data.refs.coord = stage.refs.coord().value() as u32;
-            data.refs.color = stage.refs.color() as u32;
-        }
-
-        Self {
-            count,
-            constants,
-            _pad0: 0,
-            _pad1: 0,
-            _pad2: 0,
-            stages: data,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Immutable, IntoBytes, Default, PartialEq)]
-#[repr(C)]
-pub struct TexGen {
-    pub kind: u32,
-    pub input_fmt: u32,
-    pub output_fmt: u32,
-    pub source: u32,
-    pub emboss_source: u32,
-    pub emboss_light: u32,
-    pub normalize: u32,
-    pub post_matrix_index: u32,
-}
-
-#[derive(Debug, Clone, Immutable, IntoBytes, Default, PartialEq)]
-#[repr(C)]
-pub struct TexGenConfig {
-    pub count: u32,
+    pub projection_idx: u32,
 
     pub _pad0: u32,
     pub _pad1: u32,
     pub _pad2: u32,
-
-    pub texgens: [TexGen; 8],
-}
-
-impl TexGenConfig {
-    pub fn new(texgens: &[CoreTexGenConfig], mut insert_matrix: impl FnMut(Mat4) -> u32) -> Self {
-        let count = texgens.len() as u32;
-        let mut data = std::array::from_fn::<TexGen, 8, _>(|_| TexGen::default());
-
-        for (config, data) in texgens.iter().zip(data.iter_mut()) {
-            data.kind = config.base.kind() as u32;
-            data.input_fmt = config.base.input_kind() as u32;
-            data.output_fmt = config.base.output_kind() as u32;
-            data.source = config.base.source() as u32;
-            data.emboss_source = config.base.emboss_source().value() as u32;
-            data.emboss_light = config.base.emboss_light().value() as u32;
-            data.normalize = config.normalize as u32;
-            data.post_matrix_index = insert_matrix(config.post_matrix);
-        }
-
-        Self {
-            count,
-            _pad0: 0,
-            _pad1: 0,
-            _pad2: 0,
-            texgens: data,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Immutable, IntoBytes, Default)]
-#[repr(C)]
-pub struct Config {
-    pub tev: TevConfig,
-    pub texgen: TexGenConfig,
 }

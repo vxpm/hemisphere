@@ -6,7 +6,7 @@ pub mod transform;
 
 use crate::{
     Primitive, System,
-    render::{Action, TevConfig, TevStage},
+    render::{Action, TexEnvConfig, TexEnvStage},
     stream::{BinReader, BinaryStream},
     system::gpu::command::{
         ArrayDescriptor, AttributeMode, VertexAttributeStream,
@@ -684,19 +684,19 @@ impl System {
                 .enumerate()
                 .map(|(i, ops)| {
                     let pair = &self.gpu.environment.stage_refs[i / 2];
-                    TevStage {
+                    TexEnvStage {
                         ops,
                         refs: if i % 2 == 0 { pair.a() } else { pair.b() },
                     }
                 })
                 .collect::<Vec<_>>();
 
-            let config = TevConfig {
+            let config = TexEnvConfig {
                 stages,
                 constants: self.gpu.environment.constants,
             };
 
-            self.config.renderer.exec(Action::SetTevConfig(config));
+            self.config.renderer.exec(Action::SetTexEnvConfig(config));
         }
 
         if reg.is_pixel_clear() {

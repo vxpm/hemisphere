@@ -149,7 +149,7 @@ pub enum TexGenSource {
 }
 
 #[bitos(32)]
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct BaseTexGen {
     #[bits(1)]
     pub output_kind: TexGenOutputKind,
@@ -290,7 +290,7 @@ impl Interface {
 
 impl System {
     pub fn gx_update_texgens(&mut self) {
-        let mut texgens = Vec::new();
+        let mut stages = Vec::new();
         for texgen in self
             .gpu
             .transform
@@ -300,7 +300,7 @@ impl System {
             .take(self.gpu.transform.internal.active_texgens as usize)
             .cloned()
         {
-            let config = render::TexGenConfig {
+            let stage = render::TexGenStage {
                 base: texgen.base,
                 normalize: texgen.post.normalize(),
                 post_matrix: self
@@ -309,10 +309,11 @@ impl System {
                     .post_matrix(texgen.post.mat_index().value()),
             };
 
-            texgens.push(config);
+            stages.push(stage);
         }
 
-        self.config.renderer.exec(Action::SetTexGens(texgens));
+        let config = render::TexGenConfig { stages };
+        self.config.renderer.exec(Action::SetTexGenConfig(config));
     }
 
     /// Sets the value of an internal transform unit register.

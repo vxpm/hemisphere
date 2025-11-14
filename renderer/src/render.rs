@@ -9,14 +9,13 @@ use crate::render::{
 };
 use glam::Mat4;
 use hemisphere::{
-    render::{Action, TevConfig, TexGenConfig, Viewport},
+    render::{Action, HashableMat4, TexEnvConfig, TexGenConfig, Viewport},
     system::gpu::{
         Topology, VertexAttributes,
         command::attributes::Rgba,
         pixel::{BlendFactor, BlendMode, CompareMode, DepthMode},
     },
 };
-use ordered_float::OrderedFloat;
 use rustc_hash::FxHashMap;
 use std::{
     collections::hash_map::Entry,
@@ -24,18 +23,6 @@ use std::{
     sync::{Arc, Mutex},
 };
 use zerocopy::IntoBytes;
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-struct HashableMat4([OrderedFloat<f32>; 16]);
-
-impl From<Mat4> for HashableMat4 {
-    fn from(value: Mat4) -> Self {
-        // SAFETY: this is safe because OrderedFloat is repr(transparent)
-        Self(unsafe {
-            std::mem::transmute::<[f32; 16], [OrderedFloat<f32>; 16]>(value.to_cols_array())
-        })
-    }
-}
 
 pub struct Shared {
     pub frontbuffer: wgpu::TextureView,
@@ -56,12 +43,9 @@ pub struct Renderer {
     storage_buffers: Buffers,
 
     clear_color: wgpu::Color,
-    current_config: Box<data::Config>,
-    current_texgen: Vec<TexGenConfig>,
     current_projection_mat: Mat4,
     current_projection_mat_idx: u32,
 
-    configs: Vec<data::Config>,
     vertices: Vec<data::Vertex>,
     indices: Vec<u32>,
     matrices: Vec<Mat4>,
@@ -123,12 +107,9 @@ impl Renderer {
             storage_buffers,
 
             clear_color: wgpu::Color::BLACK,
-            current_config: Default::default(),
-            current_texgen: Vec::with_capacity(8),
             current_projection_mat: Default::default(),
             current_projection_mat_idx: 0,
 
-            configs: Vec::new(),
             vertices: Vec::new(),
             indices: Vec::new(),
             matrices: Vec::new(),
@@ -151,8 +132,8 @@ impl Renderer {
             Action::SetBlendMode(mode) => self.set_blend_mode(mode),
             Action::SetDepthMode(mode) => self.set_depth_mode(mode),
             Action::SetProjectionMatrix(mat) => self.set_projection_mat(mat),
-            Action::SetTevConfig(config) => self.set_tev_config(config),
-            Action::SetTexGens(texgens) => self.set_texgens(texgens),
+            Action::SetTexEnvConfig(config) => self.set_texenv_config(config),
+            Action::SetTexGenConfig(config) => self.set_texgen_config(config),
             Action::LoadTexture {
                 id,
                 width,
@@ -202,12 +183,6 @@ impl Renderer {
             .map(|mat| self.insert_matrix(mat));
 
         data::Vertex {
-            config_idx: self.configs.len() as u32 - 1,
-            projection_idx: self.current_projection_mat_idx,
-
-            _pad0: 0,
-            _pad1: 0,
-
             position: attributes.position,
             position_mat_idx,
 
@@ -219,16 +194,18 @@ impl Renderer {
 
             tex_coord: attributes.tex_coords,
             tex_coord_mat_idx,
+
+            projection_idx: self.current_projection_mat_idx,
+
+            _pad0: 0,
+            _pad1: 0,
+            _pad2: 0,
         }
     }
 
     pub fn insert_attributes(&mut self, attributes: &VertexAttributes) -> u32 {
         let vertex = self.attributes_to_vertex(attributes);
         self.insert_vertex(vertex)
-    }
-
-    pub fn update_config(&mut self) {
-        self.configs.push((*self.current_config).clone());
     }
 
     pub fn frontbuffer(&self) -> wgpu::TextureView {
@@ -305,25 +282,14 @@ impl Renderer {
         self.current_projection_mat_idx = id;
     }
 
-    pub fn set_tev_config(&mut self, config: TevConfig) {
-        let new = data::TevConfig::new(config.clone());
-        if self.current_config.tev == new {
-            return;
-        }
-
-        self.current_config.tev = new;
-        self.update_config();
+    pub fn set_texenv_config(&mut self, config: TexEnvConfig) {
+        self.pipeline.settings.texenv = config;
+        self.pipeline.update(&self.device);
     }
 
-    pub fn set_texgens(&mut self, texgens: Vec<TexGenConfig>) {
-        let config = data::TexGenConfig::new(&texgens, |mat| self.insert_matrix(mat));
-        if self.current_config.texgen == config {
-            return;
-        }
-
-        self.current_texgen = texgens;
-        self.current_config.texgen = config;
-        self.update_config();
+    pub fn set_texgen_config(&mut self, config: TexGenConfig) {
+        self.pipeline.settings.texgen = config;
+        self.pipeline.update(&self.device);
     }
 
     pub fn load_texture(&mut self, id: u32, width: u32, height: u32, data: &[u8]) {
@@ -383,17 +349,10 @@ impl Renderer {
     }
 
     fn reset(&mut self) {
-        self.configs.clear();
         self.vertices.clear();
         self.indices.clear();
         self.matrices.clear();
         self.matrices_idx.clear();
-
-        let texgen =
-            data::TexGenConfig::new(&self.current_texgen.clone(), |mat| self.insert_matrix(mat));
-        self.current_config.texgen = texgen;
-
-        self.update_config();
         self.set_projection_mat(self.current_projection_mat);
     }
 
@@ -405,9 +364,6 @@ impl Renderer {
         let index_buf =
             self.index_buffers
                 .allocate(&self.device, &self.queue, self.indices.as_bytes());
-        let configs_buf =
-            self.storage_buffers
-                .allocate(&self.device, &self.queue, self.configs.as_bytes());
         let matrices_buf =
             self.storage_buffers
                 .allocate(&self.device, &self.queue, self.matrices.as_bytes());
@@ -429,21 +385,13 @@ impl Renderer {
                 wgpu::BindGroupEntry {
                     binding: 0,
                     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                        buffer: &configs_buf,
-                        offset: 0,
-                        size: NonZero::new(self.configs.as_bytes().len() as u64),
-                    }),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
                         buffer: &matrices_buf,
                         offset: 0,
                         size: NonZero::new(self.matrices.as_bytes().len() as u64),
                     }),
                 },
                 wgpu::BindGroupEntry {
-                    binding: 2,
+                    binding: 1,
                     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
                         buffer: &vertices_buf,
                         offset: 0,
