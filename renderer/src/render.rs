@@ -557,6 +557,8 @@ impl Renderer {
 
         let buffer = previous_encoder.finish();
         self.queue.submit([buffer]);
+        self.device.poll(wgpu::PollType::Poll).unwrap();
+
         self.index_buffers.recall();
         self.storage_buffers.recall();
     }
