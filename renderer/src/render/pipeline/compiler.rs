@@ -87,14 +87,12 @@ fn vertex_stage(texgen: &TexGenConfig) -> wesl::syntax::GlobalDeclaration {
         let normalized = texgen::normalize(stage.normalize, output);
         let result = texgen::post_transform(&stage.post_matrix, normalized);
 
-        let code = wesl::quote_statement! {
+        stages.push(wesl::quote_statement! {
             {
                 let matrix = base::matrices[vertex.tex_coord_mat[#index]];
                 tex_coords[#index] = #result;
             }
-        };
-
-        stages.push(code);
+        });
     }
 
     stages.resize(16, wesl::quote_statement!({}));
@@ -197,16 +195,40 @@ fn fragment_stage(texenv: &TexEnvConfig) -> wesl::syntax::GlobalDeclaration {
         let scale = stage.ops.color.scale().value();
         let output = stage.ops.color.output() as u32;
 
-        let code = wesl::quote_statement! {
+        let color_compute = wesl::quote_statement! {
             {
-                let lerp = #sign * (#input_a * (1.0 - #input_c) + #input_b * #input_c);
-                let result = #scale * (lerp + #input_d + #bias);
-                regs[#output] = vec4f(result, 1.0);
-                last_output = #output;
+                let color_lerp = #sign * (#input_a * (1.0 - #input_c) + #input_b * #input_c);
+                let color_result = #scale * (color_lerp + #input_d + #bias);
+                regs[#output] = vec4f(color_result, regs[#output].a);
+                last_color_output = #output;
             }
         };
 
-        stages.push(code);
+        let input_a = texenv::get_alpha_input(stage, stage.ops.alpha.input_a());
+        let input_b = texenv::get_alpha_input(stage, stage.ops.alpha.input_b());
+        let input_c = texenv::get_alpha_input(stage, stage.ops.alpha.input_c());
+        let input_d = texenv::get_alpha_input(stage, stage.ops.alpha.input_d());
+
+        let sign = if stage.ops.alpha.negate() { -1.0 } else { 1.0 };
+        let bias = stage.ops.alpha.bias().value();
+        let scale = stage.ops.alpha.scale().value();
+        let output = stage.ops.alpha.output() as u32;
+
+        let alpha_compute = wesl::quote_statement! {
+            {
+                let alpha_lerp = #sign * (#input_a * (1.0 - #input_c) + #input_b * #input_c);
+                let alpha_result = #scale * (alpha_lerp + #input_d + #bias);
+                regs[#output] = vec4f(regs[#output].rgb, alpha_result);
+                last_alpha_output = #output;
+            }
+        };
+
+        stages.push(wesl::quote_statement! {
+            {
+                @#color_compute {}
+                @#alpha_compute {}
+            }
+        });
     }
 
     stages.resize(16, wesl::quote_statement!({}));
@@ -256,7 +278,8 @@ fn fragment_stage(texenv: &TexEnvConfig) -> wesl::syntax::GlobalDeclaration {
             const R1: u32 = 2;
             const R2: u32 = 3;
 
-            var last_output = R3;
+            var last_color_output = R3;
+            var last_alpha_output = R3;
             var regs: array<vec4f, 4>;
 
             regs[R0] = #const_0;
@@ -266,7 +289,7 @@ fn fragment_stage(texenv: &TexEnvConfig) -> wesl::syntax::GlobalDeclaration {
 
             @#compute_stages {}
 
-            return regs[last_output];
+            return vec4f(regs[last_color_output].rgb, regs[last_alpha_output].a);
         }
     }
 }
@@ -313,7 +336,9 @@ pub fn compile(texenv: &TexEnvConfig, texgen: &TexGenConfig) -> String {
     };
 
     let code = compiled.syntax.to_string();
-    println!("{}", code);
+    if texenv.stages.len() > 1 {
+        println!("{}", code);
+    }
 
     code
 }

@@ -1,6 +1,6 @@
 use hemisphere::{
     render::TexEnvStage,
-    system::gpu::environment::{ColorChannel, ColorInputSrc},
+    system::gpu::environment::{AlphaInputSrc, ColorChannel, ColorInputSrc},
 };
 
 fn sample_tex(stage: &TexEnvStage) -> wesl::syntax::Expression {
@@ -61,5 +61,25 @@ pub fn get_color_input(stage: &TexEnvStage, input: ColorInputSrc) -> wesl::synta
         ColorInputSrc::Half => wesl::quote_expression! { vec3f(0.5) },
         ColorInputSrc::Constant => todo!(),
         ColorInputSrc::Zero => wesl::quote_expression! { vec3f(0.0) },
+    }
+}
+
+pub fn get_alpha_input(stage: &TexEnvStage, input: AlphaInputSrc) -> wesl::syntax::Expression {
+    use wesl::syntax::*;
+    match input {
+        AlphaInputSrc::R3Alpha => wesl::quote_expression! { regs[R3].a },
+        AlphaInputSrc::R0Alpha => wesl::quote_expression! { regs[R0].a },
+        AlphaInputSrc::R1Alpha => wesl::quote_expression! { regs[R1].a },
+        AlphaInputSrc::R2Alpha => wesl::quote_expression! { regs[R2].a },
+        AlphaInputSrc::TexAlpha => {
+            let tex = sample_tex(stage);
+            wesl::quote_expression! { #tex.a }
+        }
+        AlphaInputSrc::RasterAlpha => {
+            let color = get_color_channel(stage);
+            wesl::quote_expression! { #color.a }
+        }
+        AlphaInputSrc::Constant => wesl::quote_expression! { 0.5 }, // STUB
+        AlphaInputSrc::Zero => wesl::quote_expression! { 0.0 },
     }
 }
