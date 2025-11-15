@@ -3,7 +3,7 @@
 use crate::system::gpu::{
     Topology, VertexAttributes,
     command::attributes::Rgba,
-    environment::{StageOps, StageRefs},
+    environment::{Constant, StageOps, StageRefs},
     pixel::{BlendMode, DepthMode},
     texture::Rgba8,
     transform::BaseTexGen,
@@ -35,6 +35,8 @@ pub struct Viewport {
 pub struct TexEnvStage {
     pub ops: StageOps,
     pub refs: StageRefs,
+    pub color_const: Constant,
+    pub alpha_const: Constant,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]

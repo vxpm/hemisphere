@@ -39,6 +39,56 @@ pub struct StageRefsPair {
     pub b: StageRefs,
 }
 
+#[bitos(5)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Constant {
+    One = 0x00,
+    SevenEights = 0x01,
+    SixEights = 0x02,
+    FiveEights = 0x03,
+    FourEights = 0x04,
+    ThreeEights = 0x05,
+    TwoEights = 0x06,
+    OneEight = 0x07,
+    Reserved0 = 0x08,
+    Reserved1 = 0x09,
+    Reserved2 = 0x0A,
+    Reserved3 = 0x0B,
+    Const0 = 0x0C,
+    Const1 = 0x0D,
+    Const2 = 0x0E,
+    Const3 = 0x0F,
+    Const0R = 0x10,
+    Const1R = 0x11,
+    Const2R = 0x12,
+    Const3R = 0x13,
+    Const0G = 0x14,
+    Const1G = 0x15,
+    Const2G = 0x16,
+    Const3G = 0x17,
+    Const0B = 0x18,
+    Const1B = 0x19,
+    Const2B = 0x1A,
+    Const3B = 0x1B,
+    Const0A = 0x1C,
+    Const1A = 0x1D,
+    Const2A = 0x1E,
+    Const3A = 0x1F,
+}
+
+#[bitos(32)]
+#[derive(Debug, Default)]
+pub struct StageConstsPair {
+    #[bits(4..9)]
+    pub color_a: Constant,
+    #[bits(9..14)]
+    pub alpha_a: Constant,
+    #[bits(14..19)]
+    pub color_b: Constant,
+    #[bits(19..24)]
+    pub alpha_b: Constant,
+}
+
 #[bitos(4)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ColorInputSrc {
@@ -184,5 +234,6 @@ pub struct Interface {
     pub active_channels: u8,
     pub stage_ops: [StageOps; 16],
     pub stage_refs: [StageRefsPair; 8],
+    pub stage_consts: [StageConstsPair; 8],
     pub constants: [Rgba; 4],
 }

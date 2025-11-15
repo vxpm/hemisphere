@@ -309,6 +309,14 @@ impl Reg {
                 | Self::TevConstant1GB
                 | Self::TevConstant2AR
                 | Self::TevConstant2GB
+                | Self::TevKSel0
+                | Self::TevKSel1
+                | Self::TevKSel2
+                | Self::TevKSel3
+                | Self::TevKSel4
+                | Self::TevKSel5
+                | Self::TevKSel6
+                | Self::TevKSel7
         )
     }
 
@@ -669,6 +677,30 @@ impl System {
                 self.gpu.environment.constants[2].b = b as f32 / 255.0;
                 self.gpu.environment.constants[2].g = g as f32 / 255.0;
             }
+            Reg::TevKSel0 => {
+                value.write_ne_bytes(self.gpu.environment.stage_consts[0].as_mut_bytes());
+            }
+            Reg::TevKSel1 => {
+                value.write_ne_bytes(self.gpu.environment.stage_consts[1].as_mut_bytes());
+            }
+            Reg::TevKSel2 => {
+                value.write_ne_bytes(self.gpu.environment.stage_consts[2].as_mut_bytes());
+            }
+            Reg::TevKSel3 => {
+                value.write_ne_bytes(self.gpu.environment.stage_consts[3].as_mut_bytes());
+            }
+            Reg::TevKSel4 => {
+                value.write_ne_bytes(self.gpu.environment.stage_consts[4].as_mut_bytes());
+            }
+            Reg::TevKSel5 => {
+                value.write_ne_bytes(self.gpu.environment.stage_consts[5].as_mut_bytes());
+            }
+            Reg::TevKSel6 => {
+                value.write_ne_bytes(self.gpu.environment.stage_consts[6].as_mut_bytes());
+            }
+            Reg::TevKSel7 => {
+                value.write_ne_bytes(self.gpu.environment.stage_consts[7].as_mut_bytes());
+            }
 
             _ => tracing::warn!("unimplemented write to internal GX register {reg:?}"),
         }
@@ -683,10 +715,20 @@ impl System {
                 .cloned()
                 .enumerate()
                 .map(|(i, ops)| {
-                    let pair = &self.gpu.environment.stage_refs[i / 2];
+                    let ref_pair = &self.gpu.environment.stage_refs[i / 2];
+                    let const_pair = &self.gpu.environment.stage_consts[i / 2];
+
+                    let (refs, color_const, alpha_const) = if i % 2 == 0 {
+                        (ref_pair.a(), const_pair.color_a(), const_pair.alpha_a())
+                    } else {
+                        (ref_pair.b(), const_pair.color_b(), const_pair.alpha_b())
+                    };
+
                     TexEnvStage {
                         ops,
-                        refs: if i % 2 == 0 { pair.a() } else { pair.b() },
+                        refs,
+                        color_const,
+                        alpha_const,
                     }
                 })
                 .collect::<Vec<_>>();

@@ -281,11 +281,13 @@ fn fragment_stage(texenv: &TexEnvConfig) -> wesl::syntax::GlobalDeclaration {
             var last_color_output = R3;
             var last_alpha_output = R3;
             var regs: array<vec4f, 4>;
+            var consts: array<vec4f, 4>;
 
-            regs[R0] = #const_0;
-            regs[R1] = #const_1;
-            regs[R2] = #const_2;
-            regs[R3] = #const_3;
+            consts[R0] = #const_0;
+            consts[R1] = #const_1;
+            consts[R2] = #const_2;
+            consts[R3] = #const_3;
+            regs = consts;
 
             @#compute_stages {}
 

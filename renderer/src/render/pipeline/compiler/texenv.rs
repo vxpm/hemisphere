@@ -1,6 +1,6 @@
 use hemisphere::{
     render::TexEnvStage,
-    system::gpu::environment::{AlphaInputSrc, ColorChannel, ColorInputSrc},
+    system::gpu::environment::{AlphaInputSrc, ColorChannel, ColorInputSrc, Constant},
 };
 
 fn sample_tex(stage: &TexEnvStage) -> wesl::syntax::Expression {
@@ -27,6 +27,41 @@ fn get_color_channel(stage: &TexEnvStage) -> wesl::syntax::Expression {
         ColorChannel::ColorAlpha1 => wesl::quote_expression! { in.specular },
         ColorChannel::Zero => todo!(),
         ColorChannel::AlphaBump => wesl::quote_expression! { base::PLACEHOLDER_RGBA },
+    }
+}
+
+fn get_color_const(stage: &TexEnvStage) -> wesl::syntax::Expression {
+    use wesl::syntax::*;
+    match stage.color_const {
+        Constant::One => wesl::quote_expression! { vec4f(1.0) },
+        Constant::SevenEights => wesl::quote_expression! { vec4f(7.0 / 8.0) },
+        Constant::SixEights => wesl::quote_expression! { vec4f(6.0 / 8.0) },
+        Constant::FiveEights => wesl::quote_expression! { vec4f(5.0 / 8.0) },
+        Constant::FourEights => wesl::quote_expression! { vec4f(4.0 / 8.0) },
+        Constant::ThreeEights => wesl::quote_expression! { vec4f(3.0 / 8.0) },
+        Constant::TwoEights => wesl::quote_expression! { vec4f(2.0 / 8.0) },
+        Constant::OneEight => wesl::quote_expression! { vec4f(1.0 / 8.0) },
+        Constant::Const0 => wesl::quote_expression! { consts[R0] },
+        Constant::Const1 => wesl::quote_expression! { consts[R1] },
+        Constant::Const2 => wesl::quote_expression! { consts[R2] },
+        Constant::Const3 => wesl::quote_expression! { consts[R3] },
+        Constant::Const0R => wesl::quote_expression! { consts[R0].rrrr },
+        Constant::Const1R => wesl::quote_expression! { consts[R1].rrrr },
+        Constant::Const2R => wesl::quote_expression! { consts[R2].rrrr },
+        Constant::Const3R => wesl::quote_expression! { consts[R3].rrrr },
+        Constant::Const0G => wesl::quote_expression! { consts[R0].gggg },
+        Constant::Const1G => wesl::quote_expression! { consts[R1].gggg },
+        Constant::Const2G => wesl::quote_expression! { consts[R2].gggg },
+        Constant::Const3G => wesl::quote_expression! { consts[R3].gggg },
+        Constant::Const0B => wesl::quote_expression! { consts[R0].bbbb },
+        Constant::Const1B => wesl::quote_expression! { consts[R1].bbbb },
+        Constant::Const2B => wesl::quote_expression! { consts[R2].bbbb },
+        Constant::Const3B => wesl::quote_expression! { consts[R3].bbbb },
+        Constant::Const0A => wesl::quote_expression! { consts[R0].aaaa },
+        Constant::Const1A => wesl::quote_expression! { consts[R1].aaaa },
+        Constant::Const2A => wesl::quote_expression! { consts[R2].aaaa },
+        Constant::Const3A => wesl::quote_expression! { consts[R3].aaaa },
+        _ => panic!("reserved color constant"),
     }
 }
 
@@ -59,7 +94,10 @@ pub fn get_color_input(stage: &TexEnvStage, input: ColorInputSrc) -> wesl::synta
         }
         ColorInputSrc::One => wesl::quote_expression! { vec3f(1.0) },
         ColorInputSrc::Half => wesl::quote_expression! { vec3f(0.5) },
-        ColorInputSrc::Constant => wesl::quote_expression! { vec3f(0.5) }, // STUB
+        ColorInputSrc::Constant => {
+            let constant = get_color_const(stage);
+            wesl::quote_expression! { #constant.rgb }
+        }
         ColorInputSrc::Zero => wesl::quote_expression! { vec3f(0.0) },
     }
 }
@@ -79,7 +117,10 @@ pub fn get_alpha_input(stage: &TexEnvStage, input: AlphaInputSrc) -> wesl::synta
             let color = get_color_channel(stage);
             wesl::quote_expression! { #color.a }
         }
-        AlphaInputSrc::Constant => wesl::quote_expression! { 0.5 }, // STUB
+        AlphaInputSrc::Constant => {
+            let constant = get_color_const(stage);
+            wesl::quote_expression! { #constant.a }
+        }
         AlphaInputSrc::Zero => wesl::quote_expression! { 0.0 },
     }
 }
