@@ -1,9 +1,10 @@
 use crate::system::System;
 use bitos::{
-    bitos,
-    integer::{u2, u6, u7, u10},
+    BitUtils, bitos,
+    integer::{u2, u7, u10},
 };
 use strum::FromRepr;
+use zerocopy::IntoBytes;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, FromRepr)]
 #[repr(u8)]
@@ -60,33 +61,77 @@ pub struct CommControl {
     pub transfer_interrupt: bool,
 }
 
+#[bitos(6)]
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ChannelStatus {
+    #[bits(0)]
+    pub underrun: bool,
+    #[bits(1)]
+    pub overrun: bool,
+    #[bits(2)]
+    pub collision: bool,
+    #[bits(3)]
+    pub no_response: bool,
+    /// Whether the output buffer has not yet been copied.
+    #[bits(4)]
+    pub output_not_copied: bool,
+    /// Whether the input buffer has new data.
+    #[bits(5)]
+    pub input_ready: bool,
+}
+
 #[bitos(32)]
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Status {
     #[bits(0..6)]
-    pub channel3: u6,
+    pub channel3: ChannelStatus,
     #[bits(8..14)]
-    pub channel2: u6,
+    pub channel2: ChannelStatus,
     #[bits(16..22)]
-    pub channel1: u6,
-
-    #[bits(24)]
-    pub underrun_channel0: bool,
-    #[bits(25)]
-    pub overrun_channel0: bool,
-    #[bits(26)]
-    pub collision_channel0: bool,
-    #[bits(27)]
-    pub no_response_channel0: bool,
-    #[bits(28)]
-    pub buffer_not_copied: bool,
-    #[bits(29)]
-    pub data_empty: bool,
+    pub channel1: ChannelStatus,
+    #[bits(24..30)]
+    pub channel0: ChannelStatus,
     #[bits(31)]
-    pub idk_really: bool,
+    pub copy_buffers: bool,
+}
+
+impl Status {
+    pub fn channel(&self, n: usize) -> ChannelStatus {
+        match n {
+            0 => self.channel0(),
+            1 => self.channel1(),
+            2 => self.channel2(),
+            3 => self.channel3(),
+            _ => panic!("out of range channel"),
+        }
+    }
+
+    pub fn set_channel(&mut self, n: usize, value: ChannelStatus) {
+        match n {
+            0 => self.set_channel0(value),
+            1 => self.set_channel1(value),
+            2 => self.set_channel2(value),
+            3 => self.set_channel3(value),
+            _ => panic!("out of range channel"),
+        };
+    }
+}
+
+#[derive(Clone, Copy, Default)]
+pub struct ChannelOutput {
+    pub data: u32,
+    pub dirty: bool,
+}
+
+#[derive(Clone, Copy, Default)]
+pub struct ChannelInput {
+    pub low: u32,
+    pub high: u32,
 }
 
 pub struct Interface {
+    pub channel_output: [ChannelOutput; 4],
+    pub channel_input: [ChannelInput; 4],
     pub poll: Poll,
     pub comm_control: CommControl,
     pub status: Status,
@@ -95,15 +140,19 @@ pub struct Interface {
 
 impl Interface {
     pub fn any_interrupt(&self) -> bool {
+        let read = self.comm_control.read_interrupt() && self.comm_control.read_interrupt_mask();
         let transfer =
-            self.comm_control.transfer_interrupt() & self.comm_control.transfer_interrupt_mask();
-        transfer
+            self.comm_control.transfer_interrupt() && self.comm_control.transfer_interrupt_mask();
+
+        read || transfer
     }
 }
 
 impl Default for Interface {
     fn default() -> Self {
         Self {
+            channel_output: [Default::default(); 4],
+            channel_input: [Default::default(); 4],
             poll: Default::default(),
             comm_control: Default::default(),
             status: Default::default(),
@@ -112,16 +161,71 @@ impl Default for Interface {
     }
 }
 
-fn do_transfer(sys: &mut System) {
+#[bitos(64)]
+struct StandardController {
+    #[bits(0..8)]
+    pub analog_y: u8,
+    #[bits(8..16)]
+    pub analog_x: u8,
+    #[bits(16)]
+    pub pad_left: bool,
+    #[bits(17)]
+    pub pad_right: bool,
+    #[bits(18)]
+    pub pad_down: bool,
+    #[bits(19)]
+    pub pad_up: bool,
+    #[bits(20)]
+    pub trigger_z: bool,
+    #[bits(21)]
+    pub trigger_right: bool,
+    #[bits(22)]
+    pub trigger_left: bool,
+    #[bits(24)]
+    pub button_a: bool,
+    #[bits(25)]
+    pub button_b: bool,
+    #[bits(26)]
+    pub button_x: bool,
+    #[bits(27)]
+    pub button_y: bool,
+    #[bits(28)]
+    pub button_start: bool,
+
+    #[bits(32..40)]
+    pub analog_trigger_right: u8,
+    #[bits(40..48)]
+    pub analog_trigger_left: u8,
+    #[bits(48..56)]
+    pub sub_analog_y: u8,
+    #[bits(56..64)]
+    pub sub_analog_x: u8,
+}
+
+fn poll_controller(sys: &mut System, channel: usize) {
+    let controller = StandardController::from_bits(0)
+        .with_analog_y(128)
+        .with_analog_x(128)
+        .with_sub_analog_y(128)
+        .with_sub_analog_x(128)
+        .to_bits();
+
+    sys.serial.channel_input[channel].low = controller.bits(32, 64) as u32;
+    sys.serial.channel_input[channel].high = controller.bits(0, 32) as u32;
+
+    let mut status = sys.serial.status.channel(channel);
+    status.set_input_ready(true);
+    sys.serial.status.set_channel(channel, status);
+    sys.serial.comm_control.set_read_interrupt(true);
+}
+
+fn process_cmd(sys: &mut System, channel: usize) {
     let mut i = 0;
     let mut read = || {
         let value = sys.serial.buffer[i];
         i += 1;
         value
     };
-
-    dbg!(sys.serial.comm_control);
-    tracing::debug!("transfer");
 
     let cmd = read();
     let Some(cmd) = Command::from_repr(cmd) else {
@@ -131,28 +235,32 @@ fn do_transfer(sys: &mut System) {
     match cmd {
         Command::Info => {
             tracing::debug!("info");
-            assert_eq!(sys.serial.comm_control.output_length().value(), 1);
-            assert_eq!(sys.serial.comm_control.input_length().value(), 3);
             sys.serial.buffer[..3].copy_from_slice(&[0x09, 0x00, 0x00]);
         }
         Command::Poll => {
-            todo!("si poll")
+            tracing::debug!("poll");
+            let format = read();
+            assert_eq!(format, 3);
+            poll_controller(sys, channel);
         }
         Command::GetOrigin => {
             tracing::debug!("get_origin");
-            assert_eq!(sys.serial.comm_control.output_length().value(), 1);
-            assert_eq!(sys.serial.comm_control.input_length().value(), 10);
             sys.serial.buffer[..10]
                 .copy_from_slice(&[0x00, 0x00, 0x80, 0x80, 0x80, 0x80, 0x00, 0x00, 0x00, 0x00]);
         }
         Command::Calibrate => {
             tracing::debug!("calibrate");
-            assert_eq!(sys.serial.comm_control.output_length().value(), 3);
-            assert_eq!(sys.serial.comm_control.input_length().value(), 10);
             sys.serial.buffer[..10]
                 .copy_from_slice(&[0x00, 0x00, 0x80, 0x80, 0x80, 0x80, 0x00, 0x00, 0x00, 0x00]);
         }
     }
+}
+
+fn do_transfer(sys: &mut System) {
+    dbg!(sys.serial.comm_control);
+    tracing::debug!("transfer");
+
+    process_cmd(sys, sys.serial.comm_control.channel().value() as usize);
 
     sys.serial.comm_control.set_transfer_start(false);
     sys.serial.comm_control.set_transfer_interrupt(true);
@@ -198,5 +306,19 @@ pub fn write_comm_control(sys: &mut System, value: CommControl) {
 
     if value.transfer_start() {
         sys.scheduler.schedule(200, do_transfer);
+    }
+}
+
+pub fn write_status(sys: &mut System, value: Status) {
+    if value.copy_buffers() {
+        for channel in 0..4 {
+            if std::mem::take(&mut sys.serial.channel_output[channel].dirty) {
+                sys.serial.buffer[..3].copy_from_slice(
+                    &sys.serial.channel_output[channel].data.to_be().as_bytes()[1..4],
+                );
+
+                process_cmd(sys, channel);
+            }
+        }
     }
 }

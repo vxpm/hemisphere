@@ -182,6 +182,18 @@ impl System {
             Mmio::DiskConfiguration => ne!(self.disk.config.as_bytes()),
 
             // === Serial Interface ===
+            Mmio::SerialOutputBuf0 => ne!(self.serial.channel_output[0].data.as_bytes()),
+            Mmio::SerialInput0High => ne!(self.serial.channel_input[0].high.as_bytes()),
+            Mmio::SerialInput0Low => ne!(self.serial.channel_input[0].low.as_bytes()),
+            Mmio::SerialOutputBuf1 => ne!(self.serial.channel_output[1].data.as_bytes()),
+            Mmio::SerialInput1High => ne!(self.serial.channel_input[1].high.as_bytes()),
+            Mmio::SerialInput1Low => ne!(self.serial.channel_input[1].low.as_bytes()),
+            Mmio::SerialOutputBuf2 => ne!(self.serial.channel_output[2].data.as_bytes()),
+            Mmio::SerialInput2High => ne!(self.serial.channel_input[2].high.as_bytes()),
+            Mmio::SerialInput2Low => ne!(self.serial.channel_input[2].low.as_bytes()),
+            Mmio::SerialOutputBuf3 => ne!(self.serial.channel_output[3].data.as_bytes()),
+            Mmio::SerialInput3High => ne!(self.serial.channel_input[3].high.as_bytes()),
+            Mmio::SerialInput3Low => ne!(self.serial.channel_input[3].low.as_bytes()),
             Mmio::SerialPoll => ne!(self.serial.poll.as_bytes()),
             Mmio::SerialCommControl => ne!(self.serial.comm_control.as_bytes()),
             Mmio::SerialStatus => ne!(self.serial.status.as_bytes()),
@@ -500,6 +512,22 @@ impl System {
             }
 
             // === Serial Interface ===
+            Mmio::SerialOutputBuf0 => {
+                ne!(self.serial.channel_output[0].data.as_mut_bytes());
+                self.serial.channel_output[0].dirty = true;
+            }
+            Mmio::SerialOutputBuf1 => {
+                ne!(self.serial.channel_output[1].data.as_mut_bytes());
+                self.serial.channel_output[1].dirty = true;
+            }
+            Mmio::SerialOutputBuf2 => {
+                ne!(self.serial.channel_output[2].data.as_mut_bytes());
+                self.serial.channel_output[2].dirty = true;
+            }
+            Mmio::SerialOutputBuf3 => {
+                ne!(self.serial.channel_output[3].data.as_mut_bytes());
+                self.serial.channel_output[3].dirty = true;
+            }
             Mmio::SerialPoll => {
                 ne!(self.serial.poll.as_mut_bytes());
                 tracing::debug!("SI poll: {:?}", self.serial.poll);
@@ -510,8 +538,9 @@ impl System {
                 serial::write_comm_control(self, written);
             }
             Mmio::SerialStatus => {
-                ne!(self.serial.status.as_mut_bytes());
-                tracing::debug!("SI status: {:?}", self.serial.status);
+                let mut written = self.serial.status.clone();
+                ne!(written.as_mut_bytes());
+                serial::write_status(self, written);
             }
             Mmio::SerialBuffer => {
                 value.write_be_bytes(&mut self.serial.buffer[offset..offset + size_of::<P>()])

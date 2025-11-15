@@ -142,6 +142,22 @@ mmio! {
     0x6024, 4, DiskConfiguration;
 
     // === Serial Interface ===
+    0x6400, 4, SerialOutputBuf0;
+    0x6404, 4, SerialInput0High;
+    0x6408, 4, SerialInput0Low;
+
+    0x640C, 4, SerialOutputBuf1;
+    0x6410, 4, SerialInput1High;
+    0x6414, 4, SerialInput1Low;
+
+    0x6418, 4, SerialOutputBuf2;
+    0x641C, 4, SerialInput2High;
+    0x6420, 4, SerialInput2Low;
+
+    0x6424, 4, SerialOutputBuf3;
+    0x6428, 4, SerialInput3High;
+    0x642C, 4, SerialInput3Low;
+
     0x6430, 4, SerialPoll;
     0x6434, 4, SerialCommControl;
     0x6438, 4, SerialStatus;
