@@ -3,6 +3,16 @@ use bitos::{
     bitos,
     integer::{u2, u6, u7, u10},
 };
+use strum::FromRepr;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, FromRepr)]
+#[repr(u8)]
+enum Command {
+    Info = 0x00,
+    Poll = 0x40,
+    GetOrigin = 0x41,
+    Calibrate = 0x42,
+}
 
 /// Decive polling configuration.
 #[bitos(32)]
@@ -114,18 +124,39 @@ fn do_transfer(sys: &mut System) {
     tracing::debug!("transfer");
 
     let cmd = read();
+    let Some(cmd) = Command::from_repr(cmd) else {
+        todo!("unknown SI command {cmd:?}")
+    };
+
     match cmd {
-        0x00 => {
+        Command::Info => {
+            tracing::debug!("info");
             assert_eq!(sys.serial.comm_control.output_length().value(), 1);
             assert_eq!(sys.serial.comm_control.input_length().value(), 3);
             sys.serial.buffer[..3].copy_from_slice(&[0x09, 0x00, 0x00]);
         }
-        _ => todo!("{cmd:02X}"),
+        Command::Poll => {
+            todo!("si poll")
+        }
+        Command::GetOrigin => {
+            tracing::debug!("get_origin");
+            assert_eq!(sys.serial.comm_control.output_length().value(), 1);
+            assert_eq!(sys.serial.comm_control.input_length().value(), 10);
+            sys.serial.buffer[..10]
+                .copy_from_slice(&[0x00, 0x00, 0x80, 0x80, 0x80, 0x80, 0x00, 0x00, 0x00, 0x00]);
+        }
+        Command::Calibrate => {
+            tracing::debug!("calibrate");
+            assert_eq!(sys.serial.comm_control.output_length().value(), 3);
+            assert_eq!(sys.serial.comm_control.input_length().value(), 10);
+            sys.serial.buffer[..10]
+                .copy_from_slice(&[0x00, 0x00, 0x80, 0x80, 0x80, 0x80, 0x00, 0x00, 0x00, 0x00]);
+        }
     }
 
     sys.serial.comm_control.set_transfer_start(false);
     sys.serial.comm_control.set_transfer_interrupt(true);
-    // sys.pi_check_interrupts();
+    sys.pi_check_interrupts();
 }
 
 pub fn write_comm_control(sys: &mut System, value: CommControl) {
