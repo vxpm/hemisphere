@@ -17,6 +17,8 @@ use ppcjit::{
 use slotmap::{SlotMap, new_key_type};
 use std::{collections::BTreeMap, ops::Range};
 
+pub use ppcjit;
+
 /// A page is 4096 (1^12) bytes. Therefore, there are 2^20 pages.
 const PAGE_COUNT: usize = 1 << 20;
 type PageLut = Box<[u16; PAGE_COUNT]>;
@@ -431,12 +433,15 @@ static CTX_HOOKS: Hooks = {
 pub struct Config {
     /// Maximum number of instructions per JIT block.
     pub instr_per_block: u32,
+    /// Code generation settings.
+    pub jit_settings: ppcjit::Settings,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
-            instr_per_block: 512,
+            instr_per_block: 256,
+            jit_settings: Default::default(),
         }
     }
 }
@@ -450,9 +455,9 @@ pub struct JitCore {
 impl JitCore {
     pub fn new(config: Config) -> Self {
         Self {
-            config,
-            compiler: ppcjit::Compiler::default(),
+            compiler: ppcjit::Compiler::new(config.jit_settings.clone()),
             blocks: Blocks::default(),
+            config,
         }
     }
 

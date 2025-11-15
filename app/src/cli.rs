@@ -24,7 +24,17 @@ pub struct Args {
     /// Whether to start running right away
     #[arg(short, long, default_value_t = false)]
     pub run: bool,
+
     /// Maximum number of instructions per block
     #[arg(visible_alias("ipb"), long, default_value_t = 256)]
     pub instr_per_block: u32,
+    /// Whether to treat syscalls as no-ops
+    #[arg(long, default_value_t = false)]
+    pub nop_syscalls: bool,
+    /// Whether to ignore the FPU enabled bit in MSR
+    #[arg(long, default_value_t = false)]
+    pub force_fpu: bool,
+    /// Whether to ignore unimplemented instructions
+    #[arg(long, default_value_t = false)]
+    pub ignore_unimplemented_instr: bool,
 }

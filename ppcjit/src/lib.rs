@@ -18,9 +18,30 @@ use std::sync::Arc;
 pub use block::{Block, BlockFn};
 pub use sequence::Sequence;
 
+#[derive(Debug, Clone)]
+pub struct Settings {
+    /// Whether to treat `sc` instructions as no-ops.
+    pub nop_syscalls: bool,
+    /// Whether to ignore the FPU enabled bit in MSR.
+    pub force_fpu: bool,
+    /// Whether to ignore unimplemented instructions instead of panicking.
+    pub ignore_unimplemented: bool,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            nop_syscalls: false,
+            force_fpu: false,
+            ignore_unimplemented: false,
+        }
+    }
+}
+
 /// A JIT compiler, producing [`Block`]s.
 pub struct Compiler {
     isa: Arc<dyn codegen::isa::TargetIsa>,
+    settings: Settings,
     func_ctx: frontend::FunctionBuilderContext,
 }
 
@@ -53,7 +74,17 @@ impl Default for Compiler {
 
         Self {
             isa,
+            settings: Default::default(),
             func_ctx: frontend::FunctionBuilderContext::new(),
+        }
+    }
+}
+
+impl Compiler {
+    pub fn new(settings: Settings) -> Self {
+        Self {
+            settings,
+            ..Default::default()
         }
     }
 }
@@ -87,7 +118,7 @@ impl Compiler {
         let mut func = ir::Function::new();
         func.signature = self.block_signature();
 
-        let builder = BlockBuilder::new(&*self.isa, &mut func, &mut self.func_ctx);
+        let builder = BlockBuilder::new(&*self.isa, &self.settings, &mut func, &mut self.func_ctx);
         let (sequence, cycles) = builder.build(instructions).context(BuildCtx::Builder)?;
         if sequence.is_empty() {
             return Err(BuildError::EmptyBlock);

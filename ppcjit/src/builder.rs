@@ -8,7 +8,7 @@ mod memory;
 mod others;
 mod util;
 
-use crate::{Sequence, block::Hooks, builder::util::IntoIrValue};
+use crate::{Sequence, Settings, block::Hooks, builder::util::IntoIrValue};
 use cranelift::{
     codegen::ir::{self, SigRef},
     frontend,
@@ -92,6 +92,7 @@ struct CachedValue {
 
 /// Structure to build JIT blocks.
 pub struct BlockBuilder<'ctx> {
+    settings: Settings,
     bd: frontend::FunctionBuilder<'ctx>,
     cache: FxHashMap<Reg, CachedValue>,
     ps_cache: FxHashMap<FPR, CachedValue>,
@@ -108,6 +109,7 @@ pub struct BlockBuilder<'ctx> {
 impl<'ctx> BlockBuilder<'ctx> {
     pub fn new(
         isa: &'ctx dyn TargetIsa,
+        settings: &'ctx Settings,
         func: &'ctx mut ir::Function,
         ctx: &'ctx mut frontend::FunctionBuilderContext,
     ) -> Self {
@@ -147,6 +149,7 @@ impl<'ctx> BlockBuilder<'ctx> {
         };
 
         Self {
+            settings: settings.clone(),
             bd: builder,
             cache: FxHashMap::default(),
             ps_cache: FxHashMap::default(),
@@ -599,9 +602,19 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Xori => self.xori(ins),
             Opcode::Xoris => self.xoris(ins),
             Opcode::Illegal => {
-                return Err(BuilderError::Illegal(ins));
+                if self.settings.ignore_unimplemented {
+                    self.stub(ins)
+                } else {
+                    return Err(BuilderError::Illegal(ins));
+                }
             }
-            _ => todo!("unimplemented instruction {ins:?}"),
+            _ => {
+                if self.settings.ignore_unimplemented {
+                    self.stub(ins)
+                } else {
+                    todo!("unimplemented instruction {ins:?}")
+                }
+            }
         };
 
         self.executed += 1;

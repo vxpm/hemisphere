@@ -5,11 +5,11 @@ use crate::{
     block::Hooks,
     builder::{Action, Info},
 };
-use gekko::{Cpu, Exception, Reg, SPR, disasm::Ins};
 use cranelift::{
     codegen::ir,
     prelude::{InstBuilder, isa},
 };
+use gekko::{Cpu, Exception, Reg, SPR, disasm::Ins};
 
 const RFI_INFO: Info = Info {
     cycles: 2,
@@ -66,7 +66,7 @@ impl BlockBuilder<'_> {
 
     /// Checks whether floating point operations are enabled in MSR and raises an exception if not.
     pub fn check_floats(&mut self) {
-        if self.floats_checked {
+        if self.floats_checked || self.settings.force_fpu {
             return;
         }
         self.floats_checked = true;
@@ -95,6 +95,10 @@ impl BlockBuilder<'_> {
     }
 
     pub fn sc(&mut self, _: Ins) -> Info {
+        if self.settings.nop_syscalls {
+            return self.nop(Action::FlushAndPrologue);
+        }
+
         self.raise_exception(Exception::Syscall);
         EXCEPTION_INFO
     }
