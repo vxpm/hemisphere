@@ -72,9 +72,8 @@ impl Memory {
 
         let ipl_message = CStr::from_bytes_until_nul(&ipl).unwrap();
         let pal_message = "(C) 1999-2001 Nintendo.  All rights reserved.(C) 1999 ArtX Inc.  All rights reserved.PAL  Revision 1.0  ";
-        if ipl_message.to_str().is_ok_and(|s| dbg!(s) == pal_message) {
+        if ipl_message.to_str().is_ok_and(|s| s == pal_message) {
             tracing::info!("IPL was detected as EU/PAL.");
-            println!("yup, IS PAL!!!!!!!!!!!!!!!!!");
             decode_ipl(&mut ipl[0x0000_0100..0x001A_EEE8]);
         } else {
             tracing::info!("IPL was not detected as EU/PAL. Assuming USA/NTSC.");
