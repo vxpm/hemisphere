@@ -336,9 +336,7 @@ pub fn compile(texenv: &TexEnvConfig, texgen: &TexGenConfig) -> String {
     };
 
     let code = compiled.syntax.to_string();
-    if texenv.stages.len() > 1 {
-        println!("{}", code);
-    }
+    println!("{}", code);
 
     code
 }

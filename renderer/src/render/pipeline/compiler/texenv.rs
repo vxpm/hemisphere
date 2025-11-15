@@ -59,7 +59,7 @@ pub fn get_color_input(stage: &TexEnvStage, input: ColorInputSrc) -> wesl::synta
         }
         ColorInputSrc::One => wesl::quote_expression! { vec3f(1.0) },
         ColorInputSrc::Half => wesl::quote_expression! { vec3f(0.5) },
-        ColorInputSrc::Constant => todo!(),
+        ColorInputSrc::Constant => wesl::quote_expression! { vec3f(0.5) }, // STUB
         ColorInputSrc::Zero => wesl::quote_expression! { vec3f(0.0) },
     }
 }
