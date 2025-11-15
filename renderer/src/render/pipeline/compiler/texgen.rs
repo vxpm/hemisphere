@@ -7,7 +7,7 @@ pub fn get_source(source: TexGenSource) -> wesl::syntax::Expression {
     use wesl::syntax::*;
     match source {
         TexGenSource::Position => wesl::quote_expression! { vertex.position },
-        TexGenSource::Normal => wesl::quote_expression! { vertex.position },
+        TexGenSource::Normal => wesl::quote_expression! { vertex.normal },
         TexGenSource::Color => todo!(),
         TexGenSource::TexCoord0 => wesl::quote_expression! { vec3f(vertex.tex_coord[0], 0.0) },
         TexGenSource::TexCoord1 => wesl::quote_expression! { vec3f(vertex.tex_coord[1], 0.0) },
@@ -29,8 +29,8 @@ pub fn get_input(
 ) -> wesl::syntax::Expression {
     use wesl::syntax::*;
     match format {
-        TexGenInputKind::AB11 => wesl::quote_expression! { vec4f(#source, 1.0) },
-        TexGenInputKind::ABC1 => wesl::quote_expression! { vec4f(#source.xy, 1.0, 1.0) },
+        TexGenInputKind::AB11 => wesl::quote_expression! { vec4f(#source.xy, 1.0, 1.0) },
+        TexGenInputKind::ABC1 => wesl::quote_expression! { vec4f(#source, 1.0) },
     }
 }
 
