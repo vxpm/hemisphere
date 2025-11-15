@@ -146,7 +146,7 @@ mmio! {
     0x6434, 4, SerialCommControl;
     0x6438, 4, SerialStatus;
     0x643C, 4, SerialExiClock;
-    0x6480, 4, SerialBuffer;
+    0x6480, 128, SerialBuffer;
 
     // === External Interface ===
     0x6800, 4, ExiChannel0Param;

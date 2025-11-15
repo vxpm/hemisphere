@@ -1,8 +1,10 @@
+use crate::system::System;
 use bitos::{
     bitos,
     integer::{u2, u6, u7, u10},
 };
 
+/// Decive polling configuration.
 #[bitos(32)]
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Poll {
@@ -74,9 +76,96 @@ pub struct Status {
     pub idk_really: bool,
 }
 
-#[derive(Default)]
 pub struct Interface {
     pub poll: Poll,
     pub comm_control: CommControl,
     pub status: Status,
+    pub buffer: [u8; 128],
+}
+
+impl Interface {
+    pub fn any_interrupt(&self) -> bool {
+        let transfer =
+            self.comm_control.transfer_interrupt() & self.comm_control.transfer_interrupt_mask();
+        transfer
+    }
+}
+
+impl Default for Interface {
+    fn default() -> Self {
+        Self {
+            poll: Default::default(),
+            comm_control: Default::default(),
+            status: Default::default(),
+            buffer: [0; 128],
+        }
+    }
+}
+
+fn do_transfer(sys: &mut System) {
+    let mut i = 0;
+    let mut read = || {
+        let value = sys.serial.buffer[i];
+        i += 1;
+        value
+    };
+
+    dbg!(sys.serial.comm_control);
+    tracing::debug!("transfer");
+
+    let cmd = read();
+    match cmd {
+        0x00 => {
+            assert_eq!(sys.serial.comm_control.output_length().value(), 1);
+            assert_eq!(sys.serial.comm_control.input_length().value(), 3);
+            sys.serial.buffer[..3].copy_from_slice(&[0x09, 0x00, 0x00]);
+        }
+        _ => todo!("{cmd:02X}"),
+    }
+
+    sys.serial.comm_control.set_transfer_start(false);
+    sys.serial.comm_control.set_transfer_interrupt(true);
+    // sys.pi_check_interrupts();
+}
+
+pub fn write_comm_control(sys: &mut System, value: CommControl) {
+    sys.serial
+        .comm_control
+        .set_transfer_start(value.transfer_start());
+    sys.serial.comm_control.set_channel(value.channel());
+    sys.serial
+        .comm_control
+        .set_enable_callback(value.enable_callback());
+    sys.serial
+        .comm_control
+        .set_enable_command(value.enable_command());
+    sys.serial
+        .comm_control
+        .set_input_length(value.input_length());
+    sys.serial
+        .comm_control
+        .set_output_length(value.output_length());
+    sys.serial
+        .comm_control
+        .set_enable_channel(value.enable_channel());
+    sys.serial
+        .comm_control
+        .set_channel_number(value.channel_number());
+
+    sys.serial
+        .comm_control
+        .set_read_interrupt_mask(value.read_interrupt_mask());
+    sys.serial
+        .comm_control
+        .set_read_interrupt(sys.serial.comm_control.read_interrupt() & !value.read_interrupt());
+    sys.serial
+        .comm_control
+        .set_transfer_interrupt_mask(value.transfer_interrupt_mask());
+    sys.serial.comm_control.set_transfer_interrupt(
+        sys.serial.comm_control.transfer_interrupt() & !value.transfer_interrupt(),
+    );
+
+    if value.transfer_start() {
+        sys.scheduler.schedule(200, do_transfer);
+    }
 }

@@ -134,6 +134,9 @@ impl System {
         // DI
         sources.set_dvd_interface(self.disk.status.any_interrupt());
 
+        // SI
+        sources.set_serial_interface(self.serial.any_interrupt());
+
         sources
     }
 

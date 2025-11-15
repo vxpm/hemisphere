@@ -6,7 +6,7 @@ use crate::system::{
     System, disk, external,
     mem::{IPL_LEN, RAM_LEN},
 };
-use crate::system::{audio, dspi};
+use crate::system::{audio, dspi, serial};
 use gekko::Address;
 use std::ops::Range;
 use zerocopy::IntoBytes;
@@ -154,7 +154,7 @@ impl System {
                 let data = ne!(self.dsp.dsp_mailbox.as_bytes());
                 let status = self.dsp.dsp_mailbox.status();
 
-                if range_overlap(mmio_range, 0..2) && status {
+                if range_overlap(mmio_range.clone(), 0..2) && status {
                     tracing::debug!(
                         "received from DSP mailbox: 0x{:08X}",
                         self.dsp.dsp_mailbox.data().value()
@@ -185,6 +185,9 @@ impl System {
             Mmio::SerialPoll => ne!(self.serial.poll.as_bytes()),
             Mmio::SerialCommControl => ne!(self.serial.comm_control.as_bytes()),
             Mmio::SerialStatus => ne!(self.serial.status.as_bytes()),
+            Mmio::SerialBuffer => {
+                P::read_be_bytes(&self.serial.buffer[offset..offset + size_of::<P>()])
+            }
 
             // === External Interface ===
             Mmio::ExiChannel0Param => ne!(self.external.channel0.parameter.as_bytes()),
@@ -222,10 +225,9 @@ impl System {
         if reg.log_reads() {
             tracing::debug!(
                 pc = ?self.cpu.pc,
-                "reading from {:?}[{}..{}]: {:08X}",
+                "reading from {:?}[{:?}]: {:08X}",
                 reg,
-                offset,
-                offset + size_of::<P>(),
+                mmio_range,
                 value
             );
         }
@@ -503,12 +505,16 @@ impl System {
                 tracing::debug!("SI poll: {:?}", self.serial.poll);
             }
             Mmio::SerialCommControl => {
-                ne!(self.serial.comm_control.as_mut_bytes());
-                tracing::debug!("SI comm: {:?}", self.serial.comm_control);
+                let mut written = self.serial.comm_control.clone();
+                ne!(written.as_mut_bytes());
+                serial::write_comm_control(self, written);
             }
             Mmio::SerialStatus => {
                 ne!(self.serial.status.as_mut_bytes());
                 tracing::debug!("SI status: {:?}", self.serial.status);
+            }
+            Mmio::SerialBuffer => {
+                value.write_be_bytes(&mut self.serial.buffer[offset..offset + size_of::<P>()])
             }
 
             // === External Interface ===
