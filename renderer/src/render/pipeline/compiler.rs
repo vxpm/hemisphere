@@ -338,7 +338,5 @@ pub fn compile(texenv: &TexEnvConfig, texgen: &TexGenConfig) -> String {
     };
 
     let code = compiled.syntax.to_string();
-    println!("{}", code);
-
     code
 }

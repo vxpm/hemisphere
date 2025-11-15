@@ -1,3 +1,5 @@
+use std::ffi::CStr;
+
 pub const RAM_LEN: u32 = 24 * bytesize::MIB as u32;
 pub const L2C_LEN: u32 = 16 * bytesize::KIB as u32;
 pub const IPL_LEN: u32 = 2 * bytesize::MIB as u32;
@@ -68,8 +70,16 @@ impl Memory {
     pub fn new(mut ipl: Vec<u8>) -> Self {
         assert_eq!(ipl.len(), IPL_LEN as usize);
 
-        // TODO: the range depends on the IPL ROM! this is hardcoded for PAL
-        decode_ipl(&mut ipl[0x0000_0100..0x001A_EEE8]);
+        let ipl_message = CStr::from_bytes_until_nul(&ipl).unwrap();
+        let pal_message = "(C) 1999-2001 Nintendo.  All rights reserved.(C) 1999 ArtX Inc.  All rights reserved.PAL  Revision 1.0  ";
+        if ipl_message.to_str().is_ok_and(|s| dbg!(s) == pal_message) {
+            tracing::info!("IPL was detected as EU/PAL.");
+            println!("yup, IS PAL!!!!!!!!!!!!!!!!!");
+            decode_ipl(&mut ipl[0x0000_0100..0x001A_EEE8]);
+        } else {
+            tracing::info!("IPL was not detected as EU/PAL. Assuming USA/NTSC.");
+            decode_ipl(&mut ipl[0x0000_0000..0x0015_EE40]);
+        }
 
         Self {
             ram: util::boxed_array(0),
