@@ -253,7 +253,6 @@ impl Renderer {
         self.pipeline.settings.blend_src = src;
         self.pipeline.settings.blend_dst = dst;
         self.pipeline.settings.blend_op = op;
-        self.pipeline.update(&self.device);
     }
 
     pub fn set_depth_mode(&mut self, mode: DepthMode) {
@@ -273,7 +272,6 @@ impl Renderer {
         self.pipeline.settings.depth_enabled = mode.enable();
         self.pipeline.settings.depth_write = mode.update();
         self.pipeline.settings.depth_compare = compare;
-        self.pipeline.update(&self.device);
     }
 
     pub fn set_projection_mat(&mut self, mat: Mat4) {
@@ -284,12 +282,10 @@ impl Renderer {
 
     pub fn set_texenv_config(&mut self, config: TexEnvConfig) {
         self.pipeline.settings.texenv = config;
-        self.pipeline.update(&self.device);
     }
 
     pub fn set_texgen_config(&mut self, config: TexGenConfig) {
         self.pipeline.settings.texgen = config;
-        self.pipeline.update(&self.device);
     }
 
     pub fn load_texture(&mut self, id: u32, width: u32, height: u32, data: &[u8]) {
@@ -360,6 +356,8 @@ impl Renderer {
         if self.vertices.is_empty() {
             return;
         }
+
+        self.pipeline.update(&self.device);
 
         let index_buf =
             self.index_buffers
