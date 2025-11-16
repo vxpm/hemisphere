@@ -1,6 +1,6 @@
 use crate::system::System;
 use bitos::{
-    bitos,
+    BitUtils, bitos,
     integer::{u15, u31},
 };
 use gekko::Address;
@@ -81,6 +81,13 @@ pub struct AramDmaControl {
     pub direction: AramDmaDirection,
 }
 
+#[derive(Default)]
+pub struct AramDma {
+    pub ram_base: Address,
+    pub aram_base: u32,
+    pub control: AramDmaControl,
+}
+
 #[bitos(1)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DspDmaDirection {
@@ -112,13 +119,6 @@ pub struct DspDma {
     pub dsp_base: u16,
     pub length: u16,
     pub control: DspDmaControl,
-}
-
-#[derive(Default)]
-pub struct AramDma {
-    pub ram_base: Address,
-    pub aram_base: u32,
-    pub control: AramDmaControl,
 }
 
 #[derive(Default)]
@@ -167,12 +167,9 @@ pub fn write_control(sys: &mut System, value: Control) {
 
 /// Performs the ARAM DMA if length is not zero.
 pub fn aram_dma(sys: &mut System) {
-    let length = 4 * sys.dsp.aram_dma.control.length().value() as usize;
+    let length = sys.dsp.aram_dma.control.length().value() as usize;
     if length != 0 {
-        let ram_base = sys
-            .mmu
-            .translate_data_addr(sys.dsp.aram_dma.ram_base.value())
-            .unwrap_or(sys.dsp.aram_dma.ram_base.value());
+        let ram_base = sys.dsp.aram_dma.ram_base.value().with_bits(26, 32, 0);
         let aram_base = sys.dsp.aram_dma.aram_base & 0x00FF_FFFF;
 
         match sys.dsp.aram_dma.control.direction() {
@@ -182,8 +179,8 @@ pub fn aram_dma(sys: &mut System) {
                     Address(ram_base)
                 );
 
-                sys.mem.aram[aram_base as usize..][..length]
-                    .copy_from_slice(&sys.mem.ram[ram_base as usize..][..length]);
+                let aram = &mut sys.mem.aram[aram_base as usize..][..length];
+                aram.copy_from_slice(&sys.mem.ram[ram_base as usize..][..length]);
             }
             AramDmaDirection::FromAramToRam => {
                 tracing::debug!(

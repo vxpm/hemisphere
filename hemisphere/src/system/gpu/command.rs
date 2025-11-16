@@ -486,7 +486,10 @@ impl Gpu {
         let mut reader = self.command.queue.reader();
 
         let opcode = Opcode::from_bits(reader.read_be()?);
-        let operation = opcode.operation().unwrap();
+        let Some(operation) = opcode.operation() else {
+            panic!("unknown opcode 0x{:02X?}", opcode.0);
+        };
+
         let command = match operation {
             Operation::NOP => Command::Nop,
             Operation::SetCP => {

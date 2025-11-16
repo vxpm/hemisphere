@@ -19,6 +19,7 @@ use bitos::{
 };
 use gekko::Address;
 use glam::{Mat3, Mat4, Vec2, Vec3};
+use seq_macro::seq;
 use strum::FromRepr;
 use zerocopy::IntoBytes;
 
@@ -522,15 +523,99 @@ impl System {
                 value.write_ne_bytes(self.gpu.texture.maps[0].mode.as_mut_bytes());
                 self.gpu.texture.maps[0].dirty = true;
             }
+            Reg::TexMode1 => {
+                value.write_ne_bytes(self.gpu.texture.maps[1].mode.as_mut_bytes());
+                self.gpu.texture.maps[1].dirty = true;
+            }
+            Reg::TexMode2 => {
+                value.write_ne_bytes(self.gpu.texture.maps[2].mode.as_mut_bytes());
+                self.gpu.texture.maps[2].dirty = true;
+            }
+            Reg::TexMode3 => {
+                value.write_ne_bytes(self.gpu.texture.maps[3].mode.as_mut_bytes());
+                self.gpu.texture.maps[3].dirty = true;
+            }
+            Reg::TexMode4 => {
+                value.write_ne_bytes(self.gpu.texture.maps[4].mode.as_mut_bytes());
+                self.gpu.texture.maps[4].dirty = true;
+            }
+            Reg::TexMode5 => {
+                value.write_ne_bytes(self.gpu.texture.maps[5].mode.as_mut_bytes());
+                self.gpu.texture.maps[5].dirty = true;
+            }
+            Reg::TexMode6 => {
+                value.write_ne_bytes(self.gpu.texture.maps[6].mode.as_mut_bytes());
+                self.gpu.texture.maps[6].dirty = true;
+            }
+            Reg::TexMode7 => {
+                value.write_ne_bytes(self.gpu.texture.maps[7].mode.as_mut_bytes());
+                self.gpu.texture.maps[7].dirty = true;
+            }
 
             Reg::TexFormat0 => {
                 value.write_ne_bytes(self.gpu.texture.maps[0].format.as_mut_bytes());
                 self.gpu.texture.maps[0].dirty = true;
             }
+            Reg::TexFormat1 => {
+                value.write_ne_bytes(self.gpu.texture.maps[1].format.as_mut_bytes());
+                self.gpu.texture.maps[1].dirty = true;
+            }
+            Reg::TexFormat2 => {
+                value.write_ne_bytes(self.gpu.texture.maps[2].format.as_mut_bytes());
+                self.gpu.texture.maps[2].dirty = true;
+            }
+            Reg::TexFormat3 => {
+                value.write_ne_bytes(self.gpu.texture.maps[3].format.as_mut_bytes());
+                self.gpu.texture.maps[3].dirty = true;
+            }
+            Reg::TexFormat4 => {
+                value.write_ne_bytes(self.gpu.texture.maps[4].format.as_mut_bytes());
+                self.gpu.texture.maps[4].dirty = true;
+            }
+            Reg::TexFormat5 => {
+                value.write_ne_bytes(self.gpu.texture.maps[5].format.as_mut_bytes());
+                self.gpu.texture.maps[5].dirty = true;
+            }
+            Reg::TexFormat6 => {
+                value.write_ne_bytes(self.gpu.texture.maps[6].format.as_mut_bytes());
+                self.gpu.texture.maps[6].dirty = true;
+            }
+            Reg::TexFormat7 => {
+                value.write_ne_bytes(self.gpu.texture.maps[7].format.as_mut_bytes());
+                self.gpu.texture.maps[7].dirty = true;
+            }
 
             Reg::TexAddress0 => {
                 self.gpu.texture.maps[0].address = Address(value << 5);
                 self.gpu.texture.maps[0].dirty = true;
+            }
+            Reg::TexAddress1 => {
+                self.gpu.texture.maps[1].address = Address(value << 5);
+                self.gpu.texture.maps[1].dirty = true;
+            }
+            Reg::TexAddress2 => {
+                self.gpu.texture.maps[2].address = Address(value << 5);
+                self.gpu.texture.maps[2].dirty = true;
+            }
+            Reg::TexAddress3 => {
+                self.gpu.texture.maps[3].address = Address(value << 5);
+                self.gpu.texture.maps[3].dirty = true;
+            }
+            Reg::TexAddress4 => {
+                self.gpu.texture.maps[4].address = Address(value << 5);
+                self.gpu.texture.maps[4].dirty = true;
+            }
+            Reg::TexAddress5 => {
+                self.gpu.texture.maps[5].address = Address(value << 5);
+                self.gpu.texture.maps[5].dirty = true;
+            }
+            Reg::TexAddress6 => {
+                self.gpu.texture.maps[6].address = Address(value << 5);
+                self.gpu.texture.maps[6].dirty = true;
+            }
+            Reg::TexAddress7 => {
+                self.gpu.texture.maps[7].address = Address(value << 5);
+                self.gpu.texture.maps[7].dirty = true;
             }
 
             Reg::TevColor0 => {
@@ -778,7 +863,11 @@ impl System {
 
         match mode {
             AttributeMode::None => None,
-            AttributeMode::Direct => Some(descriptor.read(reader).unwrap()),
+            AttributeMode::Direct => Some(
+                descriptor
+                    .read(reader)
+                    .unwrap_or_else(|| panic!("failed to read {:?}", A::NAME)),
+            ),
             AttributeMode::Index8 => {
                 let index = reader.read_be::<u8>().unwrap();
                 let array = A::get_array(&self.gpu.command.internal.arrays).unwrap();
@@ -804,27 +893,30 @@ impl System {
         let mut reader = data.reader();
         for _ in 0..stream.count() {
             let position_matrix_index = self
-                .gx_read_attribute::<attributes::MatrixIndex>(vat, &mut reader)
+                .gx_read_attribute::<attributes::PosMatrixIndex>(vat, &mut reader)
                 .unwrap_or(default_pos_matrix_idx);
+
             let position_matrix = self.gpu.transform.matrix(position_matrix_index);
             let normal_matrix = self.gpu.transform.normal_matrix(position_matrix_index);
 
             let mut tex_coords_matrix = [Mat4::ZERO; 8];
-            for i in 0..8 {
-                let default = self
-                    .gpu
-                    .command
-                    .internal
-                    .mat_indices
-                    .tex_at(i)
-                    .unwrap()
-                    .value();
+            seq! {
+                N in 0..8 {
+                    let default = self
+                        .gpu
+                        .command
+                        .internal
+                        .mat_indices
+                        .tex_at(N)
+                        .unwrap()
+                        .value();
 
-                let tex_matrix_index = self
-                    .gx_read_attribute::<attributes::MatrixIndex>(vat, &mut reader)
-                    .unwrap_or(default);
+                    let tex_matrix_index = self
+                        .gx_read_attribute::<attributes::TexMatrixIndex<N>>(vat, &mut reader)
+                        .unwrap_or(default);
 
-                tex_coords_matrix[i] = self.gpu.transform.matrix(tex_matrix_index);
+                    tex_coords_matrix[N] = self.gpu.transform.matrix(tex_matrix_index);
+                }
             }
 
             let position = self
@@ -844,30 +936,13 @@ impl System {
                 .unwrap_or_default();
 
             let mut tex_coords = [Vec2::ZERO; 8];
-            tex_coords[0] = self
-                .gx_read_attribute::<attributes::TexCoords<0>>(vat, &mut reader)
-                .unwrap_or_default();
-            tex_coords[1] = self
-                .gx_read_attribute::<attributes::TexCoords<1>>(vat, &mut reader)
-                .unwrap_or_default();
-            tex_coords[2] = self
-                .gx_read_attribute::<attributes::TexCoords<2>>(vat, &mut reader)
-                .unwrap_or_default();
-            tex_coords[3] = self
-                .gx_read_attribute::<attributes::TexCoords<3>>(vat, &mut reader)
-                .unwrap_or_default();
-            tex_coords[4] = self
-                .gx_read_attribute::<attributes::TexCoords<4>>(vat, &mut reader)
-                .unwrap_or_default();
-            tex_coords[5] = self
-                .gx_read_attribute::<attributes::TexCoords<5>>(vat, &mut reader)
-                .unwrap_or_default();
-            tex_coords[6] = self
-                .gx_read_attribute::<attributes::TexCoords<6>>(vat, &mut reader)
-                .unwrap_or_default();
-            tex_coords[7] = self
-                .gx_read_attribute::<attributes::TexCoords<7>>(vat, &mut reader)
-                .unwrap_or_default();
+            seq! {
+                N in 0..8 {
+                    tex_coords[N] = self
+                        .gx_read_attribute::<attributes::TexCoords<N>>(vat, &mut reader)
+                        .unwrap_or_default();
+                }
+            }
 
             vertices.push(VertexAttributes {
                 position,

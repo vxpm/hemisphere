@@ -259,7 +259,7 @@ impl System {
                 std::hint::cold_path();
                 if addr.value() & 0xFFFF_0000 != 0x0C00_0000 {
                     std::hint::cold_path();
-                    tracing::error!("reading from {addr} (unknown region)");
+                    tracing::error!(pc = ?self.cpu.pc, "reading from {addr} (unknown region)");
                     return P::default();
                 }
 

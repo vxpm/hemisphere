@@ -1121,6 +1121,34 @@ impl BlockBuilder<'_> {
         LOAD_INFO
     }
 
+    pub fn psq_lu(&mut self, ins: Ins) -> Info {
+        self.check_floats();
+
+        let addr = if ins.field_ra() == 0 {
+            self.ir_value(ins.field_ps_offset() as i32)
+        } else {
+            let ra = self.get(ins.gpr_a());
+            self.bd.ins().iadd_imm(ra, ins.field_ps_offset() as i64)
+        };
+
+        let index = self.ir_value(ins.field_ps_i());
+        let (ps0, size) = self.read_quantized(addr, index);
+        let ps1 = if ins.field_ps_w() == 0 {
+            let addr = self.bd.ins().iadd(addr, size);
+            self.read_quantized(addr, index).0
+        } else {
+            self.ir_value(1.0f64)
+        };
+
+        let fpr_d = ins.fpr_d();
+        self.set(fpr_d, ps0);
+        self.set(Reg::PS1(fpr_d), ps1);
+
+        self.set(ins.gpr_a(), addr);
+
+        LOAD_INFO
+    }
+
     pub fn psq_lx(&mut self, ins: Ins) -> Info {
         self.check_floats();
 

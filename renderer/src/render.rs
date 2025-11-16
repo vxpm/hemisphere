@@ -146,9 +146,9 @@ impl Renderer {
                 Topology::TriangleList => self.draw_triangle_list(&attributes),
                 Topology::TriangleStrip => self.draw_triangle_strip(&attributes),
                 Topology::TriangleFan => self.draw_triangle_fan(&attributes),
-                Topology::LineList => todo!(),
-                Topology::LineStrip => todo!(),
-                Topology::PointList => todo!(),
+                Topology::LineList => tracing::warn!("ignored line list primitive"),
+                Topology::LineStrip => tracing::warn!("ignored line strip primitive"),
+                Topology::PointList => tracing::warn!("ignored point list primitive"),
             },
             Action::EfbCopy { clear } => {
                 self.next_pass(clear);
@@ -303,6 +303,10 @@ impl Renderer {
     }
 
     pub fn draw_quad_list(&mut self, vertices: &[VertexAttributes]) {
+        if vertices.is_empty() {
+            return;
+        }
+
         for vertices in vertices.iter().array_chunks::<4>() {
             let [v0, v1, v2, v3] = vertices.map(|a| self.insert_attributes(a));
             self.indices.extend_from_slice(&[v0, v1, v2]);
@@ -311,6 +315,10 @@ impl Renderer {
     }
 
     pub fn draw_triangle_list(&mut self, vertices: &[VertexAttributes]) {
+        if vertices.is_empty() {
+            return;
+        }
+
         for vertices in vertices.iter().array_chunks::<3>() {
             let vertices = vertices.map(|a| self.insert_attributes(a));
             self.indices.extend_from_slice(&vertices);
@@ -318,6 +326,10 @@ impl Renderer {
     }
 
     pub fn draw_triangle_strip(&mut self, vertices: &[VertexAttributes]) {
+        if vertices.is_empty() {
+            return;
+        }
+
         let mut iter = vertices.iter();
 
         let mut v0 = self.insert_attributes(iter.next().unwrap());
@@ -332,6 +344,10 @@ impl Renderer {
     }
 
     pub fn draw_triangle_fan(&mut self, vertices: &[VertexAttributes]) {
+        if vertices.is_empty() {
+            return;
+        }
+
         let mut iter = vertices.iter();
 
         let v0 = self.insert_attributes(iter.next().unwrap());

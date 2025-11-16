@@ -8,7 +8,8 @@ pub fn get_source(source: TexGenSource) -> wesl::syntax::Expression {
     match source {
         TexGenSource::Position => wesl::quote_expression! { vertex.position },
         TexGenSource::Normal => wesl::quote_expression! { vertex.normal },
-        TexGenSource::Color => todo!(),
+        // TODO: terrible stub
+        TexGenSource::Color => wesl::quote_expression! { vertex.diffuse },
         TexGenSource::TexCoord0 => wesl::quote_expression! { vec3f(vertex.tex_coord[0], 0.0) },
         TexGenSource::TexCoord1 => wesl::quote_expression! { vec3f(vertex.tex_coord[1], 0.0) },
         TexGenSource::TexCoord2 => wesl::quote_expression! { vec3f(vertex.tex_coord[2], 0.0) },
@@ -38,8 +39,9 @@ pub fn transform(kind: TexGenKind, input: wesl::syntax::Expression) -> wesl::syn
     use wesl::syntax::*;
     match kind {
         TexGenKind::Transform => wesl::quote_expression! { (matrix * #input).xyz },
-        TexGenKind::Emboss => todo!(),
-        TexGenKind::ColorDiffuse => todo!(),
+        // TODO: terrible stubs
+        TexGenKind::Emboss => wesl::quote_expression! { (#input).xyz },
+        TexGenKind::ColorDiffuse => wesl::quote_expression! { (#input).xyz },
         TexGenKind::ColorSpecular => todo!(),
     }
 }

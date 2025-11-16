@@ -40,7 +40,6 @@ impl Buffers {
         match buffer {
             Some(buffer) => {
                 queue.write_buffer(&buffer, 0, data);
-                queue.submit([]);
                 self.allocated.push(buffer.clone());
                 buffer
             }

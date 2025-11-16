@@ -173,7 +173,11 @@ pub fn write_control(sys: &mut System, value: Control) {
                     "reading 0x{length:08X} bytes from disk at 0x{offset:08X} into {target}"
                 );
 
-                let iso = sys.config.iso.as_mut().unwrap();
+                let Some(iso) = sys.config.iso.as_mut() else {
+                    sys.scheduler.schedule(10000, complete_transfer);
+                    return;
+                };
+
                 let reader = iso.reader();
 
                 let target = sys.mmu.translate_instr_addr(target).unwrap();
@@ -192,6 +196,8 @@ pub fn write_control(sys: &mut System, value: Control) {
                 tracing::warn!("DISK HACK");
                 sys.scheduler.schedule(10000, complete_seek);
             }
+            // TODO: deal with this
+            0xE300_0000 => {}
             0x1200_0000 => {
                 let target = sys.mmu.translate_data_addr(sys.disk.dma_base).unwrap();
                 let length = sys.disk.dma_length;
