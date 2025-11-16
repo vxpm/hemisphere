@@ -202,7 +202,11 @@ struct StandardController {
     pub sub_analog_x: u8,
 }
 
-fn poll_controller(sys: &mut System, channel: usize) {
+pub fn poll_controller(sys: &mut System, channel: usize) {
+    if !sys.serial.poll.port_enable_at(channel).unwrap() {
+        return;
+    }
+
     let controller = StandardController::from_bits(0)
         .with_analog_y(128)
         .with_analog_x(128)
