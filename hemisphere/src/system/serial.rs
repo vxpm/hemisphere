@@ -1,4 +1,4 @@
-use crate::system::System;
+use crate::{cores::ControllerState, system::System};
 use bitos::{
     BitUtils, bitos,
     integer::{u2, u7, u10},
@@ -130,6 +130,7 @@ pub struct ChannelInput {
 }
 
 pub struct Interface {
+    pub controllers: [Option<ControllerState>; 4],
     pub channel_output: [ChannelOutput; 4],
     pub channel_input: [ChannelInput; 4],
     pub poll: Poll,
@@ -151,6 +152,7 @@ impl Interface {
 impl Default for Interface {
     fn default() -> Self {
         Self {
+            controllers: [None; 4],
             channel_output: [Default::default(); 4],
             channel_input: [Default::default(); 4],
             poll: Default::default(),
@@ -197,9 +199,9 @@ struct StandardController {
     #[bits(40..48)]
     pub analog_trigger_left: u8,
     #[bits(48..56)]
-    pub sub_analog_y: u8,
+    pub analog_sub_y: u8,
     #[bits(56..64)]
-    pub sub_analog_x: u8,
+    pub analog_sub_x: u8,
 }
 
 pub fn poll_controller(sys: &mut System, channel: usize) {
@@ -207,15 +209,33 @@ pub fn poll_controller(sys: &mut System, channel: usize) {
         return;
     }
 
-    let controller = StandardController::from_bits(0)
-        .with_analog_y(128)
-        .with_analog_x(128)
-        .with_sub_analog_y(128)
-        .with_sub_analog_x(128)
+    let Some(controller) = sys.serial.controllers[channel] else {
+        return;
+    };
+
+    let data = StandardController::from_bits(0)
+        .with_analog_y(controller.analog_y)
+        .with_analog_x(controller.analog_x)
+        .with_pad_left(controller.pad_left)
+        .with_pad_right(controller.pad_right)
+        .with_pad_down(controller.pad_down)
+        .with_pad_up(controller.pad_up)
+        .with_trigger_z(controller.trigger_z)
+        .with_trigger_right(controller.trigger_right)
+        .with_trigger_left(controller.trigger_left)
+        .with_button_a(controller.button_a)
+        .with_button_b(controller.button_b)
+        .with_button_x(controller.button_x)
+        .with_button_y(controller.button_y)
+        .with_button_start(controller.button_start)
+        .with_analog_trigger_right(controller.analog_trigger_right)
+        .with_analog_trigger_left(controller.analog_trigger_left)
+        .with_analog_sub_y(controller.analog_sub_y)
+        .with_analog_sub_x(controller.analog_sub_x)
         .to_bits();
 
-    sys.serial.channel_input[channel].low = controller.bits(32, 64) as u32;
-    sys.serial.channel_input[channel].high = controller.bits(0, 32) as u32;
+    sys.serial.channel_input[channel].low = data.bits(32, 64) as u32;
+    sys.serial.channel_input[channel].high = data.bits(0, 32) as u32;
 
     let mut status = sys.serial.status.channel(channel);
     status.set_input_ready(true);
@@ -243,8 +263,6 @@ fn process_cmd(sys: &mut System, channel: usize) {
         }
         Command::Poll => {
             tracing::debug!("poll");
-            let format = read();
-            assert_eq!(format, 3);
             poll_controller(sys, channel);
         }
         Command::GetOrigin => {

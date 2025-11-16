@@ -34,8 +34,8 @@ use std::{
     time::{Duration, Instant},
 };
 
-use cores::cpu::jit as jitcore;
 use cores::dsp::interpreter as dspcore;
+use cores::{cpu::jit as jitcore, input};
 
 struct Ctx<'a> {
     step: bool,
@@ -138,6 +138,7 @@ impl App {
                 },
             })),
             dsp: Box::new(dspcore::InterpreterCore::default()),
+            input: Box::new(input::GilrsCore::new()),
         };
 
         let hemisphere = Hemisphere::new(

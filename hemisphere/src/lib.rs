@@ -64,6 +64,12 @@ impl Hemisphere {
                 self.dsp_pending -= DSP_STEP as f64;
             }
 
+            // update inputs
+            for index in 0..4 {
+                let controller = self.cores.input.controller(index);
+                self.system.serial.controllers[index] = controller;
+            }
+
             self.system.scheduler.advance(e.cycles.0);
             self.system.process_events();
 
