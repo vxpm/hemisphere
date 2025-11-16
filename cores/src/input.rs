@@ -1,4 +1,4 @@
-use gilrs::{Axis, Button, Event, GamepadId, Gilrs};
+use gilrs::{Axis, Button, GamepadId, Gilrs};
 use hemisphere::cores::{ControllerState, InputCore};
 
 pub struct GilrsCore {
@@ -16,7 +16,6 @@ impl GilrsCore {
 
     fn process_events(&mut self) {
         while let Some(event) = self.gilrs.next_event() {
-            dbg!(event);
             if self.active_gamepad.is_none() {
                 self.active_gamepad = Some(event.id);
             }
