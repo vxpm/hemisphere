@@ -54,18 +54,17 @@ fn base_module() -> wesl::syntax::TranslationUnit {
             normal: vec3f, // 12 bytes
             normal_mat: MatIdx, // 4 bytes
 
-            diffuse: vec4f, // 16 bytes
-            specular: vec4f, // 16 bytes
+            chan0: vec4f, // 16 bytes
+            chan1: vec4f, // 16 bytes
 
             tex_coord: array<vec2f, 8>, // 8 * 8 = 64 bytes
             tex_coord_mat: array<MatIdx, 8>, // 4 * 8 = 32 bytes
 
             projection: MatIdx, // 4 bytes
+            config: u32,
 
-            // pad to 16 bytes
             _pad0: u32,
             _pad1: u32,
-            _pad2: u32,
         };
 
         // Primitives group
@@ -94,8 +93,8 @@ fn base_module() -> wesl::syntax::TranslationUnit {
 
         struct VertexOutput {
             @builtin(position) clip: vec4f,
-            @location(0) diffuse: vec4f,
-            @location(1) specular: vec4f,
+            @location(0) chan0: vec4f,
+            @location(1) chan1: vec4f,
             @location(2) tex_coord0: vec3f,
             @location(3) tex_coord1: vec3f,
             @location(4) tex_coord2: vec3f,
@@ -182,8 +181,10 @@ fn vertex_stage(texgen: &TexGenConfig) -> wesl::syntax::GlobalDeclaration {
             out.clip.z += out.clip.w;
             out.clip.z /= 2.0;
 
-            out.diffuse = vertex.diffuse;
-            out.specular = vertex.specular;
+            let config = base::configs[vertex.config];
+
+            out.chan0 = vertex.chan0;
+            out.chan1 = vertex.chan1;
 
             var tex_coords: array<vec3f, 8>;
             @#compute_stages {}

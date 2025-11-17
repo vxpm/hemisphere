@@ -19,12 +19,12 @@ fn sample_tex(stage: &TexEnvStage) -> wesl::syntax::Expression {
 fn get_color_channel(stage: &TexEnvStage) -> wesl::syntax::Expression {
     use wesl::syntax::*;
     match stage.refs.color() {
-        ColorChannel::Color0 => wesl::quote_expression! { in.diffuse },
-        ColorChannel::Color1 => wesl::quote_expression! { in.specular },
-        ColorChannel::Alpha0 => wesl::quote_expression! { in.diffuse.aaaa },
-        ColorChannel::Alpha1 => wesl::quote_expression! { in.specular.aaaa },
-        ColorChannel::ColorAlpha0 => wesl::quote_expression! { in.diffuse },
-        ColorChannel::ColorAlpha1 => wesl::quote_expression! { in.specular },
+        ColorChannel::Color0 => wesl::quote_expression! { in.chan0 },
+        ColorChannel::Color1 => wesl::quote_expression! { in.chan1 },
+        ColorChannel::Alpha0 => wesl::quote_expression! { in.chan0.aaaa },
+        ColorChannel::Alpha1 => wesl::quote_expression! { in.chan1.aaaa },
+        ColorChannel::ColorAlpha0 => wesl::quote_expression! { in.chan0 },
+        ColorChannel::ColorAlpha1 => wesl::quote_expression! { in.chan1 },
         ColorChannel::Zero => todo!(),
         ColorChannel::AlphaBump => wesl::quote_expression! { base::PLACEHOLDER_RGBA },
     }

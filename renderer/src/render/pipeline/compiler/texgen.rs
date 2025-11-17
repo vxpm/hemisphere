@@ -9,7 +9,7 @@ pub fn get_source(source: TexGenSource) -> wesl::syntax::Expression {
         TexGenSource::Position => wesl::quote_expression! { vertex.position },
         TexGenSource::Normal => wesl::quote_expression! { vertex.normal },
         // TODO: terrible stub
-        TexGenSource::Color => wesl::quote_expression! { vertex.diffuse },
+        TexGenSource::Color => wesl::quote_expression! { vertex.chan0 },
         TexGenSource::TexCoord0 => wesl::quote_expression! { vec3f(vertex.tex_coord[0], 0.0) },
         TexGenSource::TexCoord1 => wesl::quote_expression! { vec3f(vertex.tex_coord[1], 0.0) },
         TexGenSource::TexCoord2 => wesl::quote_expression! { vec3f(vertex.tex_coord[2], 0.0) },
