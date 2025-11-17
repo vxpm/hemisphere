@@ -124,7 +124,7 @@ impl Renderer {
         match action {
             Action::SetViewport(viewport) => {
                 // HACK: temporary hack
-                if viewport.width != 640 || viewport.height != 480 {
+                if viewport.width < 400 || viewport.height < 400 {
                     return;
                 }
 

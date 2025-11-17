@@ -7,13 +7,13 @@ use cranelift::{
 use gekko::{InsExt, Reg, SPR, disasm::Ins};
 
 const INT_INFO: Info = Info {
-    cycles: 1,
+    cycles: 2,
     auto_pc: true,
     action: Action::Continue,
 };
 
 const FLOAT_INFO: Info = Info {
-    cycles: 1,
+    cycles: 2,
     auto_pc: true,
     action: Action::Continue,
 };

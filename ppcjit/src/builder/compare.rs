@@ -1,13 +1,13 @@
 use super::BlockBuilder;
 use crate::builder::{Action, Info};
-use gekko::{InsExt, SPR, disasm::Ins};
 use cranelift::{
     codegen::ir,
     prelude::{FloatCC, InstBuilder, IntCC},
 };
+use gekko::{InsExt, SPR, disasm::Ins};
 
 const CMP_INFO: Info = Info {
-    cycles: 1,
+    cycles: 2,
     auto_pc: true,
     action: Action::Continue,
 };
