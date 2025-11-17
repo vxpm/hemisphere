@@ -72,3 +72,14 @@ impl std::hash::Hash for Rgba {
         OrderedFloat(self.a).hash(state);
     }
 }
+
+impl From<Abgr8> for Rgba {
+    fn from(value: Abgr8) -> Self {
+        Self {
+            r: value.r() as f32 / 255.0,
+            g: value.g() as f32 / 255.0,
+            b: value.b() as f32 / 255.0,
+            a: value.a() as f32 / 255.0,
+        }
+    }
+}

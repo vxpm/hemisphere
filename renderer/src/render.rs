@@ -14,6 +14,7 @@ use hemisphere::{
         Topology, VertexAttributes,
         colors::Rgba,
         pixel::{BlendFactor, BlendMode, CompareMode, DepthMode},
+        transform::ChannelControl,
     },
 };
 use rustc_hash::FxHashMap;
@@ -45,11 +46,27 @@ pub struct Renderer {
     clear_color: wgpu::Color,
     current_projection_mat: Mat4,
     current_projection_mat_idx: u32,
+    current_config: data::Config,
+    current_config_dirty: bool,
 
     vertices: Vec<data::Vertex>,
     indices: Vec<u32>,
+    configs: Vec<data::Config>,
     matrices: Vec<Mat4>,
     matrices_idx: FxHashMap<HashableMat4, u32>,
+}
+
+fn set_channel(channel: &mut data::Channel, control: ChannelControl) {
+    channel.material_from_vertex = control.material_from_vertex() as u32;
+    channel.ambient_from_vertex = control.ambient_from_vertex() as u32;
+    channel.lighting_enabled = control.lighting_enabled() as u32;
+    channel.diffuse_attenuation = control.diffuse_attenuation() as u32;
+    channel.attenuation = control.attenuation() as u32;
+    channel.spotlight = control.spotlight() as u32;
+
+    let a = control.lights0to3();
+    let b = control.lights4to7();
+    channel.light_mask = [a[0], a[1], a[2], a[3], b[0], b[1], b[2], b[3]].map(|b| b as u32);
 }
 
 impl Renderer {
@@ -109,9 +126,12 @@ impl Renderer {
             clear_color: wgpu::Color::BLACK,
             current_projection_mat: Default::default(),
             current_projection_mat_idx: 0,
+            current_config: Default::default(),
+            current_config_dirty: true,
 
             vertices: Vec::new(),
             indices: Vec::new(),
+            configs: Vec::new(),
             matrices: Vec::new(),
             matrices_idx: Default::default(),
         };
@@ -158,15 +178,38 @@ impl Renderer {
             Action::EfbCopy { clear, to_xfb } => {
                 self.next_pass(clear, to_xfb);
             }
-            Action::SetAmbient(idx, abgr8) => println!("set ambient{idx} to {abgr8:?}"),
-            Action::SetMaterial(idx, abgr8) => println!("set material{idx} to {abgr8:?}"),
-            Action::SetColorChannel(idx, channel_control) => {
-                println!("set color{idx} to {channel_control:?}")
+            Action::SetAmbient(idx, color) => {
+                self.current_config.ambient[idx as usize] = color.into();
+                self.current_config_dirty = true;
             }
-            Action::SetAlphaChannel(idx, channel_control) => {
-                println!("set alpha{idx} to {channel_control:?}")
+            Action::SetMaterial(idx, color) => {
+                self.current_config.material[idx as usize] = color.into();
+                self.current_config_dirty = true;
             }
-            Action::SetLight(idx, light) => println!("set light{idx} to {light:?}"),
+            Action::SetColorChannel(idx, control) => {
+                set_channel(
+                    &mut self.current_config.color_channels[idx as usize],
+                    control,
+                );
+                self.current_config_dirty = true;
+            }
+            Action::SetAlphaChannel(idx, control) => {
+                set_channel(
+                    &mut self.current_config.alpha_channels[idx as usize],
+                    control,
+                );
+                self.current_config_dirty = true;
+            }
+            Action::SetLight(idx, light) => {
+                let l = &mut self.current_config.lights[idx as usize];
+                l.color = light.color.into();
+                l.cos_attenuation = light.cos_attenuation;
+                l.dist_attenuation = light.dist_attenuation;
+                l.position = light.position;
+                l.direction = light.direction;
+
+                self.current_config_dirty = true;
+            }
         }
     }
 
@@ -210,10 +253,10 @@ impl Renderer {
             tex_coord_mat_idx,
 
             projection_idx: self.current_projection_mat_idx,
+            config_idx: self.configs.len() as u32 - 1,
 
             _pad0: 0,
             _pad1: 0,
-            _pad2: 0,
         }
     }
 
@@ -316,10 +359,17 @@ impl Renderer {
         }
     }
 
+    fn flush_config(&mut self) {
+        if std::mem::take(&mut self.current_config_dirty) {
+            self.configs.push(self.current_config.clone());
+        }
+    }
+
     pub fn draw_quad_list(&mut self, vertices: &[VertexAttributes]) {
         if vertices.is_empty() {
             return;
         }
+        self.flush_config();
 
         for vertices in vertices.iter().array_chunks::<4>() {
             let [v0, v1, v2, v3] = vertices.map(|a| self.insert_attributes(a));
@@ -332,6 +382,7 @@ impl Renderer {
         if vertices.is_empty() {
             return;
         }
+        self.flush_config();
 
         for vertices in vertices.iter().array_chunks::<3>() {
             let vertices = vertices.map(|a| self.insert_attributes(a));
@@ -343,6 +394,7 @@ impl Renderer {
         if vertices.is_empty() {
             return;
         }
+        self.flush_config();
 
         let mut iter = vertices.iter();
 
@@ -361,6 +413,7 @@ impl Renderer {
         if vertices.is_empty() {
             return;
         }
+        self.flush_config();
 
         let mut iter = vertices.iter();
 
@@ -398,6 +451,9 @@ impl Renderer {
         let vertices_buf =
             self.storage_buffers
                 .allocate(&self.device, &self.queue, self.vertices.as_bytes());
+        let configs_buf =
+            self.storage_buffers
+                .allocate(&self.device, &self.queue, self.configs.as_bytes());
 
         let samplers = self.textures.samplers();
         let textures = self
@@ -424,6 +480,14 @@ impl Renderer {
                         buffer: &vertices_buf,
                         offset: 0,
                         size: NonZero::new(self.vertices.as_bytes().len() as u64),
+                    }),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                        buffer: &configs_buf,
+                        offset: 0,
+                        size: NonZero::new(self.configs.as_bytes().len() as u64),
                     }),
                 },
             ],

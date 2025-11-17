@@ -156,6 +156,8 @@ impl Pipeline {
                 storage_buffer(0),
                 // vertices
                 storage_buffer(1),
+                // configs
+                storage_buffer(2),
             ],
         });
 

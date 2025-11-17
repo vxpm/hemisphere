@@ -12,6 +12,40 @@ fn base_module() -> wesl::syntax::TranslationUnit {
         const PLACEHOLDER_RGB: vec3f = vec3f(1.0, 0.0, 0.8627);
         const PLACEHOLDER_RGBA: vec4f = vec4f(1.0, 0.0, 0.8627, 0.5);
 
+        struct Light {
+            color: vec4f,
+
+            cos_attenuation: vec3f,
+            _pad0: u32,
+
+            dist_attenuation: vec3f,
+            _pad1: u32,
+
+            position: vec3f,
+            _pad2: u32,
+
+            direction: vec3f,
+            _pad3: u32,
+        }
+
+        struct Channel {
+            material_from_vertex: u32,
+            ambient_from_vertex: u32,
+            lighting_enabled: u32,
+            diffuse_attenuation: u32,
+            attenuation: u32,
+            spotlight: u32,
+            light_mask: array<u32, 8>,
+        }
+
+        struct Config {
+            ambient: array<vec3f, 2>,
+            material: array<vec3f, 2>,
+            lights: array<Light, 8>,
+            color_channels: array<Channel, 2>,
+            alpha_channels: array<Channel, 2>,
+        }
+
         // A primitive vertex
         struct Vertex {
             position: vec3f, // 12 bytes
@@ -37,6 +71,7 @@ fn base_module() -> wesl::syntax::TranslationUnit {
         // Primitives group
         @group(0) @binding(0) var<storage> matrices: array<mat4x4f>;
         @group(0) @binding(1) var<storage> vertices: array<Vertex>;
+        @group(0) @binding(2) var<storage> configs: array<Config>;
 
         // Textures group
         @group(1) @binding(0) var texture0: texture_2d<f32>;
