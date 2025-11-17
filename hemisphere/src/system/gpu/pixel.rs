@@ -1,3 +1,4 @@
+use crate::system::gpu::colors::Abgr8;
 use bitos::{bitos, integer::u2};
 
 // NOTE: might be wrong
@@ -37,19 +38,6 @@ pub struct InterruptStatus {
     pub token: bool,
     #[bits(3)]
     pub finish: bool,
-}
-
-#[bitos(32)]
-#[derive(Debug, Default)]
-pub struct Argb8 {
-    #[bits(0..8)]
-    pub a: u8,
-    #[bits(8..16)]
-    pub r: u8,
-    #[bits(16..24)]
-    pub g: u8,
-    #[bits(24..32)]
-    pub b: u8,
 }
 
 #[bitos(3)]
@@ -140,7 +128,7 @@ pub struct BlendMode {
 pub struct Interface {
     pub token: u32,
     pub interrupt: InterruptStatus,
-    pub clear_color: Argb8,
+    pub clear_color: Abgr8,
     pub clear_depth: u32,
     pub depth_mode: DepthMode,
     pub blend_mode: BlendMode,

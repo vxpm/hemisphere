@@ -158,6 +158,15 @@ impl Renderer {
             Action::EfbCopy { clear, to_xfb } => {
                 self.next_pass(clear, to_xfb);
             }
+            Action::SetAmbient(idx, abgr8) => println!("set ambient{idx} to {abgr8:?}"),
+            Action::SetMaterial(idx, abgr8) => println!("set material{idx} to {abgr8:?}"),
+            Action::SetColorChannel(idx, channel_control) => {
+                println!("set color{idx} to {channel_control:?}")
+            }
+            Action::SetAlphaChannel(idx, channel_control) => {
+                println!("set alpha{idx} to {channel_control:?}")
+            }
+            Action::SetLight(idx, light) => println!("set light{idx} to {light:?}"),
         }
     }
 

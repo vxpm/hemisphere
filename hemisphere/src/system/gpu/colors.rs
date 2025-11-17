@@ -1,4 +1,4 @@
-use bitos::BitUtils;
+use bitos::{BitUtils, bitos};
 use ordered_float::OrderedFloat;
 use zerocopy::{FromBytes, Immutable, IntoBytes};
 
@@ -32,12 +32,16 @@ impl Rgba8 {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, Immutable, IntoBytes, FromBytes)]
-#[repr(C)]
+#[bitos(32)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct Abgr8 {
+    #[bits(0..8)]
     pub a: u8,
+    #[bits(8..16)]
     pub b: u8,
+    #[bits(16..24)]
     pub g: u8,
+    #[bits(24..32)]
     pub r: u8,
 }
 

@@ -2,10 +2,10 @@
 
 use crate::system::gpu::{
     Topology, VertexAttributes,
-    colors::{Rgba, Rgba8},
+    colors::{Abgr8, Rgba, Rgba8},
     environment::{Constant, StageOps, StageRefs},
     pixel::{BlendMode, DepthMode},
-    transform::BaseTexGen,
+    transform::{BaseTexGen, ChannelControl, Light},
 };
 use glam::Mat4;
 use ordered_float::OrderedFloat;
@@ -82,6 +82,11 @@ pub enum Action {
     SetProjectionMatrix(Mat4),
     SetTexEnvConfig(TexEnvConfig),
     SetTexGenConfig(TexGenConfig),
+    SetAmbient(u8, Abgr8),
+    SetMaterial(u8, Abgr8),
+    SetColorChannel(u8, ChannelControl),
+    SetAlphaChannel(u8, ChannelControl),
+    SetLight(u8, Light),
     LoadTexture {
         id: u32,
         width: u32,

@@ -31,10 +31,10 @@ pub enum Reg {
     Ambient1 = 0x0B,
     Material0 = 0x0C,
     Material1 = 0x0D,
-    DiffuseControl = 0x0E,
-    SpecularControl = 0x0F,
-    DiffuseAlphaControl = 0x10,
-    SpecularAlphaControl = 0x11,
+    ColorControl0 = 0x0E,
+    ColorControl1 = 0x0F,
+    AlphaControl0 = 0x10,
+    AlphaControl1 = 0x11,
     DualTextureTransform = 0x12,
     MatrixIndex0 = 0x18,
     MatrixIndex1 = 0x19,
@@ -196,6 +196,36 @@ pub struct Light {
     pub direction: Vec3,
 }
 
+#[bitos(2)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DiffuseAttenuation {
+    One = 0b00,
+    Compute = 0b01,
+    ComputeClamped = 0b10,
+    Reserved0 = 0b011,
+}
+
+#[bitos(32)]
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ChannelControl {
+    #[bits(0)]
+    pub material_from_vertex: bool,
+    #[bits(1)]
+    pub lighting_enabled: bool,
+    #[bits(2..6)]
+    pub lights0to3: [bool; 4],
+    #[bits(6)]
+    pub ambient_from_vertex: bool,
+    #[bits(7..9)]
+    pub diffuse_attenuation: DiffuseAttenuation,
+    #[bits(9)]
+    pub attenuation: bool,
+    #[bits(10)]
+    pub spotlight: bool,
+    #[bits(11..15)]
+    pub lights4to7: [bool; 4],
+}
+
 #[derive(Debug, Default)]
 pub struct Viewport {
     pub width: f32,
@@ -208,6 +238,10 @@ pub struct Viewport {
 
 #[derive(Debug, Default)]
 pub struct Internal {
+    pub ambient: [Abgr8; 2],
+    pub material: [Abgr8; 2],
+    pub color_control: [ChannelControl; 2],
+    pub alpha_control: [ChannelControl; 2],
     pub viewport: Viewport,
     pub viewport_dirty: bool,
     pub projection_params: [f32; 6],
@@ -346,6 +380,55 @@ impl System {
 
         let xf = &mut self.gpu.transform.internal;
         match reg {
+            Reg::Ambient0 => {
+                xf.ambient[0] = Abgr8::from_bits(value);
+                self.config
+                    .renderer
+                    .exec(Action::SetAmbient(0, xf.ambient[0]));
+            }
+            Reg::Ambient1 => {
+                xf.ambient[1] = Abgr8::from_bits(value);
+                self.config
+                    .renderer
+                    .exec(Action::SetAmbient(1, xf.ambient[1]));
+            }
+            Reg::Material0 => {
+                xf.material[0] = Abgr8::from_bits(value);
+                self.config
+                    .renderer
+                    .exec(Action::SetMaterial(0, xf.material[0]));
+            }
+            Reg::Material1 => {
+                xf.material[1] = Abgr8::from_bits(value);
+                self.config
+                    .renderer
+                    .exec(Action::SetMaterial(1, xf.material[1]));
+            }
+            Reg::ColorControl0 => {
+                xf.color_control[0] = ChannelControl::from_bits(value);
+                self.config
+                    .renderer
+                    .exec(Action::SetColorChannel(0, xf.color_control[0]));
+            }
+            Reg::ColorControl1 => {
+                xf.color_control[1] = ChannelControl::from_bits(value);
+                self.config
+                    .renderer
+                    .exec(Action::SetColorChannel(1, xf.color_control[1]));
+            }
+            Reg::AlphaControl0 => {
+                xf.alpha_control[0] = ChannelControl::from_bits(value);
+                self.config
+                    .renderer
+                    .exec(Action::SetAlphaChannel(0, xf.alpha_control[0]));
+            }
+            Reg::AlphaControl1 => {
+                xf.alpha_control[1] = ChannelControl::from_bits(value);
+                self.config
+                    .renderer
+                    .exec(Action::SetAlphaChannel(1, xf.alpha_control[1]));
+            }
+
             Reg::ViewportScaleX => xf.viewport.width = f32::from_bits(value) * 2.0,
             Reg::ViewportScaleY => xf.viewport.height = f32::from_bits(value) * -2.0,
             Reg::ViewportScaleZ => xf.viewport.near = f32::from_bits(value) / Z_MAX,
@@ -403,11 +486,26 @@ impl System {
             0x0000..0x0400 => self.gpu.transform.ram[addr as usize] = value,
             0x0400..0x0460 => self.gpu.transform.ram[addr as usize] = value.with_bits(0, 12, 0),
             0x0500..0x0600 => self.gpu.transform.ram[addr as usize] = value,
-            0x603 | 0x610 | 0x61D | 0x62A | 0x637 | 0x644 | 0x651 | 0x65E => {
-                self.gpu.transform.ram[addr as usize] = value
-            }
-            0x0600..0x0680 => self.gpu.transform.ram[addr as usize] = value.with_bits(0, 12, 0),
+            0x0600..0x0680 => {
+                if matches!(
+                    addr,
+                    0x603 | 0x610 | 0x61D | 0x62A | 0x637 | 0x644 | 0x651 | 0x65E
+                ) {
+                    self.gpu.transform.ram[addr as usize] = value;
+                } else {
+                    self.gpu.transform.ram[addr as usize] = value.with_bits(0, 12, 0)
+                }
 
+                if let Some(light_offset) = addr.checked_sub(0x0603) {
+                    let index = light_offset / 13;
+                    if index < 7 {
+                        self.config.renderer.exec(Action::SetLight(
+                            index as u8,
+                            self.gpu.transform.light(index as u8).clone(),
+                        ));
+                    }
+                }
+            }
             0x1000..0x1057 => {
                 let register = addr as u8;
                 let Some(register) = Reg::from_repr(register) else {
