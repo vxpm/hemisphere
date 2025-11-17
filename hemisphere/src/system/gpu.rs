@@ -840,6 +840,7 @@ impl System {
 }
 
 impl System {
+    #[inline(always)]
     fn gx_read_attribute_from_array<D: AttributeDescriptor>(
         &mut self,
         descriptor: &D,
@@ -854,6 +855,7 @@ impl System {
         descriptor.read(&mut reader).unwrap()
     }
 
+    #[inline(always)]
     fn gx_read_attribute<A: Attribute>(
         &mut self,
         vat: usize,

@@ -600,15 +600,7 @@ impl System {
             }
 
             // === PI FIFO ===
-            Mmio::ProcessorFifo => {
-                let mut buf = [0; 4];
-                value.write_be_bytes(&mut buf);
-
-                let bytes = &buf[0..size_of::<P>()];
-                for byte in bytes {
-                    self.pi_fifo_push(*byte);
-                }
-            }
+            Mmio::ProcessorFifo => self.pi_fifo_push(value),
             _ => tracing::warn!("unimplemented write to known mmio register ({reg:?})"),
         }
     }

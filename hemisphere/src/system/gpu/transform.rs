@@ -223,6 +223,7 @@ const Z_MAX: f32 = 16_777_215.0;
 
 impl Interface {
     /// Returns the matrix at `index` in internal memory.
+    #[inline]
     pub fn matrix(&self, index: u8) -> Mat4 {
         let offset = 4 * index as usize;
         let data = &self.ram[offset..][..16];
@@ -237,6 +238,7 @@ impl Interface {
     }
 
     /// Returns the normal matrix at `index` in internal memory.
+    #[inline]
     pub fn normal_matrix(&self, index: u8) -> Mat3 {
         let offset = 4 * index as usize;
         let data = &self.ram[0x400 + offset..][..9];
@@ -250,6 +252,7 @@ impl Interface {
     }
 
     /// Returns the projection matrix.
+    #[inline]
     pub fn projection_matrix(&self) -> Mat4 {
         let p = &self.internal.projection_params;
         if self.internal.projection_orthographic {
@@ -271,6 +274,7 @@ impl Interface {
     }
 
     /// Returns the post matrix at `index` in internal memory.
+    #[inline]
     pub fn post_matrix(&self, index: u8) -> Mat4 {
         let offset = 4 * index as usize;
         let data = &self.ram[0x500 + offset..][..16];

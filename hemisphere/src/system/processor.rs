@@ -1,8 +1,9 @@
 //! Processor interface.
 
-use crate::system::System;
+use crate::{Primitive, system::System};
 use bitos::{bitos, integer::u26};
 use gekko::{Address, Exception};
+use std::collections::VecDeque;
 
 #[bitos(14)]
 #[derive(Default, Clone, Copy)]
@@ -97,7 +98,6 @@ impl FifoCurrent {
     }
 }
 
-#[derive(Default)]
 pub struct Interface {
     // interrupts
     pub mask: InterruptMask,
@@ -106,7 +106,19 @@ pub struct Interface {
     pub fifo_start: Address,
     pub fifo_end: Address,
     pub fifo_current: FifoCurrent,
-    pub fifo_buffer: Vec<u8>,
+    pub fifo_buffer: Option<VecDeque<u8>>,
+}
+
+impl Default for Interface {
+    fn default() -> Self {
+        Self {
+            mask: Default::default(),
+            fifo_start: Default::default(),
+            fifo_end: Default::default(),
+            fifo_current: Default::default(),
+            fifo_buffer: Some(VecDeque::with_capacity(32)),
+        }
+    }
 }
 
 impl System {
@@ -163,18 +175,27 @@ impl System {
 
     /// Pushes a value into the PI FIFO. Values are queued up until 32 bytes are available, then
     /// written all at once.
-    pub fn pi_fifo_push(&mut self, value: u8) {
-        self.processor.fifo_buffer.push(value);
-        if self.processor.fifo_buffer.len() < 32 {
+    pub fn pi_fifo_push<P: Primitive>(&mut self, value: P) {
+        let Some(mut fifo_buffer) = self.processor.fifo_buffer.take() else {
+            unreachable!()
+        };
+
+        let mut buf = [0; 4];
+        value.write_be_bytes(&mut buf);
+        fifo_buffer.extend(&buf[..size_of::<P>()]);
+
+        if fifo_buffer.len() < 32 {
+            self.processor.fifo_buffer = Some(fifo_buffer);
             return;
         }
 
-        let data = std::mem::replace(&mut self.processor.fifo_buffer, Vec::with_capacity(32));
+        let data = fifo_buffer.drain(..32);
         for byte in data {
             let current = self.processor.fifo_current.address();
             self.write(current, byte);
             self.processor.fifo_current.set_address(current + 1);
             if self.processor.fifo_current.address() > self.processor.fifo_end {
+                std::hint::cold_path();
                 self.processor.fifo_current.set_wrapped(true);
                 self.processor
                     .fifo_current
@@ -186,5 +207,7 @@ impl System {
             self.cp_sync_to_pi();
             self.cp_update();
         }
+
+        self.processor.fifo_buffer = Some(fifo_buffer);
     }
 }
