@@ -432,7 +432,10 @@ impl Renderer {
         self.indices.clear();
         self.matrices.clear();
         self.matrices_idx.clear();
+        self.configs.clear();
+
         self.set_projection_mat(self.current_projection_mat);
+        self.current_config_dirty = true;
     }
 
     pub fn flush(&mut self) {
