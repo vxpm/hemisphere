@@ -143,11 +143,7 @@ wgpu = { version = "27.0", features = [
     "wgsl",
 ], default-features = false }
 zerocopy = { version = "0.8", features = ["derive"] }
-# wesl = { git = "https://github.com/wgsl-tooling-wg/wesl-rs", features = [
-#     "eval",
-#     "quote",
-# ], default-features = false }
-wesl = { path = "../wesl-rs/crates/wesl", features = [
+wesl = { git = "https://github.com/wgsl-tooling-wg/wesl-rs", features = [
     "eval",
     "quote",
 ], default-features = false }
