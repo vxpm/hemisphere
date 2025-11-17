@@ -123,6 +123,11 @@ impl Renderer {
     pub fn exec(&mut self, action: Action) {
         match action {
             Action::SetViewport(viewport) => {
+                // HACK: temporary hack
+                if viewport.width != 640 || viewport.height != 480 {
+                    return;
+                }
+
                 if self.resize_viewport(viewport) {
                     let mut lock = self.shared.lock().unwrap();
                     lock.frontbuffer = self.frontbuffer().clone();
@@ -150,8 +155,8 @@ impl Renderer {
                 Topology::LineStrip => tracing::warn!("ignored line strip primitive"),
                 Topology::PointList => tracing::warn!("ignored point list primitive"),
             },
-            Action::EfbCopy { clear } => {
-                self.next_pass(clear);
+            Action::EfbCopy { clear, to_xfb } => {
+                self.next_pass(clear, to_xfb);
             }
         }
     }
@@ -451,7 +456,7 @@ impl Renderer {
     }
 
     // Finishes the current render pass and starts the next one.
-    pub fn next_pass(&mut self, clear: bool) {
+    pub fn next_pass(&mut self, clear: bool, to_xfb: bool) {
         self.flush();
 
         let front = self.framebuffer.front().create_view(&Default::default());
@@ -501,21 +506,23 @@ impl Renderer {
 
         std::mem::drop(previous_pass);
 
-        previous_encoder.copy_texture_to_texture(
-            wgpu::TexelCopyTextureInfoBase {
-                texture: color.texture(),
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
-            wgpu::TexelCopyTextureInfoBase {
-                texture: front.texture(),
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
-            front.texture().size(),
-        );
+        if to_xfb {
+            previous_encoder.copy_texture_to_texture(
+                wgpu::TexelCopyTextureInfoBase {
+                    texture: color.texture(),
+                    mip_level: 0,
+                    origin: wgpu::Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::All,
+                },
+                wgpu::TexelCopyTextureInfoBase {
+                    texture: front.texture(),
+                    mip_level: 0,
+                    origin: wgpu::Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::All,
+                },
+                front.texture().size(),
+            );
+        }
 
         let buffer = previous_encoder.finish();
         self.queue.submit([buffer]);

@@ -96,6 +96,7 @@ pub enum Action {
     Draw(Topology, Vec<VertexAttributes>),
     EfbCopy {
         clear: bool,
+        to_xfb: bool,
     },
 }
 

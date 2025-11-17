@@ -514,9 +514,10 @@ impl System {
             Reg::PixelCopyCmd => {
                 let cmd = pixel::CopyCmd::from_bits(value);
                 tracing::debug!(?cmd);
-                self.config
-                    .renderer
-                    .exec(Action::EfbCopy { clear: cmd.clear() });
+                self.config.renderer.exec(Action::EfbCopy {
+                    clear: cmd.clear(),
+                    to_xfb: cmd.to_xfb(),
+                });
             }
 
             Reg::TexMode0 => {
@@ -989,6 +990,15 @@ impl System {
     }
 
     pub fn gx_draw(&mut self, topology: Topology, stream: &VertexAttributeStream) {
+        if std::mem::take(&mut self.gpu.transform.internal.viewport_dirty) {
+            self.config
+                .renderer
+                .exec(Action::SetViewport(crate::render::Viewport {
+                    width: self.gpu.transform.internal.viewport.width.round() as u32,
+                    height: self.gpu.transform.internal.viewport.height.round() as u32,
+                }));
+        }
+
         for map in 0..8 {
             if !self.gpu.texture.maps[map].dirty {
                 continue;

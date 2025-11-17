@@ -34,7 +34,7 @@ impl WgpuRenderer {
     pub fn new(device: wgpu::Device, queue: wgpu::Queue, format: wgpu::TextureFormat) -> Self {
         let blitter = Blitter::new(&device, format);
         let (renderer, shared) = Renderer::new(device.clone(), queue);
-        let (sender, receiver) = flume::bounded(512);
+        let (sender, receiver) = flume::bounded(4096);
 
         std::thread::Builder::new()
             .name("hemisphere wgpu renderer".into())

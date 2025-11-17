@@ -63,6 +63,12 @@ opt-level = 2
 [profile.dev.package."wgpu-core"]
 opt-level = 2
 
+[profile.dev.package."zerocopy"]
+opt-level = 2
+
+[profile.dev.package."glam"]
+opt-level = 2
+
 # workspace crates
 [profile.dev.package."dol"]
 opt-level = 2

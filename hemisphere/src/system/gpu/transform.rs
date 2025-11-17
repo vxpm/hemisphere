@@ -195,6 +195,7 @@ pub struct Viewport {
 #[derive(Debug, Default)]
 pub struct Internal {
     pub viewport: Viewport,
+    pub viewport_dirty: bool,
     pub projection_params: [f32; 6],
     pub projection_orthographic: bool,
     pub texgen: [TexGen; 8],
@@ -227,13 +228,12 @@ impl Interface {
         let data = &self.ram[offset..][..16];
         let m: &[f32] = zerocopy::transmute_ref!(data);
 
-        Mat4::from_cols_array_2d(&[
-            [m[0], m[1], m[2], m[3]],
-            [m[4], m[5], m[6], m[7]],
-            [m[8], m[9], m[10], m[11]],
-            [0.0, 0.0, 0.0, 1.0],
+        Mat4::from_cols_array(&[
+            m[0], m[4], m[8], 0.0, // col 0
+            m[1], m[5], m[9], 0.0, // col 1
+            m[2], m[6], m[10], 0.0, // col 2
+            m[3], m[7], m[11], 1.0, // col 3
         ])
-        .transpose()
     }
 
     /// Returns the normal matrix at `index` in internal memory.
@@ -242,13 +242,11 @@ impl Interface {
         let data = &self.ram[0x400 + offset..][..9];
         let m: &[f32] = zerocopy::transmute_ref!(data);
 
-        Mat3::from_cols_array_2d(&[
-            // this comment exists so rustfmt doesnt format this :)
-            [m[0], m[1], m[2]],
-            [m[3], m[4], m[5]],
-            [m[6], m[7], m[8]],
+        Mat3::from_cols_array(&[
+            m[0], m[3], m[6], // col 0
+            m[1], m[4], m[7], // col 1
+            m[2], m[5], m[8], // col 2
         ])
-        .transpose()
     }
 
     /// Returns the projection matrix.
@@ -278,13 +276,12 @@ impl Interface {
         let data = &self.ram[0x500 + offset..][..16];
         let m: &[f32] = zerocopy::transmute_ref!(data);
 
-        Mat4::from_cols_array_2d(&[
-            [m[0], m[1], m[2], m[3]],
-            [m[4], m[5], m[6], m[7]],
-            [m[8], m[9], m[10], m[11]],
-            [0.0, 0.0, 0.0, 1.0],
+        Mat4::from_cols_array(&[
+            m[0], m[4], m[8], 0.0, // col 0
+            m[1], m[5], m[9], 0.0, // col 1
+            m[2], m[6], m[10], 0.0, // col 2
+            m[3], m[7], m[11], 1.0, // col 3
         ])
-        .transpose()
     }
 }
 
@@ -363,12 +360,7 @@ impl System {
         }
 
         if reg.is_viewport_dimensions() {
-            self.config
-                .renderer
-                .exec(Action::SetViewport(crate::render::Viewport {
-                    width: self.gpu.transform.internal.viewport.width.round() as u32,
-                    height: self.gpu.transform.internal.viewport.height.round() as u32,
-                }));
+            self.gpu.transform.internal.viewport_dirty = true;
         }
 
         if reg.is_projection_param() {
