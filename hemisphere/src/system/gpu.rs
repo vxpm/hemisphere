@@ -18,8 +18,8 @@ use crate::{
     },
 };
 use bitos::{
-    BitUtils, bitos,
-    integer::{UnsignedInt, u3, u4},
+    BitUtils, Bits, bitos,
+    integer::{UnsignedInt, u2, u3, u4},
 };
 use gekko::Address;
 use glam::{Mat3, Mat4, Vec2, Vec3};
@@ -106,7 +106,7 @@ pub enum Reg {
     // Pixel Engine
     PixelZMode = 0x40,
     PixelBlendMode = 0x41,
-    PixelMode1 = 0x42,
+    PixelConstantAlpha = 0x42,
     PixelControl = 0x43,
     PixelFieldMask = 0x44,
     PixelDone = 0x45,
@@ -495,6 +495,12 @@ impl System {
                     .renderer
                     .exec(Action::SetBlendMode(self.gpu.pixel.blend_mode));
             }
+            Reg::PixelConstantAlpha => {
+                dbg!(value.bit(8));
+            }
+            Reg::PixelControl => {
+                dbg!(pixel::Format::from_bits(u3::new(value as u8)));
+            }
             Reg::PixelDone => {
                 self.gpu.pixel.interrupt.set_finish(true);
                 self.scheduler.schedule_now(System::pi_check_interrupts);
@@ -507,17 +513,18 @@ impl System {
                 self.scheduler.schedule_now(System::pi_check_interrupts);
             }
             Reg::PixelCopyClearAr => {
-                self.gpu.pixel.clear_color.set_r(value.bits(0, 8) as u8);
-                self.gpu.pixel.clear_color.set_a(value.bits(8, 16) as u8);
+                self.gpu.pixel.clear_color.r = value.bits(0, 8) as u8;
+                self.gpu.pixel.clear_color.a = value.bits(8, 16) as u8;
             }
             Reg::PixelCopyClearGb => {
-                self.gpu.pixel.clear_color.set_b(value.bits(0, 8) as u8);
-                self.gpu.pixel.clear_color.set_g(value.bits(8, 16) as u8);
+                self.gpu.pixel.clear_color.b = value.bits(0, 8) as u8;
+                self.gpu.pixel.clear_color.g = value.bits(8, 16) as u8;
             }
             Reg::PixelCopyClearZ => value.write_be_bytes(self.gpu.pixel.clear_depth.as_mut_bytes()),
             Reg::PixelCopyCmd => {
                 let cmd = pixel::CopyCmd::from_bits(value);
-                tracing::debug!(?cmd);
+                // tracing::debug!(?cmd);
+                println!("{cmd:?}");
                 self.config.renderer.exec(Action::EfbCopy {
                     clear: cmd.clear(),
                     to_xfb: cmd.to_xfb(),

@@ -133,7 +133,7 @@ fn compute_channels() -> [wesl::syntax::GlobalDeclaration; 2] {
 
             var light_func = ambient;
             for (var light_idx = 0; light_idx < 8; light_idx += 1) {
-                if channel.light_mask[7 - light_idx] == 0 {
+                if channel.light_mask[light_idx] == 0 {
                     continue;
                 }
 
@@ -174,7 +174,7 @@ fn compute_channels() -> [wesl::syntax::GlobalDeclaration; 2] {
 
             var light_func = ambient;
             for (var light_idx = 0; light_idx < 8; light_idx += 1) {
-                if channel.light_mask[7 - light_idx] == 0 {
+                if channel.light_mask[light_idx] == 0 {
                     continue;
                 }
 
@@ -271,6 +271,9 @@ fn vertex_stage(texgen: &TexGenConfig) -> wesl::syntax::GlobalDeclaration {
                 compute_color_channel(vertex.position, vertex.chan1.rgb, 1, config_idx),
                 compute_alpha_channel(vertex.chan1.a, 1, config_idx),
             );
+
+            // out.chan0 = base::PLACEHOLDER_RGBA;
+            // out.chan1 = base::PLACEHOLDER_RGBA;
 
             var tex_coords: array<vec3f, 8>;
             @#compute_stages {}

@@ -1,4 +1,4 @@
-use bitos::{BitUtils, bitos};
+use bitos::{BitUtils, Bits, TryBits};
 use ordered_float::OrderedFloat;
 use zerocopy::{FromBytes, Immutable, IntoBytes};
 
@@ -32,17 +32,24 @@ impl Rgba8 {
     }
 }
 
-#[bitos(32)]
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, FromBytes, Immutable)]
+#[repr(C)]
 pub struct Abgr8 {
-    #[bits(0..8)]
     pub a: u8,
-    #[bits(8..16)]
     pub b: u8,
-    #[bits(16..24)]
     pub g: u8,
-    #[bits(24..32)]
     pub r: u8,
+}
+
+impl Abgr8 {
+    pub fn from_u32(value: u32) -> Self {
+        Self {
+            a: value.bits(0, 8) as u8,
+            b: value.bits(8, 16) as u8,
+            g: value.bits(16, 24) as u8,
+            r: value.bits(24, 32) as u8,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Immutable, IntoBytes, Default)]
@@ -82,10 +89,10 @@ impl std::hash::Hash for Rgba {
 impl From<Abgr8> for Rgba {
     fn from(value: Abgr8) -> Self {
         Self {
-            r: value.r() as f32 / 255.0,
-            g: value.g() as f32 / 255.0,
-            b: value.b() as f32 / 255.0,
-            a: value.a() as f32 / 255.0,
+            r: value.r as f32 / 255.0,
+            g: value.g as f32 / 255.0,
+            b: value.b as f32 / 255.0,
+            a: value.a as f32 / 255.0,
         }
     }
 }

@@ -381,25 +381,25 @@ impl System {
         let xf = &mut self.gpu.transform.internal;
         match reg {
             Reg::Ambient0 => {
-                xf.ambient[0] = Abgr8::from_bits(value);
+                xf.ambient[0] = Abgr8::from_u32(value);
                 self.config
                     .renderer
                     .exec(Action::SetAmbient(0, xf.ambient[0]));
             }
             Reg::Ambient1 => {
-                xf.ambient[1] = Abgr8::from_bits(value);
+                xf.ambient[1] = Abgr8::from_u32(value);
                 self.config
                     .renderer
                     .exec(Action::SetAmbient(1, xf.ambient[1]));
             }
             Reg::Material0 => {
-                xf.material[0] = Abgr8::from_bits(value);
+                xf.material[0] = Abgr8::from_u32(value);
                 self.config
                     .renderer
                     .exec(Action::SetMaterial(0, xf.material[0]));
             }
             Reg::Material1 => {
-                xf.material[1] = Abgr8::from_bits(value);
+                xf.material[1] = Abgr8::from_u32(value);
                 self.config
                     .renderer
                     .exec(Action::SetMaterial(1, xf.material[1]));

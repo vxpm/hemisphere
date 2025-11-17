@@ -7,7 +7,7 @@ use bitos::{bitos, integer::u2};
 pub enum Format {
     #[default]
     RGB8Z24 = 0x0,
-    RGBA6ZZ24 = 0x1,
+    RGBA6Z24 = 0x1,
     RGB565Z16 = 0x2,
     Z24 = 0x3,
     Y8 = 0x4,
