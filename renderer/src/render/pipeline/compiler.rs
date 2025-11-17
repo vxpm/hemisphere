@@ -15,10 +15,10 @@ fn base_module() -> wesl::syntax::TranslationUnit {
         struct Light {
             color: vec4f,
 
-            cos_attenuation: vec3f,
+            cos_atten: vec3f,
             _pad0: u32,
 
-            dist_attenuation: vec3f,
+            dist_atten: vec3f,
             _pad1: u32,
 
             position: vec3f,
@@ -39,8 +39,8 @@ fn base_module() -> wesl::syntax::TranslationUnit {
         }
 
         struct Config {
-            ambient: array<vec3f, 2>,
-            material: array<vec3f, 2>,
+            ambient: array<vec4f, 2>,
+            material: array<vec4f, 2>,
             lights: array<Light, 8>,
             color_channels: array<Channel, 2>,
             alpha_channels: array<Channel, 2>,
@@ -105,6 +105,87 @@ fn base_module() -> wesl::syntax::TranslationUnit {
             @location(9) tex_coord7: vec3f,
         };
     }
+}
+
+fn compute_channels() -> [wesl::syntax::GlobalDeclaration; 2] {
+    use wesl::syntax::*;
+    let color = wesl::quote_declaration! {
+        fn compute_color_channel(vertex_pos: vec3f, vertex_color: vec3f, index: u32, config_idx: u32) -> vec3f {
+            let config = base::configs[config_idx];
+            let channel = config.color_channels[index];
+
+            // get material color
+            var material = config.material[index].rgb;
+            if channel.material_from_vertex != 0 {
+                material = vertex_color;
+            }
+
+            // if no lighting, return
+            if channel.lighting_enabled == 0 {
+                return material;
+            }
+
+            // get ambient color
+            var ambient = config.ambient[index].rgb;
+            if channel.ambient_from_vertex != 0 {
+                ambient = vertex_color;
+            }
+
+            var light_func = ambient;
+            for (var light_idx = 0; light_idx < 8; light_idx += 1) {
+                if channel.light_mask[7 - light_idx] == 0 {
+                    continue;
+                }
+
+                let light = config.lights[light_idx];
+
+                // compute distance attenuation
+                let dist = distance(vertex_pos, light.position);
+                let dist_atten = vec3f(1.0) / (vec3f(1.0, dist, dist * dist) * light.dist_atten);
+
+                light_func += dist_atten * config.lights[light_idx].color.rgb;
+            }
+
+            return material * clamp(light_func, vec3f(0.0), vec3f(1.0));
+        }
+    };
+
+    let alpha = wesl::quote_declaration! {
+        fn compute_alpha_channel(vertex_alpha: f32, index: u32, config_idx: u32) -> f32 {
+            let config = base::configs[config_idx];
+            let channel = config.alpha_channels[index];
+
+            // get material alpha
+            var material = config.material[index].a;
+            if channel.material_from_vertex != 0 {
+                material = vertex_alpha;
+            }
+
+            // if no lighting, return
+            if channel.lighting_enabled == 0 {
+                return material;
+            }
+
+            // get ambient color
+            var ambient = config.ambient[index].a;
+            if channel.ambient_from_vertex != 0 {
+                ambient = vertex_alpha;
+            }
+
+            var light_func = ambient;
+            for (var light_idx = 0; light_idx < 8; light_idx += 1) {
+                if channel.light_mask[7 - light_idx] == 0 {
+                    continue;
+                }
+
+                light_func += config.lights[light_idx].color.a;
+            }
+
+            return material * clamp(light_func, 0.0, 1.0);
+        }
+    };
+
+    [color, alpha]
 }
 
 fn vertex_stage(texgen: &TexGenConfig) -> wesl::syntax::GlobalDeclaration {
@@ -181,10 +262,15 @@ fn vertex_stage(texgen: &TexGenConfig) -> wesl::syntax::GlobalDeclaration {
             out.clip.z += out.clip.w;
             out.clip.z /= 2.0;
 
-            let config = base::configs[vertex.config];
-
-            out.chan0 = vertex.chan0;
-            out.chan1 = vertex.chan1;
+            let config_idx = vertex.config;
+            out.chan0 = vec4f(
+                compute_color_channel(vertex.position, vertex.chan0.rgb, 0, config_idx),
+                compute_alpha_channel(vertex.chan0.a, 0, config_idx),
+            );
+            out.chan1 = vec4f(
+                compute_color_channel(vertex.position, vertex.chan1.rgb, 1, config_idx),
+                compute_alpha_channel(vertex.chan1.a, 1, config_idx),
+            );
 
             var tex_coords: array<vec3f, 8>;
             @#compute_stages {}
@@ -335,11 +421,15 @@ fn fragment_stage(texenv: &TexEnvConfig) -> wesl::syntax::GlobalDeclaration {
 fn main_module(texenv: &TexEnvConfig, texgen: &TexGenConfig) -> wesl::syntax::TranslationUnit {
     use wesl::syntax::*;
 
+    let [color_chan, alpha_chan] = compute_channels();
     let vertex = vertex_stage(texgen);
     let fragment = fragment_stage(texenv);
 
     wesl::quote_module! {
         import package::base;
+
+        const #color_chan = 0;
+        const #alpha_chan = 0;
 
         const #vertex = 0;
         const #fragment = 0;
@@ -372,6 +462,8 @@ pub fn compile(texenv: &TexEnvConfig, texgen: &TexGenConfig) -> String {
             panic!("{e}");
         }
     };
+
+    // println!("{texenv:#?}");
 
     let code = compiled.syntax.to_string();
     code

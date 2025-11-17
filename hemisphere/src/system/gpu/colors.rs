@@ -45,12 +45,18 @@ pub struct Abgr8 {
     pub r: u8,
 }
 
-#[derive(Debug, Clone, Copy, Immutable, IntoBytes, Default)]
+#[derive(Clone, Copy, Immutable, IntoBytes, Default)]
 pub struct Rgba {
     pub r: f32,
     pub g: f32,
     pub b: f32,
     pub a: f32,
+}
+
+impl std::fmt::Debug for Rgba {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Rgba({}, {}, {}, {})", self.r, self.g, self.b, self.a)
+    }
 }
 
 impl PartialEq for Rgba {

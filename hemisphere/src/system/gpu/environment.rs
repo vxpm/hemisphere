@@ -174,7 +174,7 @@ pub enum OutputDst {
 }
 
 #[bitos(32)]
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
+#[derive(Clone, PartialEq, Eq, Hash, Default)]
 pub struct StageColor {
     #[bits(0..4)]
     pub input_d: ColorInputSrc,
@@ -196,8 +196,26 @@ pub struct StageColor {
     pub output: OutputDst,
 }
 
+impl std::fmt::Debug for StageColor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let a = self.input_a();
+        let b = self.input_b();
+        let c = self.input_c();
+        let d = self.input_d();
+        let sign = if self.negate() { "-" } else { "+" };
+        let bias = self.bias().value();
+        let scale = self.scale().value();
+        let output = self.output();
+
+        write!(
+            f,
+            "{output:?}.C = [[{sign}({a:?} * (1.0 - {c:?}) + {b:?} * {c:?})] + {d:?} + {bias}] * {scale}"
+        )
+    }
+}
+
 #[bitos(32)]
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
+#[derive(Clone, PartialEq, Eq, Hash, Default)]
 pub struct StageAlpha {
     #[bits(0..2)]
     pub rasterizer_swap: u2,
@@ -221,6 +239,24 @@ pub struct StageAlpha {
     pub scale: Scale,
     #[bits(22..24)]
     pub output: OutputDst,
+}
+
+impl std::fmt::Debug for StageAlpha {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let a = self.input_a();
+        let b = self.input_b();
+        let c = self.input_c();
+        let d = self.input_d();
+        let sign = if self.negate() { "-" } else { "+" };
+        let bias = self.bias().value();
+        let scale = self.scale().value();
+        let output = self.output();
+
+        write!(
+            f,
+            "{output:?}.A = [[{sign}({a:?} * (1.0 - {c:?}) + {b:?} * {c:?})] + {d:?} + {bias}] * {scale}"
+        )
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
