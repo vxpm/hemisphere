@@ -817,7 +817,7 @@ impl System {
             }
         }
 
-        self.scheduler.schedule(1 << 16, System::cp_process);
+        self.scheduler.schedule(1 << 20, System::cp_process);
     }
 
     /// Synchronizes the CP fifo to the PI fifo.

@@ -77,25 +77,25 @@ opt-level = 2
 opt-level = 2
 
 [profile.dev.package."util"]
-opt-level = 3
+opt-level = 2
 
 [profile.dev.package."gekko"]
-opt-level = 3
+opt-level = 2
 
 [profile.dev.package."ppcjit"]
-opt-level = 3
+opt-level = 2
 
 [profile.dev.package."dspint"]
-opt-level = 3
+opt-level = 2
 
 [profile.dev.package."cores"]
-opt-level = 3
+opt-level = 2
 
 [profile.dev.package."hemisphere"]
-opt-level = 3
+opt-level = 2
 
 [profile.dev.package."renderer"]
-opt-level = 3
+opt-level = 2
 
 [profile.dev]
 panic = "unwind"
