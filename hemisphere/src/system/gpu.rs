@@ -986,7 +986,7 @@ impl System {
 
     pub fn gx_call(&mut self, address: Address, length: u32) {
         tracing::debug!("called {} with length 0x{:08X}", address, length);
-        let address = self.translate_data_addr(address).unwrap_or(address);
+        let address = address.value().with_bits(26, 32, 0);
         let data = &self.mem.ram[address.value() as usize..][..length as usize];
         self.gpu.command.queue.push_front_bytes(data);
     }

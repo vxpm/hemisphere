@@ -750,15 +750,15 @@ impl System {
         data
     }
 
-    /// Process CP commands until the queue is either empty or incomplete.
+    /// Process consumed CP commands until the queue is either empty or incomplete.
     pub fn cp_process(&mut self) {
         loop {
             if self.gpu.command.queue.is_empty() {
-                return;
+                break;
             }
 
             let Some(cmd) = self.gpu.read_command() else {
-                return;
+                break;
             };
 
             if !matches!(cmd, Command::Nop | Command::InvalidateVertexCache) {
@@ -816,6 +816,8 @@ impl System {
                 }
             }
         }
+
+        self.scheduler.schedule(1 << 16, System::cp_process);
     }
 
     /// Synchronizes the CP fifo to the PI fifo.
@@ -825,8 +827,8 @@ impl System {
         self.gpu.command.fifo.write_ptr = self.processor.fifo_current.address();
     }
 
-    /// Consumes commands available in the CP FIFO and processes them.
-    pub fn cp_update(&mut self) {
+    /// Consumes commands available in the CP FIFO.
+    pub fn cp_consume(&mut self) {
         if !self.gpu.command.control.fifo_read_enable() {
             return;
         }
@@ -835,7 +837,5 @@ impl System {
             let data = self.cp_fifo_pop();
             self.gpu.command.queue.push_be(data);
         }
-
-        self.cp_process();
     }
 }

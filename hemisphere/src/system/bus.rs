@@ -315,53 +315,53 @@ impl System {
             }
             Mmio::CpFifoStartLow => {
                 ne!(self.gpu.command.fifo.start.as_mut_bytes()[0..2]);
-                self.cp_update();
+                self.cp_consume();
             }
             Mmio::CpFifoStartHigh => {
                 ne!(self.gpu.command.fifo.start.as_mut_bytes()[2..4]);
-                self.cp_update();
+                self.cp_consume();
             }
             Mmio::CpFifoEndLow => {
                 ne!(self.gpu.command.fifo.end.as_mut_bytes()[0..2]);
-                self.cp_update();
+                self.cp_consume();
             }
             Mmio::CpFifoEndHigh => {
                 ne!(self.gpu.command.fifo.end.as_mut_bytes()[2..4]);
-                self.cp_update();
+                self.cp_consume();
             }
             Mmio::CpHighWatermarkLow => {
                 ne!(self.gpu.command.fifo.high_mark.as_mut_bytes()[0..2]);
-                self.cp_update();
+                self.cp_consume();
             }
             Mmio::CpHighWatermarkHigh => {
                 ne!(self.gpu.command.fifo.high_mark.as_mut_bytes()[2..4]);
-                self.cp_update();
+                self.cp_consume();
             }
             Mmio::CpLowWatermarkLow => {
                 ne!(self.gpu.command.fifo.low_mark.as_mut_bytes()[0..2]);
-                self.cp_update();
+                self.cp_consume();
             }
             Mmio::CpLowWatermarkHigh => {
                 ne!(self.gpu.command.fifo.low_mark.as_mut_bytes()[2..4]);
-                self.cp_update();
+                self.cp_consume();
             }
             // Mmio::CpFifoCountLow => ne!(self.gpu.command.fifo.count().as_mut_bytes()[0..2]),
             // Mmio::CpFifoCountHigh => ne!(self.gpu.command.fifo.count().as_mut_bytes()[2..4]),
             Mmio::CpFifoWritePtrLow => {
                 ne!(self.gpu.command.fifo.write_ptr.as_mut_bytes()[0..2]);
-                self.cp_update();
+                self.cp_consume();
             }
             Mmio::CpFifoWritePtrHigh => {
                 ne!(self.gpu.command.fifo.write_ptr.as_mut_bytes()[2..4]);
-                self.cp_update();
+                self.cp_consume();
             }
             Mmio::CpFifoReadPtrLow => {
                 ne!(self.gpu.command.fifo.read_ptr.as_mut_bytes()[0..2]);
-                self.cp_update();
+                self.cp_consume();
             }
             Mmio::CpFifoReadPtrHigh => {
                 ne!(self.gpu.command.fifo.read_ptr.as_mut_bytes()[2..4]);
-                self.cp_update();
+                self.cp_consume();
             }
 
             // === Pixel Engine ===

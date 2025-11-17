@@ -205,7 +205,7 @@ impl System {
 
         if self.gpu.command.control.linked_mode() {
             self.cp_sync_to_pi();
-            self.cp_update();
+            self.cp_consume();
         }
 
         self.processor.fifo_buffer = Some(fifo_buffer);

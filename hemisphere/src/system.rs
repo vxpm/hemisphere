@@ -194,8 +194,11 @@ impl System {
     }
 
     pub fn new(mut config: Config) -> Self {
+        let mut scheduler = Scheduler::default();
+        scheduler.schedule(1 << 16, System::cp_process);
+
         let mut system = System {
-            scheduler: Scheduler::default(),
+            scheduler,
             cpu: Cpu::default(),
             gpu: Gpu::default(),
             dsp: Dsp::default(),
