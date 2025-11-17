@@ -832,13 +832,9 @@ impl System {
         }
 
         if reg.is_pixel_clear() {
-            let color = &self.gpu.pixel.clear_color;
-            self.config.renderer.exec(Action::SetClearColor(Rgba {
-                r: color.r() as f32 / 255.0,
-                g: color.g() as f32 / 255.0,
-                b: color.b() as f32 / 255.0,
-                a: color.a() as f32 / 255.0,
-            }));
+            self.config
+                .renderer
+                .exec(Action::SetClearColor(self.gpu.pixel.clear_color.into()));
         }
     }
 }
