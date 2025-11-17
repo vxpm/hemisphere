@@ -1,48 +1,8 @@
 use crate::stream::BinReader;
+use crate::system::gpu::colors::Rgba;
 use crate::system::gpu::command::{ArrayDescriptor, Arrays, AttributeMode, VertexDescriptor};
 use bitos::{BitUtils, bitos, integer::u5};
 use glam::{Vec2, Vec3};
-use ordered_float::OrderedFloat;
-use zerocopy::{Immutable, IntoBytes};
-
-#[derive(Clone, Copy, Immutable, IntoBytes, Default)]
-pub struct Rgba {
-    pub r: f32,
-    pub g: f32,
-    pub b: f32,
-    pub a: f32,
-}
-
-impl PartialEq for Rgba {
-    fn eq(&self, other: &Self) -> bool {
-        OrderedFloat(self.r) == OrderedFloat(other.r)
-            && OrderedFloat(self.g) == OrderedFloat(other.g)
-            && OrderedFloat(self.b) == OrderedFloat(other.b)
-            && OrderedFloat(self.a) == OrderedFloat(other.a)
-    }
-}
-
-impl Eq for Rgba {}
-
-impl std::hash::Hash for Rgba {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        OrderedFloat(self.r).hash(state);
-        OrderedFloat(self.g).hash(state);
-        OrderedFloat(self.b).hash(state);
-        OrderedFloat(self.a).hash(state);
-    }
-}
-
-impl std::fmt::Debug for Rgba {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("Rgba")
-            .field(&self.r)
-            .field(&self.g)
-            .field(&self.b)
-            .field(&self.a)
-            .finish()
-    }
-}
 
 /// A vertex attribute descriptor.
 pub trait AttributeDescriptor: std::fmt::Debug {

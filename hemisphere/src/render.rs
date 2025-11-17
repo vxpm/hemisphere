@@ -2,10 +2,9 @@
 
 use crate::system::gpu::{
     Topology, VertexAttributes,
-    command::attributes::Rgba,
+    colors::{Rgba, Rgba8},
     environment::{Constant, StageOps, StageRefs},
     pixel::{BlendMode, DepthMode},
-    texture::Rgba8,
     transform::BaseTexGen,
 };
 use glam::Mat4;

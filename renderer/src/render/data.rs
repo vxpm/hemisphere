@@ -1,5 +1,5 @@
 use glam::{Vec2, Vec3};
-use hemisphere::system::gpu::command::attributes::Rgba;
+use hemisphere::system::gpu::colors::Rgba;
 use zerocopy::{Immutable, IntoBytes};
 
 #[derive(Debug, Clone, Immutable, IntoBytes, Default)]

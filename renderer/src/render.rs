@@ -12,7 +12,7 @@ use hemisphere::{
     render::{Action, HashableMat4, TexEnvConfig, TexGenConfig, Viewport},
     system::gpu::{
         Topology, VertexAttributes,
-        command::attributes::Rgba,
+        colors::Rgba,
         pixel::{BlendFactor, BlendMode, CompareMode, DepthMode},
     },
 };

@@ -1,4 +1,4 @@
-use crate::Primitive;
+use crate::{Primitive, system::gpu::colors::Rgba8};
 use bitos::{
     BitUtils, bitos,
     integer::{u2, u10},
@@ -6,7 +6,6 @@ use bitos::{
 use gekko::Address;
 use rustc_hash::FxBuildHasher;
 use std::collections::HashMap;
-use zerocopy::{Immutable, IntoBytes};
 
 #[bitos(2)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -194,35 +193,6 @@ impl Interface {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, Immutable, IntoBytes)]
-pub struct Rgba8 {
-    pub r: u8,
-    pub g: u8,
-    pub b: u8,
-    pub a: u8,
-}
-
-impl Rgba8 {
-    fn lerp(self, rhs: Self, t: f32) -> Self {
-        let lerp = |a, b, t| a * (1.0 - t) + b * t;
-        Self {
-            r: lerp(self.r as f32, rhs.r as f32, t).round() as u8,
-            g: lerp(self.g as f32, rhs.g as f32, t).round() as u8,
-            b: lerp(self.b as f32, rhs.b as f32, t).round() as u8,
-            a: lerp(self.a as f32, rhs.a as f32, t).round() as u8,
-        }
-    }
-
-    fn rgb565(value: u16) -> Self {
-        Rgba8 {
-            r: value.bits(11, 16) as u8 * 8,
-            g: value.bits(5, 11) as u8 * 4,
-            b: value.bits(0, 5) as u8 * 8,
-            a: 255,
-        }
-    }
-}
-
 fn decode_basic_tex<
     const TILE_WIDTH: u32,
     const TILE_HEIGHT: u32,
@@ -293,8 +263,8 @@ fn decode_cmpr_tex(data: &[u8], width: u32, height: u32) -> Vec<Rgba8> {
                     let b = u16::read_be_bytes(&data[data_index + 2..]);
 
                     let mut palette = [Rgba8::default(); 4];
-                    palette[0] = Rgba8::rgb565(a);
-                    palette[1] = Rgba8::rgb565(b);
+                    palette[0] = Rgba8::from_rgb565(a);
+                    palette[1] = Rgba8::from_rgb565(b);
 
                     if a > b {
                         palette[2] = palette[0].lerp(palette[1], 1.0 / 3.0);

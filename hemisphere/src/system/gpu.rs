@@ -1,3 +1,4 @@
+pub mod colors;
 pub mod command;
 pub mod environment;
 pub mod pixel;
@@ -8,9 +9,12 @@ use crate::{
     Primitive, System,
     render::{Action, TexEnvConfig, TexEnvStage},
     stream::{BinReader, BinaryStream},
-    system::gpu::command::{
-        ArrayDescriptor, AttributeMode, VertexAttributeStream,
-        attributes::{self, Attribute, AttributeDescriptor, Rgba},
+    system::gpu::{
+        colors::Rgba,
+        command::{
+            ArrayDescriptor, AttributeMode, VertexAttributeStream,
+            attributes::{self, Attribute, AttributeDescriptor},
+        },
     },
 };
 use bitos::{

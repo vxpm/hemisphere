@@ -1,13 +1,17 @@
 use crate::{
     render::{self, Action},
-    system::{System, gpu::command::ArrayDescriptor},
+    system::{
+        System,
+        gpu::{colors::Abgr8, command::ArrayDescriptor},
+    },
 };
 use bitos::{
     BitUtils, bitos,
     integer::{u3, u6},
 };
-use glam::{Mat3, Mat4};
+use glam::{Mat3, Mat4, Vec3};
 use strum::FromRepr;
+use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, TryFromBytes};
 
 /// A transform unit register.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, FromRepr)]
@@ -182,6 +186,16 @@ pub struct TexGen {
     pub post: PostTexGen,
 }
 
+#[derive(Debug, Clone, Copy, FromBytes, Immutable, KnownLayout)]
+#[repr(C)]
+pub struct Light {
+    pub color: Abgr8,
+    pub cos_attenuation: Vec3,
+    pub dist_attenuation: Vec3,
+    pub position: Vec3,
+    pub direction: Vec3,
+}
+
 #[derive(Debug, Default)]
 pub struct Viewport {
     pub width: f32,
@@ -287,6 +301,15 @@ impl Interface {
             m[3], m[7], m[11], 1.0, // col 3
         ])
     }
+
+    /// Returns the post matrix at `index` in internal memory.
+    #[inline]
+    pub fn light(&self, index: u8) -> &Light {
+        let stride = size_of::<Light>() / 4;
+        let offset = stride * index as usize;
+        let data = &self.ram[0x603 + offset..][..stride];
+        Light::try_ref_from_bytes(data.as_bytes()).unwrap()
+    }
 }
 
 impl System {
@@ -380,7 +403,11 @@ impl System {
             0x0000..0x0400 => self.gpu.transform.ram[addr as usize] = value,
             0x0400..0x0460 => self.gpu.transform.ram[addr as usize] = value.with_bits(0, 12, 0),
             0x0500..0x0600 => self.gpu.transform.ram[addr as usize] = value,
+            0x603 | 0x610 | 0x61D | 0x62A | 0x637 | 0x644 | 0x651 | 0x65E => {
+                self.gpu.transform.ram[addr as usize] = value
+            }
             0x0600..0x0680 => self.gpu.transform.ram[addr as usize] = value.with_bits(0, 12, 0),
+
             0x1000..0x1057 => {
                 let register = addr as u8;
                 let Some(register) = Reg::from_repr(register) else {
