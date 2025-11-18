@@ -1,3 +1,4 @@
+use std::sync::LazyLock;
 use strum::{FromRepr, VariantArray};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, FromRepr)]
@@ -35,7 +36,7 @@ struct OpcodeInfo {
 
 impl OpcodeInfo {
     #[inline(always)]
-    fn matches(self, value: u16) -> bool {
+    const fn matches(self, value: u16) -> bool {
         (value & self.mask) == self.target
     }
 
@@ -92,7 +93,7 @@ macro_rules! opcode {
         }
 
         impl $e {
-            pub fn new(value: u16) -> Self {
+            const fn find_match(value: u16) -> Self {
                 $(
                     let info = const { OpcodeInfo::parse($opcode) };
                     if info.matches(value) {
@@ -267,6 +268,15 @@ opcode! {
     Movpz   = "1111_111x_xxxx_xxxx",
 }
 
+static OPCODE_LUT: LazyLock<[Opcode; 1 << 16]> =
+    LazyLock::new(|| std::array::from_fn(|i| Opcode::find_match(i as u16)));
+
+impl Opcode {
+    pub fn new(value: u16) -> Self {
+        OPCODE_LUT[value as usize]
+    }
+}
+
 impl Opcode {
     pub fn needs_extra(self) -> bool {
         use Opcode::*;
@@ -414,6 +424,21 @@ opcode! {
     Ldnm    = "xxxx_xxxx_11xx_11xx",
 }
 
+static EXTENSION_LUT: LazyLock<[ExtensionOpcode; 1 << 16]> = LazyLock::new(|| {
+    std::array::from_fn(|i| {
+        let opcode = Opcode::new(i as u16);
+        let mask = opcode.extension_mask();
+
+        ExtensionOpcode::find_match(i as u16 & mask)
+    })
+});
+
+impl ExtensionOpcode {
+    pub fn new(value: u16) -> Self {
+        EXTENSION_LUT[value as usize]
+    }
+}
+
 #[derive(Clone, Copy)]
 pub struct Ins {
     pub base: u16,
@@ -451,15 +476,12 @@ impl Ins {
         Opcode::new(self.base)
     }
 
-    pub fn len(self) -> u16 {
-        self.opcode().len()
+    pub fn extension_opcode(self) -> ExtensionOpcode {
+        ExtensionOpcode::new(self.base)
     }
 
-    pub fn extension_opcode(self) -> ExtensionOpcode {
-        let opcode = self.opcode();
-        let mask = opcode.extension_mask();
-
-        ExtensionOpcode::new(self.base & mask)
+    pub fn len(self) -> u16 {
+        self.opcode().len()
     }
 }
 
