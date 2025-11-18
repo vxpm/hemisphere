@@ -727,26 +727,26 @@ impl Interpreter {
 
         // fetch
         let mut ins = Ins::new(self.read_imem(self.regs.pc));
-        let opcode = ins.opcode();
+        let decoded = ins.decoded();
 
-        let extra = opcode
-            .needs_extra()
+        let extra = decoded
+            .needs_extra
             .then_some(self.read_imem(self.regs.pc.wrapping_add(1)));
 
         if let Some(extra) = extra {
             ins.extra = extra;
         }
 
-        let ins_len = opcode.len();
+        let ins_len = decoded.len();
 
         // execute
-        let regs_previous = if opcode.has_extension() {
+        let regs_previous = if decoded.extension.is_some() {
             Some(self.regs.clone())
         } else {
             None
         };
 
-        match ins.opcode() {
+        match decoded.opcode {
             Opcode::Abs => self.abs(sys, ins),
             Opcode::Add => self.add(sys, ins),
             Opcode::Addarn => self.addarn(sys, ins),
@@ -874,9 +874,8 @@ impl Interpreter {
             Opcode::Illegal => (),
         }
 
-        if opcode.has_extension() {
+        if let Some(extension) = decoded.extension {
             let regs_previous = regs_previous.unwrap();
-            let extension = ins.extension_opcode();
             match extension {
                 ExtensionOpcode::Dr => self.ext_dr(sys, ins, &regs_previous),
                 ExtensionOpcode::Ir => self.ext_ir(sys, ins, &regs_previous),

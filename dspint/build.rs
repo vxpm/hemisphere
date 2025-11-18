@@ -1,0 +1,33 @@
+#[path = "src/ins/opcodes.rs"]
+mod opcodes;
+use opcodes::{ExtensionOpcode, Opcode};
+use std::io::Write;
+use std::path::PathBuf;
+
+fn main() {
+    let lut: [String; 1 << 16] = std::array::from_fn(|i| {
+        let base = i as u16;
+        let opcode = Opcode::find_match(base);
+        let extension = opcode
+            .has_extension()
+            .then(|| ExtensionOpcode::find_match(base & opcode.extension_mask()));
+
+        format!(
+            "Decoded {{ opcode: Opcode::{:?}, extension: {}, needs_extra: {} }}",
+            opcode,
+            if let Some(ext) = extension {
+                format!("Some(ExtensionOpcode::{ext:?})")
+            } else {
+                "None".to_string()
+            },
+            opcode.needs_extra(),
+        )
+    });
+
+    let lut = lut.join(", ");
+    let code = format!("static DECODING_LUT: [Decoded; 1 << 16] = [{lut}];");
+
+    let path = PathBuf::from(std::env::var("OUT_DIR").unwrap()).join("dsp_decoding_lut.rs");
+    let mut file = std::fs::File::create(path).unwrap();
+    file.write_all(code.as_bytes()).unwrap();
+}

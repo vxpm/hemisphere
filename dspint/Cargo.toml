@@ -16,6 +16,9 @@ required-features = ["zayd-tests"]
 [features]
 zayd-tests = []
 
+[build-dependencies]
+strum.workspace = true
+
 [dev-dependencies]
 binrw.workspace = true
 libtest-mimic = "0.8"
