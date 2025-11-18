@@ -8,9 +8,10 @@ pub struct GilrsCore {
 
 impl GilrsCore {
     pub fn new() -> Self {
+        let gilrs = Gilrs::new().unwrap();
         Self {
-            gilrs: Gilrs::new().unwrap(),
-            active_gamepad: None,
+            active_gamepad: gilrs.gamepads().next().map(|g| g.0),
+            gilrs,
         }
     }
 

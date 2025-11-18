@@ -26,6 +26,8 @@ pub struct Hemisphere {
     cores: Cores,
     /// How many DSP cycles are pending.
     dsp_pending: f64,
+    /// How many cycles have elapsed since last input update.
+    since_last_input: Cycles,
 }
 
 impl Hemisphere {
@@ -34,6 +36,7 @@ impl Hemisphere {
             system: System::new(config),
             cores,
             dsp_pending: 0.0,
+            since_last_input: Cycles(0),
         }
     }
 
@@ -65,9 +68,13 @@ impl Hemisphere {
             }
 
             // update inputs
-            for index in 0..4 {
-                let controller = self.cores.input.controller(index);
-                self.system.serial.controllers[index] = controller;
+            self.since_last_input += e.cycles;
+            if self.since_last_input >= Cycles::from_secs_f64(1.0 / 120.0) {
+                self.since_last_input = Cycles(0);
+                for index in 0..4 {
+                    let controller = self.cores.input.controller(index);
+                    self.system.serial.controllers[index] = controller;
+                }
             }
 
             self.system.scheduler.advance(e.cycles.0);
