@@ -406,7 +406,7 @@ pub fn decode_texture(data: &[u8], format: Format) -> Vec<Rgba8> {
                     r: 255,
                     g: 255,
                     b: 255,
-                    a: 255
+                    a: 128
                 };
                 (format.width() * format.height()) as usize
             ]
