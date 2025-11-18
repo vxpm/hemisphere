@@ -26,7 +26,9 @@ impl DspCore for InterpreterCore {
         {
             std::hint::cold_path();
         } else {
-            for _ in 0..instructions {
+            let mut i = 0;
+            while i < instructions {
+                i += 1;
                 self.interpreter.step(sys);
             }
         }

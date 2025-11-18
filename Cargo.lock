@@ -743,6 +743,7 @@ dependencies = [
  "gilrs",
  "hemisphere",
  "ppcjit",
+ "seq-macro",
  "slotmap",
  "tracing",
  "util",

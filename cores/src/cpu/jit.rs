@@ -14,12 +14,13 @@ use ppcjit::{
         WriteQuantizedHook,
     },
 };
+use seq_macro::seq;
 use slotmap::{SlotMap, new_key_type};
 use std::{collections::BTreeSet, ops::Range};
 
 pub use ppcjit;
 
-const PAGE_SHIFT: usize = 12;
+const PAGE_SHIFT: usize = 11;
 const PAGE_COUNT: usize = 1 << (32 - PAGE_SHIFT);
 
 new_key_type! {
@@ -208,6 +209,7 @@ static CTX_HOOKS: Hooks = {
             // );
             true
         } else {
+            std::hint::cold_path();
             tracing::error!(pc = ?ctx.system.cpu.pc, "failed to translate address {addr}");
             false
         }
@@ -219,6 +221,7 @@ static CTX_HOOKS: Hooks = {
         value: P,
     ) -> bool {
         let Some(physical) = ctx.system.translate_data_addr(addr) else {
+            std::hint::cold_path();
             tracing::error!(pc = ?ctx.system.cpu.pc, "failed to translate address {addr}");
             return false;
         };
@@ -229,8 +232,14 @@ static CTX_HOOKS: Hooks = {
         // );
 
         ctx.system.write(physical, value);
-        for i in 0..size_of::<P>() {
-            ctx.mapping.invalidate(addr + i as u32);
+
+        ctx.mapping.invalidate(addr);
+        seq! {
+            N in 1..4 {
+                if const { size_of::<P>() >= N } {
+                    ctx.mapping.invalidate(addr + N);
+                }
+            }
         }
 
         true
@@ -243,6 +252,7 @@ static CTX_HOOKS: Hooks = {
         value: &mut f64,
     ) -> u8 {
         let Some(physical) = ctx.system.translate_data_addr(addr) else {
+            std::hint::cold_path();
             tracing::error!("failed to translate address {addr}");
             return 0;
         };
@@ -275,6 +285,7 @@ static CTX_HOOKS: Hooks = {
         value: f64,
     ) -> u8 {
         let Some(physical) = ctx.system.translate_data_addr(addr) else {
+            std::hint::cold_path();
             tracing::error!("failed to translate address {addr}");
             return 0;
         };

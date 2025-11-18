@@ -12,6 +12,7 @@ hemisphere.workspace = true
 ppcjit.workspace = true
 dspint.workspace = true
 util.workspace = true
+seq-macro.workspace = true
 
 tracing.workspace = true
 slotmap.workspace = true
