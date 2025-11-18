@@ -36,12 +36,6 @@ pub struct Decoded {
     pub needs_extra: bool,
 }
 
-impl Decoded {
-    pub fn len(self) -> u16 {
-        if self.needs_extra { 2 } else { 1 }
-    }
-}
-
 impl Ins {
     pub fn new(base: u16) -> Self {
         Self { base, extra: 0 }

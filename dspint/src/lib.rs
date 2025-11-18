@@ -733,11 +733,12 @@ impl Interpreter {
             .needs_extra
             .then_some(self.read_imem(self.regs.pc.wrapping_add(1)));
 
-        if let Some(extra) = extra {
+        let ins_len = if let Some(extra) = extra {
             ins.extra = extra;
-        }
-
-        let ins_len = decoded.len();
+            2
+        } else {
+            1
+        };
 
         // execute
         let regs_previous = if decoded.extension.is_some() {
