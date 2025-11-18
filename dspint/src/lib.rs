@@ -596,7 +596,7 @@ impl Interpreter {
 
             match (target, direction) {
                 (DspDmaTarget::Dmem, DspDmaDirection::FromRamToDsp) => {
-                    tracing::debug!(
+                    tracing::trace!(
                         "DSP DMA {length:04X} bytes from RAM {ram_base:08X} to DMEM {dsp_base:04X}",
                     );
 
@@ -609,7 +609,7 @@ impl Interpreter {
                     }
                 }
                 (DspDmaTarget::Dmem, DspDmaDirection::FromDspToRam) => {
-                    tracing::debug!(
+                    tracing::trace!(
                         "DSP DMA {length:04X} bytes from DMEM {dsp_base:04X} to RAM {ram_base:08X}"
                     );
 
@@ -621,7 +621,7 @@ impl Interpreter {
                     }
                 }
                 (DspDmaTarget::Imem, DspDmaDirection::FromRamToDsp) => {
-                    tracing::info!(
+                    tracing::trace!(
                         "DSP DMA {length:04X} bytes from RAM {ram_base:08X} to IMEM {dsp_base:04X} (ucode)"
                     );
 
@@ -686,7 +686,7 @@ impl Interpreter {
             0xFE => sys.dsp.cpu_mailbox.high_and_status(),
             0xFF => {
                 if sys.dsp.cpu_mailbox.status() {
-                    tracing::debug!(
+                    tracing::trace!(
                         "received from CPU mailbox: 0x{:08X}",
                         sys.dsp.cpu_mailbox.data().value()
                     );
