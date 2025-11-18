@@ -15,39 +15,58 @@ use ppcjit::{
     },
 };
 use slotmap::{SlotMap, new_key_type};
-use std::{collections::BTreeMap, ops::Range};
+use std::{collections::BTreeSet, ops::Range};
 
 pub use ppcjit;
 
-/// A page is 4096 (1^12) bytes. Therefore, there are 2^20 pages.
-const PAGE_COUNT: usize = 1 << 20;
-type PageLut = Box<[u16; PAGE_COUNT]>;
+const PAGE_SHIFT: usize = 12;
+const PAGE_COUNT: usize = 1 << (32 - PAGE_SHIFT);
 
 new_key_type! {
     /// Identifier for a block in a [`Blocks`] storage.
     pub struct BlockId;
 }
 
+#[derive(Debug, Clone)]
+struct Mapping {
+    address: Address,
+    id: BlockId,
+    length: u32,
+}
+
+impl Mapping {
+    pub fn range(&self) -> Range<u32> {
+        let start = self.address.value();
+        start..start + self.length
+    }
+}
+
 /// Mapping of addresses to JIT blocks.
 pub struct BlockMapping {
-    address: BTreeMap<Address, (BlockId, u32)>,
-    page_lut: PageLut,
+    groups: Box<[Vec<Mapping>; PAGE_COUNT]>,
+    overlap_lut: Box<[u16; PAGE_COUNT]>,
+    pages_with_non_empty_groups: BTreeSet<u32>,
 
     // caching stuff
-    invalidation_buffer: Vec<Range<Address>>,
+    empty_buf: Vec<u32>,
     last_query: Option<(Address, BlockId)>,
 }
 
 impl BlockMapping {
     fn insert(&mut self, range: Range<Address>, id: BlockId) {
-        self.address
-            .insert(range.start, (id, range.end.value() - range.start.value()));
+        let start_page = range.start.value() >> PAGE_SHIFT;
+        self.groups[start_page as usize].push(Mapping {
+            address: range.start,
+            id,
+            length: range.end.value() - range.start.value(),
+        });
+
+        self.pages_with_non_empty_groups.insert(start_page);
 
         // update LUT
-        let start_page = range.start.value() >> 12;
-        let end_page = range.end.value() >> 12;
+        let end_page = range.end.value() >> PAGE_SHIFT;
         for index in start_page..=end_page {
-            self.page_lut[index as usize] += 1;
+            self.overlap_lut[index as usize] += 1;
         }
     }
 
@@ -60,7 +79,12 @@ impl BlockMapping {
             std::hint::cold_path();
             Some(id)
         } else {
-            let (id, _) = *self.address.get(&addr)?;
+            let start_page = addr.value() >> PAGE_SHIFT;
+            let id = self.groups[start_page as usize]
+                .iter()
+                .find(|mapping| mapping.address == addr)?
+                .id;
+
             self.last_query = Some((addr, id));
             Some(id)
         }
@@ -70,31 +94,28 @@ impl BlockMapping {
     #[inline(always)]
     pub fn invalidate(&mut self, addr: Address) {
         // check LUT first
-        let page = addr.value() >> 12;
+        let page = addr.value() >> PAGE_SHIFT;
 
         #[expect(clippy::redundant_else, reason = "makes it clearer")]
-        if self.page_lut[page as usize] == 0 {
+        if self.overlap_lut[page as usize] == 0 {
             return;
         } else {
             std::hint::cold_path();
         }
 
-        self.invalidation_buffer.extend(
-            self.address
-                .range(addr..)
-                .map(|(addr, (_, len))| *addr..*addr + *len)
-                .filter(|r| r.contains(&addr)),
-        );
+        // go through groups and remove overlapping mappings
+        self.empty_buf.clear();
+        for page in self.pages_with_non_empty_groups.range(page..).copied() {
+            let group = &mut self.groups[page as usize];
+            group.retain(|mapping| !mapping.range().contains(&addr.value()));
 
-        for range in self.invalidation_buffer.drain(..) {
-            self.address.remove(&range.start);
-
-            // update LUT
-            let start_page = range.start.value() >> 12;
-            let end_page = range.end.value() >> 12;
-            for index in start_page..=end_page {
-                self.page_lut[index as usize] -= 1;
+            if group.is_empty() {
+                self.empty_buf.push(page);
             }
+        }
+
+        for page in self.empty_buf.drain(..) {
+            self.pages_with_non_empty_groups.remove(&page);
         }
 
         if self
@@ -108,10 +129,8 @@ impl BlockMapping {
 
     /// Invalidates all mappings.
     pub fn clear(&mut self) {
-        self.address.clear();
-        self.page_lut.fill(0);
-
-        self.invalidation_buffer.clear();
+        self.groups.iter_mut().for_each(|group| group.clear());
+        self.overlap_lut.fill(0);
         self.last_query = None;
     }
 }
@@ -119,10 +138,11 @@ impl BlockMapping {
 impl Default for BlockMapping {
     fn default() -> Self {
         Self {
-            address: BTreeMap::default(),
-            page_lut: util::boxed_array(0),
+            groups: util::boxed_array(Vec::new()),
+            overlap_lut: util::boxed_array(0),
+            pages_with_non_empty_groups: BTreeSet::new(),
 
-            invalidation_buffer: Vec::with_capacity(64),
+            empty_buf: Vec::with_capacity(64),
             last_query: None,
         }
     }
