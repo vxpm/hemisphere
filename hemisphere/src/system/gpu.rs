@@ -496,10 +496,10 @@ impl System {
                     .exec(Action::SetBlendMode(self.gpu.pixel.blend_mode));
             }
             Reg::PixelConstantAlpha => {
-                dbg!(value.bit(8));
+                // dbg!(value.bit(8));
             }
             Reg::PixelControl => {
-                dbg!(pixel::Format::from_bits(u3::new(value as u8)));
+                // dbg!(pixel::Format::from_bits(u3::new(value as u8)));
             }
             Reg::PixelDone => {
                 self.gpu.pixel.interrupt.set_finish(true);
@@ -523,8 +523,6 @@ impl System {
             Reg::PixelCopyClearZ => value.write_be_bytes(self.gpu.pixel.clear_depth.as_mut_bytes()),
             Reg::PixelCopyCmd => {
                 let cmd = pixel::CopyCmd::from_bits(value);
-                // tracing::debug!(?cmd);
-                println!("{cmd:?}");
                 self.config.renderer.exec(Action::EfbCopy {
                     clear: cmd.clear(),
                     to_xfb: cmd.to_xfb(),

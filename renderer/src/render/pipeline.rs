@@ -7,19 +7,51 @@ use std::{
 };
 
 #[derive(Clone, PartialEq, Eq, Hash)]
-pub struct PipelineSettings {
-    pub blend_enabled: bool,
-    pub blend_src: wgpu::BlendFactor,
-    pub blend_dst: wgpu::BlendFactor,
-    pub blend_op: wgpu::BlendOperation,
-
-    pub depth_enabled: bool,
-    pub depth_compare: wgpu::CompareFunction,
+pub struct BlendSettings {
+    pub enabled: bool,
+    pub src: wgpu::BlendFactor,
+    pub dst: wgpu::BlendFactor,
+    pub op: wgpu::BlendOperation,
 
     pub color_write: bool,
     pub alpha_write: bool,
-    pub depth_write: bool,
+}
 
+impl Default for BlendSettings {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            src: wgpu::BlendFactor::Src,
+            dst: wgpu::BlendFactor::Dst,
+            op: wgpu::BlendOperation::Add,
+
+            color_write: true,
+            alpha_write: true,
+        }
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct DepthSettings {
+    pub enabled: bool,
+    pub compare: wgpu::CompareFunction,
+    pub write: bool,
+}
+
+impl Default for DepthSettings {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            compare: wgpu::CompareFunction::Less,
+            write: true,
+        }
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct PipelineSettings {
+    pub blend: BlendSettings,
+    pub depth: DepthSettings,
     pub texenv: TexEnvConfig,
     pub texgen: TexGenConfig,
 }
@@ -27,18 +59,8 @@ pub struct PipelineSettings {
 impl Default for PipelineSettings {
     fn default() -> Self {
         Self {
-            blend_enabled: false,
-            blend_src: wgpu::BlendFactor::Src,
-            blend_dst: wgpu::BlendFactor::Dst,
-            blend_op: wgpu::BlendOperation::Add,
-
-            depth_enabled: true,
-            depth_compare: wgpu::CompareFunction::Less,
-
-            color_write: true,
-            alpha_write: true,
-            depth_write: true,
-
+            blend: Default::default(),
+            depth: Default::default(),
             texenv: Default::default(),
             texgen: Default::default(),
         }
@@ -60,11 +82,11 @@ impl Pipeline {
         layout: &wgpu::PipelineLayout,
         settings: &PipelineSettings,
     ) -> wgpu::RenderPipeline {
-        let depth_stencil = if settings.depth_enabled {
+        let depth_stencil = if settings.depth.enabled {
             wgpu::DepthStencilState {
                 format: wgpu::TextureFormat::Depth32Float,
-                depth_write_enabled: settings.depth_write,
-                depth_compare: settings.depth_compare,
+                depth_write_enabled: settings.depth.write,
+                depth_compare: settings.depth.compare,
                 stencil: wgpu::StencilState::default(),
                 bias: wgpu::DepthBiasState::default(),
             }
@@ -79,21 +101,21 @@ impl Pipeline {
         };
 
         let blend_component = wgpu::BlendComponent {
-            src_factor: settings.blend_src,
-            dst_factor: settings.blend_dst,
-            operation: settings.blend_op,
+            src_factor: settings.blend.src,
+            dst_factor: settings.blend.dst,
+            operation: settings.blend.op,
         };
 
-        let blend = settings.blend_enabled.then_some(wgpu::BlendState {
+        let blend = settings.blend.enabled.then_some(wgpu::BlendState {
             color: blend_component,
             alpha: blend_component,
         });
 
         let mut write_mask = wgpu::ColorWrites::empty();
-        if settings.color_write {
+        if settings.blend.color_write {
             write_mask |= wgpu::ColorWrites::COLOR;
         }
-        if settings.alpha_write {
+        if settings.blend.alpha_write {
             write_mask |= wgpu::ColorWrites::ALPHA;
         }
 
@@ -152,12 +174,10 @@ impl Pipeline {
         let group0_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: None,
             entries: &[
-                // matrices
-                storage_buffer(0),
                 // vertices
-                storage_buffer(1),
+                storage_buffer(0),
                 // configs
-                storage_buffer(2),
+                storage_buffer(1),
             ],
         });
 

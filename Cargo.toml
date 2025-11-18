@@ -39,17 +39,17 @@ opt-level = 0
 [profile.dev.package."wayland-protocols"]
 opt-level = 0
 
-[profile.dev.package."wgsl-types"]
-opt-level = 0
-
-[profile.dev.package."wgsl-parse"]
-opt-level = 0
-
-[profile.dev.package."wesl"]
-opt-level = 0
-
 [profile.dev.package."iced-x86"]
 opt-level = 0
+
+[profile.dev.package."wgsl-types"]
+opt-level = 2
+
+[profile.dev.package."wgsl-parse"]
+opt-level = 2
+
+[profile.dev.package."wesl"]
+opt-level = 2
 
 [profile.dev.package."cranelift-codegen"]
 opt-level = 2

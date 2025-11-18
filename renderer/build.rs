@@ -14,5 +14,4 @@ fn main() {
     });
 
     wesl.build_artifact(&"package::blit".parse().unwrap(), "blit");
-    wesl.build_artifact(&"package::uber".parse().unwrap(), "uber");
 }

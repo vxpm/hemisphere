@@ -9,7 +9,7 @@ use crate::render::{
 };
 use glam::Mat4;
 use hemisphere::{
-    render::{Action, HashableMat4, TexEnvConfig, TexGenConfig, Viewport},
+    render::{Action, TexEnvConfig, TexGenConfig, Viewport},
     system::gpu::{
         Topology, VertexAttributes,
         colors::Rgba,
@@ -17,9 +17,7 @@ use hemisphere::{
         transform::ChannelControl,
     },
 };
-use rustc_hash::FxHashMap;
 use std::{
-    collections::hash_map::Entry,
     num::NonZero,
     sync::{Arc, Mutex},
 };
@@ -45,15 +43,12 @@ pub struct Renderer {
 
     clear_color: wgpu::Color,
     current_projection_mat: Mat4,
-    current_projection_mat_idx: u32,
     current_config: data::Config,
     current_config_dirty: bool,
 
     vertices: Vec<data::Vertex>,
     indices: Vec<u32>,
     configs: Vec<data::Config>,
-    matrices: Vec<Mat4>,
-    matrices_idx: FxHashMap<HashableMat4, u32>,
 }
 
 fn set_channel(channel: &mut data::Channel, control: ChannelControl) {
@@ -125,15 +120,12 @@ impl Renderer {
 
             clear_color: wgpu::Color::BLACK,
             current_projection_mat: Default::default(),
-            current_projection_mat_idx: 0,
             current_config: Default::default(),
             current_config_dirty: true,
 
             vertices: Vec::new(),
             indices: Vec::new(),
             configs: Vec::new(),
-            matrices: Vec::new(),
-            matrices_idx: Default::default(),
         };
 
         value.reset();
@@ -213,18 +205,6 @@ impl Renderer {
         }
     }
 
-    pub fn insert_matrix(&mut self, mat: Mat4) -> u32 {
-        match self.matrices_idx.entry(mat.into()) {
-            Entry::Occupied(o) => *o.get(),
-            Entry::Vacant(v) => {
-                let idx = self.matrices.len() as u32;
-                self.matrices.push(mat);
-
-                *v.insert_entry(idx).get()
-            }
-        }
-    }
-
     pub fn insert_vertex(&mut self, vertex: data::Vertex) -> u32 {
         let idx = self.vertices.len();
         self.vertices.push(vertex);
@@ -233,30 +213,21 @@ impl Renderer {
     }
 
     fn attributes_to_vertex(&mut self, attributes: &VertexAttributes) -> data::Vertex {
-        let position_mat_idx = self.insert_matrix(attributes.position_matrix);
-        let normal_mat_idx = self.insert_matrix(Mat4::from_mat3(attributes.normal_matrix));
-        let tex_coord_mat_idx = attributes
-            .tex_coords_matrix
-            .map(|mat| self.insert_matrix(mat));
-
         data::Vertex {
             position: attributes.position,
-            position_mat_idx,
-
+            config_idx: self.configs.len() as u32 - 1,
             normal: attributes.normal,
-            normal_mat_idx,
+            _pad0: 0,
+
+            projection_mat: self.current_projection_mat,
+            position_mat: attributes.position_matrix,
+            normal_mat: Mat4::from_mat3(attributes.normal_matrix),
 
             diffuse: attributes.diffuse,
             specular: attributes.specular,
 
             tex_coord: attributes.tex_coords,
-            tex_coord_mat_idx,
-
-            projection_idx: self.current_projection_mat_idx,
-            config_idx: self.configs.len() as u32 - 1,
-
-            _pad0: 0,
-            _pad1: 0,
+            tex_coord_mat: attributes.tex_coords_matrix,
         }
     }
 
@@ -283,8 +254,6 @@ impl Renderer {
     }
 
     pub fn set_blend_mode(&mut self, mode: BlendMode) {
-        self.flush();
-
         let factor = |factor: BlendFactor| match factor {
             BlendFactor::Zero => wgpu::BlendFactor::Zero,
             BlendFactor::One => wgpu::BlendFactor::One,
@@ -304,17 +273,20 @@ impl Renderer {
             wgpu::BlendOperation::Add
         };
 
-        self.pipeline.settings.color_write = mode.color_mask();
-        self.pipeline.settings.alpha_write = mode.alpha_mask();
-        self.pipeline.settings.blend_enabled = mode.enable();
-        self.pipeline.settings.blend_src = src;
-        self.pipeline.settings.blend_dst = dst;
-        self.pipeline.settings.blend_op = op;
+        let blend = pipeline::BlendSettings {
+            enabled: mode.enable(),
+            src,
+            dst,
+            op,
+            color_write: mode.color_mask(),
+            alpha_write: mode.alpha_mask(),
+        };
+
+        self.flush();
+        self.pipeline.settings.blend = blend;
     }
 
     pub fn set_depth_mode(&mut self, mode: DepthMode) {
-        self.flush();
-
         let compare = match mode.compare() {
             CompareMode::Never => wgpu::CompareFunction::Never,
             CompareMode::Less => wgpu::CompareFunction::Less,
@@ -326,15 +298,20 @@ impl Renderer {
             CompareMode::Always => wgpu::CompareFunction::Always,
         };
 
-        self.pipeline.settings.depth_enabled = mode.enable();
-        self.pipeline.settings.depth_write = mode.update();
-        self.pipeline.settings.depth_compare = compare;
+        let depth = pipeline::DepthSettings {
+            enabled: mode.enable(),
+            write: mode.update(),
+            compare: compare,
+        };
+
+        if self.pipeline.settings.depth != depth {
+            self.flush();
+            self.pipeline.settings.depth = depth;
+        }
     }
 
     pub fn set_projection_mat(&mut self, mat: Mat4) {
-        let id = self.insert_matrix(mat);
         self.current_projection_mat = mat;
-        self.current_projection_mat_idx = id;
     }
 
     pub fn set_texenv_config(&mut self, config: TexEnvConfig) {
@@ -430,8 +407,6 @@ impl Renderer {
     fn reset(&mut self) {
         self.vertices.clear();
         self.indices.clear();
-        self.matrices.clear();
-        self.matrices_idx.clear();
         self.configs.clear();
 
         self.set_projection_mat(self.current_projection_mat);
@@ -448,9 +423,6 @@ impl Renderer {
         let index_buf =
             self.index_buffers
                 .allocate(&self.device, &self.queue, self.indices.as_bytes());
-        let matrices_buf =
-            self.storage_buffers
-                .allocate(&self.device, &self.queue, self.matrices.as_bytes());
         let vertices_buf =
             self.storage_buffers
                 .allocate(&self.device, &self.queue, self.vertices.as_bytes());
@@ -472,21 +444,13 @@ impl Renderer {
                 wgpu::BindGroupEntry {
                     binding: 0,
                     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                        buffer: &matrices_buf,
-                        offset: 0,
-                        size: NonZero::new(self.matrices.as_bytes().len() as u64),
-                    }),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
                         buffer: &vertices_buf,
                         offset: 0,
                         size: NonZero::new(self.vertices.as_bytes().len() as u64),
                     }),
                 },
                 wgpu::BindGroupEntry {
-                    binding: 2,
+                    binding: 1,
                     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
                         buffer: &configs_buf,
                         offset: 0,

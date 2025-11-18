@@ -55,7 +55,7 @@ pub enum CompareMode {
 }
 
 #[bitos(32)]
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct DepthMode {
     #[bits(0)]
     pub enable: bool,
@@ -102,7 +102,7 @@ pub enum BlendLogicOp {
 }
 
 #[bitos(32)]
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct BlendMode {
     #[bits(0)]
     pub enable: bool,

@@ -48,29 +48,26 @@ fn base_module() -> wesl::syntax::TranslationUnit {
 
         // A primitive vertex
         struct Vertex {
-            position: vec3f, // 12 bytes
-            position_mat: MatIdx, // 4 bytes
-
-            normal: vec3f, // 12 bytes
-            normal_mat: MatIdx, // 4 bytes
-
-            chan0: vec4f, // 16 bytes
-            chan1: vec4f, // 16 bytes
-
-            tex_coord: array<vec2f, 8>, // 8 * 8 = 64 bytes
-            tex_coord_mat: array<MatIdx, 8>, // 4 * 8 = 32 bytes
-
-            projection: MatIdx, // 4 bytes
+            position: vec3f,
             config: u32,
-
+            normal: vec3f,
             _pad0: u32,
-            _pad1: u32,
+
+            projection_mat: mat4x4f,
+            position_mat: mat4x4f,
+            normal_mat: mat4x4f,
+
+            chan0: vec4f,
+            chan1: vec4f,
+
+            tex_coord: array<vec2f, 8>,
+            tex_coord_mat: array<mat4x4f, 8>,
+
         };
 
         // Primitives group
-        @group(0) @binding(0) var<storage> matrices: array<mat4x4f>;
-        @group(0) @binding(1) var<storage> vertices: array<Vertex>;
-        @group(0) @binding(2) var<storage> configs: array<Config>;
+        @group(0) @binding(0) var<storage> vertices: array<Vertex>;
+        @group(0) @binding(1) var<storage> configs: array<Config>;
 
         // Textures group
         @group(1) @binding(0) var texture0: texture_2d<f32>;
@@ -204,7 +201,7 @@ fn vertex_stage(texgen: &TexGenConfig) -> wesl::syntax::GlobalDeclaration {
 
         stages.push(wesl::quote_statement! {
             {
-                let matrix = base::matrices[vertex.tex_coord_mat[#index]];
+                let matrix = vertex.tex_coord_mat[#index];
                 tex_coords[#index] = #result;
             }
         });
@@ -256,9 +253,7 @@ fn vertex_stage(texgen: &TexGenConfig) -> wesl::syntax::GlobalDeclaration {
 
             let vertex = base::vertices[index];
             let pos = vec4f(vertex.position, 1.0);
-            let projection = base::matrices[vertex.projection];
-            let view = base::matrices[vertex.position_mat];
-            out.clip = projection * view * pos;
+            out.clip = vertex.projection_mat * vertex.position_mat * pos;
             out.clip.z += out.clip.w;
             out.clip.z /= 2.0;
 

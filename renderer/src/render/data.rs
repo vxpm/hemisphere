@@ -1,4 +1,4 @@
-use glam::{Vec2, Vec3};
+use glam::{Mat4, Vec2, Vec3};
 use hemisphere::system::gpu::colors::Rgba;
 use zerocopy::{Immutable, IntoBytes};
 
@@ -6,22 +6,19 @@ use zerocopy::{Immutable, IntoBytes};
 #[repr(C)]
 pub struct Vertex {
     pub position: Vec3,
-    pub position_mat_idx: u32,
-
+    pub config_idx: u32,
     pub normal: Vec3,
-    pub normal_mat_idx: u32,
+    pub _pad0: u32,
+
+    pub projection_mat: Mat4,
+    pub position_mat: Mat4,
+    pub normal_mat: Mat4,
 
     pub diffuse: Rgba,
     pub specular: Rgba,
 
     pub tex_coord: [Vec2; 8],
-    pub tex_coord_mat_idx: [u32; 8],
-
-    pub projection_idx: u32,
-    pub config_idx: u32,
-
-    pub _pad0: u32,
-    pub _pad1: u32,
+    pub tex_coord_mat: [Mat4; 8],
 }
 
 #[derive(Debug, Clone, Immutable, IntoBytes, Default)]
