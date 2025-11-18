@@ -1,4 +1,3 @@
-use std::sync::LazyLock;
 use strum::{FromRepr, VariantArray};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, FromRepr)]
@@ -268,16 +267,28 @@ opcode! {
     Movpz   = "1111_111x_xxxx_xxxx",
 }
 
-static OPCODE_LUT: LazyLock<[Opcode; 1 << 16]> =
-    LazyLock::new(|| std::array::from_fn(|i| Opcode::find_match(i as u16)));
+#[allow(long_running_const_eval)]
+static OPCODE_LUT: [Opcode; 1 << 16] = {
+    let mut lut = [Opcode::Nop; 1 << 16];
+    let mut base = 0u16;
+    loop {
+        let opcode = Opcode::find_match(base);
+        lut[base as usize] = opcode;
+
+        let Some(next) = base.checked_add(1) else {
+            break;
+        };
+        base = next;
+    }
+
+    lut
+};
 
 impl Opcode {
-    pub fn new(value: u16) -> Self {
+    pub const fn new(value: u16) -> Self {
         OPCODE_LUT[value as usize]
     }
-}
 
-impl Opcode {
     pub fn needs_extra(self) -> bool {
         use Opcode::*;
 
@@ -382,7 +393,7 @@ impl Opcode {
         )
     }
 
-    pub fn extension_mask(&self) -> u16 {
+    pub const fn extension_mask(&self) -> u16 {
         use Opcode::*;
 
         match self {
@@ -424,17 +435,28 @@ opcode! {
     Ldnm    = "xxxx_xxxx_11xx_11xx",
 }
 
-static EXTENSION_LUT: LazyLock<[ExtensionOpcode; 1 << 16]> = LazyLock::new(|| {
-    std::array::from_fn(|i| {
-        let opcode = Opcode::new(i as u16);
+#[allow(long_running_const_eval)]
+static EXTENSION_LUT: [ExtensionOpcode; 1 << 16] = {
+    let mut lut = [ExtensionOpcode::Nop; 1 << 16];
+    let mut base = 0u16;
+    loop {
+        let opcode = Opcode::find_match(base);
         let mask = opcode.extension_mask();
 
-        ExtensionOpcode::find_match(i as u16 & mask)
-    })
-});
+        let extension = ExtensionOpcode::find_match(base & mask);
+        lut[base as usize] = extension;
+
+        let Some(next) = base.checked_add(1) else {
+            break;
+        };
+        base = next;
+    }
+
+    lut
+};
 
 impl ExtensionOpcode {
-    pub fn new(value: u16) -> Self {
+    pub const fn new(value: u16) -> Self {
         EXTENSION_LUT[value as usize]
     }
 }
@@ -476,12 +498,15 @@ impl Ins {
         Opcode::new(self.base)
     }
 
-    pub fn extension_opcode(self) -> ExtensionOpcode {
-        ExtensionOpcode::new(self.base)
-    }
-
     pub fn len(self) -> u16 {
         self.opcode().len()
+    }
+
+    pub fn extension_opcode(self) -> ExtensionOpcode {
+        let opcode = self.opcode();
+        let mask = opcode.extension_mask();
+
+        ExtensionOpcode::find_match(self.base & mask)
     }
 }
 
