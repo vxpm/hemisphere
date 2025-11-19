@@ -24,8 +24,9 @@ pub enum CondCode {
 }
 
 impl CondCode {
+    #[inline(always)]
     pub fn new(value: u8) -> Self {
-        Self::from_repr(value).unwrap()
+        unsafe { std::mem::transmute(value & 0xF) }
     }
 }
 

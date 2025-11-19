@@ -819,7 +819,10 @@ impl Interpreter {
     pub fn write_dmem(&mut self, sys: &mut System, addr: u16, value: u16) {
         match addr {
             0x0000..0x1000 => self.mem.dram[addr as usize] = value,
-            0x1000..0x1800 => tracing::warn!("writing to coefficient data"),
+            0x1000..0x1800 => {
+                std::hint::cold_path();
+                tracing::warn!("writing to coefficient data");
+            }
             0xFF00.. => self.write_mmio(sys, addr as u8, value),
             _ => (),
         }
@@ -830,7 +833,10 @@ impl Interpreter {
     pub fn read_imem(&mut self, addr: u16) -> u16 {
         match addr {
             0x0000..0x1000 => self.mem.iram[addr as usize],
-            0x8000..0x9000 => self.mem.irom[addr as usize - 0x8000],
+            0x8000..0x9000 => {
+                std::hint::cold_path();
+                self.mem.irom[addr as usize - 0x8000]
+            }
             _ => {
                 std::hint::cold_path();
                 0

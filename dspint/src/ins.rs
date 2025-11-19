@@ -37,14 +37,17 @@ pub struct Decoded {
 }
 
 impl Ins {
+    #[inline(always)]
     pub fn new(base: u16) -> Self {
-        Self { base, extra: 0 }
+        Self::with_extra(base, 0)
     }
 
+    #[inline(always)]
     pub fn with_extra(base: u16, extra: u16) -> Self {
         Self { base, extra }
     }
 
+    #[inline(always)]
     pub fn decoded(self) -> Decoded {
         DECODING_LUT[self.base as usize]
     }

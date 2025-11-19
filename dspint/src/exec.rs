@@ -568,6 +568,7 @@ impl Interpreter {
         self.regs.addressing[r] = add_to_addr_reg(ar, wr, 1);
     }
 
+    #[inline(always)]
     fn condition(&self, code: CondCode) -> bool {
         let status = self.regs.status;
         match code {
