@@ -14,10 +14,9 @@ use ppcjit::{
         WriteQuantizedHook,
     },
 };
-use rustc_hash::FxHashMap;
 use seq_macro::seq;
 use slotmap::{SlotMap, new_key_type};
-use std::{collections::BTreeSet, ops::Range};
+use std::{collections::BTreeMap, ops::Range};
 
 pub use ppcjit;
 
@@ -37,8 +36,7 @@ struct Mapping {
 
 /// Mapping of addresses to JIT blocks.
 pub struct BlockMapping {
-    hash_map: FxHashMap<Address, Mapping>,
-    tree_map: BTreeSet<Address>,
+    tree_map: BTreeMap<Address, Mapping>,
     overlap_lut: Box<[u16; PAGE_COUNT]>,
 
     // caching stuff
@@ -48,8 +46,7 @@ pub struct BlockMapping {
 
 impl BlockMapping {
     fn insert(&mut self, range: Range<Address>, id: BlockId) {
-        self.tree_map.insert(range.start);
-        self.hash_map.insert(
+        self.tree_map.insert(
             range.start,
             Mapping {
                 id,
@@ -74,7 +71,7 @@ impl BlockMapping {
             std::hint::cold_path();
             Some(id)
         } else {
-            let id = self.hash_map.get(&addr)?.id;
+            let id = self.tree_map.get(&addr)?.id;
             self.last_query = Some((addr, id));
             Some(id)
         }
@@ -94,12 +91,11 @@ impl BlockMapping {
         }
 
         self.to_remove.clear();
-        for &candidate in self.tree_map.range(addr..) {
-            let length = self.hash_map.get(&candidate).unwrap().length;
+        for (&candidate, mapping) in self.tree_map.range(addr..) {
+            let length = mapping.length;
             let range = candidate..candidate + length;
 
             if range.contains(&addr) {
-                self.hash_map.remove(&candidate);
                 self.to_remove.push(candidate);
             }
         }
@@ -119,7 +115,6 @@ impl BlockMapping {
 
     /// Invalidates all mappings.
     pub fn clear(&mut self) {
-        self.hash_map.clear();
         self.tree_map.clear();
         self.overlap_lut.fill(0);
         self.last_query = None;
@@ -129,8 +124,7 @@ impl BlockMapping {
 impl Default for BlockMapping {
     fn default() -> Self {
         Self {
-            hash_map: FxHashMap::default(),
-            tree_map: BTreeSet::default(),
+            tree_map: BTreeMap::default(),
             overlap_lut: util::boxed_array(0),
 
             to_remove: Vec::with_capacity(128),

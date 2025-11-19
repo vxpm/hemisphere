@@ -13,7 +13,6 @@ ppcjit.workspace = true
 dspint.workspace = true
 util.workspace = true
 seq-macro.workspace = true
-rustc-hash.workspace = true
 
 tracing.workspace = true
 slotmap.workspace = true
