@@ -1,11 +1,12 @@
 #![feature(debug_closure_helpers)]
 
+mod arena;
 mod builder;
 mod sequence;
 
 pub mod block;
 
-use crate::{block::Meta, builder::BlockBuilder};
+use crate::{arena::Arena, block::Meta, builder::BlockBuilder};
 use cranelift::{
     codegen::{self, ir},
     frontend, native,
@@ -43,6 +44,7 @@ pub struct Compiler {
     isa: Arc<dyn codegen::isa::TargetIsa>,
     settings: Settings,
     func_ctx: frontend::FunctionBuilderContext,
+    arena: Arena,
 }
 
 impl Default for Compiler {
@@ -76,6 +78,7 @@ impl Default for Compiler {
             isa,
             settings: Default::default(),
             func_ctx: frontend::FunctionBuilderContext::new(),
+            arena: Arena::new(),
         }
     }
 }
@@ -139,7 +142,7 @@ impl Compiler {
             seq: sequence,
         };
 
-        let block = unsafe { Block::new(meta, &*self.isa, compiled) };
+        let block = unsafe { Block::new(meta, &*self.isa, compiled, &mut self.arena) };
         // tracing::debug!(
         //     "compiled block:\n{}\n{}\n{}",
         //     block.meta().seq,

@@ -1,12 +1,11 @@
 mod unwind;
 
-use crate::{Sequence, block::unwind::UnwindHandle};
+use crate::{Sequence, arena::Arena, block::unwind::UnwindHandle};
 use cranelift::{
     codegen::{CompiledCode, ir},
     prelude::isa,
 };
 use gekko::{Address, Cpu};
-use memmap2::{Mmap, MmapOptions};
 use std::fmt::Display;
 
 pub type Context = std::ffi::c_void;
@@ -166,34 +165,34 @@ pub struct Meta {
 /// A compiled block of PowerPC instructions.
 pub struct Block {
     meta: Meta,
-    code: Mmap,
+    code: *const [u8],
     _unwind: Option<UnwindHandle>,
 }
 
 impl Block {
-    pub(crate) unsafe fn new(meta: Meta, isa: &dyn isa::TargetIsa, code: &CompiledCode) -> Self {
-        let mut map = MmapOptions::new()
-            .len(code.code_buffer().len())
-            .map_anon()
-            .unwrap();
-        map.copy_from_slice(code.code_buffer());
-
+    pub(crate) unsafe fn new(
+        meta: Meta,
+        isa: &dyn isa::TargetIsa,
+        code: &CompiledCode,
+        arena: &mut Arena,
+    ) -> Self {
+        let ptr = arena.allocate(code.code_buffer());
         let _unwind = if let Ok(Some(unwind_info)) = code.create_unwind_info(isa) {
-            UnwindHandle::new(isa, map.as_ptr() as usize, &unwind_info)
+            UnwindHandle::new(isa, ptr.addr(), &unwind_info)
         } else {
             None
         };
 
         Self {
             meta,
-            code: map.make_exec().unwrap(),
+            code: ptr,
             _unwind,
         }
     }
 
     /// Returns the bytes of the host code.
     pub fn bytes(&self) -> &[u8] {
-        &self.code
+        unsafe { self.code.as_ref().unwrap_unchecked() }
     }
 
     /// Meta information regarding this block.
@@ -204,7 +203,7 @@ impl Block {
     /// Executes this block of instructions and returns how many cycles were executed.
     #[inline(always)]
     pub fn call(&self, ctx: *mut Context, hooks: *const Hooks) -> Executed {
-        let func: BlockFn = unsafe { std::mem::transmute(self.code.as_ptr()) };
+        let func: BlockFn = unsafe { std::mem::transmute(self.code.addr()) };
         func(ctx, hooks)
     }
 }
@@ -215,7 +214,7 @@ impl Display for Block {
         use iced_x86::Formatter;
 
         let mut decoder =
-            iced_x86::Decoder::new(usize::BITS, &self.code, iced_x86::DecoderOptions::NONE);
+            iced_x86::Decoder::new(usize::BITS, self.bytes(), iced_x86::DecoderOptions::NONE);
 
         let mut formatter = iced_x86::NasmFormatter::new();
         formatter.options_mut().set_digit_separator("_");
