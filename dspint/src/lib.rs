@@ -802,7 +802,9 @@ impl Interpreter {
 
     /// Reads from data memory.
     pub fn read_dmem(&mut self, sys: &mut System, addr: u16) -> u16 {
-        let value = match addr {
+        
+
+        match addr {
             0x0000..0x1000 => self.mem.dram[addr as usize],
             0x1000..0x1800 => self.mem.coef[addr as usize - 0x1000],
             0xFF00.. => self.read_mmio(sys, addr as u8),
@@ -810,9 +812,7 @@ impl Interpreter {
                 std::hint::cold_path();
                 0
             }
-        };
-
-        value
+        }
     }
 
     /// Writes to data memory.
@@ -847,10 +847,7 @@ impl Interpreter {
     /// Writes to instruction memory.
     #[inline(always)]
     pub fn write_imem(&mut self, addr: u16, value: u16) {
-        match addr {
-            0x0000..0x1000 => self.mem.iram[addr as usize] = value,
-            _ => (),
-        }
+        if let 0x0000..0x1000 = addr { self.mem.iram[addr as usize] = value }
     }
 
     fn is_waiting_for_mail_inner(&mut self, offset: i16) -> bool {

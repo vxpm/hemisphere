@@ -533,12 +533,12 @@ impl System {
                 tracing::debug!("SI poll: {:?}", self.serial.poll);
             }
             Mmio::SerialCommControl => {
-                let mut written = self.serial.comm_control.clone();
+                let mut written = self.serial.comm_control;
                 ne!(written.as_mut_bytes());
                 serial::write_comm_control(self, written);
             }
             Mmio::SerialStatus => {
-                let mut written = self.serial.status.clone();
+                let mut written = self.serial.status;
                 ne!(written.as_mut_bytes());
                 serial::write_status(self, written);
             }

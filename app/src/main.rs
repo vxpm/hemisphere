@@ -219,7 +219,7 @@ impl eframe::App for App {
                     }
 
                     if ui.button("EFB").clicked() {
-                        self.create_window(efb::Window::default());
+                        self.create_window(efb::Window);
                     }
 
                     ui.menu_button("Subsystems", |ui| {

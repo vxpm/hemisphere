@@ -49,6 +49,7 @@ impl Default for DepthSettings {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Default)]
 pub struct PipelineSettings {
     pub blend: BlendSettings,
     pub depth: DepthSettings,
@@ -56,16 +57,6 @@ pub struct PipelineSettings {
     pub texgen: TexGenConfig,
 }
 
-impl Default for PipelineSettings {
-    fn default() -> Self {
-        Self {
-            blend: Default::default(),
-            depth: Default::default(),
-            texenv: Default::default(),
-            texgen: Default::default(),
-        }
-    }
-}
 
 pub struct Pipeline {
     pub settings: PipelineSettings,

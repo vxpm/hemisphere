@@ -501,7 +501,7 @@ impl System {
                     if index < 7 {
                         self.config.renderer.exec(Action::SetLight(
                             index as u8,
-                            self.gpu.transform.light(index as u8).clone(),
+                            *self.gpu.transform.light(index as u8),
                         ));
                     }
                 }

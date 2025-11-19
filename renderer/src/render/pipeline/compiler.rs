@@ -463,6 +463,6 @@ pub fn compile(texenv: &TexEnvConfig, texgen: &TexGenConfig) -> String {
 
     // println!("{texenv:#?}");
 
-    let code = compiled.syntax.to_string();
-    code
+    
+    compiled.syntax.to_string()
 }

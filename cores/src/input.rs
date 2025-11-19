@@ -6,6 +6,12 @@ pub struct GilrsCore {
     active_gamepad: Option<GamepadId>,
 }
 
+impl Default for GilrsCore {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl GilrsCore {
     pub fn new() -> Self {
         let gilrs = Gilrs::new().unwrap();
@@ -46,8 +52,7 @@ impl InputCore for GilrsCore {
             (255.0
                 * gamepad
                     .button_data(button)
-                    .map(|v| v.value())
-                    .unwrap_or(0.0)) as u8
+                    .map_or(0.0, |v| v.value())) as u8
         };
 
         Some(ControllerState {

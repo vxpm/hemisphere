@@ -537,7 +537,7 @@ impl JitCore {
             mapping: &mut self.blocks.mapping,
         };
 
-        let executed = block.call(&raw mut ctx as *mut ppcjit::block::Context, &CTX_HOOKS);
+        let executed = block.call(&raw mut ctx as *mut ppcjit::block::Context, &raw const CTX_HOOKS);
         Executed {
             instructions: executed.instructions,
             cycles: Cycles(executed.cycles as u64),
@@ -576,7 +576,7 @@ impl JitCore {
             .get(sys.cpu.pc)
             .and_then(|id| self.blocks.storage.get(id));
 
-        block.map(|b| b.meta().idle_loop).unwrap_or(IdleLoop::None)
+        block.map_or(IdleLoop::None, |b| b.meta().idle_loop)
     }
 }
 

@@ -83,7 +83,7 @@ impl Window {
             body.row(20.0, |mut row| {
                 let xer = self.cpu.user.xer.clone();
                 row.col(|ui| {
-                    let text = egui::RichText::new(format!("XER"))
+                    let text = egui::RichText::new("XER".to_string())
                         .family(egui::FontFamily::Monospace)
                         .color(Color32::LIGHT_BLUE);
 
@@ -102,7 +102,7 @@ impl Window {
             body.row(20.0, |mut row| {
                 let cr = self.cpu.user.cr.to_bits();
                 row.col(|ui| {
-                    let text = egui::RichText::new(format!("CR"))
+                    let text = egui::RichText::new("CR".to_string())
                         .family(egui::FontFamily::Monospace)
                         .color(Color32::LIGHT_BLUE);
 

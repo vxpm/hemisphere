@@ -64,7 +64,7 @@ impl Buffers {
     }
 
     pub fn recall(&mut self) {
-        self.free.extend(self.allocated.drain(..));
+        self.free.append(&mut self.allocated);
         self.free.sort_unstable_by_key(|b| b.size());
     }
 }

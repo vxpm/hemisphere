@@ -779,7 +779,7 @@ impl Interpreter {
         };
 
         let (_, _, prod) = self.regs.product.get();
-        self.regs.product.set(prod + result as i64);
+        self.regs.product.set(prod + result);
     }
 
     // NOTE: carry flag issue
@@ -797,7 +797,7 @@ impl Interpreter {
         };
 
         let (_, _, prod) = self.regs.product.get();
-        self.regs.product.set(prod + result as i64);
+        self.regs.product.set(prod + result);
     }
 
     pub fn mov(&mut self, _: &mut System, ins: Ins) {
@@ -914,7 +914,7 @@ impl Interpreter {
         };
 
         let (_, _, prod) = self.regs.product.get();
-        self.regs.product.set(prod - result as i64);
+        self.regs.product.set(prod - result);
     }
 
     // NOTE: carry flag issue
@@ -932,7 +932,7 @@ impl Interpreter {
         };
 
         let (_, _, prod) = self.regs.product.get();
-        self.regs.product.set(prod - result as i64);
+        self.regs.product.set(prod - result);
     }
 
     // NOTE: carry flag issue
@@ -949,7 +949,7 @@ impl Interpreter {
             2 * mul
         };
 
-        self.regs.product.set(result as i64);
+        self.regs.product.set(result);
     }
 
     // NOTE: carry flag issue
@@ -970,7 +970,7 @@ impl Interpreter {
             2 * mul
         };
 
-        self.regs.product.set(result as i64);
+        self.regs.product.set(result);
 
         self.regs.status.set_overflow(false);
         self.base_flags(new);
@@ -986,7 +986,7 @@ impl Interpreter {
             2 * mul
         };
 
-        self.regs.product.set(result as i64);
+        self.regs.product.set(result);
     }
 
     // NOTE: carry flag issue
@@ -1003,7 +1003,7 @@ impl Interpreter {
             2 * mul
         };
 
-        self.regs.product.set(result as i64);
+        self.regs.product.set(result);
     }
 
     // NOTE: carry flag issue
@@ -1023,7 +1023,7 @@ impl Interpreter {
             2 * mul
         };
 
-        self.regs.product.set(result as i64);
+        self.regs.product.set(result);
         let acc_r = self.regs.acc40[r].get();
         let new = self.regs.acc40[r].set(acc_r + prod);
 
@@ -1048,7 +1048,7 @@ impl Interpreter {
             2 * mul
         };
 
-        self.regs.product.set(result as i64);
+        self.regs.product.set(result);
         let new = self.regs.acc40[r].set(prod);
 
         self.regs.status.set_overflow(false);
@@ -1072,7 +1072,7 @@ impl Interpreter {
             2 * mul
         };
 
-        self.regs.product.set(result as i64);
+        self.regs.product.set(result);
         let new = self.regs.acc40[r].set(round_40(prod));
 
         self.regs.status.set_overflow(false);
@@ -1096,7 +1096,7 @@ impl Interpreter {
             2 * mul
         };
 
-        self.regs.product.set(result as i64);
+        self.regs.product.set(result);
 
         self.regs.status.set_overflow(false);
         self.base_flags(new);
@@ -1119,7 +1119,7 @@ impl Interpreter {
             2 * mul
         };
 
-        self.regs.product.set(result as i64);
+        self.regs.product.set(result);
 
         self.regs.status.set_overflow(false);
         self.base_flags(new);

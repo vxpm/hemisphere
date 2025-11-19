@@ -23,8 +23,8 @@ impl AppWindow for Window {
         let emulator = &state.emulator;
         let cp = &emulator.system.gpu.command;
 
-        self.status = cp.status.clone();
-        self.control = cp.control.clone();
+        self.status = cp.status;
+        self.control = cp.control;
         self.fifo = cp.fifo.clone();
     }
 

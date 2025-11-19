@@ -301,7 +301,7 @@ impl Renderer {
         let depth = pipeline::DepthSettings {
             enabled: mode.enable(),
             write: mode.update(),
-            compare: compare,
+            compare,
         };
 
         if self.pipeline.settings.depth != depth {

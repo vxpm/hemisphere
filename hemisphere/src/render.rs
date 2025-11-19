@@ -112,6 +112,6 @@ pub struct NopRenderer;
 
 impl Renderer for NopRenderer {
     fn exec(&mut self, _: Action) {
-        ()
+        
     }
 }
