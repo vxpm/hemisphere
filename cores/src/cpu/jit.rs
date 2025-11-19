@@ -14,6 +14,7 @@ use ppcjit::{
         WriteQuantizedHook,
     },
 };
+use rustc_hash::FxHashMap;
 use seq_macro::seq;
 use slotmap::{SlotMap, new_key_type};
 use std::{collections::BTreeSet, ops::Range};
@@ -30,41 +31,34 @@ new_key_type! {
 
 #[derive(Debug, Clone)]
 struct Mapping {
-    address: Address,
     id: BlockId,
     length: u32,
 }
 
-impl Mapping {
-    pub fn range(&self) -> Range<u32> {
-        let start = self.address.value();
-        start..start + self.length
-    }
-}
-
 /// Mapping of addresses to JIT blocks.
 pub struct BlockMapping {
-    groups: Box<[Vec<Mapping>; PAGE_COUNT]>,
+    hash_map: FxHashMap<Address, Mapping>,
+    tree_map: BTreeSet<Address>,
     overlap_lut: Box<[u16; PAGE_COUNT]>,
-    pages_with_non_empty_groups: BTreeSet<u32>,
 
     // caching stuff
-    empty_buf: Vec<u32>,
+    to_remove: Vec<Address>,
     last_query: Option<(Address, BlockId)>,
 }
 
 impl BlockMapping {
     fn insert(&mut self, range: Range<Address>, id: BlockId) {
-        let start_page = range.start.value() >> PAGE_SHIFT;
-        self.groups[start_page as usize].push(Mapping {
-            address: range.start,
-            id,
-            length: range.end.value() - range.start.value(),
-        });
-
-        self.pages_with_non_empty_groups.insert(start_page);
+        self.tree_map.insert(range.start);
+        self.hash_map.insert(
+            range.start,
+            Mapping {
+                id,
+                length: range.end.value() - range.start.value(),
+            },
+        );
 
         // update LUT
+        let start_page = range.start.value() >> PAGE_SHIFT;
         let end_page = range.end.value() >> PAGE_SHIFT;
         for index in start_page..=end_page {
             self.overlap_lut[index as usize] += 1;
@@ -80,12 +74,7 @@ impl BlockMapping {
             std::hint::cold_path();
             Some(id)
         } else {
-            let start_page = addr.value() >> PAGE_SHIFT;
-            let id = self.groups[start_page as usize]
-                .iter()
-                .find(|mapping| mapping.address == addr)?
-                .id;
-
+            let id = self.hash_map.get(&addr)?.id;
             self.last_query = Some((addr, id));
             Some(id)
         }
@@ -104,19 +93,19 @@ impl BlockMapping {
             std::hint::cold_path();
         }
 
-        // go through groups and remove overlapping mappings
-        self.empty_buf.clear();
-        for page in self.pages_with_non_empty_groups.range(page..).copied() {
-            let group = &mut self.groups[page as usize];
-            group.retain(|mapping| !mapping.range().contains(&addr.value()));
+        self.to_remove.clear();
+        for &candidate in self.tree_map.range(addr..) {
+            let length = self.hash_map.get(&candidate).unwrap().length;
+            let range = candidate..candidate + length;
 
-            if group.is_empty() {
-                self.empty_buf.push(page);
+            if range.contains(&addr) {
+                self.hash_map.remove(&candidate);
+                self.to_remove.push(candidate);
             }
         }
 
-        for page in self.empty_buf.drain(..) {
-            self.pages_with_non_empty_groups.remove(&page);
+        for candidate in self.to_remove.drain(..) {
+            self.tree_map.remove(&candidate);
         }
 
         if self
@@ -130,7 +119,8 @@ impl BlockMapping {
 
     /// Invalidates all mappings.
     pub fn clear(&mut self) {
-        self.groups.iter_mut().for_each(|group| group.clear());
+        self.hash_map.clear();
+        self.tree_map.clear();
         self.overlap_lut.fill(0);
         self.last_query = None;
     }
@@ -139,11 +129,11 @@ impl BlockMapping {
 impl Default for BlockMapping {
     fn default() -> Self {
         Self {
-            groups: util::boxed_array(Vec::new()),
+            hash_map: FxHashMap::default(),
+            tree_map: BTreeSet::default(),
             overlap_lut: util::boxed_array(0),
-            pages_with_non_empty_groups: BTreeSet::new(),
 
-            empty_buf: Vec::with_capacity(64),
+            to_remove: Vec::with_capacity(128),
             last_query: None,
         }
     }
