@@ -18,8 +18,8 @@ use crate::{
     },
 };
 use bitos::{
-    BitUtils, Bits, bitos,
-    integer::{UnsignedInt, u2, u3, u4},
+    BitUtils, bitos,
+    integer::{UnsignedInt, u3, u4},
 };
 use gekko::Address;
 use glam::{Mat3, Mat4, Vec2, Vec3};
