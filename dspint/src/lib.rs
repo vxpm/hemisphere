@@ -4,6 +4,8 @@ mod exec;
 
 pub mod ins;
 
+use std::mem::MaybeUninit;
+
 use crate::ins::{ExtensionOpcode, Opcode};
 use bitos::{BitUtils, bitos, integer::u15};
 use hemisphere::Primitive;
@@ -542,6 +544,7 @@ impl Interpreter {
         }
     }
 
+    #[inline(always)]
     fn check_stacks(&mut self) {
         if self
             .regs
@@ -549,10 +552,13 @@ impl Interpreter {
             .last()
             .is_some_and(|v| *v == self.regs.pc)
         {
+            std::hint::cold_path();
+
             let counter = self.regs.loop_count.last_mut().unwrap();
             *counter = counter.saturating_sub(1);
 
             if *counter == 0 {
+                std::hint::cold_path();
                 self.regs.call_stack.pop();
                 self.regs.loop_stack.pop();
                 self.regs.loop_count.pop();
@@ -800,7 +806,10 @@ impl Interpreter {
             0x0000..0x1000 => self.mem.dram[addr as usize],
             0x1000..0x1800 => self.mem.coef[addr as usize - 0x1000],
             0xFF00.. => self.read_mmio(sys, addr as u8),
-            _ => 0,
+            _ => {
+                std::hint::cold_path();
+                0
+            }
         };
 
         value
@@ -822,7 +831,10 @@ impl Interpreter {
         match addr {
             0x0000..0x1000 => self.mem.iram[addr as usize],
             0x8000..0x9000 => self.mem.irom[addr as usize - 0x8000],
-            _ => 0,
+            _ => {
+                std::hint::cold_path();
+                0
+            }
         }
     }
 
@@ -905,16 +917,16 @@ impl Interpreter {
 
         // execute
         let regs_previous = if decoded.extension.is_some() {
-            Some(self.regs.clone())
+            MaybeUninit::new(self.regs.clone())
         } else {
-            None
+            MaybeUninit::uninit()
         };
 
         OPCODE_EXEC_LUT[decoded.opcode as usize](self, sys, ins);
 
         if let Some(extension) = decoded.extension {
-            let regs_previous = regs_previous.unwrap();
-            EXTENSION_EXEC_LUT[extension as usize](self, sys, ins, &regs_previous);
+            let regs_previous = unsafe { regs_previous.assume_init_ref() };
+            EXTENSION_EXEC_LUT[extension as usize](self, sys, ins, regs_previous);
         }
 
         if let Some(loop_counter) = &mut self.loop_counter {
