@@ -20,7 +20,7 @@ use std::{collections::BTreeMap, ops::Range};
 
 pub use ppcjit;
 
-const PAGE_SHIFT: usize = 11;
+const PAGE_SHIFT: usize = 12;
 const PAGE_COUNT: usize = 1 << (32 - PAGE_SHIFT);
 
 new_key_type! {
@@ -42,6 +42,18 @@ pub struct BlockMapping {
     // caching stuff
     to_remove: Vec<Address>,
     last_query: Option<(Address, BlockId)>,
+}
+
+impl Default for BlockMapping {
+    fn default() -> Self {
+        Self {
+            tree_map: BTreeMap::default(),
+            overlap_lut: util::boxed_array(0),
+
+            to_remove: Vec::with_capacity(128),
+            last_query: None,
+        }
+    }
 }
 
 impl BlockMapping {
@@ -101,7 +113,14 @@ impl BlockMapping {
         }
 
         for candidate in self.to_remove.drain(..) {
-            self.tree_map.remove(&candidate);
+            let mapping = self.tree_map.remove(&candidate).unwrap();
+
+            // update LUT
+            let start_page = candidate.value() >> PAGE_SHIFT;
+            let end_page = (candidate + mapping.length).value() >> PAGE_SHIFT;
+            for index in start_page..=end_page {
+                self.overlap_lut[index as usize] -= 1;
+            }
         }
 
         if self
@@ -118,18 +137,6 @@ impl BlockMapping {
         self.tree_map.clear();
         self.overlap_lut.fill(0);
         self.last_query = None;
-    }
-}
-
-impl Default for BlockMapping {
-    fn default() -> Self {
-        Self {
-            tree_map: BTreeMap::default(),
-            overlap_lut: util::boxed_array(0),
-
-            to_remove: Vec::with_capacity(128),
-            last_query: None,
-        }
     }
 }
 
@@ -537,7 +544,10 @@ impl JitCore {
             mapping: &mut self.blocks.mapping,
         };
 
-        let executed = block.call(&raw mut ctx as *mut ppcjit::block::Context, &raw const CTX_HOOKS);
+        let executed = block.call(
+            &raw mut ctx as *mut ppcjit::block::Context,
+            &raw const CTX_HOOKS,
+        );
         Executed {
             instructions: executed.instructions,
             cycles: Cycles(executed.cycles as u64),

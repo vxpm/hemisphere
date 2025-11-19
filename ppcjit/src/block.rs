@@ -159,7 +159,7 @@ pub struct Meta {
     pub clir: Option<String>,
     /// How many cycles this block executes at most.
     pub cycles: u32,
-    /// Whether this block is an idle loop and if so, what kind
+    /// Whether this block is an idle loop and if so, what kind.
     pub idle_loop: IdleLoop,
 }
 
