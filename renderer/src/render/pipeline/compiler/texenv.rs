@@ -26,7 +26,7 @@ fn get_color_channel(stage: &TexEnvStage) -> wesl::syntax::Expression {
         ColorChannel::ColorAlpha0 => wesl::quote_expression! { in.chan0 },
         ColorChannel::ColorAlpha1 => wesl::quote_expression! { in.chan1 },
         ColorChannel::Zero => todo!(),
-        ColorChannel::AlphaBump => wesl::quote_expression! { base::PLACEHOLDER_RGBA },
+        ColorChannel::AlphaBump => wesl::quote_expression! { in.chan0 },
     }
 }
 

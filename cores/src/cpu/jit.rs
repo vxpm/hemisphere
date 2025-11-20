@@ -654,17 +654,6 @@ impl JitCore {
 
         self.uncached_exec(sys, target_cycles, max_instructions)
     }
-
-    // #[inline(always)]
-    // fn detect_idle_loop(&mut self, sys: &System) -> IdleLoop {
-    //     let block = self
-    //         .blocks
-    //         .mapping
-    //         .get(sys.cpu.pc)
-    //         .and_then(|id| self.blocks.storage.get(id));
-    //
-    //     block.map_or(IdleLoop::None, |b| b.meta().idle_loop)
-    // }
 }
 
 fn closest_breakpoint(pc: Address, breakpoints: &[Address]) -> Address {
