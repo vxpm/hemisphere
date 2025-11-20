@@ -8,7 +8,11 @@ mod memory;
 mod others;
 mod util;
 
-use crate::{Sequence, Settings, block::Hooks, builder::util::IntoIrValue};
+use crate::{
+    Sequence, Settings,
+    block::{Hooks, Info},
+    builder::util::IntoIrValue,
+};
 use cranelift::{
     codegen::ir::{self, SigRef},
     frontend,
@@ -388,16 +392,31 @@ impl<'ctx> BlockBuilder<'ctx> {
         }
     }
 
+    /// Updates the Info struct.
+    fn update_info(&mut self) {
+        let instructions = self.ir_value(self.executed);
+        let cycles = self.ir_value(self.cycles);
+
+        self.bd.ins().store(
+            ir::MemFlags::trusted(),
+            instructions,
+            self.consts.info_ptr,
+            offset_of!(Info, instructions) as i32,
+        );
+
+        self.bd.ins().store(
+            ir::MemFlags::trusted(),
+            cycles,
+            self.consts.info_ptr,
+            offset_of!(Info, cycles) as i32,
+        );
+    }
+
     /// Emits the prologue:
     /// - Call BAT hooks if they were changed
     /// - Returns
     fn prologue(&mut self) {
-        let instructions = self.ir_value(self.executed);
-        let instructions = self.bd.ins().uextend(ir::types::I64, instructions);
-        let cycles = self.ir_value(self.cycles);
-        let cycles = self.bd.ins().uextend(ir::types::I64, cycles);
-        let cycles = self.bd.ins().ishl_imm(cycles, 32);
-        let merged = self.bd.ins().bor(instructions, cycles);
+        self.update_info();
 
         if self.dbat_changed {
             self.call_generic_hook(offset_of!(Hooks, dbat_changed));
@@ -407,7 +426,7 @@ impl<'ctx> BlockBuilder<'ctx> {
             self.call_generic_hook(offset_of!(Hooks, ibat_changed));
         }
 
-        self.bd.ins().return_(&[merged]);
+        self.bd.ins().return_(&[]);
         self.bd.set_srcloc(ir::SourceLoc::new(self.executed));
     }
 

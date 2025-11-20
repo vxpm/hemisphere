@@ -16,6 +16,7 @@ pub type WriteQuantizedHook = fn(*mut Context, Address, u8, f64) -> u8;
 pub type GenericHook = fn(*mut Context);
 
 /// Information about block execution.
+#[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct Info {
     /// How many instructions have been executed already. Updated on block exits only.
@@ -91,9 +92,9 @@ impl Hooks {
     pub(crate) fn try_link_sig(ptr_type: ir::Type) -> ir::Signature {
         ir::Signature {
             params: vec![
-                ir::AbiParam::new(ptr_type), // ctx
-                ir::AbiParam::new(ptr_type), // address to link to
-                ir::AbiParam::new(ptr_type), // link ptr storage
+                ir::AbiParam::new(ptr_type),       // ctx
+                ir::AbiParam::new(ir::types::I32), // address to link to
+                ir::AbiParam::new(ptr_type),       // link ptr storage
             ],
             returns: vec![],
             call_conv: isa::CallConv::SystemV,
@@ -207,7 +208,7 @@ pub struct Block {
     meta: Meta,
 }
 
-type BlockFn = extern "sysv64-unwind" fn(*mut Info, *mut Context, *const Hooks);
+pub type BlockFn = *const std::ffi::c_void;
 
 impl Block {
     pub(crate) fn new(code: *const u8, meta: Meta) -> Self {
@@ -224,6 +225,11 @@ impl Block {
     pub fn meta(&self) -> &Meta {
         &self.meta
     }
+
+    /// Returns a pointer to the function of this block.
+    pub fn as_ptr(&self) -> BlockFn {
+        self.code.cast()
+    }
 }
 
 pub struct Trampoline(pub(super) *const u8);
@@ -232,15 +238,13 @@ type TrampolineFn = extern "sysv64-unwind" fn(*mut Info, *mut Context, *const Ho
 
 impl Trampoline {
     /// Calls the given block using this trampoline.
-    pub unsafe fn call(&self, ctx: *mut Context, hooks: *const Hooks, block: Block) -> Info {
+    pub unsafe fn call(&self, ctx: *mut Context, hooks: *const Hooks, block: BlockFn) -> Info {
         let mut info = Info {
             instructions: 0,
             cycles: 0,
         };
 
-        let block: BlockFn = unsafe { std::mem::transmute(block.code) };
         let trampoline: TrampolineFn = unsafe { std::mem::transmute(self.0) };
-
         trampoline(&raw mut info, ctx, hooks, block);
 
         info

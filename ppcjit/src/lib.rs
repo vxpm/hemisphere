@@ -63,6 +63,7 @@ impl Default for Compiler {
         };
 
         let mut settings = codegen::settings::builder();
+        settings.set("preserve_frame_pointers", "true").unwrap();
         settings.set("use_colocated_libcalls", "false").unwrap();
         settings.set("is_pic", "false").unwrap();
         settings.set("stack_switch_model", "basic").unwrap();
@@ -191,6 +192,8 @@ impl Compiler {
         if sequence.is_empty() {
             return Err(BuildError::EmptyBlock);
         }
+
+        println!("{}", func.display());
 
         let ir = cfg!(debug_assertions).then(|| func.display().to_string());
         let meta = Meta {

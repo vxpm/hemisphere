@@ -11,7 +11,7 @@ use ppcjit::{
     Block,
     block::{
         BlockFn, FollowLinkHook, GenericHook, GetRegistersHook, Hooks, IdleLoop, Info, ReadHook,
-        ReadQuantizedHook, TryLinkHook, WriteHook, WriteQuantizedHook,
+        ReadQuantizedHook, Trampoline, TryLinkHook, WriteHook, WriteQuantizedHook,
     },
 };
 use seq_macro::seq;
@@ -190,11 +190,12 @@ static CTX_HOOKS: Hooks = {
     }
 
     extern "sysv64-unwind" fn follow_link(info: &Info, ctx: &mut Context) -> bool {
+        // println!("testing follow link at {},  {info:?}", ctx.system.cpu.pc);
         info.cycles < ctx.target_cycles
     }
 
-    extern "sysv64-unwind" fn try_link(ctx: &mut Context, addr: Address, storage: *mut BlockFn) {
-        todo!()
+    extern "sysv64-unwind" fn try_link(_: &mut Context, addr: Address, _: *mut BlockFn) {
+        // println!("trying to link {addr}");
     }
 
     extern "sysv64-unwind" fn read<P: Primitive>(
@@ -486,15 +487,20 @@ impl Default for Config {
 pub struct JitCore {
     pub config: Config,
     pub compiler: ppcjit::Compiler,
+    pub trampoline: Trampoline,
     pub blocks: Blocks,
 }
 
 impl JitCore {
     pub fn new(config: Config) -> Self {
+        let mut compiler = ppcjit::Compiler::new(config.jit_settings.clone());
+        let trampoline = compiler.trampoline();
+
         Self {
-            compiler: ppcjit::Compiler::new(config.jit_settings.clone()),
-            blocks: Blocks::default(),
             config,
+            compiler,
+            trampoline,
+            blocks: Blocks::default(),
         }
     }
 
@@ -535,7 +541,12 @@ impl JitCore {
     }
 
     #[inline(always)]
-    fn uncached_exec(&mut self, sys: &mut System, max_instructions: u32) -> Executed {
+    fn uncached_exec(
+        &mut self,
+        sys: &mut System,
+        target_cycles: u32,
+        max_instructions: u32,
+    ) -> Executed {
         let block = self
             .blocks
             .mapping
@@ -557,21 +568,30 @@ impl JitCore {
         let mut ctx = Context {
             system: sys,
             mapping: &mut self.blocks.mapping,
-            target_cycles: todo!(),
+            target_cycles,
         };
 
-        let executed = block.call(
-            &raw mut ctx as *mut ppcjit::block::Context,
-            &raw const CTX_HOOKS,
-        );
-        Executed {
-            instructions: executed.instructions,
-            cycles: Cycles(executed.cycles as u64),
-            hit_breakpoint: false,
+        unsafe {
+            let info = self.trampoline.call(
+                &raw mut ctx as *mut ppcjit::block::Context,
+                &raw const CTX_HOOKS,
+                block.as_ptr(),
+            );
+
+            Executed {
+                instructions: info.instructions,
+                cycles: Cycles(info.cycles as u64),
+                hit_breakpoint: false,
+            }
         }
     }
 
-    fn cached_exec(&mut self, sys: &mut System, max_instructions: u32) -> Executed {
+    fn cached_exec(
+        &mut self,
+        sys: &mut System,
+        target_cycles: u32,
+        max_instructions: u32,
+    ) -> Executed {
         let block = self
             .blocks
             .mapping
@@ -591,7 +611,7 @@ impl JitCore {
             self.blocks.insert(sys.cpu.pc, block);
         }
 
-        self.uncached_exec(sys, max_instructions)
+        self.uncached_exec(sys, target_cycles, max_instructions)
     }
 
     #[inline(always)]
@@ -653,7 +673,8 @@ impl CpuCore for JitCore {
             let breakpoint_distance = (closest_breakpoint.value() - sys.cpu.pc.value()) / 4;
 
             // execute
-            let e = self.cached_exec(sys, breakpoint_distance);
+            let target_cycles = cycles - executed.cycles;
+            let e = self.cached_exec(sys, target_cycles.0 as u32, breakpoint_distance);
             executed.instructions += e.instructions;
             executed.cycles += e.cycles;
 
@@ -667,6 +688,6 @@ impl CpuCore for JitCore {
     }
 
     fn step(&mut self, sys: &mut System) -> Executed {
-        self.uncached_exec(sys, 1)
+        self.uncached_exec(sys, u32::MAX, 1)
     }
 }

@@ -2,7 +2,7 @@ use std::mem::offset_of;
 
 use super::BlockBuilder;
 use crate::{
-    block::{Hooks, Info},
+    block::Hooks,
     builder::{Action, InstructionInfo, util::IntoIrValue},
 };
 use bitos::{bitos, integer::u5};
@@ -17,7 +17,7 @@ const UNCONDITIONAL_BRANCH_INFO: InstructionInfo = InstructionInfo {
 
 const CONDITIONAL_BRANCH_INFO: InstructionInfo = InstructionInfo {
     cycles: 3,
-    auto_pc: false,
+    auto_pc: true,
     action: Action::Continue,
 };
 
@@ -50,26 +50,6 @@ impl BranchOptions {
 }
 
 impl BlockBuilder<'_> {
-    /// Updates the Info struct.
-    fn update_info(&mut self) {
-        let instructions = self.ir_value(self.executed);
-        let cycles = self.ir_value(self.cycles);
-
-        self.bd.ins().store(
-            ir::MemFlags::trusted(),
-            instructions,
-            self.consts.info_ptr,
-            offset_of!(Info, instructions) as i32,
-        );
-
-        self.bd.ins().store(
-            ir::MemFlags::trusted(),
-            cycles,
-            self.consts.info_ptr,
-            offset_of!(InstructionInfo, cycles) as i32,
-        );
-    }
-
     fn jump_with_block_link(&mut self, destination: ir::Value) {
         // define storage for the link
         let link_storage = self.module.declare_anonymous_data(true, false).unwrap();
@@ -232,6 +212,7 @@ impl BlockBuilder<'_> {
         );
 
         // => follow link => need to link => failure
+        self.bd.switch_to_block(link_failure);
         self.prologue();
     }
 
