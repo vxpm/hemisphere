@@ -48,15 +48,13 @@ impl Default for DepthSettings {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
-#[derive(Default)]
+#[derive(Clone, PartialEq, Eq, Hash, Default)]
 pub struct PipelineSettings {
     pub blend: BlendSettings,
     pub depth: DepthSettings,
     pub texenv: TexEnvConfig,
     pub texgen: TexGenConfig,
 }
-
 
 pub struct Pipeline {
     pub settings: PipelineSettings,
@@ -109,6 +107,10 @@ impl Pipeline {
         if settings.blend.alpha_write {
             write_mask |= wgpu::ColorWrites::ALPHA;
         }
+
+        // TODO: remove, hack just for debugging
+        write_mask |= wgpu::ColorWrites::COLOR;
+        write_mask |= wgpu::ColorWrites::ALPHA;
 
         let shader = compiler::compile(&settings.texenv, &settings.texgen);
         let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {

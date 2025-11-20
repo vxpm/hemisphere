@@ -180,6 +180,8 @@ struct Context<'a> {
     system: &'a mut System,
     /// The block mapping, so that write operations can invalidate blocks.
     blocks: &'a mut Blocks,
+    /// List of addresses that need to be invalidated.
+    to_invalidate: &'a mut Vec<Address>,
     /// Amount of cycles we are trying to execute.
     target_cycles: u32,
 }
@@ -190,7 +192,6 @@ static CTX_HOOKS: Hooks = {
     }
 
     extern "sysv64-unwind" fn follow_link(info: &Info, ctx: &mut Context) -> bool {
-        // dbg!(info, ctx.target_cycles);
         info.cycles < ctx.target_cycles
     }
 
@@ -198,11 +199,7 @@ static CTX_HOOKS: Hooks = {
         assert!(unsafe { *link }.is_null());
         if let Some(id) = ctx.blocks.mapping.get(addr) {
             let block = ctx.blocks.storage.get(id).unwrap();
-
-            // don't link to idle loops
-            if block.meta().idle_loop != IdleLoop::None {
-                unsafe { link.write(block.as_ptr()) };
-            }
+            unsafe { link.write(block.as_ptr()) };
         }
     }
 
@@ -242,12 +239,12 @@ static CTX_HOOKS: Hooks = {
         // );
 
         ctx.system.write(physical, value);
+        ctx.to_invalidate.push(addr);
 
-        ctx.blocks.mapping.invalidate(addr);
         seq! {
             N in 1..4 {
                 if const { size_of::<P>() >= N } {
-                    ctx.blocks.mapping.invalidate(addr + N);
+                    ctx.to_invalidate.push(addr + N);
                 }
             }
         }
@@ -497,6 +494,7 @@ pub struct JitCore {
     pub compiler: ppcjit::Compiler,
     pub trampoline: Trampoline,
     pub blocks: Blocks,
+    to_invalidate: Vec<Address>,
 }
 
 impl JitCore {
@@ -509,6 +507,7 @@ impl JitCore {
             compiler,
             trampoline,
             blocks: Blocks::default(),
+            to_invalidate: Vec::with_capacity(16),
         }
     }
 
@@ -576,21 +575,29 @@ impl JitCore {
         let mut ctx = Context {
             system: sys,
             blocks: &mut self.blocks,
+            to_invalidate: &mut self.to_invalidate,
             target_cycles,
         };
 
-        unsafe {
-            let info = self.trampoline.call(
+        let info = unsafe {
+            self.trampoline.call(
                 &raw mut ctx as *mut ppcjit::block::Context,
                 &raw const CTX_HOOKS,
                 block,
-            );
+            )
+        };
 
-            Executed {
-                instructions: info.instructions,
-                cycles: Cycles(info.cycles as u64),
-                hit_breakpoint: false,
+        if !self.to_invalidate.is_empty() {
+            std::hint::cold_path();
+            for addr in self.to_invalidate.drain(..) {
+                self.blocks.mapping.invalidate(addr);
             }
+        }
+
+        Executed {
+            instructions: info.instructions,
+            cycles: Cycles(info.cycles as u64),
+            hit_breakpoint: false,
         }
     }
 
