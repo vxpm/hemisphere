@@ -193,7 +193,7 @@ impl Compiler {
             return Err(BuildError::EmptyBlock);
         }
 
-        println!("{}", func.display());
+        // println!("{}", func.display());
 
         let ir = cfg!(debug_assertions).then(|| func.display().to_string());
         let meta = Meta {

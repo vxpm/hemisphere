@@ -177,7 +177,7 @@ pub struct Executed {
     pub cycles: u32,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum IdleLoop {
     /// Not an idle loop
     None,
@@ -188,6 +188,7 @@ pub enum IdleLoop {
 }
 
 /// Meta information regarding a block.
+#[derive(Clone)]
 pub struct Meta {
     /// The sequence of instructions this block contains.
     pub seq: Sequence,
@@ -203,6 +204,7 @@ pub struct Meta {
 /// memory behind the block.
 ///
 /// In order to call a block, you need a trampoline.
+#[derive(Clone)]
 pub struct Block {
     code: *const u8,
     meta: Meta,

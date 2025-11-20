@@ -113,8 +113,12 @@ pub struct BlockBuilder<'ctx> {
     consts: Consts,
     current_bb: ir::Block,
 
-    cycles: u32,
-    executed: u32,
+    executed_cycles: u32,
+    executed_instructions: u32,
+
+    last_updated_cycles: u32,
+    last_updated_instructions: u32,
+
     ibat_changed: bool,
     dbat_changed: bool,
     floats_checked: bool,
@@ -175,8 +179,12 @@ impl<'ctx> BlockBuilder<'ctx> {
             consts,
             current_bb: entry_bb,
 
-            cycles: 0,
-            executed: 0,
+            executed_cycles: 0,
+            executed_instructions: 0,
+
+            last_updated_cycles: 0,
+            last_updated_instructions: 0,
+
             ibat_changed: false,
             dbat_changed: false,
             floats_checked: false,
@@ -185,7 +193,8 @@ impl<'ctx> BlockBuilder<'ctx> {
 
     fn switch_to_bb(&mut self, bb: ir::Block) {
         self.bd.switch_to_block(bb);
-        self.bd.set_srcloc(ir::SourceLoc::new(self.executed));
+        self.bd
+            .set_srcloc(ir::SourceLoc::new(self.executed_instructions));
         self.current_bb = bb;
     }
 
@@ -394,9 +403,24 @@ impl<'ctx> BlockBuilder<'ctx> {
 
     /// Updates the Info struct.
     fn update_info(&mut self) {
-        let instructions = self.ir_value(self.executed);
-        let cycles = self.ir_value(self.cycles);
+        let cycles_delta = self.executed_cycles as i32 - self.last_updated_cycles as i32;
+        let instruction_delta =
+            self.executed_instructions as i32 - self.last_updated_instructions as i32;
 
+        if cycles_delta == 0 && instruction_delta == 0 {
+            return;
+        }
+
+        let instructions = self.bd.ins().load(
+            ir::types::I32,
+            ir::MemFlags::trusted(),
+            self.consts.info_ptr,
+            offset_of!(Info, instructions) as i32,
+        );
+        let instructions = self
+            .bd
+            .ins()
+            .iadd_imm(instructions, instruction_delta as i64);
         self.bd.ins().store(
             ir::MemFlags::trusted(),
             instructions,
@@ -404,12 +428,22 @@ impl<'ctx> BlockBuilder<'ctx> {
             offset_of!(Info, instructions) as i32,
         );
 
+        let cycles = self.bd.ins().load(
+            ir::types::I32,
+            ir::MemFlags::trusted(),
+            self.consts.info_ptr,
+            offset_of!(Info, cycles) as i32,
+        );
+        let cycles = self.bd.ins().iadd_imm(cycles, cycles_delta as i64);
         self.bd.ins().store(
             ir::MemFlags::trusted(),
             cycles,
             self.consts.info_ptr,
             offset_of!(Info, cycles) as i32,
         );
+
+        self.last_updated_cycles = self.executed_cycles;
+        self.last_updated_instructions = self.executed_instructions;
     }
 
     /// Emits the prologue:
@@ -427,22 +461,24 @@ impl<'ctx> BlockBuilder<'ctx> {
         }
 
         self.bd.ins().return_(&[]);
-        self.bd.set_srcloc(ir::SourceLoc::new(self.executed));
+        self.bd
+            .set_srcloc(ir::SourceLoc::new(self.executed_instructions));
     }
 
     fn prologue_with(&mut self, info: InstructionInfo) {
-        self.executed += 1;
-        self.cycles += info.cycles as u32;
+        self.executed_instructions += 1;
+        self.executed_cycles += info.cycles as u32;
 
         self.prologue();
 
-        self.executed -= 1;
-        self.cycles -= info.cycles as u32;
+        self.executed_instructions -= 1;
+        self.executed_cycles -= info.cycles as u32;
     }
 
     /// Emits the given instruction into the block.
     fn emit(&mut self, ins: Ins) -> Result<Action, BuilderError> {
-        self.bd.set_srcloc(ir::SourceLoc::new(self.executed));
+        self.bd
+            .set_srcloc(ir::SourceLoc::new(self.executed_instructions));
         let info: InstructionInfo = match ins.op {
             Opcode::Add => self.add(ins),
             Opcode::Addc => self.addc(ins),
@@ -653,8 +689,8 @@ impl<'ctx> BlockBuilder<'ctx> {
             }
         };
 
-        self.executed += 1;
-        self.cycles += info.cycles as u32;
+        self.executed_instructions += 1;
+        self.executed_cycles += info.cycles as u32;
 
         if info.auto_pc {
             let old_pc = self.get(Reg::PC);
@@ -704,6 +740,6 @@ impl<'ctx> BlockBuilder<'ctx> {
             }
         }
 
-        Ok((sequence, self.cycles))
+        Ok((sequence, self.executed_cycles))
     }
 }

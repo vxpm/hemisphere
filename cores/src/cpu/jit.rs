@@ -179,7 +179,7 @@ struct Context<'a> {
     /// The system state, so that the JIT block can operate on it.
     system: &'a mut System,
     /// The block mapping, so that write operations can invalidate blocks.
-    mapping: &'a mut BlockMapping,
+    blocks: &'a mut Blocks,
     /// Amount of cycles we are trying to execute.
     target_cycles: u32,
 }
@@ -190,12 +190,20 @@ static CTX_HOOKS: Hooks = {
     }
 
     extern "sysv64-unwind" fn follow_link(info: &Info, ctx: &mut Context) -> bool {
-        // println!("testing follow link at {},  {info:?}", ctx.system.cpu.pc);
+        // dbg!(info, ctx.target_cycles);
         info.cycles < ctx.target_cycles
     }
 
-    extern "sysv64-unwind" fn try_link(_: &mut Context, addr: Address, _: *mut BlockFn) {
-        // println!("trying to link {addr}");
+    extern "sysv64-unwind" fn try_link(ctx: &mut Context, addr: Address, link: *mut BlockFn) {
+        assert!(unsafe { *link }.is_null());
+        if let Some(id) = ctx.blocks.mapping.get(addr) {
+            let block = ctx.blocks.storage.get(id).unwrap();
+
+            // don't link to idle loops
+            if block.meta().idle_loop != IdleLoop::None {
+                unsafe { link.write(block.as_ptr()) };
+            }
+        }
     }
 
     extern "sysv64-unwind" fn read<P: Primitive>(
@@ -235,11 +243,11 @@ static CTX_HOOKS: Hooks = {
 
         ctx.system.write(physical, value);
 
-        ctx.mapping.invalidate(addr);
+        ctx.blocks.mapping.invalidate(addr);
         seq! {
             N in 1..4 {
                 if const { size_of::<P>() >= N } {
-                    ctx.mapping.invalidate(addr + N);
+                    ctx.blocks.mapping.invalidate(addr + N);
                 }
             }
         }
@@ -348,7 +356,7 @@ static CTX_HOOKS: Hooks = {
 
     extern "sysv64-unwind" fn ibat_changed(ctx: &mut Context) {
         tracing::info!("ibats changed - clearing blocks mapping and rebuilding ibat lut");
-        ctx.mapping.clear();
+        ctx.blocks.mapping.clear();
         ctx.system
             .mmu
             .build_instr_bat_lut(&ctx.system.cpu.supervisor.memory.ibat);
@@ -556,18 +564,18 @@ impl JitCore {
 
         let compiled: ppcjit::Block;
         let block = match block {
-            Some(block) => block,
+            Some(block) => block.as_ptr(),
             None => {
                 std::hint::cold_path();
 
                 compiled = self.compile(sys, sys.cpu.pc, max_instructions);
-                &compiled
+                compiled.as_ptr()
             }
         };
 
         let mut ctx = Context {
             system: sys,
-            mapping: &mut self.blocks.mapping,
+            blocks: &mut self.blocks,
             target_cycles,
         };
 
@@ -575,7 +583,7 @@ impl JitCore {
             let info = self.trampoline.call(
                 &raw mut ctx as *mut ppcjit::block::Context,
                 &raw const CTX_HOOKS,
-                block.as_ptr(),
+                block,
             );
 
             Executed {
@@ -614,16 +622,16 @@ impl JitCore {
         self.uncached_exec(sys, target_cycles, max_instructions)
     }
 
-    #[inline(always)]
-    fn detect_idle_loop(&mut self, sys: &System) -> IdleLoop {
-        let block = self
-            .blocks
-            .mapping
-            .get(sys.cpu.pc)
-            .and_then(|id| self.blocks.storage.get(id));
-
-        block.map_or(IdleLoop::None, |b| b.meta().idle_loop)
-    }
+    // #[inline(always)]
+    // fn detect_idle_loop(&mut self, sys: &System) -> IdleLoop {
+    //     let block = self
+    //         .blocks
+    //         .mapping
+    //         .get(sys.cpu.pc)
+    //         .and_then(|id| self.blocks.storage.get(id));
+    //
+    //     block.map_or(IdleLoop::None, |b| b.meta().idle_loop)
+    // }
 }
 
 fn closest_breakpoint(pc: Address, breakpoints: &[Address]) -> Address {
@@ -646,28 +654,7 @@ fn closest_breakpoint(pc: Address, breakpoints: &[Address]) -> Address {
 impl CpuCore for JitCore {
     fn exec(&mut self, sys: &mut System, cycles: Cycles, breakpoints: &[Address]) -> Executed {
         let mut executed = Executed::default();
-        let mut volatile_idle_loop = None;
         while executed.cycles < cycles {
-            match self.detect_idle_loop(sys) {
-                IdleLoop::None => (),
-                IdleLoop::Simple => {
-                    std::hint::cold_path();
-                    executed.instructions += 1;
-                    executed.cycles = cycles;
-                    break;
-                }
-                IdleLoop::VolatileValue => {
-                    std::hint::cold_path();
-                    match volatile_idle_loop {
-                        Some(start) if start == sys.cpu.pc => {
-                            executed.cycles = cycles;
-                            break;
-                        }
-                        None | Some(_) => volatile_idle_loop = Some(sys.cpu.pc),
-                    }
-                }
-            }
-
             // find closest breakpoint
             let closest_breakpoint = closest_breakpoint(sys.cpu.pc, breakpoints);
             let breakpoint_distance = (closest_breakpoint.value() - sys.cpu.pc.value()) / 4;

@@ -16,7 +16,7 @@ const UNCONDITIONAL_BRANCH_INFO: InstructionInfo = InstructionInfo {
 };
 
 const CONDITIONAL_BRANCH_INFO: InstructionInfo = InstructionInfo {
-    cycles: 3,
+    cycles: 2,
     auto_pc: true,
     action: Action::Continue,
 };
@@ -64,6 +64,7 @@ impl BlockBuilder<'_> {
                 },
             )
             .unwrap();
+
         let link_storage = self
             .module
             .declare_data_in_func(link_storage, &mut self.bd.func);
@@ -229,6 +230,9 @@ impl BlockBuilder<'_> {
             self.set(SPR::LR, ret_addr);
         }
 
+        self.executed_instructions += 1;
+        self.executed_cycles += 2;
+
         if block_link {
             self.jump_with_block_link(destination);
         } else {
@@ -236,6 +240,9 @@ impl BlockBuilder<'_> {
             self.flush();
             self.prologue();
         }
+
+        self.executed_instructions -= 1;
+        self.executed_cycles -= 2;
     }
 
     pub fn b(&mut self, ins: Ins) -> InstructionInfo {
