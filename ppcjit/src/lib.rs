@@ -127,9 +127,9 @@ impl Compiler {
         func.signature = self.block_signature();
 
         let builder = BlockBuilder::new(
-            self.module.isa(),
             &self.settings,
             &mut func,
+            &mut self.module,
             &mut self.func_ctx,
         );
         let (sequence, cycles) = builder.build(instructions).context(BuildCtx::Builder)?;
