@@ -2,11 +2,19 @@ use crate::Sequence;
 use cranelift::{codegen::ir, prelude::isa};
 use gekko::{Address, Cpu};
 
+#[repr(C)]
+pub struct LinkData {
+    /// Linked block
+    pub link: BlockFn,
+    /// Information regarding idle looping of the linked block
+    pub idle: IdleLoop,
+}
+
 pub type Context = std::ffi::c_void;
 
 pub type GetRegistersHook = fn(*mut Context) -> *mut Cpu;
-pub type FollowLinkHook = fn(*const Info, *mut Context) -> bool;
-pub type TryLinkHook = fn(*mut Context, Address, *mut std::ffi::c_void);
+pub type FollowLinkHook = fn(*const Info, *mut Context, *mut LinkData) -> bool;
+pub type TryLinkHook = fn(*mut Context, Address, *mut LinkData);
 
 pub type ReadHook<T> = fn(*mut Context, Address, *mut T) -> bool;
 pub type WriteHook<T> = fn(*mut Context, Address, T) -> bool;
@@ -82,6 +90,7 @@ impl Hooks {
             params: vec![
                 ir::AbiParam::new(ptr_type), // info
                 ir::AbiParam::new(ptr_type), // ctx
+                ir::AbiParam::new(ptr_type), // lnk data
             ],
             returns: vec![ir::AbiParam::new(ir::types::I8)], // follow?
             call_conv: isa::CallConv::SystemV,
@@ -178,13 +187,14 @@ pub struct Executed {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
 pub enum IdleLoop {
     /// Not an idle loop
-    None,
+    None = 0,
     /// Branching to self
-    Simple,
+    Simple = 1,
     /// Reading from a fixed memory location on a loop
-    VolatileValue,
+    VolatileValue = 2,
 }
 
 /// Meta information regarding a block.

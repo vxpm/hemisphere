@@ -51,28 +51,33 @@ impl BranchOptions {
 
 impl BlockBuilder<'_> {
     fn jump_with_block_link(&mut self, destination: ir::Value) {
-        // define storage for the link
-        let link_storage = self.module.declare_anonymous_data(true, false).unwrap();
+        // define storage for the link data
+        let link_data_symbol = self.module.declare_anonymous_data(true, false).unwrap();
         self.module
             .define_data(
-                link_storage,
+                link_data_symbol,
                 &cranelift::module::DataDescription {
                     init: cranelift::module::Init::Zeros {
-                        size: size_of::<usize>(),
+                        size: size_of::<usize>() + 1,
                     },
                     ..cranelift::module::DataDescription::new()
                 },
             )
             .unwrap();
 
-        let link_storage = self
+        let link_data_global = self
             .module
-            .declare_data_in_func(link_storage, &mut self.bd.func);
+            .declare_data_in_func(link_data_symbol, &mut self.bd.func);
 
         self.update_info();
         self.flush();
 
         // call follow link hook
+        let link_data_ptr = self
+            .bd
+            .ins()
+            .global_value(self.consts.ptr_type, link_data_global);
+
         let follow_link_hook = self.bd.ins().load(
             self.consts.ptr_type,
             ir::MemFlags::trusted(),
@@ -92,7 +97,7 @@ impl BlockBuilder<'_> {
         let inst = self.bd.ins().call_indirect(
             follow_link_sig,
             follow_link_hook,
-            &[self.consts.info_ptr, self.consts.ctx_ptr],
+            &[self.consts.info_ptr, self.consts.ctx_ptr, link_data_ptr],
         );
 
         let should_follow_link = self.bd.inst_results(inst)[0];
@@ -120,15 +125,10 @@ impl BlockBuilder<'_> {
         self.flush();
 
         // do we need to link?
-        let link_storage_ptr = self
-            .bd
-            .ins()
-            .global_value(self.consts.ptr_type, link_storage);
-
         let stored_link = self.bd.ins().load(
             self.consts.ptr_type,
             ir::MemFlags::trusted(),
-            link_storage_ptr,
+            link_data_ptr,
             0,
         );
 
@@ -178,14 +178,14 @@ impl BlockBuilder<'_> {
         self.bd.ins().call_indirect(
             try_link_sig,
             try_link_hook,
-            &[self.consts.ctx_ptr, destination, link_storage_ptr],
+            &[self.consts.ctx_ptr, destination, link_data_ptr],
         );
 
         // was the link successful?
         let stored_link = self.bd.ins().load(
             self.consts.ptr_type,
             ir::MemFlags::trusted(),
-            link_storage_ptr,
+            link_data_ptr,
             0,
         );
 

@@ -10,8 +10,8 @@ use hemisphere::{
 use ppcjit::{
     Block,
     block::{
-        BlockFn, FollowLinkHook, GenericHook, GetRegistersHook, Hooks, IdleLoop, Info, ReadHook,
-        ReadQuantizedHook, Trampoline, TryLinkHook, WriteHook, WriteQuantizedHook,
+        BlockFn, FollowLinkHook, GenericHook, GetRegistersHook, Hooks, IdleLoop, Info, LinkData,
+        ReadHook, ReadQuantizedHook, Trampoline, TryLinkHook, WriteHook, WriteQuantizedHook,
     },
 };
 use seq_macro::seq;
@@ -184,6 +184,7 @@ struct Context<'a> {
     to_invalidate: &'a mut Vec<Address>,
     /// Amount of cycles we are trying to execute.
     target_cycles: u32,
+    idle_loop_link: BlockFn,
 }
 
 static CTX_HOOKS: Hooks = {
@@ -191,15 +192,32 @@ static CTX_HOOKS: Hooks = {
         &mut ctx.system.cpu
     }
 
-    extern "sysv64-unwind" fn follow_link(info: &Info, ctx: &mut Context) -> bool {
+    extern "sysv64-unwind" fn follow_link(
+        info: &Info,
+        ctx: &mut Context,
+        link_data: &mut LinkData,
+    ) -> bool {
+        if link_data.idle != IdleLoop::None {
+            std::hint::cold_path();
+            if ctx.idle_loop_link == link_data.link {
+                std::hint::cold_path();
+                return false;
+            } else {
+                ctx.idle_loop_link = link_data.link;
+            }
+        } else {
+            ctx.idle_loop_link = std::ptr::null();
+        }
+
         info.cycles < ctx.target_cycles
     }
 
-    extern "sysv64-unwind" fn try_link(ctx: &mut Context, addr: Address, link: *mut BlockFn) {
-        assert!(unsafe { *link }.is_null());
+    extern "sysv64-unwind" fn try_link(ctx: &mut Context, addr: Address, link_data: &mut LinkData) {
+        debug_assert!(link_data.link.is_null());
         if let Some(id) = ctx.blocks.mapping.get(addr) {
             let block = ctx.blocks.storage.get(id).unwrap();
-            unsafe { link.write(block.as_ptr()) };
+            link_data.link = block.as_ptr();
+            link_data.idle = block.meta().idle_loop;
         }
     }
 
@@ -401,7 +419,7 @@ static CTX_HOOKS: Hooks = {
         let get_registers =
             transmute::<_, GetRegistersHook>(get_registers as extern "sysv64-unwind" fn(_) -> _);
         let follow_link =
-            transmute::<_, FollowLinkHook>(follow_link as extern "sysv64-unwind" fn(_, _) -> _);
+            transmute::<_, FollowLinkHook>(follow_link as extern "sysv64-unwind" fn(_, _, _) -> _);
         let try_link = transmute::<_, TryLinkHook>(try_link as extern "sysv64-unwind" fn(_, _, _));
 
         let read_i8 =
@@ -577,6 +595,7 @@ impl JitCore {
             blocks: &mut self.blocks,
             to_invalidate: &mut self.to_invalidate,
             target_cycles,
+            idle_loop_link: std::ptr::null(),
         };
 
         let info = unsafe {
@@ -585,6 +604,13 @@ impl JitCore {
                 &raw const CTX_HOOKS,
                 block,
             )
+        };
+
+        let cycles = if !ctx.idle_loop_link.is_null() {
+            std::hint::cold_path();
+            Cycles(target_cycles as u64)
+        } else {
+            Cycles(info.cycles as u64)
         };
 
         if !self.to_invalidate.is_empty() {
@@ -596,7 +622,7 @@ impl JitCore {
 
         Executed {
             instructions: info.instructions,
-            cycles: Cycles(info.cycles as u64),
+            cycles,
             hit_breakpoint: false,
         }
     }
