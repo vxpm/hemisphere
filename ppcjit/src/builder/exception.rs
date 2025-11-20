@@ -3,7 +3,7 @@ use std::mem::offset_of;
 use super::BlockBuilder;
 use crate::{
     block::Hooks,
-    builder::{Action, Info},
+    builder::{Action, InstructionInfo},
 };
 use cranelift::{
     codegen::ir,
@@ -11,13 +11,13 @@ use cranelift::{
 };
 use gekko::{Cpu, Exception, Reg, SPR, disasm::Ins};
 
-const RFI_INFO: Info = Info {
+const RFI_INFO: InstructionInfo = InstructionInfo {
     cycles: 2,
     auto_pc: false,
     action: Action::FlushAndPrologue,
 };
 
-const EXCEPTION_INFO: Info = Info {
+const EXCEPTION_INFO: InstructionInfo = InstructionInfo {
     cycles: 2,
     auto_pc: false,
     action: Action::Prologue,
@@ -94,7 +94,7 @@ impl BlockBuilder<'_> {
         self.current_bb = continue_block;
     }
 
-    pub fn sc(&mut self, _: Ins) -> Info {
+    pub fn sc(&mut self, _: Ins) -> InstructionInfo {
         if self.settings.nop_syscalls {
             return self.nop(Action::FlushAndPrologue);
         }
@@ -103,7 +103,7 @@ impl BlockBuilder<'_> {
         EXCEPTION_INFO
     }
 
-    pub fn rfi(&mut self, _: Ins) -> Info {
+    pub fn rfi(&mut self, _: Ins) -> InstructionInfo {
         let msr = self.get(Reg::MSR);
         let srr0 = self.get(SPR::SRR0);
         let srr1 = self.get(SPR::SRR1);

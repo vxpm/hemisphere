@@ -1,7 +1,7 @@
 use super::BlockBuilder;
 use crate::{
     block::Hooks,
-    builder::{Action, Info},
+    builder::{Action, InstructionInfo},
 };
 use cranelift::{codegen::ir, prelude::InstBuilder};
 use gekko::{Exception, GPR, InsExt, Reg, disasm::Ins};
@@ -221,7 +221,7 @@ impl BlockBuilder<'_> {
     }
 }
 
-const LOAD_INFO: Info = Info {
+const LOAD_INFO: InstructionInfo = InstructionInfo {
     cycles: 2,
     auto_pc: true,
     action: Action::Continue,
@@ -236,7 +236,7 @@ struct LoadOp {
 
 /// GPR load operations
 impl BlockBuilder<'_> {
-    fn load<P: ReadWriteAble>(&mut self, ins: Ins, op: LoadOp) -> Info {
+    fn load<P: ReadWriteAble>(&mut self, ins: Ins, op: LoadOp) -> InstructionInfo {
         let addr = if !op.update && ins.field_ra() == 0 {
             self.ir_value(ins.field_offset() as i32)
         } else {
@@ -262,7 +262,7 @@ impl BlockBuilder<'_> {
         LOAD_INFO
     }
 
-    fn load_indexed<P: ReadWriteAble>(&mut self, ins: Ins, op: LoadOp) -> Info {
+    fn load_indexed<P: ReadWriteAble>(&mut self, ins: Ins, op: LoadOp) -> InstructionInfo {
         let rb = self.get(ins.gpr_b());
         let addr = if !op.update && ins.field_ra() == 0 {
             rb
@@ -294,7 +294,7 @@ impl BlockBuilder<'_> {
         LOAD_INFO
     }
 
-    pub fn lbz(&mut self, ins: Ins) -> Info {
+    pub fn lbz(&mut self, ins: Ins) -> InstructionInfo {
         self.load::<i8>(
             ins,
             LoadOp {
@@ -305,7 +305,7 @@ impl BlockBuilder<'_> {
         )
     }
 
-    pub fn lbzx(&mut self, ins: Ins) -> Info {
+    pub fn lbzx(&mut self, ins: Ins) -> InstructionInfo {
         self.load_indexed::<i8>(
             ins,
             LoadOp {
@@ -316,7 +316,7 @@ impl BlockBuilder<'_> {
         )
     }
 
-    pub fn lbzu(&mut self, ins: Ins) -> Info {
+    pub fn lbzu(&mut self, ins: Ins) -> InstructionInfo {
         self.load::<i8>(
             ins,
             LoadOp {
@@ -327,7 +327,7 @@ impl BlockBuilder<'_> {
         )
     }
 
-    pub fn lbzux(&mut self, ins: Ins) -> Info {
+    pub fn lbzux(&mut self, ins: Ins) -> InstructionInfo {
         self.load_indexed::<i8>(
             ins,
             LoadOp {
@@ -338,7 +338,7 @@ impl BlockBuilder<'_> {
         )
     }
 
-    pub fn lhz(&mut self, ins: Ins) -> Info {
+    pub fn lhz(&mut self, ins: Ins) -> InstructionInfo {
         self.load::<i16>(
             ins,
             LoadOp {
@@ -349,7 +349,7 @@ impl BlockBuilder<'_> {
         )
     }
 
-    pub fn lhzx(&mut self, ins: Ins) -> Info {
+    pub fn lhzx(&mut self, ins: Ins) -> InstructionInfo {
         self.load_indexed::<i16>(
             ins,
             LoadOp {
@@ -360,7 +360,7 @@ impl BlockBuilder<'_> {
         )
     }
 
-    pub fn lhzu(&mut self, ins: Ins) -> Info {
+    pub fn lhzu(&mut self, ins: Ins) -> InstructionInfo {
         self.load::<i16>(
             ins,
             LoadOp {
@@ -371,7 +371,7 @@ impl BlockBuilder<'_> {
         )
     }
 
-    pub fn lhzux(&mut self, ins: Ins) -> Info {
+    pub fn lhzux(&mut self, ins: Ins) -> InstructionInfo {
         self.load_indexed::<i16>(
             ins,
             LoadOp {
@@ -382,7 +382,7 @@ impl BlockBuilder<'_> {
         )
     }
 
-    pub fn lha(&mut self, ins: Ins) -> Info {
+    pub fn lha(&mut self, ins: Ins) -> InstructionInfo {
         self.load::<i16>(
             ins,
             LoadOp {
@@ -393,7 +393,7 @@ impl BlockBuilder<'_> {
         )
     }
 
-    pub fn lhax(&mut self, ins: Ins) -> Info {
+    pub fn lhax(&mut self, ins: Ins) -> InstructionInfo {
         self.load_indexed::<i16>(
             ins,
             LoadOp {
@@ -404,7 +404,7 @@ impl BlockBuilder<'_> {
         )
     }
 
-    pub fn lhau(&mut self, ins: Ins) -> Info {
+    pub fn lhau(&mut self, ins: Ins) -> InstructionInfo {
         self.load::<i16>(
             ins,
             LoadOp {
@@ -415,7 +415,7 @@ impl BlockBuilder<'_> {
         )
     }
 
-    pub fn lhaux(&mut self, ins: Ins) -> Info {
+    pub fn lhaux(&mut self, ins: Ins) -> InstructionInfo {
         self.load_indexed::<i16>(
             ins,
             LoadOp {
@@ -426,7 +426,7 @@ impl BlockBuilder<'_> {
         )
     }
 
-    pub fn lhbrx(&mut self, ins: Ins) -> Info {
+    pub fn lhbrx(&mut self, ins: Ins) -> InstructionInfo {
         self.load_indexed::<i16>(
             ins,
             LoadOp {
@@ -437,7 +437,7 @@ impl BlockBuilder<'_> {
         )
     }
 
-    pub fn lwz(&mut self, ins: Ins) -> Info {
+    pub fn lwz(&mut self, ins: Ins) -> InstructionInfo {
         self.load::<i32>(
             ins,
             LoadOp {
@@ -448,7 +448,7 @@ impl BlockBuilder<'_> {
         )
     }
 
-    pub fn lwzx(&mut self, ins: Ins) -> Info {
+    pub fn lwzx(&mut self, ins: Ins) -> InstructionInfo {
         self.load_indexed::<i32>(
             ins,
             LoadOp {
@@ -459,7 +459,7 @@ impl BlockBuilder<'_> {
         )
     }
 
-    pub fn lwzu(&mut self, ins: Ins) -> Info {
+    pub fn lwzu(&mut self, ins: Ins) -> InstructionInfo {
         self.load::<i32>(
             ins,
             LoadOp {
@@ -470,7 +470,7 @@ impl BlockBuilder<'_> {
         )
     }
 
-    pub fn lwzux(&mut self, ins: Ins) -> Info {
+    pub fn lwzux(&mut self, ins: Ins) -> InstructionInfo {
         self.load_indexed::<i32>(
             ins,
             LoadOp {
@@ -481,7 +481,7 @@ impl BlockBuilder<'_> {
         )
     }
 
-    pub fn lwbrx(&mut self, ins: Ins) -> Info {
+    pub fn lwbrx(&mut self, ins: Ins) -> InstructionInfo {
         self.load_indexed::<i32>(
             ins,
             LoadOp {
@@ -492,7 +492,7 @@ impl BlockBuilder<'_> {
         )
     }
 
-    pub fn lmw(&mut self, ins: Ins) -> Info {
+    pub fn lmw(&mut self, ins: Ins) -> InstructionInfo {
         let mut addr = if ins.field_ra() == 0 {
             self.ir_value(ins.field_offset() as i32)
         } else {
@@ -507,13 +507,13 @@ impl BlockBuilder<'_> {
             addr = self.bd.ins().iadd_imm(addr, 4);
         }
 
-        Info {
+        InstructionInfo {
             cycles: 10, // random, chosen by fair dice roll
             ..LOAD_INFO
         }
     }
 
-    pub fn lswi(&mut self, ins: Ins) -> Info {
+    pub fn lswi(&mut self, ins: Ins) -> InstructionInfo {
         let mut addr = if ins.field_ra() == 0 {
             self.ir_value(0)
         } else {
@@ -547,13 +547,13 @@ impl BlockBuilder<'_> {
             addr = self.bd.ins().iadd_imm(addr, 1);
         }
 
-        Info {
+        InstructionInfo {
             cycles: 10, // random, chosen by fair dice roll
             ..LOAD_INFO
         }
     }
 
-    pub fn lfd(&mut self, ins: Ins) -> Info {
+    pub fn lfd(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let addr = if ins.field_ra() == 0 {
@@ -575,7 +575,7 @@ impl BlockBuilder<'_> {
         LOAD_INFO
     }
 
-    pub fn lfdu(&mut self, ins: Ins) -> Info {
+    pub fn lfdu(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let addr = if ins.field_ra() == 0 {
@@ -598,7 +598,7 @@ impl BlockBuilder<'_> {
         LOAD_INFO
     }
 
-    pub fn lfdx(&mut self, ins: Ins) -> Info {
+    pub fn lfdx(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let rb = self.get(ins.gpr_b());
@@ -621,7 +621,7 @@ impl BlockBuilder<'_> {
         LOAD_INFO
     }
 
-    pub fn lfdux(&mut self, ins: Ins) -> Info {
+    pub fn lfdux(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let ra = self.get(ins.gpr_a());
@@ -641,7 +641,7 @@ impl BlockBuilder<'_> {
         LOAD_INFO
     }
 
-    pub fn lfs(&mut self, ins: Ins) -> Info {
+    pub fn lfs(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let addr = if ins.field_ra() == 0 {
@@ -664,7 +664,7 @@ impl BlockBuilder<'_> {
         LOAD_INFO
     }
 
-    pub fn lfsu(&mut self, ins: Ins) -> Info {
+    pub fn lfsu(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let addr = if ins.field_ra() == 0 {
@@ -688,7 +688,7 @@ impl BlockBuilder<'_> {
         LOAD_INFO
     }
 
-    pub fn lfsx(&mut self, ins: Ins) -> Info {
+    pub fn lfsx(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let rb = self.get(ins.gpr_b());
@@ -712,7 +712,7 @@ impl BlockBuilder<'_> {
         LOAD_INFO
     }
 
-    pub fn lfsux(&mut self, ins: Ins) -> Info {
+    pub fn lfsux(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let ra = self.get(ins.gpr_a());
@@ -734,7 +734,7 @@ impl BlockBuilder<'_> {
     }
 }
 
-const STORE_INFO: Info = Info {
+const STORE_INFO: InstructionInfo = InstructionInfo {
     cycles: 2,
     auto_pc: true,
     action: Action::Continue,
@@ -742,7 +742,7 @@ const STORE_INFO: Info = Info {
 
 /// Store operations
 impl BlockBuilder<'_> {
-    fn store<P: ReadWriteAble>(&mut self, ins: Ins, update: bool) -> Info {
+    fn store<P: ReadWriteAble>(&mut self, ins: Ins, update: bool) -> InstructionInfo {
         let addr = if !update && ins.field_ra() == 0 {
             self.ir_value(ins.field_offset() as i32)
         } else {
@@ -764,7 +764,12 @@ impl BlockBuilder<'_> {
         STORE_INFO
     }
 
-    fn store_indexed<P: ReadWriteAble>(&mut self, ins: Ins, update: bool, reverse: bool) -> Info {
+    fn store_indexed<P: ReadWriteAble>(
+        &mut self,
+        ins: Ins,
+        update: bool,
+        reverse: bool,
+    ) -> InstructionInfo {
         let rb = self.get(ins.gpr_b());
         let addr = if !update && ins.field_ra() == 0 {
             rb
@@ -791,63 +796,63 @@ impl BlockBuilder<'_> {
         STORE_INFO
     }
 
-    pub fn stb(&mut self, ins: Ins) -> Info {
+    pub fn stb(&mut self, ins: Ins) -> InstructionInfo {
         self.store::<i8>(ins, false)
     }
 
-    pub fn stbx(&mut self, ins: Ins) -> Info {
+    pub fn stbx(&mut self, ins: Ins) -> InstructionInfo {
         self.store_indexed::<i8>(ins, false, false)
     }
 
-    pub fn stbu(&mut self, ins: Ins) -> Info {
+    pub fn stbu(&mut self, ins: Ins) -> InstructionInfo {
         self.store::<i8>(ins, true)
     }
 
-    pub fn stbux(&mut self, ins: Ins) -> Info {
+    pub fn stbux(&mut self, ins: Ins) -> InstructionInfo {
         self.store_indexed::<i8>(ins, true, false)
     }
 
-    pub fn sth(&mut self, ins: Ins) -> Info {
+    pub fn sth(&mut self, ins: Ins) -> InstructionInfo {
         self.store::<i16>(ins, false)
     }
 
-    pub fn sthx(&mut self, ins: Ins) -> Info {
+    pub fn sthx(&mut self, ins: Ins) -> InstructionInfo {
         self.store_indexed::<i16>(ins, false, false)
     }
 
-    pub fn sthbrx(&mut self, ins: Ins) -> Info {
+    pub fn sthbrx(&mut self, ins: Ins) -> InstructionInfo {
         self.store_indexed::<i16>(ins, false, true)
     }
 
-    pub fn sthu(&mut self, ins: Ins) -> Info {
+    pub fn sthu(&mut self, ins: Ins) -> InstructionInfo {
         self.store::<i16>(ins, true)
     }
 
-    pub fn sthux(&mut self, ins: Ins) -> Info {
+    pub fn sthux(&mut self, ins: Ins) -> InstructionInfo {
         self.store_indexed::<i16>(ins, true, false)
     }
 
-    pub fn stw(&mut self, ins: Ins) -> Info {
+    pub fn stw(&mut self, ins: Ins) -> InstructionInfo {
         self.store::<i32>(ins, false)
     }
 
-    pub fn stwx(&mut self, ins: Ins) -> Info {
+    pub fn stwx(&mut self, ins: Ins) -> InstructionInfo {
         self.store_indexed::<i32>(ins, false, false)
     }
 
-    pub fn stwbrx(&mut self, ins: Ins) -> Info {
+    pub fn stwbrx(&mut self, ins: Ins) -> InstructionInfo {
         self.store_indexed::<i32>(ins, false, true)
     }
 
-    pub fn stwu(&mut self, ins: Ins) -> Info {
+    pub fn stwu(&mut self, ins: Ins) -> InstructionInfo {
         self.store::<i32>(ins, true)
     }
 
-    pub fn stwux(&mut self, ins: Ins) -> Info {
+    pub fn stwux(&mut self, ins: Ins) -> InstructionInfo {
         self.store_indexed::<i32>(ins, true, false)
     }
 
-    pub fn stmw(&mut self, ins: Ins) -> Info {
+    pub fn stmw(&mut self, ins: Ins) -> InstructionInfo {
         let mut addr = if ins.field_ra() == 0 {
             self.ir_value(ins.field_offset() as i32)
         } else {
@@ -862,13 +867,13 @@ impl BlockBuilder<'_> {
             addr = self.bd.ins().iadd_imm(addr, 4);
         }
 
-        Info {
+        InstructionInfo {
             cycles: 10, // random, chosen by fair dice roll
             ..STORE_INFO
         }
     }
 
-    pub fn stswi(&mut self, ins: Ins) -> Info {
+    pub fn stswi(&mut self, ins: Ins) -> InstructionInfo {
         let mut addr = if ins.field_ra() == 0 {
             self.ir_value(0)
         } else {
@@ -894,13 +899,13 @@ impl BlockBuilder<'_> {
             addr = self.bd.ins().iadd_imm(addr, 1);
         }
 
-        Info {
+        InstructionInfo {
             cycles: 10, // random, chosen by fair dice roll
             ..LOAD_INFO
         }
     }
 
-    pub fn stfd(&mut self, ins: Ins) -> Info {
+    pub fn stfd(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let addr = if ins.field_ra() == 0 {
@@ -921,7 +926,7 @@ impl BlockBuilder<'_> {
         STORE_INFO
     }
 
-    pub fn stfdu(&mut self, ins: Ins) -> Info {
+    pub fn stfdu(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let addr = if ins.field_ra() == 0 {
@@ -943,7 +948,7 @@ impl BlockBuilder<'_> {
         STORE_INFO
     }
 
-    pub fn stfdx(&mut self, ins: Ins) -> Info {
+    pub fn stfdx(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let rb = self.get(ins.gpr_b());
@@ -965,7 +970,7 @@ impl BlockBuilder<'_> {
         STORE_INFO
     }
 
-    pub fn stfdux(&mut self, ins: Ins) -> Info {
+    pub fn stfdux(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let ra = self.get(ins.gpr_a());
@@ -984,7 +989,7 @@ impl BlockBuilder<'_> {
         STORE_INFO
     }
 
-    pub fn stfs(&mut self, ins: Ins) -> Info {
+    pub fn stfs(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let addr = if ins.field_ra() == 0 {
@@ -1006,7 +1011,7 @@ impl BlockBuilder<'_> {
         STORE_INFO
     }
 
-    pub fn stfsu(&mut self, ins: Ins) -> Info {
+    pub fn stfsu(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let addr = if ins.field_ra() == 0 {
@@ -1029,7 +1034,7 @@ impl BlockBuilder<'_> {
         STORE_INFO
     }
 
-    pub fn stfsx(&mut self, ins: Ins) -> Info {
+    pub fn stfsx(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let rb = self.get(ins.gpr_b());
@@ -1052,7 +1057,7 @@ impl BlockBuilder<'_> {
         STORE_INFO
     }
 
-    pub fn stfsux(&mut self, ins: Ins) -> Info {
+    pub fn stfsux(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let ra = self.get(ins.gpr_a());
@@ -1072,7 +1077,7 @@ impl BlockBuilder<'_> {
         STORE_INFO
     }
 
-    pub fn stfiwx(&mut self, ins: Ins) -> Info {
+    pub fn stfiwx(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let rb = self.get(ins.gpr_b());
@@ -1095,7 +1100,7 @@ impl BlockBuilder<'_> {
         STORE_INFO
     }
 
-    pub fn psq_l(&mut self, ins: Ins) -> Info {
+    pub fn psq_l(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let addr = if ins.field_ra() == 0 {
@@ -1121,7 +1126,7 @@ impl BlockBuilder<'_> {
         LOAD_INFO
     }
 
-    pub fn psq_lu(&mut self, ins: Ins) -> Info {
+    pub fn psq_lu(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let addr = if ins.field_ra() == 0 {
@@ -1149,7 +1154,7 @@ impl BlockBuilder<'_> {
         LOAD_INFO
     }
 
-    pub fn psq_lx(&mut self, ins: Ins) -> Info {
+    pub fn psq_lx(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let rb = self.get(ins.gpr_b());
@@ -1176,7 +1181,7 @@ impl BlockBuilder<'_> {
         LOAD_INFO
     }
 
-    pub fn psq_st(&mut self, ins: Ins) -> Info {
+    pub fn psq_st(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let addr = if ins.field_ra() == 0 {
@@ -1199,7 +1204,7 @@ impl BlockBuilder<'_> {
         STORE_INFO
     }
 
-    pub fn psq_stu(&mut self, ins: Ins) -> Info {
+    pub fn psq_stu(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let addr = if ins.field_ra() == 0 {
@@ -1224,7 +1229,7 @@ impl BlockBuilder<'_> {
         STORE_INFO
     }
 
-    pub fn psq_stx(&mut self, ins: Ins) -> Info {
+    pub fn psq_stx(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let rb = self.get(ins.gpr_b());

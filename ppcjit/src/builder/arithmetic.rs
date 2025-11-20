@@ -1,18 +1,18 @@
 use super::{Action, BlockBuilder};
-use crate::builder::Info;
+use crate::builder::InstructionInfo;
 use cranelift::{
     codegen::ir,
     prelude::{InstBuilder, IntCC},
 };
 use gekko::{InsExt, Reg, SPR, disasm::Ins};
 
-const INT_INFO: Info = Info {
+const INT_INFO: InstructionInfo = InstructionInfo {
     cycles: 2,
     auto_pc: true,
     action: Action::Continue,
 };
 
-const FLOAT_INFO: Info = Info {
+const FLOAT_INFO: InstructionInfo = InstructionInfo {
     cycles: 2,
     auto_pc: true,
     action: Action::Continue,
@@ -84,7 +84,7 @@ impl BlockBuilder<'_> {
         self.bd.ins().band(lhs_eq_rhs, result_sign_diff)
     }
 
-    fn addition(&mut self, ins: Ins, op: AddOp) -> Info {
+    fn addition(&mut self, ins: Ins, op: AddOp) -> InstructionInfo {
         let lhs = self.addition_get_lhs(ins, op.lhs);
         let rhs = self.addition_get_rhs(ins, op.rhs);
 
@@ -118,7 +118,7 @@ impl BlockBuilder<'_> {
         INT_INFO
     }
 
-    pub fn add(&mut self, ins: Ins) -> Info {
+    pub fn add(&mut self, ins: Ins) -> InstructionInfo {
         self.addition(
             ins,
             AddOp {
@@ -132,7 +132,7 @@ impl BlockBuilder<'_> {
         )
     }
 
-    pub fn addc(&mut self, ins: Ins) -> Info {
+    pub fn addc(&mut self, ins: Ins) -> InstructionInfo {
         self.addition(
             ins,
             AddOp {
@@ -146,7 +146,7 @@ impl BlockBuilder<'_> {
         )
     }
 
-    pub fn adde(&mut self, ins: Ins) -> Info {
+    pub fn adde(&mut self, ins: Ins) -> InstructionInfo {
         self.addition(
             ins,
             AddOp {
@@ -160,7 +160,7 @@ impl BlockBuilder<'_> {
         )
     }
 
-    pub fn addze(&mut self, ins: Ins) -> Info {
+    pub fn addze(&mut self, ins: Ins) -> InstructionInfo {
         self.addition(
             ins,
             AddOp {
@@ -174,7 +174,7 @@ impl BlockBuilder<'_> {
         )
     }
 
-    pub fn addi(&mut self, ins: Ins) -> Info {
+    pub fn addi(&mut self, ins: Ins) -> InstructionInfo {
         self.addition(
             ins,
             AddOp {
@@ -188,7 +188,7 @@ impl BlockBuilder<'_> {
         )
     }
 
-    pub fn addis(&mut self, ins: Ins) -> Info {
+    pub fn addis(&mut self, ins: Ins) -> InstructionInfo {
         self.addition(
             ins,
             AddOp {
@@ -202,7 +202,7 @@ impl BlockBuilder<'_> {
         )
     }
 
-    pub fn addic(&mut self, ins: Ins) -> Info {
+    pub fn addic(&mut self, ins: Ins) -> InstructionInfo {
         self.addition(
             ins,
             AddOp {
@@ -216,7 +216,7 @@ impl BlockBuilder<'_> {
         )
     }
 
-    pub fn addic_record(&mut self, ins: Ins) -> Info {
+    pub fn addic_record(&mut self, ins: Ins) -> InstructionInfo {
         self.addition(
             ins,
             AddOp {
@@ -230,7 +230,7 @@ impl BlockBuilder<'_> {
         )
     }
 
-    pub fn addme(&mut self, ins: Ins) -> Info {
+    pub fn addme(&mut self, ins: Ins) -> InstructionInfo {
         self.addition(
             ins,
             AddOp {
@@ -289,7 +289,7 @@ impl BlockBuilder<'_> {
         self.bd.ins().band(rhs_eq_value, lhs_sign_diff)
     }
 
-    fn subtraction(&mut self, ins: Ins, op: SubOp) -> Info {
+    fn subtraction(&mut self, ins: Ins, op: SubOp) -> InstructionInfo {
         let lhs = self.subtraction_get_lhs(ins, op.lhs);
         let rhs = self.get(ins.gpr_a());
 
@@ -324,7 +324,7 @@ impl BlockBuilder<'_> {
         INT_INFO
     }
 
-    pub fn subf(&mut self, ins: Ins) -> Info {
+    pub fn subf(&mut self, ins: Ins) -> InstructionInfo {
         self.subtraction(
             ins,
             SubOp {
@@ -337,7 +337,7 @@ impl BlockBuilder<'_> {
         )
     }
 
-    pub fn subfe(&mut self, ins: Ins) -> Info {
+    pub fn subfe(&mut self, ins: Ins) -> InstructionInfo {
         self.subtraction(
             ins,
             SubOp {
@@ -350,7 +350,7 @@ impl BlockBuilder<'_> {
         )
     }
 
-    pub fn subfc(&mut self, ins: Ins) -> Info {
+    pub fn subfc(&mut self, ins: Ins) -> InstructionInfo {
         self.subtraction(
             ins,
             SubOp {
@@ -363,7 +363,7 @@ impl BlockBuilder<'_> {
         )
     }
 
-    pub fn subfic(&mut self, ins: Ins) -> Info {
+    pub fn subfic(&mut self, ins: Ins) -> InstructionInfo {
         self.subtraction(
             ins,
             SubOp {
@@ -376,7 +376,7 @@ impl BlockBuilder<'_> {
         )
     }
 
-    pub fn subfme(&mut self, ins: Ins) -> Info {
+    pub fn subfme(&mut self, ins: Ins) -> InstructionInfo {
         self.subtraction(
             ins,
             SubOp {
@@ -389,7 +389,7 @@ impl BlockBuilder<'_> {
         )
     }
 
-    pub fn subfze(&mut self, ins: Ins) -> Info {
+    pub fn subfze(&mut self, ins: Ins) -> InstructionInfo {
         self.subtraction(
             ins,
             SubOp {
@@ -403,13 +403,13 @@ impl BlockBuilder<'_> {
     }
 }
 
-const MUL_INFO: Info = Info {
+const MUL_INFO: InstructionInfo = InstructionInfo {
     cycles: 3,
     auto_pc: true,
     action: Action::Continue,
 };
 
-const DIV_INFO: Info = Info {
+const DIV_INFO: InstructionInfo = InstructionInfo {
     cycles: 19,
     auto_pc: true,
     action: Action::Continue,
@@ -417,7 +417,7 @@ const DIV_INFO: Info = Info {
 
 /// Integer multiplication and division operations
 impl BlockBuilder<'_> {
-    pub fn neg(&mut self, ins: Ins) -> Info {
+    pub fn neg(&mut self, ins: Ins) -> InstructionInfo {
         let ra = self.get(ins.gpr_a());
         let value = self.bd.ins().ineg(ra);
         let overflowed = self.bd.ins().icmp_imm(IntCC::Equal, ra, i32::MIN as i64);
@@ -435,7 +435,7 @@ impl BlockBuilder<'_> {
         INT_INFO
     }
 
-    pub fn divw(&mut self, ins: Ins) -> Info {
+    pub fn divw(&mut self, ins: Ins) -> InstructionInfo {
         let ra = self.get(ins.gpr_a());
         let rb = self.get(ins.gpr_b());
 
@@ -466,7 +466,7 @@ impl BlockBuilder<'_> {
         DIV_INFO
     }
 
-    pub fn divwu(&mut self, ins: Ins) -> Info {
+    pub fn divwu(&mut self, ins: Ins) -> InstructionInfo {
         let ra = self.get(ins.gpr_a());
         let rb = self.get(ins.gpr_b());
 
@@ -490,7 +490,7 @@ impl BlockBuilder<'_> {
         DIV_INFO
     }
 
-    pub fn mullw(&mut self, ins: Ins) -> Info {
+    pub fn mullw(&mut self, ins: Ins) -> InstructionInfo {
         let ra = self.get(ins.gpr_a());
         let rb = self.get(ins.gpr_b());
 
@@ -509,7 +509,7 @@ impl BlockBuilder<'_> {
         MUL_INFO
     }
 
-    pub fn mulli(&mut self, ins: Ins) -> Info {
+    pub fn mulli(&mut self, ins: Ins) -> InstructionInfo {
         let ra = self.get(ins.gpr_a());
         let imm = self.ir_value(ins.field_simm() as i32);
 
@@ -519,7 +519,7 @@ impl BlockBuilder<'_> {
         MUL_INFO
     }
 
-    pub fn mulhw(&mut self, ins: Ins) -> Info {
+    pub fn mulhw(&mut self, ins: Ins) -> InstructionInfo {
         let ra = self.get(ins.gpr_a());
         let rb = self.get(ins.gpr_b());
 
@@ -534,7 +534,7 @@ impl BlockBuilder<'_> {
         MUL_INFO
     }
 
-    pub fn mulhwu(&mut self, ins: Ins) -> Info {
+    pub fn mulhwu(&mut self, ins: Ins) -> InstructionInfo {
         let ra = self.get(ins.gpr_a());
         let rb = self.get(ins.gpr_b());
 
@@ -552,7 +552,7 @@ impl BlockBuilder<'_> {
 
 /// Floating point addition operations
 impl BlockBuilder<'_> {
-    pub fn fadd(&mut self, ins: Ins) -> Info {
+    pub fn fadd(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let fpr_a = self.get(ins.fpr_a());
@@ -570,7 +570,7 @@ impl BlockBuilder<'_> {
         FLOAT_INFO
     }
 
-    pub fn fadds(&mut self, ins: Ins) -> Info {
+    pub fn fadds(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let fpr_a = self.get(ins.fpr_a());
@@ -591,7 +591,7 @@ impl BlockBuilder<'_> {
         FLOAT_INFO
     }
 
-    pub fn ps_add(&mut self, ins: Ins) -> Info {
+    pub fn ps_add(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let ps_a = self.get_ps(ins.fpr_a());
@@ -613,7 +613,7 @@ impl BlockBuilder<'_> {
 
 /// Floating point subtraction operations
 impl BlockBuilder<'_> {
-    pub fn fsub(&mut self, ins: Ins) -> Info {
+    pub fn fsub(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let fpr_a = self.get(ins.fpr_a());
@@ -631,7 +631,7 @@ impl BlockBuilder<'_> {
         FLOAT_INFO
     }
 
-    pub fn fsubs(&mut self, ins: Ins) -> Info {
+    pub fn fsubs(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let fpr_a = self.get(ins.fpr_a());
@@ -652,7 +652,7 @@ impl BlockBuilder<'_> {
         FLOAT_INFO
     }
 
-    pub fn ps_sub(&mut self, ins: Ins) -> Info {
+    pub fn ps_sub(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let ps_a = self.get_ps(ins.fpr_a());
@@ -674,7 +674,7 @@ impl BlockBuilder<'_> {
 
 /// Floating point multiply and divide operations
 impl BlockBuilder<'_> {
-    pub fn fneg(&mut self, ins: Ins) -> Info {
+    pub fn fneg(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let fpr_b = self.get(ins.fpr_b());
@@ -689,7 +689,7 @@ impl BlockBuilder<'_> {
         FLOAT_INFO
     }
 
-    pub fn fmuls(&mut self, ins: Ins) -> Info {
+    pub fn fmuls(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let fpr_a = self.get(ins.fpr_a());
@@ -710,7 +710,7 @@ impl BlockBuilder<'_> {
         FLOAT_INFO
     }
 
-    pub fn fmul(&mut self, ins: Ins) -> Info {
+    pub fn fmul(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let fpr_a = self.get(ins.fpr_a());
@@ -730,7 +730,7 @@ impl BlockBuilder<'_> {
         FLOAT_INFO
     }
 
-    pub fn fmadds(&mut self, ins: Ins) -> Info {
+    pub fn fmadds(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let fpr_a = self.get(ins.fpr_a());
@@ -752,7 +752,7 @@ impl BlockBuilder<'_> {
         FLOAT_INFO
     }
 
-    pub fn fmadd(&mut self, ins: Ins) -> Info {
+    pub fn fmadd(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let fpr_a = self.get(ins.fpr_a());
@@ -771,7 +771,7 @@ impl BlockBuilder<'_> {
         FLOAT_INFO
     }
 
-    pub fn fmsubs(&mut self, ins: Ins) -> Info {
+    pub fn fmsubs(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let fpr_a = self.get(ins.fpr_a());
@@ -794,7 +794,7 @@ impl BlockBuilder<'_> {
         FLOAT_INFO
     }
 
-    pub fn fmsub(&mut self, ins: Ins) -> Info {
+    pub fn fmsub(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let fpr_a = self.get(ins.fpr_a());
@@ -814,7 +814,7 @@ impl BlockBuilder<'_> {
         FLOAT_INFO
     }
 
-    pub fn fnmadds(&mut self, ins: Ins) -> Info {
+    pub fn fnmadds(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let fpr_a = self.get(ins.fpr_a());
@@ -837,7 +837,7 @@ impl BlockBuilder<'_> {
         FLOAT_INFO
     }
 
-    pub fn fnmsub(&mut self, ins: Ins) -> Info {
+    pub fn fnmsub(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let fpr_a = self.get(ins.fpr_a());
@@ -858,7 +858,7 @@ impl BlockBuilder<'_> {
         FLOAT_INFO
     }
 
-    pub fn fnmsubs(&mut self, ins: Ins) -> Info {
+    pub fn fnmsubs(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let fpr_a = self.get(ins.fpr_a());
@@ -882,7 +882,7 @@ impl BlockBuilder<'_> {
         FLOAT_INFO
     }
 
-    pub fn fdivs(&mut self, ins: Ins) -> Info {
+    pub fn fdivs(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let fpr_a = self.get(ins.fpr_a());
@@ -903,7 +903,7 @@ impl BlockBuilder<'_> {
         FLOAT_INFO
     }
 
-    pub fn fdiv(&mut self, ins: Ins) -> Info {
+    pub fn fdiv(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let fpr_a = self.get(ins.fpr_a());
@@ -923,7 +923,7 @@ impl BlockBuilder<'_> {
         FLOAT_INFO
     }
 
-    pub fn ps_neg(&mut self, ins: Ins) -> Info {
+    pub fn ps_neg(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let ps_b = self.get_ps(ins.fpr_b());
@@ -938,7 +938,7 @@ impl BlockBuilder<'_> {
         FLOAT_INFO
     }
 
-    pub fn ps_mul(&mut self, ins: Ins) -> Info {
+    pub fn ps_mul(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let ps_a = self.get_ps(ins.fpr_a());
@@ -957,7 +957,7 @@ impl BlockBuilder<'_> {
         FLOAT_INFO
     }
 
-    pub fn ps_madd(&mut self, ins: Ins) -> Info {
+    pub fn ps_madd(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let ps_a = self.get_ps(ins.fpr_a());
@@ -977,7 +977,7 @@ impl BlockBuilder<'_> {
         FLOAT_INFO
     }
 
-    pub fn ps_madds0(&mut self, ins: Ins) -> Info {
+    pub fn ps_madds0(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let ps_a = self.get_ps(ins.fpr_a());
@@ -999,7 +999,7 @@ impl BlockBuilder<'_> {
         FLOAT_INFO
     }
 
-    pub fn ps_madds1(&mut self, ins: Ins) -> Info {
+    pub fn ps_madds1(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let ps_a = self.get_ps(ins.fpr_a());
@@ -1021,7 +1021,7 @@ impl BlockBuilder<'_> {
         FLOAT_INFO
     }
 
-    pub fn ps_msub(&mut self, ins: Ins) -> Info {
+    pub fn ps_msub(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let ps_a = self.get_ps(ins.fpr_a());
@@ -1042,7 +1042,7 @@ impl BlockBuilder<'_> {
         FLOAT_INFO
     }
 
-    pub fn ps_nmadd(&mut self, ins: Ins) -> Info {
+    pub fn ps_nmadd(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let ps_a = self.get_ps(ins.fpr_a());
@@ -1063,7 +1063,7 @@ impl BlockBuilder<'_> {
         FLOAT_INFO
     }
 
-    pub fn ps_nmsub(&mut self, ins: Ins) -> Info {
+    pub fn ps_nmsub(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let ps_a = self.get_ps(ins.fpr_a());
@@ -1085,7 +1085,7 @@ impl BlockBuilder<'_> {
         FLOAT_INFO
     }
 
-    pub fn ps_muls0(&mut self, ins: Ins) -> Info {
+    pub fn ps_muls0(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let ps_a = self.get_ps(ins.fpr_a());
@@ -1105,7 +1105,7 @@ impl BlockBuilder<'_> {
         FLOAT_INFO
     }
 
-    pub fn ps_muls1(&mut self, ins: Ins) -> Info {
+    pub fn ps_muls1(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let ps_a = self.get_ps(ins.fpr_a());

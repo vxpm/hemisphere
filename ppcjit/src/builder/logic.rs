@@ -1,13 +1,13 @@
 use super::BlockBuilder;
-use crate::builder::{Action, Info};
+use crate::builder::{Action, InstructionInfo};
 use bitos::BitUtils;
-use gekko::{InsExt, disasm::Ins};
 use cranelift::{
     codegen::ir,
     prelude::{InstBuilder, IntCC},
 };
+use gekko::{InsExt, disasm::Ins};
 
-const LOGIC_INFO: Info = Info {
+const LOGIC_INFO: InstructionInfo = InstructionInfo {
     cycles: 1,
     auto_pc: true,
     action: Action::Continue,
@@ -77,7 +77,7 @@ impl BlockBuilder<'_> {
         }
     }
 
-    fn basic_bitop(&mut self, ins: Ins, op: BasicBitOp) -> Info {
+    fn basic_bitop(&mut self, ins: Ins, op: BasicBitOp) -> InstructionInfo {
         let lhs = self.get(ins.gpr_s());
         let rhs = self.basic_bitop_get_rhs(ins, op.rhs);
         let value = self.basic_bitop_compute(op.kind, lhs, rhs);
@@ -91,7 +91,7 @@ impl BlockBuilder<'_> {
         LOGIC_INFO
     }
 
-    pub fn or(&mut self, ins: Ins) -> Info {
+    pub fn or(&mut self, ins: Ins) -> InstructionInfo {
         self.basic_bitop(
             ins,
             BasicBitOp {
@@ -102,7 +102,7 @@ impl BlockBuilder<'_> {
         )
     }
 
-    pub fn orc(&mut self, ins: Ins) -> Info {
+    pub fn orc(&mut self, ins: Ins) -> InstructionInfo {
         self.basic_bitop(
             ins,
             BasicBitOp {
@@ -113,7 +113,7 @@ impl BlockBuilder<'_> {
         )
     }
 
-    pub fn ori(&mut self, ins: Ins) -> Info {
+    pub fn ori(&mut self, ins: Ins) -> InstructionInfo {
         self.basic_bitop(
             ins,
             BasicBitOp {
@@ -124,7 +124,7 @@ impl BlockBuilder<'_> {
         )
     }
 
-    pub fn oris(&mut self, ins: Ins) -> Info {
+    pub fn oris(&mut self, ins: Ins) -> InstructionInfo {
         self.basic_bitop(
             ins,
             BasicBitOp {
@@ -135,7 +135,7 @@ impl BlockBuilder<'_> {
         )
     }
 
-    pub fn nor(&mut self, ins: Ins) -> Info {
+    pub fn nor(&mut self, ins: Ins) -> InstructionInfo {
         self.basic_bitop(
             ins,
             BasicBitOp {
@@ -146,7 +146,7 @@ impl BlockBuilder<'_> {
         )
     }
 
-    pub fn xor(&mut self, ins: Ins) -> Info {
+    pub fn xor(&mut self, ins: Ins) -> InstructionInfo {
         self.basic_bitop(
             ins,
             BasicBitOp {
@@ -157,7 +157,7 @@ impl BlockBuilder<'_> {
         )
     }
 
-    pub fn xori(&mut self, ins: Ins) -> Info {
+    pub fn xori(&mut self, ins: Ins) -> InstructionInfo {
         self.basic_bitop(
             ins,
             BasicBitOp {
@@ -168,7 +168,7 @@ impl BlockBuilder<'_> {
         )
     }
 
-    pub fn xoris(&mut self, ins: Ins) -> Info {
+    pub fn xoris(&mut self, ins: Ins) -> InstructionInfo {
         self.basic_bitop(
             ins,
             BasicBitOp {
@@ -179,7 +179,7 @@ impl BlockBuilder<'_> {
         )
     }
 
-    pub fn and(&mut self, ins: Ins) -> Info {
+    pub fn and(&mut self, ins: Ins) -> InstructionInfo {
         self.basic_bitop(
             ins,
             BasicBitOp {
@@ -190,7 +190,7 @@ impl BlockBuilder<'_> {
         )
     }
 
-    pub fn andc(&mut self, ins: Ins) -> Info {
+    pub fn andc(&mut self, ins: Ins) -> InstructionInfo {
         self.basic_bitop(
             ins,
             BasicBitOp {
@@ -201,7 +201,7 @@ impl BlockBuilder<'_> {
         )
     }
 
-    pub fn andi_record(&mut self, ins: Ins) -> Info {
+    pub fn andi_record(&mut self, ins: Ins) -> InstructionInfo {
         self.basic_bitop(
             ins,
             BasicBitOp {
@@ -212,7 +212,7 @@ impl BlockBuilder<'_> {
         )
     }
 
-    pub fn andis_record(&mut self, ins: Ins) -> Info {
+    pub fn andis_record(&mut self, ins: Ins) -> InstructionInfo {
         self.basic_bitop(
             ins,
             BasicBitOp {
@@ -223,7 +223,7 @@ impl BlockBuilder<'_> {
         )
     }
 
-    pub fn nand(&mut self, ins: Ins) -> Info {
+    pub fn nand(&mut self, ins: Ins) -> InstructionInfo {
         self.basic_bitop(
             ins,
             BasicBitOp {
@@ -234,7 +234,7 @@ impl BlockBuilder<'_> {
         )
     }
 
-    pub fn eqv(&mut self, ins: Ins) -> Info {
+    pub fn eqv(&mut self, ins: Ins) -> InstructionInfo {
         self.basic_bitop(
             ins,
             BasicBitOp {
@@ -248,7 +248,7 @@ impl BlockBuilder<'_> {
 
 /// Signed extension operations
 impl BlockBuilder<'_> {
-    fn signext(&mut self, ins: Ins, ty: ir::Type) -> Info {
+    fn signext(&mut self, ins: Ins, ty: ir::Type) -> InstructionInfo {
         let rs = self.get(ins.gpr_s());
 
         let byte = self.bd.ins().ireduce(ty, rs);
@@ -263,11 +263,11 @@ impl BlockBuilder<'_> {
         LOGIC_INFO
     }
 
-    pub fn extsb(&mut self, ins: Ins) -> Info {
+    pub fn extsb(&mut self, ins: Ins) -> InstructionInfo {
         self.signext(ins, ir::types::I8)
     }
 
-    pub fn extsh(&mut self, ins: Ins) -> Info {
+    pub fn extsh(&mut self, ins: Ins) -> InstructionInfo {
         self.signext(ins, ir::types::I16)
     }
 }
@@ -309,7 +309,7 @@ fn generate_mask(me: u8, mb: u8) -> u32 {
 
 /// Rotate and Shift operations
 impl BlockBuilder<'_> {
-    pub fn rlwinm(&mut self, ins: Ins) -> Info {
+    pub fn rlwinm(&mut self, ins: Ins) -> InstructionInfo {
         let rs = self.get(ins.gpr_s());
         let mask = generate_mask(ins.field_me(), ins.field_mb());
 
@@ -325,7 +325,7 @@ impl BlockBuilder<'_> {
         LOGIC_INFO
     }
 
-    pub fn rlwnm(&mut self, ins: Ins) -> Info {
+    pub fn rlwnm(&mut self, ins: Ins) -> InstructionInfo {
         let rs = self.get(ins.gpr_s());
         let rb = self.get(ins.gpr_b());
         let mask = generate_mask(ins.field_me(), ins.field_mb());
@@ -343,7 +343,7 @@ impl BlockBuilder<'_> {
         LOGIC_INFO
     }
 
-    pub fn rlwimi(&mut self, ins: Ins) -> Info {
+    pub fn rlwimi(&mut self, ins: Ins) -> InstructionInfo {
         let rs = self.get(ins.gpr_s());
         let ra = self.get(ins.gpr_a());
         let mask = self.ir_value(generate_mask(ins.field_me(), ins.field_mb()));
@@ -406,7 +406,7 @@ impl BlockBuilder<'_> {
         }
     }
 
-    fn shift(&mut self, ins: Ins, op: ShiftOp) -> Info {
+    fn shift(&mut self, ins: Ins, op: ShiftOp) -> InstructionInfo {
         let lhs = self.get(ins.gpr_s());
         let rhs = self.shift_get_rhs(ins, op.rhs);
 
@@ -422,7 +422,7 @@ impl BlockBuilder<'_> {
         LOGIC_INFO
     }
 
-    pub fn slw(&mut self, ins: Ins) -> Info {
+    pub fn slw(&mut self, ins: Ins) -> InstructionInfo {
         self.shift(
             ins,
             ShiftOp {
@@ -432,7 +432,7 @@ impl BlockBuilder<'_> {
         )
     }
 
-    pub fn srw(&mut self, ins: Ins) -> Info {
+    pub fn srw(&mut self, ins: Ins) -> InstructionInfo {
         self.shift(
             ins,
             ShiftOp {
@@ -442,7 +442,7 @@ impl BlockBuilder<'_> {
         )
     }
 
-    pub fn sraw(&mut self, ins: Ins) -> Info {
+    pub fn sraw(&mut self, ins: Ins) -> InstructionInfo {
         self.shift(
             ins,
             ShiftOp {
@@ -452,7 +452,7 @@ impl BlockBuilder<'_> {
         )
     }
 
-    pub fn srawi(&mut self, ins: Ins) -> Info {
+    pub fn srawi(&mut self, ins: Ins) -> InstructionInfo {
         self.shift(
             ins,
             ShiftOp {
@@ -465,7 +465,7 @@ impl BlockBuilder<'_> {
 
 /// Misc operations
 impl BlockBuilder<'_> {
-    pub fn cntlzw(&mut self, ins: Ins) -> Info {
+    pub fn cntlzw(&mut self, ins: Ins) -> InstructionInfo {
         let rs = self.get(ins.gpr_s());
         let value = self.bd.ins().clz(rs);
 

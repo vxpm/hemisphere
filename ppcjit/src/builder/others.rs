@@ -1,44 +1,44 @@
 use super::BlockBuilder;
 use crate::{
     block::Hooks,
-    builder::{Action, Info},
+    builder::{Action, InstructionInfo},
 };
 use bitos::BitUtils;
 use cranelift::{codegen::ir, prelude::InstBuilder};
 use gekko::{InsExt, Reg, SPR, disasm::Ins};
 use std::mem::offset_of;
 
-const SPR_INFO: Info = Info {
+const SPR_INFO: InstructionInfo = InstructionInfo {
     cycles: 1,
     auto_pc: true,
     action: Action::Continue,
 };
 
-const MSR_INFO: Info = Info {
+const MSR_INFO: InstructionInfo = InstructionInfo {
     cycles: 1,
     auto_pc: true,
     action: Action::Continue,
 };
 
-const CR_INFO: Info = Info {
+const CR_INFO: InstructionInfo = InstructionInfo {
     cycles: 1,
     auto_pc: true,
     action: Action::Continue,
 };
 
-const SR_INFO: Info = Info {
+const SR_INFO: InstructionInfo = InstructionInfo {
     cycles: 2,
     auto_pc: true,
     action: Action::Continue,
 };
 
-const TB_INFO: Info = Info {
+const TB_INFO: InstructionInfo = InstructionInfo {
     cycles: 1,
     auto_pc: true,
     action: Action::Continue,
 };
 
-const CACHE_INFO: Info = Info {
+const CACHE_INFO: InstructionInfo = InstructionInfo {
     cycles: 2,
     auto_pc: true,
     action: Action::Continue,
@@ -56,7 +56,7 @@ fn generate_mask(control: u8) -> u32 {
 }
 
 impl BlockBuilder<'_> {
-    pub fn mfspr(&mut self, ins: Ins) -> Info {
+    pub fn mfspr(&mut self, ins: Ins) -> InstructionInfo {
         let spr = ins.spr();
         match spr {
             SPR::DEC => self.call_generic_hook(offset_of!(Hooks, dec_read)),
@@ -71,7 +71,7 @@ impl BlockBuilder<'_> {
         SPR_INFO
     }
 
-    pub fn mtspr(&mut self, ins: Ins) -> Info {
+    pub fn mtspr(&mut self, ins: Ins) -> InstructionInfo {
         let value = self.get(ins.gpr_s());
         let spr = ins.spr();
         self.set(spr, value);
@@ -89,7 +89,7 @@ impl BlockBuilder<'_> {
         SPR_INFO
     }
 
-    pub fn mtsr(&mut self, ins: Ins) -> Info {
+    pub fn mtsr(&mut self, ins: Ins) -> InstructionInfo {
         let value = self.get(ins.gpr_s());
         let sr = Reg::SR[ins.field_sr() as usize];
         self.set(sr, value);
@@ -97,14 +97,14 @@ impl BlockBuilder<'_> {
         SR_INFO
     }
 
-    pub fn mfmsr(&mut self, ins: Ins) -> Info {
+    pub fn mfmsr(&mut self, ins: Ins) -> InstructionInfo {
         let value = self.get(Reg::MSR);
         self.set(ins.gpr_d(), value);
 
         MSR_INFO
     }
 
-    pub fn mtmsr(&mut self, ins: Ins) -> Info {
+    pub fn mtmsr(&mut self, ins: Ins) -> InstructionInfo {
         // TODO: deal with exception stuff
 
         let value = self.get(ins.gpr_s());
@@ -115,14 +115,14 @@ impl BlockBuilder<'_> {
         MSR_INFO
     }
 
-    pub fn mfcr(&mut self, ins: Ins) -> Info {
+    pub fn mfcr(&mut self, ins: Ins) -> InstructionInfo {
         let value = self.get(Reg::CR);
         self.set(ins.gpr_d(), value);
 
         CR_INFO
     }
 
-    pub fn mtcrf(&mut self, ins: Ins) -> Info {
+    pub fn mtcrf(&mut self, ins: Ins) -> InstructionInfo {
         let rs = self.get(ins.gpr_s());
         let mask = self.ir_value(generate_mask(ins.field_crm()));
 
@@ -134,7 +134,7 @@ impl BlockBuilder<'_> {
         CR_INFO
     }
 
-    pub fn mtfsf(&mut self, ins: Ins) -> Info {
+    pub fn mtfsf(&mut self, ins: Ins) -> InstructionInfo {
         let fpr_b = self.get(ins.fpr_b());
         let mask = self.ir_value(generate_mask(ins.field_mtfsf_fm()));
 
@@ -157,7 +157,7 @@ impl BlockBuilder<'_> {
         CR_INFO
     }
 
-    pub fn mftb(&mut self, ins: Ins) -> Info {
+    pub fn mftb(&mut self, ins: Ins) -> InstructionInfo {
         self.call_generic_hook(offset_of!(Hooks, tb_read));
 
         let tb = match ins.field_tbr() {
@@ -172,7 +172,7 @@ impl BlockBuilder<'_> {
         TB_INFO
     }
 
-    pub fn crxor(&mut self, ins: Ins) -> Info {
+    pub fn crxor(&mut self, ins: Ins) -> InstructionInfo {
         let bit_a = 31 - ins.field_crba();
         let bit_b = 31 - ins.field_crbb();
         let bit_dest = 31 - ins.field_crbd();
@@ -188,7 +188,7 @@ impl BlockBuilder<'_> {
         CR_INFO
     }
 
-    pub fn creqv(&mut self, ins: Ins) -> Info {
+    pub fn creqv(&mut self, ins: Ins) -> InstructionInfo {
         let bit_a = 31 - ins.field_crba();
         let bit_b = 31 - ins.field_crbb();
         let bit_dest = 31 - ins.field_crbd();
@@ -205,7 +205,7 @@ impl BlockBuilder<'_> {
         CR_INFO
     }
 
-    pub fn cror(&mut self, ins: Ins) -> Info {
+    pub fn cror(&mut self, ins: Ins) -> InstructionInfo {
         let bit_a = 31 - ins.field_crba();
         let bit_b = 31 - ins.field_crbb();
         let bit_dest = 31 - ins.field_crbd();
@@ -221,7 +221,7 @@ impl BlockBuilder<'_> {
         CR_INFO
     }
 
-    pub fn crorc(&mut self, ins: Ins) -> Info {
+    pub fn crorc(&mut self, ins: Ins) -> InstructionInfo {
         let bit_a = 31 - ins.field_crba();
         let bit_b = 31 - ins.field_crbb();
         let bit_dest = 31 - ins.field_crbd();
@@ -238,7 +238,7 @@ impl BlockBuilder<'_> {
         CR_INFO
     }
 
-    pub fn crnor(&mut self, ins: Ins) -> Info {
+    pub fn crnor(&mut self, ins: Ins) -> InstructionInfo {
         let bit_a = 31 - ins.field_crba();
         let bit_b = 31 - ins.field_crbb();
         let bit_dest = 31 - ins.field_crbd();
@@ -255,7 +255,7 @@ impl BlockBuilder<'_> {
         CR_INFO
     }
 
-    pub fn crand(&mut self, ins: Ins) -> Info {
+    pub fn crand(&mut self, ins: Ins) -> InstructionInfo {
         let bit_a = 31 - ins.field_crba();
         let bit_b = 31 - ins.field_crbb();
         let bit_dest = 31 - ins.field_crbd();
@@ -271,7 +271,7 @@ impl BlockBuilder<'_> {
         CR_INFO
     }
 
-    pub fn crandc(&mut self, ins: Ins) -> Info {
+    pub fn crandc(&mut self, ins: Ins) -> InstructionInfo {
         let bit_a = 31 - ins.field_crba();
         let bit_b = 31 - ins.field_crbb();
         let bit_dest = 31 - ins.field_crbd();
@@ -288,7 +288,7 @@ impl BlockBuilder<'_> {
         CR_INFO
     }
 
-    pub fn crnand(&mut self, ins: Ins) -> Info {
+    pub fn crnand(&mut self, ins: Ins) -> InstructionInfo {
         let bit_a = 31 - ins.field_crba();
         let bit_b = 31 - ins.field_crbb();
         let bit_dest = 31 - ins.field_crbd();
@@ -305,7 +305,7 @@ impl BlockBuilder<'_> {
         CR_INFO
     }
 
-    pub fn mcrf(&mut self, ins: Ins) -> Info {
+    pub fn mcrf(&mut self, ins: Ins) -> InstructionInfo {
         let src_field = 7 - ins.field_crfs();
         let dst_field = 7 - ins.field_crfd();
 
@@ -324,7 +324,7 @@ impl BlockBuilder<'_> {
         CR_INFO
     }
 
-    pub fn mcrx(&mut self, ins: Ins) -> Info {
+    pub fn mcrx(&mut self, ins: Ins) -> InstructionInfo {
         let dst_field = 7 - ins.field_crfd();
 
         // get src
@@ -344,7 +344,7 @@ impl BlockBuilder<'_> {
         CR_INFO
     }
 
-    pub fn mtfsb1(&mut self, ins: Ins) -> Info {
+    pub fn mtfsb1(&mut self, ins: Ins) -> InstructionInfo {
         let bit = 31 - ins.field_crbd();
         let fpscr = self.get(Reg::FPSCR);
 
@@ -360,7 +360,7 @@ impl BlockBuilder<'_> {
         CR_INFO
     }
 
-    pub fn dcbz(&mut self, ins: Ins) -> Info {
+    pub fn dcbz(&mut self, ins: Ins) -> InstructionInfo {
         let rb = self.get(ins.gpr_b());
         let addr = if ins.field_ra() == 0 {
             rb

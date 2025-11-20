@@ -62,13 +62,18 @@ pub enum BuilderError {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Action {
+    /// Continue emitting instructions.
     Continue,
+    /// Flush registers and emit the prologue (returns).
     FlushAndPrologue,
+    /// Just emit the prologue (returns).
     Prologue,
+    /// Just return, no need to do anything else.
+    Finish,
 }
 
 #[derive(Clone, Copy)]
-pub(crate) struct Info {
+pub(crate) struct InstructionInfo {
     cycles: u8,
     auto_pc: bool,
     action: Action,
@@ -78,10 +83,12 @@ pub(crate) struct Info {
 struct Consts {
     ptr_type: ir::Type,
 
-    regs_ptr: ir::Value,
+    info_ptr: ir::Value,
     ctx_ptr: ir::Value,
     hooks_ptr: ir::Value,
+    regs_ptr: ir::Value,
 
+    block_sig: SigRef,
     hooks_sig: FxHashMap<i32, SigRef>,
     raise_exception_sig: Option<SigRef>,
 }
@@ -124,11 +131,12 @@ impl<'ctx> BlockBuilder<'ctx> {
 
         let ptr_type = module.isa().pointer_type();
         let params = builder.block_params(entry_bb);
-        let ctx_ptr = params[0];
-        let hooks_ptr = params[1];
+        let info_ptr = params[0];
+        let ctx_ptr = params[1];
+        let hooks_ptr = params[2];
 
         // extract regs ptr
-        let signature = builder.import_signature(Hooks::get_registers_sig(ptr_type));
+        let get_regs_sig = builder.import_signature(Hooks::get_registers_sig(ptr_type));
         let get_registers = builder.ins().load(
             ptr_type,
             ir::MemFlags::trusted(),
@@ -138,15 +146,18 @@ impl<'ctx> BlockBuilder<'ctx> {
 
         let inst = builder
             .ins()
-            .call_indirect(signature, get_registers, &[ctx_ptr]);
+            .call_indirect(get_regs_sig, get_registers, &[ctx_ptr]);
 
         let regs_ptr = builder.inst_results(inst)[0];
 
+        let block_sig = builder.import_signature(builder.func.signature.clone());
         let consts = Consts {
             ptr_type,
-            regs_ptr,
+            info_ptr,
             ctx_ptr,
             hooks_ptr,
+            regs_ptr,
+            block_sig,
             hooks_sig: FxHashMap::default(),
             raise_exception_sig: None,
         };
@@ -400,7 +411,7 @@ impl<'ctx> BlockBuilder<'ctx> {
         self.bd.set_srcloc(ir::SourceLoc::new(self.executed));
     }
 
-    fn prologue_with(&mut self, info: Info) {
+    fn prologue_with(&mut self, info: InstructionInfo) {
         self.executed += 1;
         self.cycles += info.cycles as u32;
 
@@ -413,7 +424,7 @@ impl<'ctx> BlockBuilder<'ctx> {
     /// Emits the given instruction into the block.
     fn emit(&mut self, ins: Ins) -> Result<Action, BuilderError> {
         self.bd.set_srcloc(ir::SourceLoc::new(self.executed));
-        let info: Info = match ins.op {
+        let info: InstructionInfo = match ins.op {
             Opcode::Add => self.add(ins),
             Opcode::Addc => self.addc(ins),
             Opcode::Adde => self.adde(ins),
@@ -663,6 +674,11 @@ impl<'ctx> BlockBuilder<'ctx> {
                 Action::Prologue => {
                     self.bd.set_srcloc(ir::SourceLoc::new(u32::MAX));
                     self.prologue();
+                    self.bd.finalize();
+                    break;
+                }
+                Action::Finish => {
+                    self.bd.set_srcloc(ir::SourceLoc::new(u32::MAX));
                     self.bd.finalize();
                     break;
                 }

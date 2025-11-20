@@ -1,12 +1,12 @@
 use super::{Action, BlockBuilder};
-use crate::builder::Info;
-use gekko::{
-    Reg, SPR,
-    disasm::{Ins, ParsedIns},
-};
+use crate::builder::InstructionInfo;
 use cranelift::{
     codegen::ir,
     prelude::{FloatCC, FunctionBuilder, InstBuilder, IntCC},
+};
+use gekko::{
+    Reg, SPR,
+    disasm::{Ins, ParsedIns},
 };
 
 /// Trait for transforming values into an IR value in a function.
@@ -76,9 +76,9 @@ impl IntoIrValue for f64 {
 
 impl BlockBuilder<'_> {
     /// NOP instruction - does absolutely nothing on purpose.
-    pub fn nop(&mut self, action: Action) -> Info {
+    pub fn nop(&mut self, action: Action) -> InstructionInfo {
         self.bd.ins().nop();
-        Info {
+        InstructionInfo {
             cycles: 2,
             auto_pc: true,
             action,
@@ -87,14 +87,14 @@ impl BlockBuilder<'_> {
 
     /// Stub instruction - does absolutely nothing as a temporary implementation.
     #[allow(dead_code)]
-    pub fn stub(&mut self, ins: Ins) -> Info {
+    pub fn stub(&mut self, ins: Ins) -> InstructionInfo {
         let mut parsed = ParsedIns::new();
         ins.parse_basic(&mut parsed);
 
         tracing::warn!("emitting stubbed instruction ({parsed})");
 
         self.bd.ins().nop();
-        Info {
+        InstructionInfo {
             cycles: 2,
             auto_pc: true,
             action: Action::FlushAndPrologue,

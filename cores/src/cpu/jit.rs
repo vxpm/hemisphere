@@ -10,8 +10,8 @@ use hemisphere::{
 use ppcjit::{
     Block,
     block::{
-        GenericHook, GetRegistersHook, Hooks, IdleLoop, ReadHook, ReadQuantizedHook, WriteHook,
-        WriteQuantizedHook,
+        BlockFn, FollowLinkHook, GenericHook, GetRegistersHook, Hooks, IdleLoop, Info, ReadHook,
+        ReadQuantizedHook, TryLinkHook, WriteHook, WriteQuantizedHook,
     },
 };
 use seq_macro::seq;
@@ -180,11 +180,21 @@ struct Context<'a> {
     system: &'a mut System,
     /// The block mapping, so that write operations can invalidate blocks.
     mapping: &'a mut BlockMapping,
+    /// Amount of cycles we are trying to execute.
+    target_cycles: u32,
 }
 
 static CTX_HOOKS: Hooks = {
     extern "sysv64-unwind" fn get_registers<'a>(ctx: &'a mut Context) -> &'a mut Cpu {
         &mut ctx.system.cpu
+    }
+
+    extern "sysv64-unwind" fn follow_link(info: &Info, ctx: &mut Context) -> bool {
+        info.cycles < ctx.target_cycles
+    }
+
+    extern "sysv64-unwind" fn try_link(ctx: &mut Context, addr: Address, storage: *mut BlockFn) {
+        todo!()
     }
 
     extern "sysv64-unwind" fn read<P: Primitive>(
@@ -384,6 +394,9 @@ static CTX_HOOKS: Hooks = {
 
         let get_registers =
             transmute::<_, GetRegistersHook>(get_registers as extern "sysv64-unwind" fn(_) -> _);
+        let follow_link =
+            transmute::<_, FollowLinkHook>(follow_link as extern "sysv64-unwind" fn(_, _) -> _);
+        let try_link = transmute::<_, TryLinkHook>(try_link as extern "sysv64-unwind" fn(_, _, _));
 
         let read_i8 =
             transmute::<_, ReadHook<i8>>(read::<i8> as extern "sysv64-unwind" fn(_, _, _) -> _);
@@ -424,6 +437,8 @@ static CTX_HOOKS: Hooks = {
 
         Hooks {
             get_registers,
+            follow_link,
+            try_link,
 
             read_i8,
             write_i8,
@@ -542,6 +557,7 @@ impl JitCore {
         let mut ctx = Context {
             system: sys,
             mapping: &mut self.blocks.mapping,
+            target_cycles: todo!(),
         };
 
         let executed = block.call(

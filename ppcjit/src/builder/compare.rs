@@ -1,12 +1,12 @@
 use super::BlockBuilder;
-use crate::builder::{Action, Info};
+use crate::builder::{Action, InstructionInfo};
 use cranelift::{
     codegen::ir,
     prelude::{FloatCC, InstBuilder, IntCC},
 };
 use gekko::{InsExt, SPR, disasm::Ins};
 
-const CMP_INFO: Info = Info {
+const CMP_INFO: InstructionInfo = InstructionInfo {
     cycles: 2,
     auto_pc: true,
     action: Action::Continue,
@@ -40,7 +40,7 @@ impl BlockBuilder<'_> {
         self.update_cr(index, lt, gt, eq, ov);
     }
 
-    pub fn cmp(&mut self, ins: Ins) -> Info {
+    pub fn cmp(&mut self, ins: Ins) -> InstructionInfo {
         let ra = self.get(ins.gpr_a());
         let rb = self.get(ins.gpr_b());
 
@@ -49,7 +49,7 @@ impl BlockBuilder<'_> {
         CMP_INFO
     }
 
-    pub fn cmpi(&mut self, ins: Ins) -> Info {
+    pub fn cmpi(&mut self, ins: Ins) -> InstructionInfo {
         let ra = self.get(ins.gpr_a());
         let imm = self.ir_value(ins.field_simm() as i32);
 
@@ -58,7 +58,7 @@ impl BlockBuilder<'_> {
         CMP_INFO
     }
 
-    pub fn cmpl(&mut self, ins: Ins) -> Info {
+    pub fn cmpl(&mut self, ins: Ins) -> InstructionInfo {
         let ra = self.get(ins.gpr_a());
         let rb = self.get(ins.gpr_b());
 
@@ -67,7 +67,7 @@ impl BlockBuilder<'_> {
         CMP_INFO
     }
 
-    pub fn cmpli(&mut self, ins: Ins) -> Info {
+    pub fn cmpli(&mut self, ins: Ins) -> InstructionInfo {
         let ra = self.get(ins.gpr_a());
         let imm = self.ir_value(ins.field_uimm() as u32);
 
@@ -79,7 +79,7 @@ impl BlockBuilder<'_> {
 
 /// Floating point comparison operations
 impl BlockBuilder<'_> {
-    pub fn fcmpu(&mut self, ins: Ins) -> Info {
+    pub fn fcmpu(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let fpr_a = self.get(ins.fpr_a());
@@ -96,7 +96,7 @@ impl BlockBuilder<'_> {
         CMP_INFO
     }
 
-    pub fn fcmpo(&mut self, ins: Ins) -> Info {
+    pub fn fcmpo(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let fpr_a = self.get(ins.fpr_a());
@@ -113,7 +113,7 @@ impl BlockBuilder<'_> {
         CMP_INFO
     }
 
-    pub fn ps_cmpo0(&mut self, ins: Ins) -> Info {
+    pub fn ps_cmpo0(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let fpr_a = self.get(ins.fpr_a());

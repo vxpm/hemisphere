@@ -1,19 +1,19 @@
 use super::BlockBuilder;
-use crate::builder::{Action, Info};
+use crate::builder::{Action, InstructionInfo};
 use cranelift::{
     codegen::ir,
     prelude::{FloatCC, InstBuilder},
 };
 use gekko::{InsExt, Reg, disasm::Ins};
 
-const FLOAT_INFO: Info = Info {
+const FLOAT_INFO: InstructionInfo = InstructionInfo {
     cycles: 2,
     auto_pc: true,
     action: Action::Continue,
 };
 
 impl BlockBuilder<'_> {
-    pub fn fmr(&mut self, ins: Ins) -> Info {
+    pub fn fmr(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let fpr_b = self.get(ins.fpr_b());
@@ -26,7 +26,7 @@ impl BlockBuilder<'_> {
         FLOAT_INFO
     }
 
-    pub fn frsp(&mut self, ins: Ins) -> Info {
+    pub fn frsp(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let fpr_b = self.get(ins.fpr_b());
@@ -43,7 +43,7 @@ impl BlockBuilder<'_> {
         FLOAT_INFO
     }
 
-    pub fn fctiwz(&mut self, ins: Ins) -> Info {
+    pub fn fctiwz(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let fpr_b = self.get(ins.fpr_b());
@@ -65,7 +65,7 @@ impl BlockBuilder<'_> {
         FLOAT_INFO
     }
 
-    pub fn fres(&mut self, ins: Ins) -> Info {
+    pub fn fres(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let fpr_b = self.get(ins.fpr_b());
@@ -83,7 +83,7 @@ impl BlockBuilder<'_> {
         FLOAT_INFO
     }
 
-    pub fn frsqrte(&mut self, ins: Ins) -> Info {
+    pub fn frsqrte(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let fpr_b = self.get(ins.fpr_b());
@@ -103,7 +103,7 @@ impl BlockBuilder<'_> {
         FLOAT_INFO
     }
 
-    pub fn fabs(&mut self, ins: Ins) -> Info {
+    pub fn fabs(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let fpr_b = self.get(ins.fpr_b());
@@ -118,7 +118,7 @@ impl BlockBuilder<'_> {
         FLOAT_INFO
     }
 
-    pub fn ps_rsqrte(&mut self, ins: Ins) -> Info {
+    pub fn ps_rsqrte(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let ps_b = self.get_ps(ins.fpr_b());
@@ -140,7 +140,7 @@ impl BlockBuilder<'_> {
         FLOAT_INFO
     }
 
-    pub fn ps_res(&mut self, ins: Ins) -> Info {
+    pub fn ps_res(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let ps_b = self.get_ps(ins.fpr_b());
@@ -160,7 +160,7 @@ impl BlockBuilder<'_> {
         FLOAT_INFO
     }
 
-    pub fn ps_mr(&mut self, ins: Ins) -> Info {
+    pub fn ps_mr(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let ps_b = self.get_ps(ins.fpr_b());
@@ -169,7 +169,7 @@ impl BlockBuilder<'_> {
         FLOAT_INFO
     }
 
-    pub fn ps_sum0(&mut self, ins: Ins) -> Info {
+    pub fn ps_sum0(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let ps0_a = self.get(ins.fpr_a());
@@ -191,7 +191,7 @@ impl BlockBuilder<'_> {
         FLOAT_INFO
     }
 
-    pub fn ps_sum1(&mut self, ins: Ins) -> Info {
+    pub fn ps_sum1(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let ps0_a = self.get(ins.fpr_a());
@@ -213,7 +213,7 @@ impl BlockBuilder<'_> {
         FLOAT_INFO
     }
 
-    pub fn ps_merge00(&mut self, ins: Ins) -> Info {
+    pub fn ps_merge00(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let ps0_a = self.get(ins.fpr_a());
@@ -229,7 +229,7 @@ impl BlockBuilder<'_> {
         FLOAT_INFO
     }
 
-    pub fn ps_merge01(&mut self, ins: Ins) -> Info {
+    pub fn ps_merge01(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let ps0_a = self.get(ins.fpr_a());
@@ -245,7 +245,7 @@ impl BlockBuilder<'_> {
         FLOAT_INFO
     }
 
-    pub fn ps_merge10(&mut self, ins: Ins) -> Info {
+    pub fn ps_merge10(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let ps1_a = self.get(Reg::PS1(ins.fpr_a()));
@@ -261,7 +261,7 @@ impl BlockBuilder<'_> {
         FLOAT_INFO
     }
 
-    pub fn ps_merge11(&mut self, ins: Ins) -> Info {
+    pub fn ps_merge11(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let ps1_a = self.get(Reg::PS1(ins.fpr_a()));
@@ -277,7 +277,7 @@ impl BlockBuilder<'_> {
         FLOAT_INFO
     }
 
-    pub fn mffs(&mut self, ins: Ins) -> Info {
+    pub fn mffs(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let fpscr = self.get(Reg::FPSCR);
@@ -296,7 +296,7 @@ impl BlockBuilder<'_> {
         FLOAT_INFO
     }
 
-    pub fn fsel(&mut self, ins: Ins) -> Info {
+    pub fn fsel(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
         let zero = self.ir_value(0.0);

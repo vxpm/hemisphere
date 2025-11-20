@@ -1,24 +1,38 @@
-mod unwind;
-
-use crate::{Sequence, block::unwind::UnwindHandle};
-use cranelift::{
-    codegen::{CompiledCode, ir},
-    prelude::isa,
-};
+use crate::Sequence;
+use cranelift::{codegen::ir, prelude::isa};
 use gekko::{Address, Cpu};
 
 pub type Context = std::ffi::c_void;
+
 pub type GetRegistersHook = fn(*mut Context) -> *mut Cpu;
+pub type FollowLinkHook = fn(*const Info, *mut Context) -> bool;
+pub type TryLinkHook = fn(*mut Context, Address, *mut std::ffi::c_void);
+
 pub type ReadHook<T> = fn(*mut Context, Address, *mut T) -> bool;
 pub type WriteHook<T> = fn(*mut Context, Address, T) -> bool;
 pub type ReadQuantizedHook = fn(*mut Context, Address, u8, *mut f64) -> u8;
 pub type WriteQuantizedHook = fn(*mut Context, Address, u8, f64) -> u8;
+
 pub type GenericHook = fn(*mut Context);
+
+/// Information about block execution.
+#[repr(C)]
+pub struct Info {
+    /// How many instructions have been executed already. Updated on block exits only.
+    pub instructions: u32,
+    /// How many cycles have been executed already. Updated on block exits only.
+    pub cycles: u32,
+}
 
 /// External functions that JITed code calls.
 pub struct Hooks {
-    // registers
+    /// Hook that returns a pointer to the CPU state struct given the context.
     pub get_registers: GetRegistersHook,
+    /// Hook that checks whether a linked block should be followed or the execution should return.
+    pub follow_link: FollowLinkHook,
+    /// Tries to link this block to another one given the current context, the destination address
+    /// and a pointer to where the linked block function pointer should be stored.
+    pub try_link: TryLinkHook,
 
     // memory
     pub read_i8: ReadHook<i8>,
@@ -57,6 +71,31 @@ impl Hooks {
                 ir::AbiParam::new(ptr_type), // registers
             ],
             returns: vec![ir::AbiParam::new(ptr_type)],
+            call_conv: isa::CallConv::SystemV,
+        }
+    }
+
+    /// Returns the function signature for the `follow_link` hook.
+    pub(crate) fn follow_link_sig(ptr_type: ir::Type) -> ir::Signature {
+        ir::Signature {
+            params: vec![
+                ir::AbiParam::new(ptr_type), // info
+                ir::AbiParam::new(ptr_type), // ctx
+            ],
+            returns: vec![ir::AbiParam::new(ir::types::I8)], // follow?
+            call_conv: isa::CallConv::SystemV,
+        }
+    }
+
+    /// Returns the function signature for the `try_link` hook.
+    pub(crate) fn try_link_sig(ptr_type: ir::Type) -> ir::Signature {
+        ir::Signature {
+            params: vec![
+                ir::AbiParam::new(ptr_type), // ctx
+                ir::AbiParam::new(ptr_type), // address to link to
+                ir::AbiParam::new(ptr_type), // link ptr storage
+            ],
+            returns: vec![],
             call_conv: isa::CallConv::SystemV,
         }
     }
@@ -137,8 +176,6 @@ pub struct Executed {
     pub cycles: u32,
 }
 
-pub type BlockFn = extern "sysv64-unwind" fn(*mut Context, *const Hooks) -> Executed;
-
 #[derive(Clone, Copy)]
 pub enum IdleLoop {
     /// Not an idle loop
@@ -161,42 +198,51 @@ pub struct Meta {
     pub idle_loop: IdleLoop,
 }
 
-/// A compiled block of PowerPC instructions.
+/// A handle representing a compiled block of PowerPC instructions. This struct does not manage the
+/// memory behind the block.
+///
+/// In order to call a block, you need a trampoline.
 pub struct Block {
-    meta: Meta,
     code: *const u8,
-    _unwind: Option<UnwindHandle>,
+    meta: Meta,
 }
 
-impl Block {
-    pub(crate) fn new(
-        ptr: *const u8,
-        code: &CompiledCode,
-        meta: Meta,
-        isa: &dyn isa::TargetIsa,
-    ) -> Self {
-        let _unwind = if let Ok(Some(unwind_info)) = code.create_unwind_info(isa) {
-            unsafe { UnwindHandle::new(isa, ptr.addr(), &unwind_info) }
-        } else {
-            None
-        };
+type BlockFn = extern "sysv64-unwind" fn(*mut Info, *mut Context, *const Hooks);
 
-        Self {
-            meta,
-            code: ptr,
-            _unwind,
-        }
+impl Block {
+    pub(crate) fn new(code: *const u8, meta: Meta) -> Self {
+        // let _unwind = if let Ok(Some(unwind_info)) = code.create_unwind_info(isa) {
+        //     unsafe { UnwindHandle::new(isa, ptr.addr(), &unwind_info) }
+        // } else {
+        //     None
+        // };
+
+        Self { code, meta }
     }
 
     /// Meta information regarding this block.
     pub fn meta(&self) -> &Meta {
         &self.meta
     }
+}
 
-    /// Executes this block of instructions and returns how many cycles were executed.
-    #[inline(always)]
-    pub fn call(&self, ctx: *mut Context, hooks: *const Hooks) -> Executed {
-        let func: BlockFn = unsafe { std::mem::transmute(self.code.addr()) };
-        func(ctx, hooks)
+pub struct Trampoline(pub(super) *const u8);
+
+type TrampolineFn = extern "sysv64-unwind" fn(*mut Info, *mut Context, *const Hooks, BlockFn);
+
+impl Trampoline {
+    /// Calls the given block using this trampoline.
+    pub unsafe fn call(&self, ctx: *mut Context, hooks: *const Hooks, block: Block) -> Info {
+        let mut info = Info {
+            instructions: 0,
+            cycles: 0,
+        };
+
+        let block: BlockFn = unsafe { std::mem::transmute(block.code) };
+        let trampoline: TrampolineFn = unsafe { std::mem::transmute(self.0) };
+
+        trampoline(&raw mut info, ctx, hooks, block);
+
+        info
     }
 }
