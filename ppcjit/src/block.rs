@@ -1,12 +1,11 @@
 mod unwind;
 
-use crate::{Sequence, arena::Arena, block::unwind::UnwindHandle};
+use crate::{Sequence, block::unwind::UnwindHandle};
 use cranelift::{
     codegen::{CompiledCode, ir},
     prelude::isa,
 };
 use gekko::{Address, Cpu};
-use std::fmt::Display;
 
 pub type Context = std::ffi::c_void;
 pub type GetRegistersHook = fn(*mut Context) -> *mut Cpu;
@@ -165,20 +164,19 @@ pub struct Meta {
 /// A compiled block of PowerPC instructions.
 pub struct Block {
     meta: Meta,
-    code: *const [u8],
+    code: *const u8,
     _unwind: Option<UnwindHandle>,
 }
 
 impl Block {
-    pub(crate) unsafe fn new(
+    pub(crate) fn new(
+        ptr: *const u8,
+        code: &CompiledCode,
         meta: Meta,
         isa: &dyn isa::TargetIsa,
-        code: &CompiledCode,
-        arena: &mut Arena,
     ) -> Self {
-        let ptr = arena.allocate(code.code_buffer());
         let _unwind = if let Ok(Some(unwind_info)) = code.create_unwind_info(isa) {
-            UnwindHandle::new(isa, ptr.addr(), &unwind_info)
+            unsafe { UnwindHandle::new(isa, ptr.addr(), &unwind_info) }
         } else {
             None
         };
@@ -188,11 +186,6 @@ impl Block {
             code: ptr,
             _unwind,
         }
-    }
-
-    /// Returns the bytes of the host code.
-    pub fn bytes(&self) -> &[u8] {
-        unsafe { self.code.as_ref().unwrap_unchecked() }
     }
 
     /// Meta information regarding this block.
@@ -205,56 +198,5 @@ impl Block {
     pub fn call(&self, ctx: *mut Context, hooks: *const Hooks) -> Executed {
         let func: BlockFn = unsafe { std::mem::transmute(self.code.addr()) };
         func(ctx, hooks)
-    }
-}
-
-#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "disasm"))]
-impl Display for Block {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use iced_x86::Formatter;
-
-        let mut decoder =
-            iced_x86::Decoder::new(usize::BITS, self.bytes(), iced_x86::DecoderOptions::NONE);
-
-        let mut formatter = iced_x86::NasmFormatter::new();
-        formatter.options_mut().set_digit_separator("_");
-        formatter.options_mut().set_first_operand_char_index(0);
-        formatter
-            .options_mut()
-            .set_space_after_operand_separator(true);
-        formatter
-            .options_mut()
-            .set_space_between_memory_add_operators(true);
-        formatter.options_mut().set_scale_before_index(true);
-        formatter.options_mut().set_decimal_digit_group_size(3);
-        formatter.options_mut().set_hex_prefix("0x");
-        formatter.options_mut().set_hex_suffix("");
-        formatter.options_mut().set_binary_prefix("0b");
-        formatter.options_mut().set_binary_suffix("");
-        formatter.options_mut().set_uppercase_prefixes(true);
-        formatter
-            .options_mut()
-            .set_small_hex_numbers_in_decimal(false);
-
-        let mut output = String::new();
-        let mut instruction = iced_x86::Instruction::default();
-        while decoder.can_decode() {
-            decoder.decode_out(&mut instruction);
-
-            output.clear();
-            formatter.format(&instruction, &mut output);
-
-            write!(f, "{:05X} ", instruction.ip())?;
-            writeln!(f, " {}", output)?;
-        }
-
-        Ok(())
-    }
-}
-
-#[cfg(not(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "disasm")))]
-impl Display for Block {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "disasm unsupported")
     }
 }

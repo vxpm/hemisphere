@@ -39,9 +39,6 @@ opt-level = 0
 [profile.dev.package."wayland-protocols"]
 opt-level = 0
 
-[profile.dev.package."iced-x86"]
-opt-level = 0
-
 [profile.dev.package."wgsl-types"]
 opt-level = 2
 
@@ -110,7 +107,7 @@ util = { path = "./util" }
 gekko = { path = "./gekko" }
 dol = { path = "./dol" }
 iso = { path = "./iso" }
-ppcjit = { path = "./ppcjit", features = ["disasm"] }
+ppcjit = { path = "./ppcjit" }
 dspint = { path = "./dspint" }
 cores = { path = "./cores" }
 hemisphere = { path = "./hemisphere" }
@@ -123,11 +120,6 @@ bytesize = "2"
 clap = { version = "4.5", features = ["derive"] }
 easyerr = "0.1"
 glam = { version = "0.30.9", features = ["zerocopy"] }
-iced-x86 = { version = "1.21", features = [
-    "decoder",
-    "nasm",
-    "std",
-], default-features = false }
 memmap2 = "0.9"
 powerpc = "0.4"
 rustc-hash = "2"

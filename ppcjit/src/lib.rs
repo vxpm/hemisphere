@@ -1,20 +1,21 @@
 #![feature(debug_closure_helpers)]
 
-mod arena;
 mod builder;
 mod sequence;
 
 pub mod block;
 
-use crate::{arena::Arena, block::Meta, builder::BlockBuilder};
+use crate::{block::Meta, builder::BlockBuilder};
 use cranelift::{
     codegen::{self, ir},
-    frontend, native,
+    frontend,
+    jit::{JITBuilder, JITModule},
+    module::{Linkage, Module},
+    native,
     prelude::Configurable,
 };
 use easyerr::{Error, ResultExt};
 use gekko::disasm::Ins;
-use std::sync::Arc;
 
 pub use block::{Block, BlockFn};
 pub use sequence::Sequence;
@@ -41,10 +42,10 @@ impl Default for Settings {
 
 /// A JIT compiler, producing [`Block`]s.
 pub struct Compiler {
-    isa: Arc<dyn codegen::isa::TargetIsa>,
     settings: Settings,
+    module: JITModule,
     func_ctx: frontend::FunctionBuilderContext,
-    arena: Arena,
+    count: u64,
 }
 
 impl Default for Compiler {
@@ -64,7 +65,6 @@ impl Default for Compiler {
         settings.set("opt_level", opt_level).unwrap();
         settings.set("enable_verifier", verifier).unwrap();
         settings.enable("enable_alias_analysis").unwrap();
-        // settings.enable("enable_jump_tables").unwrap();
 
         let isa_builder = native::builder().unwrap_or_else(|msg| {
             panic!("host machine is not supported: {}", msg);
@@ -74,11 +74,16 @@ impl Default for Compiler {
             .finish(codegen::settings::Flags::new(settings))
             .unwrap();
 
-        Self {
+        let module = JITModule::new(JITBuilder::with_isa(
             isa,
+            cranelift::module::default_libcall_names(),
+        ));
+
+        Self {
+            module,
             settings: Default::default(),
             func_ctx: frontend::FunctionBuilderContext::new(),
-            arena: Arena::new(),
+            count: 0,
         }
     }
 }
@@ -104,7 +109,7 @@ pub enum BuildError {
 
 impl Compiler {
     fn block_signature(&self) -> ir::Signature {
-        let ptr = self.isa.pointer_type();
+        let ptr = self.module.isa().pointer_type();
         ir::Signature {
             params: vec![ir::AbiParam::new(ptr); 2],
             returns: vec![ir::AbiParam::new(ir::types::I64)],
@@ -121,20 +126,18 @@ impl Compiler {
         let mut func = ir::Function::new();
         func.signature = self.block_signature();
 
-        let builder = BlockBuilder::new(&*self.isa, &self.settings, &mut func, &mut self.func_ctx);
+        let builder = BlockBuilder::new(
+            self.module.isa(),
+            &self.settings,
+            &mut func,
+            &mut self.func_ctx,
+        );
         let (sequence, cycles) = builder.build(instructions).context(BuildCtx::Builder)?;
         if sequence.is_empty() {
             return Err(BuildError::EmptyBlock);
         }
 
-        let mut ctx = codegen::Context::for_function(func);
-        let ir = cfg!(debug_assertions).then(|| ctx.func.display().to_string());
-
-        let compiled = ctx
-            .compile(&*self.isa, &mut codegen::control::ControlPlane::default())
-            .map_err(|e| e.inner)
-            .context(BuildCtx::Codegen)?;
-
+        let ir = cfg!(debug_assertions).then(|| func.display().to_string());
         let meta = Meta {
             idle_loop: sequence.detect_idle_loop(),
             clir: ir,
@@ -142,13 +145,26 @@ impl Compiler {
             seq: sequence,
         };
 
-        let block = unsafe { Block::new(meta, &*self.isa, compiled, &mut self.arena) };
-        // tracing::debug!(
-        //     "compiled block:\n{}\n{}\n{}",
-        //     block.meta().seq,
-        //     block.meta().clir.as_deref().unwrap_or("<none>"),
-        //     block,
-        // );
+        let mut ctx = self.module.make_context();
+        ctx.func = func;
+
+        let id = self
+            .module
+            .declare_function(
+                &format!("block_{}", self.count),
+                Linkage::Export,
+                &ctx.func.signature,
+            )
+            .unwrap();
+
+        self.module.define_function(id, &mut ctx).unwrap();
+        self.module.finalize_definitions().unwrap();
+
+        let ptr = self.module.get_finalized_function(id);
+        let code = ctx.compiled_code().unwrap();
+        let block = Block::new(ptr, code, meta, self.module.isa());
+
+        self.count += 1;
 
         Ok(block)
     }

@@ -40,7 +40,7 @@ mod unix {
     pub struct UnwindHandle(Box<[u8]>);
 
     impl UnwindHandle {
-        pub fn new(isa: &dyn TargetIsa, addr: usize, info: &UnwindInfo) -> Option<Self> {
+        pub unsafe fn new(isa: &dyn TargetIsa, addr: usize, info: &UnwindInfo) -> Option<Self> {
             let frame_table = frame_table(isa, addr, info)?;
             unsafe { __register_frame(frame_table.as_ptr()) };
 
