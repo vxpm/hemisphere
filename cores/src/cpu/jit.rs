@@ -16,7 +16,10 @@ use ppcjit::{
 };
 use seq_macro::seq;
 use slotmap::{SlotMap, new_key_type};
-use std::{collections::BTreeMap, ops::Range};
+use std::{
+    collections::{BTreeMap, HashMap},
+    ops::Range,
+};
 
 pub use ppcjit;
 
@@ -184,6 +187,7 @@ struct Context<'a> {
     to_invalidate: &'a mut Vec<Address>,
     /// Amount of cycles we are trying to execute.
     target_cycles: u32,
+    /// Block of the currently executing idle loop.
     idle_loop_link: BlockFn,
 }
 
@@ -512,6 +516,7 @@ pub struct JitCore {
     pub compiler: ppcjit::Compiler,
     pub trampoline: Trampoline,
     pub blocks: Blocks,
+
     to_invalidate: Vec<Address>,
 }
 
@@ -525,6 +530,7 @@ impl JitCore {
             compiler,
             trampoline,
             blocks: Blocks::default(),
+
             to_invalidate: Vec::with_capacity(16),
         }
     }
@@ -654,6 +660,39 @@ impl JitCore {
 
         self.uncached_exec(sys, target_cycles, max_instructions)
     }
+
+    fn exec_inner<const BREAKPOINTS: bool>(
+        &mut self,
+        sys: &mut System,
+        cycles: Cycles,
+        breakpoints: &[Address],
+    ) -> Executed {
+        let mut executed = Executed::default();
+        while executed.cycles < cycles {
+            let max_instructions = if BREAKPOINTS {
+                // find closest breakpoint
+                let closest_breakpoint = closest_breakpoint(sys.cpu.pc, breakpoints);
+                let breakpoint_distance = (closest_breakpoint.value() - sys.cpu.pc.value()) / 4;
+
+                breakpoint_distance
+            } else {
+                u32::MAX
+            };
+
+            // execute
+            let target_cycles = cycles - executed.cycles;
+            let e = self.cached_exec(sys, target_cycles.0 as u32, max_instructions);
+            executed.instructions += e.instructions;
+            executed.cycles += e.cycles;
+
+            if BREAKPOINTS && breakpoints.contains(&sys.cpu.pc) {
+                executed.hit_breakpoint = true;
+                break;
+            }
+        }
+
+        executed
+    }
 }
 
 fn closest_breakpoint(pc: Address, breakpoints: &[Address]) -> Address {
@@ -675,25 +714,11 @@ fn closest_breakpoint(pc: Address, breakpoints: &[Address]) -> Address {
 
 impl CpuCore for JitCore {
     fn exec(&mut self, sys: &mut System, cycles: Cycles, breakpoints: &[Address]) -> Executed {
-        let mut executed = Executed::default();
-        while executed.cycles < cycles {
-            // find closest breakpoint
-            let closest_breakpoint = closest_breakpoint(sys.cpu.pc, breakpoints);
-            let breakpoint_distance = (closest_breakpoint.value() - sys.cpu.pc.value()) / 4;
-
-            // execute
-            let target_cycles = cycles - executed.cycles;
-            let e = self.cached_exec(sys, target_cycles.0 as u32, breakpoint_distance);
-            executed.instructions += e.instructions;
-            executed.cycles += e.cycles;
-
-            if breakpoints.contains(&sys.cpu.pc) {
-                executed.hit_breakpoint = true;
-                break;
-            }
+        if breakpoints.is_empty() {
+            self.exec_inner::<false>(sys, cycles, &[])
+        } else {
+            self.exec_inner::<true>(sys, cycles, breakpoints)
         }
-
-        executed
     }
 
     fn step(&mut self, sys: &mut System) -> Executed {

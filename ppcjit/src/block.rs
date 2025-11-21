@@ -194,7 +194,7 @@ pub enum IdleLoop {
     /// Branching to self
     Simple = 1,
     /// Reading from a fixed memory location on a loop
-    VolatileValue = 2,
+    GenericVolatileRead = 2,
 }
 
 /// Meta information regarding a block.

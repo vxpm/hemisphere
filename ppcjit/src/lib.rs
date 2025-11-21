@@ -195,10 +195,11 @@ impl Compiler {
 
         // println!("{}", func.display());
 
-        let ir = cfg!(debug_assertions).then(|| func.display().to_string());
+        // let ir = cfg!(debug_assertions).then(|| func.display().to_string());
+        let ir = func.display().to_string();
         let meta = Meta {
             idle_loop: sequence.detect_idle_loop(),
-            clir: ir,
+            clir: Some(ir),
             cycles,
             seq: sequence,
         };
