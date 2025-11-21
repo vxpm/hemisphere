@@ -7,7 +7,7 @@ pub struct LinkData {
     /// Linked block
     pub link: BlockFn,
     /// Information regarding idle looping of the linked block
-    pub idle: IdleLoop,
+    pub idle: Pattern,
 }
 
 pub type Context = std::ffi::c_void;
@@ -186,15 +186,20 @@ pub struct Executed {
     pub cycles: u32,
 }
 
+/// A block pattern.
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
-pub enum IdleLoop {
-    /// Not an idle loop
+pub enum Pattern {
+    /// No known pattern.
     None = 0,
     /// Branching to self
-    Simple = 1,
-    /// Reading from a fixed memory location on a loop
-    GenericVolatileRead = 2,
+    IdleBasic = 1,
+    /// Idling by reading from a fixed memory location on a loop
+    IdleVolatileRead = 2,
+    /// Calls a function, checks the return value and loops if not what expected.
+    CallCheckLoop = 3,
+    /// Function which the status of the CPU->DSP mailbox and returns it.
+    GetMailboxStatusFunc = 4,
 }
 
 /// Meta information regarding a block.
@@ -207,7 +212,7 @@ pub struct Meta {
     /// How many cycles this block executes at most.
     pub cycles: u32,
     /// Whether this block is an idle loop and if so, what kind.
-    pub idle_loop: IdleLoop,
+    pub idle_loop: Pattern,
 }
 
 /// A handle representing a compiled block of PowerPC instructions. This struct does not manage the

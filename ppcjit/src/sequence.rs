@@ -1,6 +1,6 @@
-use crate::block::IdleLoop;
+use crate::block::Pattern;
 use gekko::{
-    GPR, InsExt, Reg,
+    GPR, InsExt,
     disasm::{Ins, Opcode, ParsedIns},
 };
 use std::ops::Deref;
@@ -88,16 +88,16 @@ impl Sequence {
         i0_is_setting_to_cc00 && i1_is_loading_from_mailbox && i2_is_getting_status && i3_is_return
     }
 
-    pub fn detect_idle_loop(&self) -> IdleLoop {
+    pub fn detect_idle_loop(&self) -> Pattern {
         if self.is_simple_idle_loop() {
-            return IdleLoop::Simple;
+            return Pattern::IdleBasic;
         }
 
         if self.is_generic_volatile_read() {
-            return IdleLoop::GenericVolatileRead;
+            return Pattern::IdleVolatileRead;
         }
 
-        IdleLoop::None
+        Pattern::None
     }
 }
 

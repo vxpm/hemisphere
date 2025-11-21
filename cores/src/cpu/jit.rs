@@ -10,7 +10,7 @@ use hemisphere::{
 use ppcjit::{
     Block,
     block::{
-        BlockFn, FollowLinkHook, GenericHook, GetRegistersHook, Hooks, IdleLoop, Info, LinkData,
+        BlockFn, FollowLinkHook, GenericHook, GetRegistersHook, Hooks, Info, LinkData, Pattern,
         ReadHook, ReadQuantizedHook, Trampoline, TryLinkHook, WriteHook, WriteQuantizedHook,
     },
 };
@@ -187,8 +187,10 @@ struct Context<'a> {
     to_invalidate: &'a mut Vec<Address>,
     /// Amount of cycles we are trying to execute.
     target_cycles: u32,
-    /// Block of the currently executing idle loop.
-    idle_loop_link: BlockFn,
+    /// Last executed block.
+    last_block: BlockFn,
+    /// Pattern of the last executed block.
+    last_pattern: BlockFn,
 }
 
 static CTX_HOOKS: Hooks = {
@@ -201,7 +203,7 @@ static CTX_HOOKS: Hooks = {
         ctx: &mut Context,
         link_data: &mut LinkData,
     ) -> bool {
-        if link_data.idle != IdleLoop::None {
+        if link_data.idle != Pattern::None {
             std::hint::cold_path();
             if ctx.idle_loop_link == link_data.link {
                 std::hint::cold_path();
