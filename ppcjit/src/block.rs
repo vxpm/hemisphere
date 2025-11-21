@@ -6,8 +6,8 @@ use gekko::{Address, Cpu};
 pub struct LinkData {
     /// Linked block
     pub link: BlockFn,
-    /// Information regarding idle looping of the linked block
-    pub idle: Pattern,
+    /// Information regarding the pattern of the linked block
+    pub pattern: Pattern,
 }
 
 pub type Context = std::ffi::c_void;
@@ -192,14 +192,14 @@ pub struct Executed {
 pub enum Pattern {
     /// No known pattern.
     None = 0,
+    /// A single instruction long block with a call.
+    Call,
     /// Branching to self
-    IdleBasic = 1,
+    IdleBasic,
     /// Idling by reading from a fixed memory location on a loop
-    IdleVolatileRead = 2,
-    /// Calls a function, checks the return value and loops if not what expected.
-    CallCheckLoop = 3,
+    IdleVolatileRead,
     /// Function which the status of the CPU->DSP mailbox and returns it.
-    GetMailboxStatusFunc = 4,
+    GetMailboxStatusFunc,
 }
 
 /// Meta information regarding a block.
@@ -211,8 +211,8 @@ pub struct Meta {
     pub clir: Option<String>,
     /// How many cycles this block executes at most.
     pub cycles: u32,
-    /// Whether this block is an idle loop and if so, what kind.
-    pub idle_loop: Pattern,
+    /// The pattern of this block.
+    pub pattern: Pattern,
 }
 
 /// A handle representing a compiled block of PowerPC instructions. This struct does not manage the

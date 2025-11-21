@@ -198,7 +198,7 @@ impl Compiler {
         // let ir = cfg!(debug_assertions).then(|| func.display().to_string());
         let ir = func.display().to_string();
         let meta = Meta {
-            idle_loop: sequence.detect_idle_loop(),
+            pattern: sequence.detect_idle_loop(),
             clir: Some(ir),
             cycles,
             seq: sequence,

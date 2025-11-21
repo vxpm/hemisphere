@@ -360,7 +360,7 @@ impl System {
             .unwrap_or(cycles_per_frame);
 
         self.scheduler
-            .schedule(cycles_per_line as u64, System::vi_vertical_count);
+            .schedule(2 * cycles_per_line as u64, System::vi_vertical_count);
     }
 
     fn xfb_inner(&self, base: Address) -> Option<&[u8]> {

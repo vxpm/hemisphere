@@ -7,6 +7,9 @@ edition = "2024"
 [lints]
 workspace = true
 
+[dev-dependencies]
+powerpc-asm.workspace = true
+
 [dependencies]
 gekko.workspace = true
 
@@ -17,7 +20,7 @@ rustc-hash.workspace = true
 zerocopy.workspace = true
 tracing.workspace = true
 
-cranelift = { version = "0.125", features = [
+cranelift = { version = "0.126", features = [
     "frontend",
     "native",
     "module",

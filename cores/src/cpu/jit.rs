@@ -16,10 +16,7 @@ use ppcjit::{
 };
 use seq_macro::seq;
 use slotmap::{SlotMap, new_key_type};
-use std::{
-    collections::{BTreeMap, HashMap},
-    ops::Range,
-};
+use std::{cell::Cell, collections::BTreeMap, ops::Range};
 
 pub use ppcjit;
 
@@ -44,7 +41,7 @@ pub struct BlockMapping {
 
     // caching stuff
     to_remove: Vec<Address>,
-    last_query: Option<(Address, BlockId)>,
+    last_query: Cell<Option<(Address, BlockId)>>,
 }
 
 impl Default for BlockMapping {
@@ -54,7 +51,7 @@ impl Default for BlockMapping {
             overlap_lut: util::boxed_array(0),
 
             to_remove: Vec::with_capacity(128),
-            last_query: None,
+            last_query: Cell::new(None),
         }
     }
 }
@@ -79,15 +76,15 @@ impl BlockMapping {
 
     /// Returns the block starting at `addr`.
     #[inline(always)]
-    pub fn get(&mut self, addr: Address) -> Option<BlockId> {
-        if let Some((last_addr, id)) = self.last_query
+    pub fn get(&self, addr: Address) -> Option<BlockId> {
+        if let Some((last_addr, id)) = self.last_query.get()
             && last_addr == addr
         {
             std::hint::cold_path();
             Some(id)
         } else {
             let id = self.tree_map.get(&addr)?.id;
-            self.last_query = Some((addr, id));
+            self.last_query.set(Some((addr, id)));
             Some(id)
         }
     }
@@ -128,10 +125,10 @@ impl BlockMapping {
 
         if self
             .last_query
-            .as_ref()
-            .is_some_and(|(queried, _)| *queried == addr)
+            .get()
+            .is_some_and(|(queried, _)| queried == addr)
         {
-            self.last_query = None;
+            self.last_query.set(None);
         }
     }
 
@@ -139,7 +136,7 @@ impl BlockMapping {
     pub fn clear(&mut self) {
         self.tree_map.clear();
         self.overlap_lut.fill(0);
-        self.last_query = None;
+        self.last_query.set(None);
     }
 }
 
@@ -147,6 +144,12 @@ impl BlockMapping {
 pub struct Blocks {
     pub storage: SlotMap<BlockId, Block>,
     pub mapping: BlockMapping,
+}
+
+impl Blocks {
+    pub fn get(&mut self, addr: Address) -> Option<&Block> {
+        self.storage.get(self.mapping.get(addr)?)
+    }
 }
 
 impl Default for Blocks {
@@ -177,6 +180,12 @@ impl Blocks {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ExitReason {
+    None,
+    Idle,
+}
+
 /// Context to be passed in for execution of JIT blocks.
 struct Context<'a> {
     /// The system state, so that the JIT block can operate on it.
@@ -187,10 +196,14 @@ struct Context<'a> {
     to_invalidate: &'a mut Vec<Address>,
     /// Amount of cycles we are trying to execute.
     target_cycles: u32,
-    /// Last executed block.
-    last_block: BlockFn,
-    /// Pattern of the last executed block.
-    last_pattern: BlockFn,
+    /// Maximum instructions we should execute.
+    max_instructions: u32,
+    /// Last followed link.
+    last_link: BlockFn,
+    /// Pattern of the last followed link.
+    last_pattern: Pattern,
+    /// Reason for exit.
+    exit_reason: ExitReason,
 }
 
 static CTX_HOOKS: Hooks = {
@@ -203,19 +216,28 @@ static CTX_HOOKS: Hooks = {
         ctx: &mut Context,
         link_data: &mut LinkData,
     ) -> bool {
-        if link_data.idle != Pattern::None {
-            std::hint::cold_path();
-            if ctx.idle_loop_link == link_data.link {
-                std::hint::cold_path();
-                return false;
-            } else {
-                ctx.idle_loop_link = link_data.link;
-            }
-        } else {
-            ctx.idle_loop_link = std::ptr::null();
+        if info.cycles >= ctx.target_cycles || info.instructions >= ctx.max_instructions {
+            ctx.last_link = link_data.link;
+            ctx.last_pattern = link_data.pattern;
+            return false;
         }
 
-        info.cycles < ctx.target_cycles
+        let follow = match link_data.pattern {
+            Pattern::None => true,
+            Pattern::IdleBasic | Pattern::IdleVolatileRead => {
+                if ctx.last_link == link_data.link {
+                    ctx.exit_reason = ExitReason::Idle;
+                    false
+                } else {
+                    true
+                }
+            }
+            _ => true,
+        };
+
+        ctx.last_link = link_data.link;
+        ctx.last_pattern = link_data.pattern;
+        follow
     }
 
     extern "sysv64-unwind" fn try_link(ctx: &mut Context, addr: Address, link_data: &mut LinkData) {
@@ -223,7 +245,7 @@ static CTX_HOOKS: Hooks = {
         if let Some(id) = ctx.blocks.mapping.get(addr) {
             let block = ctx.blocks.storage.get(id).unwrap();
             link_data.link = block.as_ptr();
-            link_data.idle = block.meta().idle_loop;
+            link_data.pattern = block.meta().pattern;
         }
     }
 
@@ -603,7 +625,11 @@ impl JitCore {
             blocks: &mut self.blocks,
             to_invalidate: &mut self.to_invalidate,
             target_cycles,
-            idle_loop_link: std::ptr::null(),
+            max_instructions,
+
+            last_link: std::ptr::null(),
+            last_pattern: Pattern::None,
+            exit_reason: ExitReason::None,
         };
 
         let info = unsafe {
@@ -614,7 +640,7 @@ impl JitCore {
             )
         };
 
-        let cycles = if !ctx.idle_loop_link.is_null() {
+        let cycles = if ctx.exit_reason == ExitReason::Idle {
             std::hint::cold_path();
             Cycles(target_cycles as u64)
         } else {
@@ -671,6 +697,24 @@ impl JitCore {
     ) -> Executed {
         let mut executed = Executed::default();
         while executed.cycles < cycles {
+            // detect mailbox idle loop
+            if let Some(block) = self.blocks.get(sys.cpu.pc)
+                && block.meta().pattern == Pattern::Call
+                && let Some(dest) = block.meta().seq.is_call(sys.cpu.pc)
+            {
+                std::hint::cold_path();
+
+                if let Some(func_block) = self.blocks.get(dest)
+                    && func_block.meta().pattern == Pattern::GetMailboxStatusFunc
+                    && sys.dsp.cpu_mailbox.status()
+                {
+                    std::hint::cold_path();
+                    executed.cycles = cycles;
+                    executed.instructions = 1;
+                    break;
+                }
+            }
+
             let max_instructions = if BREAKPOINTS {
                 // find closest breakpoint
                 let closest_breakpoint = closest_breakpoint(sys.cpu.pc, breakpoints);
