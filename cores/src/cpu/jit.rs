@@ -14,9 +14,10 @@ use ppcjit::{
         ReadHook, ReadQuantizedHook, Trampoline, TryLinkHook, WriteHook, WriteQuantizedHook,
     },
 };
+use rustc_hash::FxHashMap;
 use seq_macro::seq;
 use slotmap::{SlotMap, new_key_type};
-use std::{cell::Cell, collections::BTreeMap, ops::Range};
+use std::{cell::Cell, ops::Range};
 
 pub use ppcjit;
 
@@ -36,7 +37,7 @@ struct Mapping {
 
 /// Mapping of addresses to JIT blocks.
 pub struct BlockMapping {
-    tree_map: BTreeMap<Address, Mapping>,
+    tree_map: FxHashMap<Address, Mapping>,
     overlap_lut: Box<[u16; PAGE_COUNT]>,
 
     // caching stuff
@@ -47,7 +48,7 @@ pub struct BlockMapping {
 impl Default for BlockMapping {
     fn default() -> Self {
         Self {
-            tree_map: BTreeMap::default(),
+            tree_map: FxHashMap::default(),
             overlap_lut: util::boxed_array(0),
 
             to_remove: Vec::with_capacity(128),
@@ -103,7 +104,7 @@ impl BlockMapping {
         }
 
         self.to_remove.clear();
-        for (&candidate, mapping) in self.tree_map.range(addr..) {
+        for (&candidate, mapping) in self.tree_map.iter() {
             let length = mapping.length;
             let range = candidate..candidate + length;
 
