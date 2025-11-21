@@ -463,6 +463,5 @@ pub fn compile(texenv: &TexEnvConfig, texgen: &TexGenConfig) -> String {
 
     // println!("{texenv:#?}");
 
-    
     compiled.syntax.to_string()
 }

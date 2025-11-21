@@ -7,6 +7,7 @@ use hemisphere::{
     },
     system::System,
 };
+use indexmap::IndexMap;
 use ppcjit::{
     Block,
     block::{
@@ -14,7 +15,7 @@ use ppcjit::{
         ReadHook, ReadQuantizedHook, Trampoline, TryLinkHook, WriteHook, WriteQuantizedHook,
     },
 };
-use rustc_hash::FxHashMap;
+use rustc_hash::FxBuildHasher;
 use seq_macro::seq;
 use slotmap::{SlotMap, new_key_type};
 use std::{cell::Cell, ops::Range};
@@ -37,7 +38,7 @@ struct Mapping {
 
 /// Mapping of addresses to JIT blocks.
 pub struct BlockMapping {
-    tree_map: FxHashMap<Address, Mapping>,
+    tree_map: IndexMap<Address, Mapping, FxBuildHasher>,
     overlap_lut: Box<[u16; PAGE_COUNT]>,
 
     // caching stuff
@@ -48,7 +49,7 @@ pub struct BlockMapping {
 impl Default for BlockMapping {
     fn default() -> Self {
         Self {
-            tree_map: FxHashMap::default(),
+            tree_map: IndexMap::default(),
             overlap_lut: util::boxed_array(0),
 
             to_remove: Vec::with_capacity(128),
@@ -114,7 +115,7 @@ impl BlockMapping {
         }
 
         for candidate in self.to_remove.drain(..) {
-            let mapping = self.tree_map.remove(&candidate).unwrap();
+            let mapping = self.tree_map.swap_remove(&candidate).unwrap();
 
             // update LUT
             let start_page = candidate.value() >> PAGE_SHIFT;
