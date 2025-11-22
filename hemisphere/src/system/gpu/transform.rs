@@ -493,7 +493,7 @@ impl System {
                 ) {
                     self.gpu.transform.ram[addr as usize] = value;
                 } else {
-                    self.gpu.transform.ram[addr as usize] = value.with_bits(0, 12, 0)
+                    self.gpu.transform.ram[addr as usize] = value.with_bits(0, 12, 0);
                 }
 
                 if let Some(light_offset) = addr.checked_sub(0x0603) {

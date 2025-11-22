@@ -14,7 +14,7 @@ use crate::{
 use cranelift::{
     codegen::{self, ir},
     frontend,
-    jit::{JITBuilder, JITModule},
+    jit::{ArenaMemoryProvider, JITBuilder, JITModule},
     module::{Linkage, Module},
     native,
     prelude::{Configurable, InstBuilder},
@@ -80,10 +80,12 @@ impl Default for Compiler {
             .finish(codegen::settings::Flags::new(settings))
             .unwrap();
 
-        let module = JITModule::new(JITBuilder::with_isa(
-            isa,
-            cranelift::module::default_libcall_names(),
+        let mut builder = JITBuilder::with_isa(isa, cranelift::module::default_libcall_names());
+        builder.memory_provider(Box::new(
+            ArenaMemoryProvider::new_with_size(256 * 1024 * 1024).unwrap(),
         ));
+
+        let module = JITModule::new(builder);
 
         Self {
             module,
