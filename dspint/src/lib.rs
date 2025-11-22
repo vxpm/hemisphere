@@ -356,13 +356,35 @@ pub struct Accelerator {
     pub aram_curr: u32,
 }
 
-#[derive(Default)]
+#[derive(Clone, Copy)]
+struct CachedIns {
+    ins: Ins,
+    len: u16,
+    main: OpcodeFn,
+    extension: Option<ExtensionFn>,
+}
+
 pub struct Interpreter {
     pub regs: Registers,
     pub mem: Memory,
     pub accel: Accelerator,
     pub loop_counter: Option<u16>,
     pub old_reset_high: bool,
+
+    cached: Box<[Option<CachedIns>; 1 << 16]>,
+}
+
+impl Default for Interpreter {
+    fn default() -> Self {
+        Self {
+            regs: Default::default(),
+            mem: Default::default(),
+            accel: Default::default(),
+            loop_counter: Default::default(),
+            old_reset_high: Default::default(),
+            cached: util::boxed_array(None),
+        }
+    }
 }
 
 type OpcodeFn = for<'a, 'b> fn(&'a mut Interpreter, &'b mut System, Ins);
@@ -657,7 +679,9 @@ impl Interpreter {
                     }
                 }
                 (DspDmaTarget::Imem, DspDmaDirection::FromRamToDsp) => {
-                    tracing::trace!(
+                    std::hint::cold_path();
+
+                    tracing::info!(
                         "DSP DMA {length:04X} bytes from RAM {ram_base:08X} to IMEM {dsp_base:04X} (ucode)"
                     );
 
@@ -668,6 +692,9 @@ impl Interpreter {
 
                         self.write_imem(dsp_base + word, data);
                     }
+
+                    // clear cache
+                    self.cached.fill(None);
                 }
                 (DspDmaTarget::Imem, DspDmaDirection::FromDspToRam) => {
                     todo!()
@@ -802,8 +829,6 @@ impl Interpreter {
 
     /// Reads from data memory.
     pub fn read_dmem(&mut self, sys: &mut System, addr: u16) -> u16 {
-        
-
         match addr {
             0x0000..0x1000 => self.mem.dram[addr as usize],
             0x1000..0x1800 => self.mem.coef[addr as usize - 0x1000],
@@ -847,7 +872,9 @@ impl Interpreter {
     /// Writes to instruction memory.
     #[inline(always)]
     pub fn write_imem(&mut self, addr: u16, value: u16) {
-        if let 0x0000..0x1000 = addr { self.mem.iram[addr as usize] = value }
+        if let 0x0000..0x1000 = addr {
+            self.mem.iram[addr as usize] = value
+        }
     }
 
     fn is_waiting_for_mail_inner(&mut self, offset: i16) -> bool {
@@ -892,6 +919,40 @@ impl Interpreter {
             || self.is_waiting_for_mail_inner(-3)
     }
 
+    fn fetch_decode_and_cache(&mut self) -> CachedIns {
+        // fetch
+        let mut ins = Ins::new(self.read_imem(self.regs.pc));
+
+        // decode
+        let decoded = ins.decoded();
+        let extra = decoded
+            .needs_extra
+            .then_some(self.read_imem(self.regs.pc.wrapping_add(1)));
+
+        let len = if let Some(extra) = extra {
+            ins.extra = extra;
+            2
+        } else {
+            1
+        };
+
+        let main = OPCODE_EXEC_LUT[decoded.opcode as usize];
+        let extension = decoded
+            .extension
+            .map(|extension| EXTENSION_EXEC_LUT[extension as usize]);
+
+        // cache
+        let cached = CachedIns {
+            ins,
+            len,
+            main,
+            extension,
+        };
+        self.cached[self.regs.pc as usize] = Some(cached);
+
+        cached
+    }
+
     pub fn step(&mut self, sys: &mut System) {
         if sys.dsp.control.halt() {
             std::hint::cold_path();
@@ -903,33 +964,26 @@ impl Interpreter {
             self.check_external_interrupt(sys);
         }
 
-        // fetch
-        let mut ins = Ins::new(self.read_imem(self.regs.pc));
-        let decoded = ins.decoded();
-
-        let extra = decoded
-            .needs_extra
-            .then_some(self.read_imem(self.regs.pc.wrapping_add(1)));
-
-        let ins_len = if let Some(extra) = extra {
-            ins.extra = extra;
-            2
+        // have we cached this instruction already?
+        let ins = if let Some(cached) = self.cached[self.regs.pc as usize] {
+            cached
         } else {
-            1
+            std::hint::cold_path();
+            self.fetch_decode_and_cache()
         };
 
         // execute
-        let regs_previous = if decoded.extension.is_some() {
+        let regs_previous = if ins.extension.is_some() {
             MaybeUninit::new(self.regs.clone())
         } else {
             MaybeUninit::uninit()
         };
 
-        OPCODE_EXEC_LUT[decoded.opcode as usize](self, sys, ins);
+        (ins.main)(self, sys, ins.ins);
 
-        if let Some(extension) = decoded.extension {
+        if let Some(extension) = ins.extension {
             let regs_previous = unsafe { regs_previous.assume_init_ref() };
-            EXTENSION_EXEC_LUT[extension as usize](self, sys, ins, regs_previous);
+            (extension)(self, sys, ins.ins, regs_previous);
         }
 
         if let Some(loop_counter) = &mut self.loop_counter {
@@ -941,7 +995,7 @@ impl Interpreter {
                 *loop_counter -= 1;
             }
         } else {
-            self.regs.pc = self.regs.pc.wrapping_add(ins_len);
+            self.regs.pc = self.regs.pc.wrapping_add(ins.len);
         }
     }
 }

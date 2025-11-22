@@ -13,8 +13,8 @@ use std::fmt::Write;
 fn parse_code(mut words: &[u16]) -> Vec<dspint::Ins> {
     let mut ins = vec![];
     while !words.is_empty() {
-        let opcode = dspint::ins::Opcode::new(words[0]);
-        if opcode.needs_extra() {
+        let decoded = dspint::ins::Ins::new(words[0]).decoded();
+        if decoded.opcode.needs_extra() {
             ins.push(dspint::Ins::with_extra(words[0], words[1]));
             words = &words[2..];
         } else {
@@ -105,7 +105,7 @@ fn run_test(file: file::TestFile, quiet: bool) -> Result<(), Failed> {
         let mut disasm = String::new();
         for ins in failure.code.iter() {
             writeln!(&mut disasm, "{pc:04X} {ins:?}").unwrap();
-            pc += ins.len();
+            pc += if ins.decoded().needs_extra { 2 } else { 1 };
         }
 
         let divergences = failure
