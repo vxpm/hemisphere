@@ -557,7 +557,11 @@ impl Interpreter {
         self.regs.pc = exception as u16 * 2;
     }
 
-    fn check_external_interrupt(&mut self, sys: &mut System) {
+    pub fn check_external_interrupt(&mut self, sys: &mut System) {
+        if self.loop_counter.is_some() {
+            return;
+        }
+
         if sys.dsp.control.interrupt() && self.regs.status.external_interrupt_enable() {
             tracing::warn!("DSP external interrupt raised");
 
@@ -877,7 +881,7 @@ impl Interpreter {
         }
     }
 
-    fn is_waiting_for_mail_inner(&mut self, offset: i16) -> bool {
+    fn is_waiting_for_cpu_mail_inner(&mut self, offset: i16) -> bool {
         let start = self.regs.pc.wrapping_add_signed(offset);
         let pattern_a = [
             // lrs   $ACM0, @cmbh
@@ -913,10 +917,52 @@ impl Interpreter {
     }
 
     #[inline(always)]
-    pub fn is_waiting_for_mail(&mut self) -> bool {
-        self.is_waiting_for_mail_inner(0)
-            || self.is_waiting_for_mail_inner(-1)
-            || self.is_waiting_for_mail_inner(-3)
+    pub fn is_waiting_for_cpu_mail(&mut self) -> bool {
+        self.is_waiting_for_cpu_mail_inner(0)
+            || self.is_waiting_for_cpu_mail_inner(-1)
+            || self.is_waiting_for_cpu_mail_inner(-3)
+    }
+
+    fn is_waiting_for_dsp_mail_inner(&mut self, offset: i16) -> bool {
+        let start = self.regs.pc.wrapping_add_signed(offset);
+        let pattern_a = [
+            // lrs   $ACM0, @dmbh
+            0b0010_0110_1111_1100,
+            // andcf $ACM0, #0x8000
+            0b0000_0010_1100_0000,
+            0x8000,
+            // jlz	 start
+            0b0000_0010_1001_1101,
+            start,
+        ];
+
+        let pattern_b = [
+            // lrs   $ACM1, @dmbh
+            0b0010_0111_1111_1100,
+            // andcf $ACM1, #0x8000
+            0b0000_0011_1100_0000,
+            0x8000,
+            // jlz	 start
+            0b0000_0010_1001_1101,
+            start,
+        ];
+
+        let current = [
+            self.read_imem(start),
+            self.read_imem(start.wrapping_add(1)),
+            self.read_imem(start.wrapping_add(2)),
+            self.read_imem(start.wrapping_add(3)),
+            self.read_imem(start.wrapping_add(4)),
+        ];
+
+        current == pattern_a || current == pattern_b
+    }
+
+    #[inline(always)]
+    pub fn is_waiting_for_dsp_mail(&mut self) -> bool {
+        self.is_waiting_for_dsp_mail_inner(0)
+            || self.is_waiting_for_dsp_mail_inner(-1)
+            || self.is_waiting_for_dsp_mail_inner(-3)
     }
 
     fn fetch_decode_and_cache(&mut self) -> CachedIns {
@@ -935,6 +981,8 @@ impl Interpreter {
         } else {
             1
         };
+
+        // tracing::debug!("decoded {:?} at 0x{:04X}", ins, self.regs.pc);
 
         let main = OPCODE_EXEC_LUT[decoded.opcode as usize];
         let extension = decoded
@@ -960,9 +1008,7 @@ impl Interpreter {
         }
 
         self.check_stacks();
-        if self.loop_counter.is_none() {
-            self.check_external_interrupt(sys);
-        }
+        self.check_external_interrupt(sys);
 
         // have we cached this instruction already?
         let ins = if let Some(cached) = self.cached[self.regs.pc as usize] {
@@ -971,6 +1017,8 @@ impl Interpreter {
             std::hint::cold_path();
             self.fetch_decode_and_cache()
         };
+
+        // let ins = self.fetch_decode_and_cache();
 
         // execute
         let regs_previous = if ins.extension.is_some() {

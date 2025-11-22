@@ -22,9 +22,11 @@ impl DspCore for InterpreterCore {
         self.interpreter.check_reset(sys);
 
         if sys.dsp.control.halt()
-            || !sys.dsp.cpu_mailbox.status() && self.interpreter.is_waiting_for_mail()
+            || !sys.dsp.cpu_mailbox.status() && self.interpreter.is_waiting_for_cpu_mail()
+            || sys.dsp.dsp_mailbox.status() && self.interpreter.is_waiting_for_dsp_mail()
         {
             std::hint::cold_path();
+            self.interpreter.check_external_interrupt(sys);
         } else {
             let mut i = 0;
             while i < instructions {
