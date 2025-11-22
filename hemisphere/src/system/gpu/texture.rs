@@ -322,7 +322,7 @@ pub fn decode_texture(data: &[u8], format: Format) -> Vec<Rgba8> {
             })
         }
         DataFormat::Intensity4Alpha => {
-            decode_basic_tex::<8, 8, _>(data, format.width(), format.height(), |data, index| {
+            decode_basic_tex::<8, 4, _>(data, format.width(), format.height(), |data, index| {
                 let value = data[index];
                 let intensity = value.bits(0, 4) * 16;
                 let alpha = value.bits(4, 8) * 16;
