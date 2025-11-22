@@ -82,7 +82,7 @@ impl Default for Compiler {
 
         let mut builder = JITBuilder::with_isa(isa, cranelift::module::default_libcall_names());
         builder.memory_provider(Box::new(
-            ArenaMemoryProvider::new_with_size(256 * 1024 * 1024).unwrap(),
+            ArenaMemoryProvider::new_with_size(512 * 1024 * 1024).unwrap(),
         ));
 
         let module = JITModule::new(builder);
