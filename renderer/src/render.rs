@@ -135,6 +135,11 @@ impl Renderer {
     pub fn exec(&mut self, action: Action) {
         match action {
             Action::SetViewport(viewport) => {
+                // HACK: temporary hack
+                if viewport.width < 400 || viewport.height < 400 {
+                    return;
+                }
+
                 if self.resize_viewport(viewport) {
                     let mut lock = self.shared.lock().unwrap();
                     lock.frontbuffer = self.frontbuffer().clone();
@@ -166,7 +171,6 @@ impl Renderer {
                 self.next_pass(clear, to_xfb);
             }
             Action::SetAmbient(idx, color) => {
-                dbg!(color);
                 self.current_config.ambient[idx as usize] = color.into();
                 self.current_config_dirty = true;
             }
@@ -175,7 +179,6 @@ impl Renderer {
                 self.current_config_dirty = true;
             }
             Action::SetColorChannel(idx, control) => {
-                dbg!(control);
                 set_channel(
                     &mut self.current_config.color_channels[idx as usize],
                     control,
@@ -190,7 +193,6 @@ impl Renderer {
                 self.current_config_dirty = true;
             }
             Action::SetLight(idx, light) => {
-                dbg!(light);
                 let l = &mut self.current_config.lights[idx as usize];
                 l.color = light.color.into();
                 l.cos_attenuation = light.cos_attenuation;
@@ -220,11 +222,7 @@ impl Renderer {
 
             projection_mat: self.current_projection_mat,
             position_mat: attributes.position_matrix,
-            normal_mat: attributes.normal_matrix,
-
-            _pad1: 0,
-            _pad2: 0,
-            _pad3: 0,
+            normal_mat: Mat4::from_mat3(attributes.normal_matrix),
 
             diffuse: attributes.diffuse,
             specular: attributes.specular,

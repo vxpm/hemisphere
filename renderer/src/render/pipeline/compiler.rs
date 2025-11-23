@@ -51,11 +51,12 @@ fn base_module() -> wesl::syntax::TranslationUnit {
             position: vec3f,
             config: u32,
             normal: vec3f,
+
             _pad0: u32,
 
             projection_mat: mat4x4f,
             position_mat: mat4x4f,
-            normal_mat: mat3x3f,
+            normal_mat: mat4x4f,
 
             chan0: vec4f,
             chan1: vec4f,
@@ -136,23 +137,41 @@ fn compute_channels() -> [wesl::syntax::GlobalDeclaration; 2] {
 
                 let light = config.lights[light_idx];
 
-                // compute angular attenuation
-                let vertex_to_light = light.position - vertex_pos;
-                let scalar_product = dot(vertex_to_light, vertex_normal);
-                let cos_angle = scalar_product / length(vertex_to_light);
-                let ang_atten = max(light.cos_atten.x + cos_angle * light.cos_atten.y + cos_angle * cos_angle * light.cos_atten.z * light.cos_atten.z, 0.0);
-
-                // compute distance attenuation, if enabled
-                var dist_atten: f32 = 1.0;
-                if channel.attenuation != 0 {
-                    let dist = length(vertex_to_light);
-                    dist_atten = light.dist_atten.x + dist * light.dist_atten.y + dist * dist * light.dist_atten.z;
+                // compute diffuse attenuation
+                var diff_atten: f32;
+                switch channel.diffuse_attenuation {
+                    case 0: {
+                        diff_atten = 1.0;
+                    }
+                    case 1: {
+                        let vertex_to_light = light.position - vertex_pos;
+                        let dot_product = dot(vertex_to_light, vertex_normal);
+                        diff_atten = dot_product / length(vertex_to_light);
+                    }
+                    case 2: {
+                        let vertex_to_light = light.position - vertex_pos;
+                        let dot_product = dot(vertex_to_light, vertex_normal);
+                        diff_atten = max(dot_product / length(vertex_to_light), 0.0);
+                    }
+                    default: {}
                 }
 
-                // compute total attenuation
-                let atten = ang_atten / dist_atten;
+                // compute angle and distance attenuation
+                var atten: f32 = 1.0;
+                if channel.attenuation != 0 {
+                    let light_to_vertex = vertex_pos - light.position;
+                    let dist = length(light_to_vertex);
+                    let dot_product = dot(light_to_vertex, light.direction);
+                    let cos_angle = dot_product / length(light_to_vertex);
 
-                light_func += config.lights[light_idx].color.rgb * vec3f(atten);
+                    let ang_atten = max(light.cos_atten.x + cos_angle * light.cos_atten.y + cos_angle * cos_angle * light.cos_atten.z, 0.0);
+                    let dist_atten = light.dist_atten.x + dist * light.dist_atten.y + dist * dist * light.dist_atten.z;
+
+                    // compute total attenuation
+                    atten = ang_atten / dist_atten;
+                }
+
+                light_func = light.color.rgb * diff_atten * atten;
             }
 
             return material * clamp(light_func, vec3f(0.0), vec3f(1.0));
@@ -160,7 +179,7 @@ fn compute_channels() -> [wesl::syntax::GlobalDeclaration; 2] {
     };
 
     let alpha = wesl::quote_declaration! {
-        fn compute_alpha_channel(vertex_pos: vec3f, vertex_alpha: f32, index: u32, config_idx: u32) -> f32 {
+        fn compute_alpha_channel(vertex_pos: vec3f, vertex_normal: vec3f, vertex_alpha: f32, index: u32, config_idx: u32) -> f32 {
             let config = base::configs[config_idx];
             let channel = config.alpha_channels[index];
 
@@ -175,7 +194,7 @@ fn compute_channels() -> [wesl::syntax::GlobalDeclaration; 2] {
                 return material;
             }
 
-            // get ambient color
+            // get ambient alpha
             var ambient = config.ambient[index].a;
             if channel.ambient_from_vertex != 0 {
                 ambient = vertex_alpha;
@@ -189,20 +208,41 @@ fn compute_channels() -> [wesl::syntax::GlobalDeclaration; 2] {
 
                 let light = config.lights[light_idx];
 
-                // compute angular attenuation
-                let light_to_vertex = light.position;
-                let scalar_product = dot(light_to_vertex, light.direction);
-                let cos_angle = scalar_product / (length(light_to_vertex));
-                let ang_atten = light.cos_atten.x + cos_angle * light.cos_atten.y + cos_angle * cos_angle * light.cos_atten.z;
+                // compute diffuse attenuation
+                var diff_atten: f32;
+                switch channel.diffuse_attenuation {
+                    case 0: {
+                        diff_atten = 1.0;
+                    }
+                    case 1: {
+                        let vertex_to_light = light.position - vertex_pos;
+                        let dot_product = dot(vertex_to_light, vertex_normal);
+                        diff_atten = dot_product / length(vertex_to_light);
+                    }
+                    case 2: {
+                        let vertex_to_light = light.position - vertex_pos;
+                        let dot_product = dot(vertex_to_light, vertex_normal);
+                        diff_atten = max(dot_product / length(vertex_to_light), 0.0);
+                    }
+                    default: {}
+                }
 
-                // compute distance attenuation
-                let dist = length(light_to_vertex);
-                let dist_atten = light.dist_atten.x + dist * light.dist_atten.y + dist * dist * light.dist_atten.z;
+                // compute angle and distance attenuation
+                var atten: f32 = 1.0;
+                if channel.attenuation != 0 {
+                    let light_to_vertex = vertex_pos - light.position;
+                    let dist = length(light_to_vertex);
+                    let dot_product = dot(light_to_vertex, light.direction);
+                    let cos_angle = dot_product / length(light_to_vertex);
 
-                // compute total attenuation
-                let atten = max(ang_atten * dist_atten, 0.0);
+                    let ang_atten = max(light.cos_atten.x + cos_angle * light.cos_atten.y + cos_angle * cos_angle * light.cos_atten.z, 0.0);
+                    let dist_atten = light.dist_atten.x + dist * light.dist_atten.y + dist * dist * light.dist_atten.z;
 
-                light_func += config.lights[light_idx].color.a / atten;
+                    // compute total attenuation
+                    atten = ang_atten / dist_atten;
+                }
+
+                light_func = light.color.a * diff_atten * atten;
             }
 
             return material * clamp(light_func, 0.0, 1.0);
@@ -287,8 +327,8 @@ fn vertex_stage(texgen: &TexGenConfig) -> wesl::syntax::GlobalDeclaration {
             let vertex_world_pos = vertex.position_mat * vertex_local_pos;
             var vertex_view_pos = vertex.projection_mat * vertex_world_pos;
 
-            let vertex_local_norm = vertex.normal;
-            let vertex_world_norm = normalize(vertex.normal_mat * vertex_local_norm);
+            let vertex_local_norm = vec4f(vertex.normal, 0.0);
+            let vertex_world_norm = normalize((vertex.normal_mat * vertex_local_norm).xyz);
 
             out.clip = vertex_view_pos;
             out.clip.z += out.clip.w;
@@ -297,19 +337,12 @@ fn vertex_stage(texgen: &TexGenConfig) -> wesl::syntax::GlobalDeclaration {
             let config_idx = vertex.config;
             out.chan0 = vec4f(
                 compute_color_channel(vertex_world_pos.xyz, vertex_world_norm, vertex.chan0.rgb, 0, config_idx),
-                // compute_alpha_channel(vertex_world_pos.xyz, vertex.chan0.a, 0, config_idx),
-                1.0
+                compute_alpha_channel(vertex_world_pos.xyz, vertex_world_norm, vertex.chan0.a, 0, config_idx),
             );
-            // out.chan0 = vec4f(
-            //     compute_color_channel(vertex_world_pos.xyz, vertex_world_norm, vertex.chan0.rgb, 0, config_idx),
-            //     // compute_alpha_channel(vertex_world_pos.xyz, vertex.chan0.a, 0, config_idx),
-            //     1.0
-            // );
-            // out.chan1 = vec4f(
-            //     compute_color_channel(vertex_world_pos.xyz, vertex_world_norm, vertex.chan1.rgb, 1, config_idx),
-            //     // compute_alpha_channel(vertex_world_pos.xyz, vertex.chan1.a, 1, config_idx),
-            //     1.0
-            // );
+            out.chan1 = vec4f(
+                compute_color_channel(vertex_world_pos.xyz, vertex_world_norm, vertex.chan1.rgb, 1, config_idx),
+                compute_alpha_channel(vertex_world_pos.xyz, vertex_world_norm, vertex.chan1.a, 1, config_idx),
+            );
 
             // out.chan0 = base::PLACEHOLDER_RGBA;
             // out.chan1 = base::PLACEHOLDER_RGBA;

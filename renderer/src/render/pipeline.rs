@@ -109,8 +109,8 @@ impl Pipeline {
         }
 
         // TODO: remove, hack just for debugging
-        // write_mask |= wgpu::ColorWrites::COLOR;
-        // write_mask |= wgpu::ColorWrites::ALPHA;
+        write_mask |= wgpu::ColorWrites::COLOR;
+        write_mask |= wgpu::ColorWrites::ALPHA;
 
         let shader = compiler::compile(&settings.texenv, &settings.texgen);
         let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {

@@ -8,15 +8,12 @@ pub struct Vertex {
     pub position: Vec3,
     pub config_idx: u32,
     pub normal: Vec3,
+
     pub _pad0: u32,
 
     pub projection_mat: Mat4,
     pub position_mat: Mat4,
-    pub normal_mat: Mat3,
-
-    pub _pad1: u32,
-    pub _pad2: u32,
-    pub _pad3: u32,
+    pub normal_mat: Mat4,
 
     pub diffuse: Rgba,
     pub specular: Rgba,
