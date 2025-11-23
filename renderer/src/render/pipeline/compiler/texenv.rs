@@ -26,7 +26,7 @@ fn get_color_channel(stage: &TexEnvStage) -> wesl::syntax::Expression {
         ColorChannel::ColorAlpha0 => wesl::quote_expression! { in.chan0 },
         ColorChannel::ColorAlpha1 => wesl::quote_expression! { in.chan1 },
         ColorChannel::Zero => todo!(),
-        ColorChannel::AlphaBump => wesl::quote_expression! { in.chan0 },
+        ColorChannel::AlphaBump => wesl::quote_expression! { vec4f(1.0, 1.0, 1.0, 0.1) },
     }
 }
 

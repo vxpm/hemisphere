@@ -288,7 +288,7 @@ impl Interface {
     /// Returns the normal matrix at `index` in internal memory.
     #[inline]
     pub fn normal_matrix(&self, index: u8) -> Mat3 {
-        let offset = 4 * index as usize;
+        let offset = 3 * index as usize;
         let data = &self.ram[0x400 + offset..][..9];
         let m: &[f32] = zerocopy::transmute_ref!(data);
 

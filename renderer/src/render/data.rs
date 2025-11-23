@@ -1,4 +1,4 @@
-use glam::{Mat4, Vec2, Vec3};
+use glam::{Mat3, Mat4, Vec2, Vec3};
 use hemisphere::system::gpu::colors::Rgba;
 use zerocopy::{Immutable, IntoBytes};
 
@@ -12,7 +12,11 @@ pub struct Vertex {
 
     pub projection_mat: Mat4,
     pub position_mat: Mat4,
-    pub normal_mat: Mat4,
+    pub normal_mat: Mat3,
+
+    pub _pad1: u32,
+    pub _pad2: u32,
+    pub _pad3: u32,
 
     pub diffuse: Rgba,
     pub specular: Rgba,
