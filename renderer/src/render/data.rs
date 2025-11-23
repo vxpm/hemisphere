@@ -1,4 +1,4 @@
-use glam::{Mat3, Mat4, Vec2, Vec3};
+use glam::{Mat4, Vec2, Vec3};
 use hemisphere::system::gpu::colors::Rgba;
 use zerocopy::{Immutable, IntoBytes};
 
@@ -48,7 +48,7 @@ pub struct Channel {
     pub lighting_enabled: u32,
     pub diffuse_attenuation: u32,
     pub attenuation: u32,
-    pub spotlight: u32,
+    pub specular: u32,
     pub light_mask: [u32; 8],
 }
 

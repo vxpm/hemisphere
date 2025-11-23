@@ -57,7 +57,7 @@ fn set_channel(channel: &mut data::Channel, control: ChannelControl) {
     channel.lighting_enabled = control.lighting_enabled() as u32;
     channel.diffuse_attenuation = control.diffuse_attenuation() as u32;
     channel.attenuation = control.attenuation() as u32;
-    channel.spotlight = control.spotlight() as u32;
+    channel.specular = !control.not_specular() as u32;
 
     let a = control.lights0to3();
     let b = control.lights4to7();

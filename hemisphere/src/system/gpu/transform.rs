@@ -221,7 +221,7 @@ pub struct ChannelControl {
     #[bits(9)]
     pub attenuation: bool,
     #[bits(10)]
-    pub spotlight: bool,
+    pub not_specular: bool,
     #[bits(11..15)]
     pub lights4to7: [bool; 4],
 }

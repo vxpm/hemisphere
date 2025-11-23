@@ -34,7 +34,7 @@ fn base_module() -> wesl::syntax::TranslationUnit {
             lighting_enabled: u32,
             diffuse_attenuation: u32,
             attenuation: u32,
-            spotlight: u32,
+            specular: u32,
             light_mask: array<u32, 8>,
         }
 
@@ -159,16 +159,32 @@ fn compute_channels() -> [wesl::syntax::GlobalDeclaration; 2] {
                 // compute angle and distance attenuation
                 var atten: f32 = 1.0;
                 if channel.attenuation != 0 {
-                    let light_to_vertex = vertex_pos - light.position;
-                    let dist = length(light_to_vertex);
-                    let dot_product = dot(light_to_vertex, light.direction);
-                    let cos_angle = dot_product / length(light_to_vertex);
+                    if channel.specular == 0 {
+                        let light_to_vertex = vertex_pos - light.position;
+                        let dist = length(light_to_vertex);
+                        let dot_product = dot(light_to_vertex, light.direction);
+                        let cos_angle = dot_product / length(light_to_vertex);
 
-                    let ang_atten = max(light.cos_atten.x + cos_angle * light.cos_atten.y + cos_angle * cos_angle * light.cos_atten.z, 0.0);
-                    let dist_atten = light.dist_atten.x + dist * light.dist_atten.y + dist * dist * light.dist_atten.z;
+                        let ang_atten = max(light.cos_atten.x + cos_angle * light.cos_atten.y + cos_angle * cos_angle * light.cos_atten.z, 0.0);
+                        let dist_atten = light.dist_atten.x + dist * light.dist_atten.y + dist * dist * light.dist_atten.z;
 
-                    // compute total attenuation
-                    atten = ang_atten / dist_atten;
+                        atten = ang_atten / dist_atten;
+                    } else {
+                        let l = normalize(light.position);
+                        let h = light.direction;
+                        let norm_dot_l = dot(vertex_normal, l);
+
+                        var value = 0.0;
+                        if norm_dot_l > 0 {
+                            let norm_dot_h = dot(vertex_normal, h);
+                            value = max(norm_dot_h, 0.0);
+                        }
+
+                        let ang_atten = max(light.cos_atten.x + value * light.cos_atten.y + value * value * light.cos_atten.z, 0.0);
+                        let dist_atten = light.dist_atten.x + value * light.dist_atten.y + value * value * light.dist_atten.z;
+
+                        atten = ang_atten / dist_atten;
+                    }
                 }
 
                 light_func = light.color.rgb * diff_atten * atten;
@@ -230,16 +246,32 @@ fn compute_channels() -> [wesl::syntax::GlobalDeclaration; 2] {
                 // compute angle and distance attenuation
                 var atten: f32 = 1.0;
                 if channel.attenuation != 0 {
-                    let light_to_vertex = vertex_pos - light.position;
-                    let dist = length(light_to_vertex);
-                    let dot_product = dot(light_to_vertex, light.direction);
-                    let cos_angle = dot_product / length(light_to_vertex);
+                    if channel.specular == 0 {
+                        let light_to_vertex = vertex_pos - light.position;
+                        let dist = length(light_to_vertex);
+                        let dot_product = dot(light_to_vertex, light.direction);
+                        let cos_angle = dot_product / length(light_to_vertex);
 
-                    let ang_atten = max(light.cos_atten.x + cos_angle * light.cos_atten.y + cos_angle * cos_angle * light.cos_atten.z, 0.0);
-                    let dist_atten = light.dist_atten.x + dist * light.dist_atten.y + dist * dist * light.dist_atten.z;
+                        let ang_atten = max(light.cos_atten.x + cos_angle * light.cos_atten.y + cos_angle * cos_angle * light.cos_atten.z, 0.0);
+                        let dist_atten = light.dist_atten.x + dist * light.dist_atten.y + dist * dist * light.dist_atten.z;
 
-                    // compute total attenuation
-                    atten = ang_atten / dist_atten;
+                        atten = ang_atten / dist_atten;
+                    } else {
+                        let l = normalize(light.position);
+                        let h = light.direction;
+                        let norm_dot_l = dot(vertex_normal, l);
+
+                        var value = 0.0;
+                        if norm_dot_l > 0 {
+                            let norm_dot_h = dot(vertex_normal, h);
+                            value = max(norm_dot_h, 0.0);
+                        }
+
+                        let ang_atten = max(light.cos_atten.x + value * light.cos_atten.y + value * value * light.cos_atten.z, 0.0);
+                        let dist_atten = light.dist_atten.x + value * light.dist_atten.y + value * value * light.dist_atten.z;
+
+                        atten = ang_atten / dist_atten;
+                    }
                 }
 
                 light_func = light.color.a * diff_atten * atten;
