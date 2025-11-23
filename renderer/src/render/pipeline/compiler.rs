@@ -187,7 +187,7 @@ fn compute_channels() -> [wesl::syntax::GlobalDeclaration; 2] {
                     }
                 }
 
-                light_func = light.color.rgb * diff_atten * atten;
+                light_func += light.color.rgb * diff_atten * atten;
             }
 
             return material * clamp(light_func, vec3f(0.0), vec3f(1.0));
@@ -274,7 +274,7 @@ fn compute_channels() -> [wesl::syntax::GlobalDeclaration; 2] {
                     }
                 }
 
-                light_func = light.color.a * diff_atten * atten;
+                light_func += light.color.a * diff_atten * atten;
             }
 
             return material * clamp(light_func, 0.0, 1.0);
