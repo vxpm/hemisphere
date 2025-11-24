@@ -339,9 +339,9 @@ impl Interface {
     /// Returns the post matrix at `index` in internal memory.
     #[inline]
     pub fn light(&self, index: u8) -> &Light {
-        let stride = size_of::<Light>() / 4;
+        let stride = 0x10;
         let offset = stride * index as usize;
-        let data = &self.ram[0x603 + offset..][..stride];
+        let data = &self.ram[0x603 + offset..][..size_of::<Light>() / 4];
         Light::try_ref_from_bytes(data.as_bytes()).unwrap()
     }
 }
@@ -489,15 +489,15 @@ impl System {
             0x0600..0x0680 => {
                 if matches!(
                     addr,
-                    0x603 | 0x610 | 0x61D | 0x62A | 0x637 | 0x644 | 0x651 | 0x65E
+                    0x603 | 0x613 | 0x623 | 0x633 | 0x643 | 0x653 | 0x663 | 0x673
                 ) {
                     self.gpu.transform.ram[addr as usize] = value;
                 } else {
                     self.gpu.transform.ram[addr as usize] = value.with_bits(0, 12, 0);
                 }
 
-                if let Some(light_offset) = addr.checked_sub(0x0603) {
-                    let index = light_offset / 13;
+                if let Some(light_offset) = addr.checked_sub(0x0600) {
+                    let index = light_offset / 0x10;
                     if index < 7 {
                         self.config.renderer.exec(Action::SetLight(
                             index as u8,

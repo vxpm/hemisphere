@@ -160,12 +160,11 @@ fn compute_channels() -> [wesl::syntax::GlobalDeclaration; 2] {
                 var atten: f32 = 1.0;
                 if channel.attenuation != 0 {
                     if channel.specular == 0 {
-                        let light_to_vertex = vertex_pos - light.position;
-                        let dist = length(light_to_vertex);
-                        let dot_product = dot(light_to_vertex, light.direction);
-                        let cos_angle = dot_product / length(light_to_vertex);
+                        let l = light.position - vertex_pos;
+                        let cos = max(dot(normalize(l), light.direction), 0.0);
+                        let dist = length(l);
 
-                        let ang_atten = max(light.cos_atten.x + cos_angle * light.cos_atten.y + cos_angle * cos_angle * light.cos_atten.z, 0.0);
+                        let ang_atten = max(light.cos_atten.x + cos * light.cos_atten.y + cos * cos * light.cos_atten.z, 0.0);
                         let dist_atten = light.dist_atten.x + dist * light.dist_atten.y + dist * dist * light.dist_atten.z;
 
                         atten = ang_atten / dist_atten;
@@ -247,12 +246,11 @@ fn compute_channels() -> [wesl::syntax::GlobalDeclaration; 2] {
                 var atten: f32 = 1.0;
                 if channel.attenuation != 0 {
                     if channel.specular == 0 {
-                        let light_to_vertex = vertex_pos - light.position;
-                        let dist = length(light_to_vertex);
-                        let dot_product = dot(light_to_vertex, light.direction);
-                        let cos_angle = dot_product / length(light_to_vertex);
+                        let l = light.position - vertex_pos;
+                        let cos = max(dot(normalize(l), light.direction), 0.0);
+                        let dist = length(l);
 
-                        let ang_atten = max(light.cos_atten.x + cos_angle * light.cos_atten.y + cos_angle * cos_angle * light.cos_atten.z, 0.0);
+                        let ang_atten = max(light.cos_atten.x + cos * light.cos_atten.y + cos * cos * light.cos_atten.z, 0.0);
                         let dist_atten = light.dist_atten.x + dist * light.dist_atten.y + dist * dist * light.dist_atten.z;
 
                         atten = ang_atten / dist_atten;
