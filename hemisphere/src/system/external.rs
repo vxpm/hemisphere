@@ -1,3 +1,5 @@
+use std::io::Write;
+
 use crate::Primitive;
 use crate::system::System;
 use bitos::{
@@ -117,6 +119,7 @@ pub enum IplChipState {
     #[default]
     Idle,
     SramWrite(u8),
+    UartWrite,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -216,9 +219,40 @@ impl System {
         }
     }
 
+    fn exi_uart_transfer_write(&mut self) {
+        assert!(!self.external.channel0.control.dma());
+        let value = self.external.channel0.immediate;
+        for byte in value.to_be_bytes() {
+            print!("{}", char::from_u32(byte as u32).unwrap());
+            if byte == b'\r' {
+                print!("\n");
+            }
+        }
+
+        std::io::stdout().flush().unwrap();
+    }
+
+    fn exi_uart_transfer_read(&mut self) {
+        if !self.external.channel0.control.dma() {
+            self.external.channel0.immediate = 0;
+            return;
+        }
+
+        let ram_base = self.external.channel0.dma_base.value() as usize;
+        let length = self.external.channel0.dma_length as usize;
+        tracing::debug!(
+            "UART DMA: 0x{:08X} bytes from UART to RAM 0x{:08X}",
+            length,
+            ram_base
+        );
+
+        self.mem.ram[ram_base..][..length].fill(0);
+    }
+
     fn exi_ipl_rtc_sram_transfer(&mut self) {
         match self.external.channel0.clone().ipl_state {
             IplChipState::SramWrite(current) => self.exi_sram_transfer_write(current),
+            IplChipState::UartWrite => self.exi_uart_transfer_write(),
             IplChipState::Idle => {
                 // new transfer
                 match self.external.channel0.clone().immediate {
@@ -228,12 +262,8 @@ impl System {
                         assert!(!self.external.channel0.control.dma());
                         self.external.channel0.immediate = self.external.channel0.rtc;
                     }
-                    0x2000_0100..0x2000_1100 => {
-                        self.exi_sram_transfer_read();
-                    }
-                    0x2001_0000 => {
-                        panic!("EXI UART read");
-                    }
+                    0x2000_0100..0x2000_1100 => self.exi_sram_transfer_read(),
+                    0x2001_0000 => self.exi_uart_transfer_read(),
                     0xA000_0000 => {
                         tracing::debug!("RTC write: 0x{:08X}", self.external.channel0.immediate);
                         assert!(!self.external.channel0.control.dma());
@@ -249,7 +279,8 @@ impl System {
                         self.external.channel0.ipl_state = IplChipState::SramWrite(sram_base);
                     }
                     0xA001_0000 => {
-                        panic!("EXI UART write");
+                        tracing::debug!("starting EXI UART write");
+                        self.external.channel0.ipl_state = IplChipState::UartWrite;
                     }
                     _ => todo!(),
                 }

@@ -279,7 +279,7 @@ fn process_cmd(sys: &mut System, channel: usize) {
 }
 
 fn do_transfer(sys: &mut System) {
-    dbg!(sys.serial.comm_control);
+    // dbg!(sys.serial.comm_control);
     tracing::debug!("transfer");
 
     process_cmd(sys, sys.serial.comm_control.channel().value() as usize);

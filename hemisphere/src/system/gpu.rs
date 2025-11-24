@@ -980,7 +980,7 @@ impl System {
         let slice = &self.mem.ram[start..][..len];
 
         if !self.gpu.texture.insert_cache(map.address, slice) {
-            let data = texture::decode_texture(slice, dbg!(map.format));
+            let data = texture::decode_texture(slice, map.format);
             self.config.renderer.exec(Action::LoadTexture {
                 id: map.address.value(),
                 width: map.format.width(),

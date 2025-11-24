@@ -551,6 +551,10 @@ impl System {
                 let mut written = external::Parameter::from_bits(0);
                 ne!(written.as_mut_bytes());
                 self.external.channel0.parameter.write(written);
+
+                if self.external.channel0.parameter.device_select().value() == 0 {
+                    self.external.channel0.ipl_state = external::IplChipState::Idle;
+                }
             }
             Mmio::ExiChannel0DmaBase => ne!(self.external.channel0.dma_base.as_mut_bytes()),
             Mmio::ExiChannel0DmaLength => ne!(self.external.channel0.dma_length.as_mut_bytes()),

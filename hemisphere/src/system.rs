@@ -173,7 +173,7 @@ impl System {
         self.write::<u32>(Address(0x20), 0x0D15_EA5E); // Boot kind
         self.write::<u32>(Address(0x24), 0x0000_0001); // Version
         self.write::<u32>(Address(0x28), 0x0180_0000); // Physical Memory Size
-        self.write::<u32>(Address(0x2C), 0x0000_0001); // Console Type
+        self.write::<u32>(Address(0x2C), 0x1000_0004); // Console Type
         self.write::<u32>(Address(0x30), 0x8042_E260); // Arena Low
         self.write::<u32>(Address(0x34), 0x817F_E8C0); // Arena High
         self.write::<u32>(Address(0x38), 0x817F_E8C0); // FST address
