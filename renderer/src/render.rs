@@ -41,6 +41,7 @@ pub struct Renderer {
     index_buffers: Buffers,
     storage_buffers: Buffers,
 
+    viewport: Viewport,
     clear_color: wgpu::Color,
     current_projection_mat: Mat4,
     current_config: data::Config,
@@ -118,6 +119,7 @@ impl Renderer {
             index_buffers,
             storage_buffers,
 
+            viewport: Default::default(),
             clear_color: wgpu::Color::BLACK,
             current_projection_mat: Default::default(),
             current_config: Default::default(),
@@ -134,17 +136,7 @@ impl Renderer {
 
     pub fn exec(&mut self, action: Action) {
         match action {
-            Action::SetViewport(viewport) => {
-                // HACK: temporary hack
-                if viewport.width < 400 || viewport.height < 400 {
-                    return;
-                }
-
-                if self.resize_viewport(viewport) {
-                    let mut lock = self.shared.lock().unwrap();
-                    lock.frontbuffer = self.frontbuffer().clone();
-                }
-            }
+            Action::SetViewport(viewport) => self.set_viewport(viewport),
             Action::SetClearColor(color) => self.set_clear_color(color),
             Action::SetBlendMode(mode) => self.set_blend_mode(mode),
             Action::SetDepthMode(mode) => self.set_depth_mode(mode),
@@ -241,8 +233,17 @@ impl Renderer {
         self.framebuffer.front().create_view(&Default::default())
     }
 
-    pub fn resize_viewport(&mut self, viewport: Viewport) -> bool {
-        self.framebuffer.resize(&self.device, viewport)
+    pub fn set_viewport(&mut self, viewport: Viewport) {
+        self.current_pass.set_viewport(
+            viewport.top_left_x,
+            viewport.top_left_y,
+            viewport.width,
+            viewport.height,
+            viewport.near_z,
+            viewport.far_z,
+        );
+
+        self.viewport = viewport;
     }
 
     pub fn set_clear_color(&mut self, rgba: Rgba) {

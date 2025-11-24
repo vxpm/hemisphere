@@ -1,20 +1,17 @@
-use hemisphere::render::Viewport;
-
 pub struct Framebuffer {
-    viewport: Viewport,
-    front: wgpu::Texture,
+    /// Color component of the EFB.
     color: wgpu::Texture,
+    /// Depth component of the EFB.
     depth: wgpu::Texture,
+    /// Represents what was last copied from EFB to XFB.
+    front: wgpu::Texture,
 }
 
 impl Framebuffer {
-    fn create_textures(
-        device: &wgpu::Device,
-        viewport: Viewport,
-    ) -> (wgpu::Texture, wgpu::Texture, wgpu::Texture) {
+    fn create_textures(device: &wgpu::Device) -> (wgpu::Texture, wgpu::Texture, wgpu::Texture) {
         let size = wgpu::Extent3d {
-            width: viewport.width.max(1),
-            height: viewport.height.max(1),
+            width: 640,
+            height: 528,
             depth_or_array_layers: 1,
         };
 
@@ -64,34 +61,13 @@ impl Framebuffer {
     }
 
     pub fn new(device: &wgpu::Device) -> Self {
-        let viewport = Viewport {
-            width: 1,
-            height: 1,
-        };
-
-        let (front, color, depth) = Self::create_textures(device, viewport);
+        let (front, color, depth) = Self::create_textures(device);
 
         Self {
-            viewport,
             front,
             color,
             depth,
         }
-    }
-
-    pub fn resize(&mut self, device: &wgpu::Device, viewport: Viewport) -> bool {
-        if viewport == self.viewport {
-            return false;
-        }
-
-        tracing::info!(?viewport, "resizing viewport");
-        let (front, color, depth) = Self::create_textures(device, viewport);
-        self.front = front;
-        self.color = color;
-        self.depth = depth;
-        self.viewport = viewport;
-
-        true
     }
 
     pub fn front(&self) -> &wgpu::Texture {

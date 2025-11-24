@@ -71,8 +71,16 @@ pub enum Reg {
 }
 
 impl Reg {
-    pub fn is_viewport_dimensions(&self) -> bool {
-        matches!(self, Reg::ViewportScaleX | Reg::ViewportScaleY)
+    pub fn is_viewport(&self) -> bool {
+        matches!(
+            self,
+            Reg::ViewportScaleX
+                | Reg::ViewportScaleY
+                | Reg::ViewportScaleZ
+                | Reg::ViewportOffsetX
+                | Reg::ViewportOffsetY
+                | Reg::ViewportOffsetZ
+        )
     }
 
     pub fn is_projection_param(&self) -> bool {
@@ -469,7 +477,7 @@ impl System {
             self.gx_update_texgens();
         }
 
-        if reg.is_viewport_dimensions() {
+        if reg.is_viewport() {
             self.gpu.transform.internal.viewport_dirty = true;
         }
 

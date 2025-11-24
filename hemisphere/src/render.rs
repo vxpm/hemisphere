@@ -24,10 +24,27 @@ impl From<Mat4> for HashableMat4 {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Viewport {
-    pub width: u32,
-    pub height: u32,
+    pub width: f32,
+    pub height: f32,
+    pub top_left_x: f32,
+    pub top_left_y: f32,
+    pub near_z: f32,
+    pub far_z: f32,
+}
+
+impl Default for Viewport {
+    fn default() -> Self {
+        Self {
+            width: 640.0,
+            height: 528.0,
+            top_left_x: 0.0,
+            top_left_y: 0.0,
+            near_z: 0.0,
+            far_z: 1.0,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -111,7 +128,5 @@ pub trait Renderer: Send + Sync {
 pub struct NopRenderer;
 
 impl Renderer for NopRenderer {
-    fn exec(&mut self, _: Action) {
-        
-    }
+    fn exec(&mut self, _: Action) {}
 }

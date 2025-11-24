@@ -1001,8 +1001,15 @@ impl System {
             self.config
                 .renderer
                 .exec(Action::SetViewport(crate::render::Viewport {
-                    width: self.gpu.transform.internal.viewport.width.round() as u32,
-                    height: self.gpu.transform.internal.viewport.height.round() as u32,
+                    width: self.gpu.transform.internal.viewport.width,
+                    height: self.gpu.transform.internal.viewport.height,
+                    top_left_x: self.gpu.transform.internal.viewport.center_x
+                        - self.gpu.transform.internal.viewport.width / 2.0,
+                    top_left_y: self.gpu.transform.internal.viewport.center_y
+                        - self.gpu.transform.internal.viewport.height / 2.0,
+                    far_z: self.gpu.transform.internal.viewport.far,
+                    near_z: self.gpu.transform.internal.viewport.far
+                        - self.gpu.transform.internal.viewport.far_minus_near,
                 }));
         }
 
