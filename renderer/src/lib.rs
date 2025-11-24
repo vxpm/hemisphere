@@ -55,7 +55,7 @@ impl WgpuRenderer {
         let shared = self.inner.shared.lock().unwrap();
         self.inner
             .blitter
-            .blit(&self.inner.device, &shared.frontbuffer, pass);
+            .blit(&self.inner.device, &shared.xfb, pass);
     }
 }
 

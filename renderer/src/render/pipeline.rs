@@ -6,7 +6,7 @@ use std::{
     collections::{HashMap, hash_map::Entry},
 };
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BlendSettings {
     pub enabled: bool,
     pub src: wgpu::BlendFactor,
@@ -50,6 +50,7 @@ impl Default for DepthSettings {
 
 #[derive(Clone, PartialEq, Eq, Hash, Default)]
 pub struct PipelineSettings {
+    pub has_alpha: bool,
     pub blend: BlendSettings,
     pub depth: DepthSettings,
     pub texenv: TexEnvConfig,
@@ -89,9 +90,24 @@ impl Pipeline {
             }
         };
 
+        let consider_alpha_in_factor = |factor| {
+            if settings.has_alpha {
+                factor
+            } else {
+                match factor {
+                    wgpu::BlendFactor::DstAlpha => wgpu::BlendFactor::One,
+                    wgpu::BlendFactor::OneMinusDstAlpha => wgpu::BlendFactor::Zero,
+                    _ => factor,
+                }
+            }
+        };
+
+        let src_factor = consider_alpha_in_factor(settings.blend.src);
+        let dst_factor = consider_alpha_in_factor(settings.blend.dst);
+
         let blend_component = wgpu::BlendComponent {
-            src_factor: settings.blend.src,
-            dst_factor: settings.blend.dst,
+            src_factor,
+            dst_factor,
             operation: settings.blend.op,
         };
 
@@ -107,10 +123,6 @@ impl Pipeline {
         if settings.blend.alpha_write {
             write_mask |= wgpu::ColorWrites::ALPHA;
         }
-
-        // TODO: remove, hack just for debugging
-        write_mask |= wgpu::ColorWrites::COLOR;
-        write_mask |= wgpu::ColorWrites::ALPHA;
 
         let shader = compiler::compile(&settings.texenv, &settings.texgen);
         let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {

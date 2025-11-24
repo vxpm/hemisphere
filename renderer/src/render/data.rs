@@ -60,4 +60,8 @@ pub struct Config {
     pub lights: [Light; 8],
     pub color_channels: [Channel; 2],
     pub alpha_channels: [Channel; 2],
+    pub constant_alpha: u32,
+    pub constant_alpha_value: f32,
+    _pad0: u32,
+    _pad1: u32,
 }

@@ -13,7 +13,7 @@ use hemisphere::{
     system::gpu::{
         Topology, VertexAttributes,
         colors::Rgba,
-        pixel::{BlendFactor, BlendMode, CompareMode, DepthMode},
+        pixel::{self, BlendFactor, BlendMode, CompareMode, ConstantAlpha, DepthMode},
         transform::ChannelControl,
     },
 };
@@ -24,7 +24,7 @@ use std::{
 use zerocopy::IntoBytes;
 
 pub struct Shared {
-    pub frontbuffer: wgpu::TextureView,
+    pub xfb: wgpu::TextureView,
 }
 
 pub struct Renderer {
@@ -73,11 +73,11 @@ impl Renderer {
         let index_buffers = Buffers::new(wgpu::BufferUsages::INDEX);
         let storage_buffers = Buffers::new(wgpu::BufferUsages::STORAGE);
 
-        let front = framebuffer.front().create_view(&Default::default());
+        let front = framebuffer.external().create_view(&Default::default());
         let color = framebuffer.color().create_view(&Default::default());
         let depth = framebuffer.depth().create_view(&Default::default());
 
-        let shared = Arc::new(Mutex::new(Shared { frontbuffer: front }));
+        let shared = Arc::new(Mutex::new(Shared { xfb: front }));
 
         let mut encoder = device.create_command_encoder(&Default::default());
         let pass = encoder
@@ -136,10 +136,12 @@ impl Renderer {
 
     pub fn exec(&mut self, action: Action) {
         match action {
+            Action::SetFramebufferFormat(fmt) => self.set_framebuffer_format(fmt),
             Action::SetViewport(viewport) => self.set_viewport(viewport),
             Action::SetClearColor(color) => self.set_clear_color(color),
             Action::SetBlendMode(mode) => self.set_blend_mode(mode),
             Action::SetDepthMode(mode) => self.set_depth_mode(mode),
+            Action::SetConstantAlpha(mode) => self.set_constant_alpha_mode(mode),
             Action::SetProjectionMatrix(mat) => self.set_projection_mat(mat),
             Action::SetTexEnvConfig(config) => self.set_texenv_config(config),
             Action::SetTexGenConfig(config) => self.set_texgen_config(config),
@@ -229,8 +231,10 @@ impl Renderer {
         self.insert_vertex(vertex)
     }
 
-    pub fn frontbuffer(&self) -> wgpu::TextureView {
-        self.framebuffer.front().create_view(&Default::default())
+    pub fn set_framebuffer_format(&mut self, format: pixel::Format) {
+        self.flush();
+        dbg!(format);
+        self.pipeline.settings.has_alpha = format.has_alpha();
     }
 
     pub fn set_viewport(&mut self, viewport: Viewport) {
@@ -239,8 +243,8 @@ impl Renderer {
             viewport.top_left_y,
             viewport.width,
             viewport.height,
-            viewport.near_z,
-            viewport.far_z,
+            viewport.near_z.clamp(0.0, 1.0),
+            viewport.far_z.clamp(0.0, 1.0),
         );
 
         self.viewport = viewport;
@@ -284,8 +288,12 @@ impl Renderer {
             alpha_write: mode.alpha_mask(),
         };
 
-        self.flush();
-        self.pipeline.settings.blend = blend;
+        dbg!(&blend);
+
+        if self.pipeline.settings.blend != blend {
+            self.flush();
+            self.pipeline.settings.blend = blend;
+        }
     }
 
     pub fn set_depth_mode(&mut self, mode: DepthMode) {
@@ -310,6 +318,11 @@ impl Renderer {
             self.flush();
             self.pipeline.settings.depth = depth;
         }
+    }
+
+    pub fn set_constant_alpha_mode(&mut self, mode: ConstantAlpha) {
+        self.current_config.constant_alpha = mode.enabled() as u32;
+        self.current_config.constant_alpha_value = mode.value() as f32 / 255.0;
     }
 
     pub fn set_projection_mat(&mut self, mat: Mat4) {
@@ -501,17 +514,17 @@ impl Renderer {
     pub fn next_pass(&mut self, clear: bool, to_xfb: bool) {
         self.flush();
 
-        let front = self.framebuffer.front().create_view(&Default::default());
+        let external = self.framebuffer.external().create_view(&Default::default());
         let color = self.framebuffer.color().create_view(&Default::default());
         let depth = self.framebuffer.depth().create_view(&Default::default());
 
-        let color_op = if clear {
+        let color_op = if clear && self.pipeline.settings.blend.color_write {
             wgpu::LoadOp::Clear(self.clear_color)
         } else {
             wgpu::LoadOp::Load
         };
 
-        let depth_op = if clear {
+        let depth_op = if clear && self.pipeline.settings.depth.write {
             wgpu::LoadOp::Clear(1.0)
         } else {
             wgpu::LoadOp::Load
@@ -557,12 +570,12 @@ impl Renderer {
                     aspect: wgpu::TextureAspect::All,
                 },
                 wgpu::TexelCopyTextureInfoBase {
-                    texture: front.texture(),
+                    texture: external.texture(),
                     mip_level: 0,
                     origin: wgpu::Origin3d::ZERO,
                     aspect: wgpu::TextureAspect::All,
                 },
-                front.texture().size(),
+                external.texture().size(),
             );
         }
 

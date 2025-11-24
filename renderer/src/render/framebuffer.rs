@@ -3,8 +3,8 @@ pub struct Framebuffer {
     color: wgpu::Texture,
     /// Depth component of the EFB.
     depth: wgpu::Texture,
-    /// Represents what was last copied from EFB to XFB.
-    front: wgpu::Texture,
+    /// Represents the external framebuffer.
+    external: wgpu::Texture,
 }
 
 impl Framebuffer {
@@ -15,7 +15,7 @@ impl Framebuffer {
             depth_or_array_layers: 1,
         };
 
-        let front_tex = {
+        let external_tex = {
             device.create_texture(&wgpu::TextureDescriptor {
                 label: None,
                 dimension: wgpu::TextureDimension::D2,
@@ -57,21 +57,21 @@ impl Framebuffer {
             })
         };
 
-        (front_tex, color_tex, depth_tex)
+        (external_tex, color_tex, depth_tex)
     }
 
     pub fn new(device: &wgpu::Device) -> Self {
-        let (front, color, depth) = Self::create_textures(device);
+        let (external, color, depth) = Self::create_textures(device);
 
         Self {
-            front,
+            external,
             color,
             depth,
         }
     }
 
-    pub fn front(&self) -> &wgpu::Texture {
-        &self.front
+    pub fn external(&self) -> &wgpu::Texture {
+        &self.external
     }
 
     pub fn color(&self) -> &wgpu::Texture {
