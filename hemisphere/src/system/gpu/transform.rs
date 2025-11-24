@@ -233,7 +233,7 @@ pub struct Viewport {
     pub center_x: f32,
     pub center_y: f32,
     pub far: f32,
-    pub near: f32,
+    pub far_minus_near: f32,
 }
 
 #[derive(Debug, Default)]
@@ -431,7 +431,7 @@ impl System {
 
             Reg::ViewportScaleX => xf.viewport.width = f32::from_bits(value) * 2.0,
             Reg::ViewportScaleY => xf.viewport.height = f32::from_bits(value) * -2.0,
-            Reg::ViewportScaleZ => xf.viewport.near = f32::from_bits(value) / Z_MAX,
+            Reg::ViewportScaleZ => xf.viewport.far_minus_near = f32::from_bits(value) / Z_MAX,
             Reg::ViewportOffsetX => xf.viewport.center_x = f32::from_bits(value) - 342.0,
             Reg::ViewportOffsetY => xf.viewport.center_y = f32::from_bits(value) - 342.0,
             Reg::ViewportOffsetZ => xf.viewport.far = f32::from_bits(value) / Z_MAX,
