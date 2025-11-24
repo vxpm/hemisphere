@@ -1,7 +1,6 @@
 use crate::system::gpu::colors::Abgr8;
 use bitos::{bitos, integer::u2};
 
-// NOTE: might be wrong
 #[bitos(3)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Format {
@@ -14,6 +13,42 @@ pub enum Format {
     U8 = 0x5,
     V8 = 0x6,
     YUV420 = 0x7,
+}
+
+impl Format {
+    pub fn has_alpha(self) -> bool {
+        self == Self::RGBA6Z24
+    }
+}
+
+#[bitos(2)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum DepthCompression {
+    #[default]
+    Linear = 0b00,
+    Near = 0b01,
+    Mid = 0b10,
+    Far = 0b11,
+}
+
+#[bitos(32)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Control {
+    #[bits(0..3)]
+    pub format: Format,
+    #[bits(3..5)]
+    pub depth_compression: DepthCompression,
+    #[bits(6)]
+    pub depth_compress_before_tex: bool,
+}
+
+#[bitos(32)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ConstantAlpha {
+    #[bits(0..8)]
+    pub value: u8,
+    #[bits(8)]
+    pub enabled: bool,
 }
 
 #[bitos(32)]
@@ -126,12 +161,14 @@ pub struct BlendMode {
 
 #[derive(Debug, Default)]
 pub struct Interface {
-    pub token: u32,
+    pub control: Control,
     pub interrupt: InterruptStatus,
+    pub constant_alpha: ConstantAlpha,
     pub clear_color: Abgr8,
     pub clear_depth: u32,
     pub depth_mode: DepthMode,
     pub blend_mode: BlendMode,
+    pub token: u32,
 }
 
 impl Interface {

@@ -496,10 +496,16 @@ impl System {
                     .exec(Action::SetBlendMode(self.gpu.pixel.blend_mode));
             }
             Reg::PixelConstantAlpha => {
-                // dbg!(value.bit(8));
+                self.gpu.pixel.constant_alpha = pixel::ConstantAlpha::from_bits(value);
+                self.config
+                    .renderer
+                    .exec(Action::SetConstantAlpha(self.gpu.pixel.constant_alpha));
             }
             Reg::PixelControl => {
-                // dbg!(pixel::Format::from_bits(u3::new(value as u8)));
+                self.gpu.pixel.control = pixel::Control::from_bits(value);
+                self.config.renderer.exec(Action::SetFramebufferFormat(
+                    self.gpu.pixel.control.format(),
+                ));
             }
             Reg::PixelDone => {
                 self.gpu.pixel.interrupt.set_finish(true);
