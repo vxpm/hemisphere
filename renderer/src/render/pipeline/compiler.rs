@@ -160,9 +160,11 @@ fn compute_channels() -> [wesl::syntax::GlobalDeclaration; 2] {
                 var atten: f32 = 1.0;
                 if channel.attenuation != 0 {
                     if channel.specular == 0 {
-                        let l = light.position - vertex_pos;
-                        let cos = max(dot(normalize(l), light.direction), 0.0);
-                        let dist = length(l);
+                        let vertex_to_light = light.position - vertex_pos;
+                        let vertex_to_light_dir = normalize(vertex_to_light);
+
+                        let cos = max(dot(vertex_to_light_dir, light.direction), 0.0);
+                        let dist = length(vertex_to_light);
 
                         let ang_atten = max(light.cos_atten.x + cos * light.cos_atten.y + cos * cos * light.cos_atten.z, 0.0);
                         let dist_atten = light.dist_atten.x + dist * light.dist_atten.y + dist * dist * light.dist_atten.z;
@@ -299,9 +301,6 @@ fn vertex_stage(texgen: &TexGenConfig) -> wesl::syntax::GlobalDeclaration {
         stages.push(wesl::quote_statement! {
             {
                 let matrix = vertex.tex_coord_mat[#index];
-
-                // figure this out
-
                 tex_coords[#index] = #result;
             }
         });
