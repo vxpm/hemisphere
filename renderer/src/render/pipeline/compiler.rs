@@ -44,10 +44,6 @@ fn base_module() -> wesl::syntax::TranslationUnit {
             lights: array<Light, 8>,
             color_channels: array<Channel, 2>,
             alpha_channels: array<Channel, 2>,
-            constant_alpha: u32,
-            constant_alpha_value: f32,
-            _pad0: u32,
-            _pad1: u32,
         }
 
         // A primitive vertex
@@ -369,7 +365,6 @@ fn vertex_stage(texgen: &TexGenConfig) -> wesl::syntax::GlobalDeclaration {
             out.clip.z /= 2.0;
 
             let config_idx = vertex.config;
-            out.config_idx = config_idx;
 
             out.chan0 = vec4f(
                 compute_color_channel(vertex_world_pos.xyz, vertex_world_norm, vertex.chan0.rgb, 0, config_idx),
@@ -524,12 +519,7 @@ fn fragment_stage(texenv: &TexEnvConfig) -> wesl::syntax::GlobalDeclaration {
 
             @#compute_stages {}
 
-            var alpha = regs[last_alpha_output].a;
-            if base::configs[in.config_idx].constant_alpha != 0 {
-                alpha = base::configs[in.config_idx].constant_alpha_value;
-            }
-
-            return vec4f(regs[last_color_output].rgb, alpha);
+            return vec4f(regs[last_color_output].rgb, regs[last_alpha_output].a);
         }
     }
 }

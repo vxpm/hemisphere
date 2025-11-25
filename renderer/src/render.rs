@@ -233,7 +233,7 @@ impl Renderer {
 
     pub fn set_framebuffer_format(&mut self, format: pixel::Format) {
         self.flush();
-        dbg!(format);
+        // dbg!(format);
         self.pipeline.settings.has_alpha = format.has_alpha();
     }
 
@@ -288,12 +288,8 @@ impl Renderer {
             alpha_write: mode.alpha_mask(),
         };
 
-        dbg!(&blend);
-
-        if self.pipeline.settings.blend != blend {
-            self.flush();
-            self.pipeline.settings.blend = blend;
-        }
+        self.flush();
+        self.pipeline.settings.blend = blend;
     }
 
     pub fn set_depth_mode(&mut self, mode: DepthMode) {
@@ -320,9 +316,8 @@ impl Renderer {
         }
     }
 
-    pub fn set_constant_alpha_mode(&mut self, mode: ConstantAlpha) {
-        self.current_config.constant_alpha = mode.enabled() as u32;
-        self.current_config.constant_alpha_value = mode.value() as f32 / 255.0;
+    pub fn set_constant_alpha_mode(&mut self, _mode: ConstantAlpha) {
+        // TODO: do something with it...
     }
 
     pub fn set_projection_mat(&mut self, mat: Mat4) {
