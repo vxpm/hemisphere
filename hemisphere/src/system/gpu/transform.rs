@@ -108,6 +108,14 @@ impl Reg {
                 | Reg::TexGen5
                 | Reg::TexGen6
                 | Reg::TexGen7
+                | Reg::PostTexGen0
+                | Reg::PostTexGen1
+                | Reg::PostTexGen2
+                | Reg::PostTexGen3
+                | Reg::PostTexGen4
+                | Reg::PostTexGen5
+                | Reg::PostTexGen6
+                | Reg::PostTexGen7
         )
     }
 }
