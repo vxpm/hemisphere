@@ -66,6 +66,25 @@ pub struct Pipeline {
     pipeline: wgpu::RenderPipeline,
 }
 
+fn split_factor(factor: wgpu::BlendFactor) -> (wgpu::BlendFactor, wgpu::BlendFactor) {
+    match factor {
+        wgpu::BlendFactor::Src => (wgpu::BlendFactor::Src, wgpu::BlendFactor::SrcAlpha),
+        wgpu::BlendFactor::OneMinusSrc => (
+            wgpu::BlendFactor::OneMinusSrc,
+            wgpu::BlendFactor::OneMinusSrcAlpha,
+        ),
+        _ => (factor, factor),
+    }
+}
+
+fn remove_dst_alpha(factor: wgpu::BlendFactor) -> wgpu::BlendFactor {
+    match factor {
+        wgpu::BlendFactor::DstAlpha => wgpu::BlendFactor::One,
+        wgpu::BlendFactor::OneMinusDstAlpha => wgpu::BlendFactor::Zero,
+        _ => factor,
+    }
+}
+
 impl Pipeline {
     fn create_pipeline(
         device: &wgpu::Device,
@@ -90,30 +109,40 @@ impl Pipeline {
             }
         };
 
-        let consider_alpha_in_factor = |factor| {
-            if settings.has_alpha {
-                factor
-            } else {
-                match factor {
-                    wgpu::BlendFactor::DstAlpha => wgpu::BlendFactor::One,
-                    wgpu::BlendFactor::OneMinusDstAlpha => wgpu::BlendFactor::Zero,
-                    _ => factor,
-                }
-            }
-        };
+        let (color_src, alpha_src) = split_factor(settings.blend.src);
+        let (color_dst, alpha_dst) = split_factor(settings.blend.dst);
 
-        let src_factor = consider_alpha_in_factor(settings.blend.src);
-        let dst_factor = consider_alpha_in_factor(settings.blend.dst);
+        let (color_blend, alpha_blend) = if settings.has_alpha {
+            let color = wgpu::BlendComponent {
+                src_factor: color_src,
+                dst_factor: color_dst,
+                operation: settings.blend.op,
+            };
+            let alpha = wgpu::BlendComponent {
+                src_factor: alpha_src,
+                dst_factor: alpha_dst,
+                operation: settings.blend.op,
+            };
 
-        let blend_component = wgpu::BlendComponent {
-            src_factor,
-            dst_factor,
-            operation: settings.blend.op,
+            (color, alpha)
+        } else {
+            let color = wgpu::BlendComponent {
+                src_factor: remove_dst_alpha(color_src),
+                dst_factor: remove_dst_alpha(color_src),
+                operation: settings.blend.op,
+            };
+            let alpha = wgpu::BlendComponent {
+                src_factor: remove_dst_alpha(color_src),
+                dst_factor: remove_dst_alpha(color_src),
+                operation: settings.blend.op,
+            };
+
+            (color, alpha)
         };
 
         let blend = settings.blend.enabled.then_some(wgpu::BlendState {
-            color: blend_component,
-            alpha: blend_component,
+            color: color_blend,
+            alpha: alpha_blend,
         });
 
         let mut write_mask = wgpu::ColorWrites::empty();
