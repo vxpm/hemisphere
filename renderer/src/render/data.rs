@@ -60,4 +60,6 @@ pub struct Config {
     pub lights: [Light; 8],
     pub color_channels: [Channel; 2],
     pub alpha_channels: [Channel; 2],
+    pub consts: [Rgba; 4],
+    pub post_transform_mat: [Mat4; 8],
 }

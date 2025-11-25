@@ -1,7 +1,7 @@
 mod texenv;
 mod texgen;
 
-use hemisphere::render::{TexEnvConfig, TexGenConfig};
+use crate::render::pipeline::settings::{TexEnvSettings, TexGenSettings};
 use wesl::{VirtualResolver, Wesl};
 
 fn base_module() -> wesl::syntax::TranslationUnit {
@@ -44,14 +44,15 @@ fn base_module() -> wesl::syntax::TranslationUnit {
             lights: array<Light, 8>,
             color_channels: array<Channel, 2>,
             alpha_channels: array<Channel, 2>,
+            consts: array<vec4f, 4>,
+            post_transform_mat: array<mat4x4f, 8>,
         }
 
         // A primitive vertex
         struct Vertex {
             position: vec3f,
-            config: u32,
+            config_idx: u32,
             normal: vec3f,
-
             _pad0: u32,
 
             projection_mat: mat4x4f,
@@ -90,17 +91,17 @@ fn base_module() -> wesl::syntax::TranslationUnit {
 
         struct VertexOutput {
             @builtin(position) clip: vec4f,
-            @location(0) chan0: vec4f,
-            @location(1) chan1: vec4f,
-            @location(2) tex_coord0: vec3f,
-            @location(3) tex_coord1: vec3f,
-            @location(4) tex_coord2: vec3f,
-            @location(5) tex_coord3: vec3f,
-            @location(6) tex_coord4: vec3f,
-            @location(7) tex_coord5: vec3f,
-            @location(8) tex_coord6: vec3f,
-            @location(9) tex_coord7: vec3f,
-            @location(10) config_idx: u32,
+            @location(0) config_idx: u32,
+            @location(1) chan0: vec4f,
+            @location(2) chan1: vec4f,
+            @location(3) tex_coord0: vec3f,
+            @location(4) tex_coord1: vec3f,
+            @location(5) tex_coord2: vec3f,
+            @location(6) tex_coord3: vec3f,
+            @location(7) tex_coord4: vec3f,
+            @location(8) tex_coord5: vec3f,
+            @location(9) tex_coord6: vec3f,
+            @location(10) tex_coord7: vec3f,
         };
     }
 }
@@ -108,8 +109,7 @@ fn base_module() -> wesl::syntax::TranslationUnit {
 fn compute_channels() -> [wesl::syntax::GlobalDeclaration; 2] {
     use wesl::syntax::*;
     let color = wesl::quote_declaration! {
-        fn compute_color_channel(vertex_pos: vec3f, vertex_normal: vec3f, vertex_color: vec3f, index: u32, config_idx: u32) -> vec3f {
-            let config = base::configs[config_idx];
+        fn compute_color_channel(vertex_pos: vec3f, vertex_normal: vec3f, vertex_color: vec3f, index: u32, config: base::Config) -> vec3f {
             let channel = config.color_channels[index];
 
             // get material color
@@ -196,8 +196,7 @@ fn compute_channels() -> [wesl::syntax::GlobalDeclaration; 2] {
     };
 
     let alpha = wesl::quote_declaration! {
-        fn compute_alpha_channel(vertex_pos: vec3f, vertex_normal: vec3f, vertex_alpha: f32, index: u32, config_idx: u32) -> f32 {
-            let config = base::configs[config_idx];
+        fn compute_alpha_channel(vertex_pos: vec3f, vertex_normal: vec3f, vertex_alpha: f32, index: u32, config: base::Config) -> f32 {
             let channel = config.alpha_channels[index];
 
             // get material alpha
@@ -284,7 +283,7 @@ fn compute_channels() -> [wesl::syntax::GlobalDeclaration; 2] {
     [color, alpha]
 }
 
-fn vertex_stage(texgen: &TexGenConfig) -> wesl::syntax::GlobalDeclaration {
+fn vertex_stage(texgen: &TexGenSettings) -> wesl::syntax::GlobalDeclaration {
     use wesl::syntax::*;
 
     let mut stages = vec![];
@@ -296,7 +295,7 @@ fn vertex_stage(texgen: &TexGenConfig) -> wesl::syntax::GlobalDeclaration {
         let transformed = texgen::transform(stage.base.kind(), input);
         let output = texgen::get_output(stage.base.output_kind(), transformed);
         let normalized = texgen::normalize(stage.normalize, output);
-        let result = texgen::post_transform(&stage.post_matrix, normalized);
+        let result = texgen::post_transform(index as u32, normalized);
 
         stages.push(wesl::quote_statement! {
             {
@@ -351,6 +350,8 @@ fn vertex_stage(texgen: &TexGenConfig) -> wesl::syntax::GlobalDeclaration {
             var out: base::VertexOutput;
 
             let vertex = base::vertices[index];
+            let config = base::configs[vertex.config_idx];
+            out.config_idx = vertex.config_idx;
 
             let vertex_local_pos = vec4f(vertex.position, 1.0);
             let vertex_world_pos = vertex.position_mat * vertex_local_pos;
@@ -363,19 +364,14 @@ fn vertex_stage(texgen: &TexGenConfig) -> wesl::syntax::GlobalDeclaration {
             out.clip.z += out.clip.w;
             out.clip.z /= 2.0;
 
-            let config_idx = vertex.config;
-
             out.chan0 = vec4f(
-                compute_color_channel(vertex_world_pos.xyz, vertex_world_norm, vertex.chan0.rgb, 0, config_idx),
-                compute_alpha_channel(vertex_world_pos.xyz, vertex_world_norm, vertex.chan0.a, 0, config_idx),
+                compute_color_channel(vertex_world_pos.xyz, vertex_world_norm, vertex.chan0.rgb, 0, config),
+                compute_alpha_channel(vertex_world_pos.xyz, vertex_world_norm, vertex.chan0.a, 0, config),
             );
             out.chan1 = vec4f(
-                compute_color_channel(vertex_world_pos.xyz, vertex_world_norm, vertex.chan1.rgb, 1, config_idx),
-                compute_alpha_channel(vertex_world_pos.xyz, vertex_world_norm, vertex.chan1.a, 1, config_idx),
+                compute_color_channel(vertex_world_pos.xyz, vertex_world_norm, vertex.chan1.rgb, 1, config),
+                compute_alpha_channel(vertex_world_pos.xyz, vertex_world_norm, vertex.chan1.a, 1, config),
             );
-
-            // out.chan0 = base::PLACEHOLDER_RGBA;
-            // out.chan1 = base::PLACEHOLDER_RGBA;
 
             var tex_coords: array<vec3f, 8>;
             @#compute_stages {}
@@ -394,21 +390,8 @@ fn vertex_stage(texgen: &TexGenConfig) -> wesl::syntax::GlobalDeclaration {
     }
 }
 
-fn fragment_stage(texenv: &TexEnvConfig) -> wesl::syntax::GlobalDeclaration {
+fn fragment_stage(texenv: &TexEnvSettings) -> wesl::syntax::GlobalDeclaration {
     use wesl::syntax::*;
-
-    let constant = |i: usize| {
-        let r = texenv.constants[i].r;
-        let g = texenv.constants[i].g;
-        let b = texenv.constants[i].b;
-        let a = texenv.constants[i].a;
-        wesl::quote_expression! { vec4f(#r, #g, #b, #a) }
-    };
-
-    let const_0 = constant(0);
-    let const_1 = constant(1);
-    let const_2 = constant(2);
-    let const_3 = constant(3);
 
     let mut stages = vec![];
     for stage in texenv.stages.iter() {
@@ -505,15 +488,16 @@ fn fragment_stage(texenv: &TexEnvConfig) -> wesl::syntax::GlobalDeclaration {
             const R1: u32 = 2;
             const R2: u32 = 3;
 
+            let config = base::configs[in.config_idx];
             var last_color_output = R3;
             var last_alpha_output = R3;
             var regs: array<vec4f, 4>;
             var consts: array<vec4f, 4>;
 
-            consts[R0] = #const_0;
-            consts[R1] = #const_1;
-            consts[R2] = #const_2;
-            consts[R3] = #const_3;
+            consts[R0] = config.consts[0];
+            consts[R1] = config.consts[1];
+            consts[R2] = config.consts[2];
+            consts[R3] = config.consts[3];
             regs = consts;
 
             @#compute_stages {}
@@ -523,7 +507,7 @@ fn fragment_stage(texenv: &TexEnvConfig) -> wesl::syntax::GlobalDeclaration {
     }
 }
 
-fn main_module(texenv: &TexEnvConfig, texgen: &TexGenConfig) -> wesl::syntax::TranslationUnit {
+fn main_module(texenv: &TexEnvSettings, texgen: &TexGenSettings) -> wesl::syntax::TranslationUnit {
     use wesl::syntax::*;
 
     let [color_chan, alpha_chan] = compute_channels();
@@ -541,7 +525,7 @@ fn main_module(texenv: &TexEnvConfig, texgen: &TexGenConfig) -> wesl::syntax::Tr
     }
 }
 
-pub fn compile(texenv: &TexEnvConfig, texgen: &TexGenConfig) -> String {
+pub fn compile(texenv: &TexEnvSettings, texgen: &TexGenSettings) -> String {
     let mut resolver = VirtualResolver::new();
     resolver.add_translation_unit("package::base".parse().unwrap(), base_module());
     resolver.add_translation_unit(

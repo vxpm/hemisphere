@@ -5,7 +5,10 @@ mod pipeline;
 mod textures;
 
 use crate::render::{
-    buffers::Buffers, framebuffer::Framebuffer, pipeline::Pipeline, textures::Textures,
+    buffers::Buffers,
+    framebuffer::Framebuffer,
+    pipeline::{Pipeline, TexGenStageSettings},
+    textures::Textures,
 };
 use glam::Mat4;
 use hemisphere::{
@@ -325,11 +328,31 @@ impl Renderer {
     }
 
     pub fn set_texenv_config(&mut self, config: TexEnvConfig) {
-        self.pipeline.settings.texenv = config;
+        self.pipeline.settings.texenv.stages = config.stages;
+        self.current_config.consts = config.constants;
+        self.current_config_dirty = true;
     }
 
     pub fn set_texgen_config(&mut self, config: TexGenConfig) {
-        self.pipeline.settings.texgen = config;
+        self.pipeline.settings.texgen.stages = config
+            .stages
+            .iter()
+            .map(|s| TexGenStageSettings {
+                base: s.base.clone(),
+                normalize: s.normalize,
+            })
+            .collect();
+
+        for (setting, value) in self
+            .current_config
+            .post_transform_mat
+            .iter_mut()
+            .zip(config.stages.iter().map(|s| s.post_matrix))
+        {
+            *setting = value;
+        }
+
+        self.current_config_dirty = true;
     }
 
     pub fn load_texture(&mut self, id: u32, width: u32, height: u32, data: &[u8]) {

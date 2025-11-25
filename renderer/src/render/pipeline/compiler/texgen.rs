@@ -1,4 +1,3 @@
-use glam::Mat4;
 use hemisphere::system::gpu::transform::{
     TexGenInputKind, TexGenKind, TexGenOutputKind, TexGenSource,
 };
@@ -67,24 +66,24 @@ pub fn normalize(normalize: bool, output: wesl::syntax::Expression) -> wesl::syn
 }
 
 pub fn post_transform(
-    matrix: &Mat4,
+    stage_index: u32,
     normalized: wesl::syntax::Expression,
 ) -> wesl::syntax::Expression {
     use wesl::syntax::*;
 
-    let [
-        [m00, m01, m02, m03],
-        [m10, m11, m12, m13],
-        [m20, m21, m22, m23],
-        [m30, m31, m32, m33],
-    ] = matrix.to_cols_array_2d();
+    // let [
+    //     [m00, m01, m02, m03],
+    //     [m10, m11, m12, m13],
+    //     [m20, m21, m22, m23],
+    //     [m30, m31, m32, m33],
+    // ] = matrix.to_cols_array_2d();
+    //
+    // let matrix = wesl::quote_expression! { mat4x4f(
+    //     vec4f(#m00, #m01, #m02, #m03),
+    //     vec4f(#m10, #m11, #m12, #m13),
+    //     vec4f(#m20, #m21, #m22, #m23),
+    //     vec4f(#m30, #m31, #m32, #m33),
+    // ) };
 
-    let matrix = wesl::quote_expression! { mat4x4f(
-        vec4f(#m00, #m01, #m02, #m03),
-        vec4f(#m10, #m11, #m12, #m13),
-        vec4f(#m20, #m21, #m22, #m23),
-        vec4f(#m30, #m31, #m32, #m33),
-    ) };
-
-    wesl::quote_expression! { (#matrix * vec4f(#normalized, 1.0)).xyz }
+    wesl::quote_expression! { (config.post_transform_mat[#stage_index] * vec4f(#normalized, 1.0)).xyz }
 }

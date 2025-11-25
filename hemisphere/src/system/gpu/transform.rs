@@ -501,7 +501,10 @@ impl System {
         match addr {
             0x0000..0x0400 => self.gpu.transform.ram[addr as usize] = value,
             0x0400..0x0460 => self.gpu.transform.ram[addr as usize] = value.with_bits(0, 12, 0),
-            0x0500..0x0600 => self.gpu.transform.ram[addr as usize] = value,
+            0x0500..0x0600 => {
+                self.gpu.transform.ram[addr as usize] = value;
+                self.gx_update_texgens();
+            }
             0x0600..0x0680 => {
                 if matches!(
                     addr,
