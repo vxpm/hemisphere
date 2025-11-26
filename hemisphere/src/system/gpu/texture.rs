@@ -35,10 +35,10 @@ pub enum MinFilter {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum DataFormat {
     #[default]
-    Intensity4 = 0x0,
-    Intensity8 = 0x1,
-    Intensity4Alpha = 0x2,
-    Intensity8Alpha = 0x3,
+    I4 = 0x0,
+    I8 = 0x1,
+    IA4 = 0x2,
+    IA8 = 0x3,
     Rgb565 = 0x4,
     Rgb5A3 = 0x5,
     Rgba8 = 0x6,
@@ -100,10 +100,10 @@ impl Format {
         let pixels_ab = |a, b| self.width().next_multiple_of(a) * self.height().next_multiple_of(b);
 
         match self.data_format() {
-            DataFormat::Intensity4 => pixels(8) / 2,
-            DataFormat::Intensity8 => pixels_ab(8, 4),
-            DataFormat::Intensity4Alpha => pixels(8),
-            DataFormat::Intensity8Alpha => pixels(4) * 2,
+            DataFormat::I4 => pixels(8) / 2,
+            DataFormat::I8 => pixels_ab(8, 4),
+            DataFormat::IA4 => pixels(8),
+            DataFormat::IA8 => pixels(4) * 2,
             DataFormat::Rgb565 => pixels(4) * 2,
             DataFormat::Rgb5A3 => pixels(4) * 2,
             DataFormat::Rgba8 => pixels(4) * 4,
@@ -196,10 +196,10 @@ pub fn decode_texture(data: &[u8], format: Format) -> Vec<Rgba8> {
     let width = format.width() as usize;
     let height = format.height() as usize;
     let pixels = match format.data_format() {
-        DataFormat::Intensity4 => gxtex::decode::<gxtex::Intensity4>(width, height, data),
-        DataFormat::Intensity4Alpha => gxtex::decode::<gxtex::Intensity4Alpha>(width, height, data),
-        DataFormat::Intensity8 => gxtex::decode::<gxtex::Intensity8>(width, height, data),
-        DataFormat::Intensity8Alpha => gxtex::decode::<gxtex::Intensity8Alpha>(width, height, data),
+        DataFormat::I4 => gxtex::decode::<gxtex::I4>(width, height, data),
+        DataFormat::IA4 => gxtex::decode::<gxtex::IA4>(width, height, data),
+        DataFormat::I8 => gxtex::decode::<gxtex::I8>(width, height, data),
+        DataFormat::IA8 => gxtex::decode::<gxtex::IA8>(width, height, data),
         DataFormat::Rgb565 => gxtex::decode::<gxtex::Rgb565>(width, height, data),
         DataFormat::Rgb5A3 => gxtex::decode::<gxtex::Rgb5A3>(width, height, data),
         DataFormat::Rgba8 => gxtex::decode::<gxtex::Rgba8>(width, height, data),

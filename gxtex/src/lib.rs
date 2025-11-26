@@ -1,6 +1,19 @@
 use bitut::BitUtils;
 use zerocopy::{FromBytes, Immutable, IntoBytes};
 
+/// Converts a value in range `0..=OLD_MAX` to a value in the range `0..=NEW_MAX`.
+#[inline(always)]
+fn range_conv<const OLD_MAX: u32, const NEW_MAX: u32>(value: u8) -> u8 {
+    const {
+        assert!(OLD_MAX != 0);
+        assert!(OLD_MAX <= 255);
+        assert!(NEW_MAX <= 255);
+    };
+
+    let value = value as u32;
+    ((value * NEW_MAX + OLD_MAX / 2) / OLD_MAX) as u8
+}
+
 /// A single RGBA8 pixel.
 #[derive(Debug, Clone, Copy, Default, Immutable, IntoBytes, FromBytes)]
 #[repr(C)]
@@ -14,9 +27,9 @@ pub struct Pixel {
 impl Pixel {
     pub fn from_rgb565(value: u16) -> Self {
         Self {
-            r: value.bits(11, 16) as u8 * 8,
-            g: value.bits(5, 11) as u8 * 4,
-            b: value.bits(0, 5) as u8 * 8,
+            r: range_conv::<31, 255>(value.bits(11, 16) as u8),
+            g: range_conv::<63, 255>(value.bits(5, 11) as u8),
+            b: range_conv::<31, 255>(value.bits(0, 5) as u8),
             a: 255,
         }
     }
@@ -24,17 +37,17 @@ impl Pixel {
     pub fn from_rgb5a3(value: u16) -> Self {
         if value.bit(15) {
             Pixel {
-                r: value.bits(10, 15) as u8 * 8,
-                g: value.bits(5, 10) as u8 * 8,
-                b: value.bits(0, 5) as u8 * 8,
+                r: range_conv::<31, 255>(value.bits(10, 15) as u8),
+                g: range_conv::<31, 255>(value.bits(5, 10) as u8),
+                b: range_conv::<31, 255>(value.bits(0, 5) as u8),
                 a: 255,
             }
         } else {
             Pixel {
-                r: value.bits(8, 12) as u8 * 16,
-                g: value.bits(4, 8) as u8 * 16,
-                b: value.bits(0, 4) as u8 * 16,
-                a: value.bits(12, 15) as u8 * 32,
+                r: range_conv::<15, 255>(value.bits(8, 12) as u8),
+                g: range_conv::<15, 255>(value.bits(4, 8) as u8),
+                b: range_conv::<15, 255>(value.bits(0, 4) as u8),
+                a: range_conv::<8, 255>(value.bits(12, 15) as u8),
             }
         }
     }
@@ -139,11 +152,7 @@ pub fn decode<F: Format>(width: usize, height: usize, data: &[u8]) -> Vec<Pixel>
     pixels
 }
 
-#[inline(always)]
-fn range_conv(value: u8, old_max: u8, new_max: u8) -> u8 {
-    ((value as f32 / old_max as f32) * new_max as f32) as u8
-}
-
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IntensitySource {
     Y,
     R,
@@ -151,20 +160,56 @@ pub enum IntensitySource {
     B,
 }
 
-pub struct Intensity4;
+impl IntensitySource {
+    #[inline(always)]
+    pub fn get(&self, pixel: Pixel) -> u8 {
+        match self {
+            Self::Y => pixel.y(),
+            Self::R => pixel.r,
+            Self::G => pixel.g,
+            Self::B => pixel.b,
+        }
+    }
+}
 
-impl Format for Intensity4 {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AlphaSource {
+    R,
+    G,
+    B,
+    A,
+}
+
+impl AlphaSource {
+    #[inline(always)]
+    pub fn get(&self, pixel: Pixel) -> u8 {
+        match self {
+            Self::R => pixel.r,
+            Self::G => pixel.g,
+            Self::B => pixel.b,
+            Self::A => pixel.a,
+        }
+    }
+}
+
+pub struct I4;
+
+impl Format for I4 {
     const NIBBLES_PER_TEXEL: usize = 1;
     const TILE_WIDTH: usize = 8;
     const TILE_HEIGHT: usize = 8;
 
-    type EncodeSettings = ();
+    type EncodeSettings = IntensitySource;
 
-    fn encode_tile(_: &Self::EncodeSettings, data: &mut [u8], get: impl Fn(usize, usize) -> Pixel) {
+    fn encode_tile(
+        source: &Self::EncodeSettings,
+        data: &mut [u8],
+        get: impl Fn(usize, usize) -> Pixel,
+    ) {
         for y in 0..Self::TILE_HEIGHT {
             for x in 0..Self::TILE_WIDTH {
                 let pixel = get(x, y);
-                let intensity = range_conv(pixel.y(), 255, 15);
+                let intensity = range_conv::<255, 15>(source.get(pixel));
 
                 let index = y * Self::TILE_WIDTH + x;
                 let current = data[index / 2];
@@ -185,15 +230,11 @@ impl Format for Intensity4 {
             for x in 0..Self::TILE_WIDTH {
                 let index = y * Self::TILE_WIDTH + x;
                 let value = data[index / 2];
-                let intensity = range_conv(
-                    if index % 2 == 0 {
-                        value.bits(4, 8)
-                    } else {
-                        value.bits(0, 4)
-                    },
-                    15,
-                    255,
-                );
+                let intensity = range_conv::<15, 255>(if index % 2 == 0 {
+                    value.bits(4, 8)
+                } else {
+                    value.bits(0, 4)
+                });
 
                 set(
                     x,
@@ -210,21 +251,25 @@ impl Format for Intensity4 {
     }
 }
 
-pub struct Intensity4Alpha;
+pub struct IA4;
 
-impl Format for Intensity4Alpha {
+impl Format for IA4 {
     const NIBBLES_PER_TEXEL: usize = 2;
     const TILE_WIDTH: usize = 8;
     const TILE_HEIGHT: usize = 4;
 
-    type EncodeSettings = ();
+    type EncodeSettings = (IntensitySource, AlphaSource);
 
-    fn encode_tile(_: &Self::EncodeSettings, data: &mut [u8], get: impl Fn(usize, usize) -> Pixel) {
+    fn encode_tile(
+        (source_intensity, source_alpha): &Self::EncodeSettings,
+        data: &mut [u8],
+        get: impl Fn(usize, usize) -> Pixel,
+    ) {
         for y in 0..Self::TILE_HEIGHT {
             for x in 0..Self::TILE_WIDTH {
                 let pixel = get(x, y);
-                let intensity = range_conv(pixel.y(), 255, 15);
-                let alpha = range_conv(pixel.a, 255, 15);
+                let intensity = range_conv::<255, 15>(source_intensity.get(pixel));
+                let alpha = range_conv::<255, 15>(source_alpha.get(pixel));
 
                 let index = y * Self::TILE_WIDTH + x;
                 data[index] = 0.with_bits(0, 4, intensity).with_bits(4, 8, alpha);
@@ -237,8 +282,8 @@ impl Format for Intensity4Alpha {
             for x in 0..Self::TILE_WIDTH {
                 let index = y * Self::TILE_WIDTH + x;
                 let value = data[index];
-                let intensity = range_conv(value.bits(0, 4), 15, 255);
-                let alpha = range_conv(value.bits(4, 8), 15, 255);
+                let intensity = range_conv::<15, 255>(value.bits(0, 4));
+                let alpha = range_conv::<15, 255>(value.bits(4, 8));
 
                 set(
                     x,
@@ -255,9 +300,9 @@ impl Format for Intensity4Alpha {
     }
 }
 
-pub struct Intensity8;
+pub struct I8;
 
-impl Format for Intensity8 {
+impl Format for I8 {
     const NIBBLES_PER_TEXEL: usize = 2;
     const TILE_WIDTH: usize = 8;
     const TILE_HEIGHT: usize = 4;
@@ -293,9 +338,9 @@ impl Format for Intensity8 {
     }
 }
 
-pub struct Intensity8Alpha;
+pub struct IA8;
 
-impl Format for Intensity8Alpha {
+impl Format for IA8 {
     const NIBBLES_PER_TEXEL: usize = 4;
     const TILE_WIDTH: usize = 4;
     const TILE_HEIGHT: usize = 4;
@@ -487,7 +532,7 @@ impl Format for Cmpr {
 
 #[cfg(test)]
 mod test {
-    use crate::{Format, Intensity4, Intensity4Alpha, Pixel, decode, encode};
+    use crate::{AlphaSource, Format, I4, IA4, IntensitySource, Pixel, decode, encode};
 
     fn test_format<F: Format>(settings: &F::EncodeSettings, name: &str) {
         let img = image::open("resources/test.webp").unwrap();
@@ -528,7 +573,7 @@ mod test {
 
     #[test]
     fn test() {
-        test_format::<Intensity4>(&(), "I4");
-        test_format::<Intensity4Alpha>(&(), "I4A");
+        test_format::<I4>(&IntensitySource::Y, "I4");
+        test_format::<IA4>(&(IntensitySource::Y, AlphaSource::A), "IA4");
     }
 }
