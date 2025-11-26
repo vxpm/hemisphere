@@ -42,7 +42,6 @@ pub enum DataFormat {
     Rgb565 = 0x4,
     Rgb5A3 = 0x5,
     Rgba8 = 0x6,
-    // everything below is a mystery
     Reserved0 = 0x7,
     C4 = 0x8,
     C8 = 0x9,
@@ -52,6 +51,42 @@ pub enum DataFormat {
     Reserved3 = 0xD,
     Cmp = 0xE,
     Reserved4 = 0xF,
+}
+
+impl DataFormat {
+    pub fn nibbles_per_texel(&self) -> u8 {
+        match self {
+            Self::Intensity4 => 1,
+            Self::Intensity8 => 2,
+            Self::Intensity4Alpha => 2,
+            Self::Intensity8Alpha => 4,
+            Self::Rgb565 => 4,
+            Self::Rgb5A3 => 4,
+            Self::Rgba8 => 8,
+            Self::C4 => 1,
+            Self::C8 => 2,
+            Self::C14X2 => 4,
+            Self::Cmp => 1,
+            _ => panic!("reserved format"),
+        }
+    }
+
+    pub fn block_dimensions(&self) -> (u8, u8) {
+        match self {
+            Self::Intensity4 => (8, 8),
+            Self::Intensity8 => (8, 4),
+            Self::Intensity4Alpha => (8, 4),
+            Self::Intensity8Alpha => (4, 4),
+            Self::Rgb565 => (4, 4),
+            Self::Rgb5A3 => (4, 4),
+            Self::Rgba8 => (4, 4),
+            Self::C4 => (8, 8),
+            Self::C8 => (8, 4),
+            Self::C14X2 => (4, 4),
+            Self::Cmp => (4, 4),
+            _ => panic!("reserved format"),
+        }
+    }
 }
 
 #[bitos(32)]
@@ -411,6 +446,13 @@ pub fn decode_texture(data: &[u8], format: Format) -> Vec<Rgba8> {
                 (format.width() * format.height()) as usize
             ]
         }
+        _ => todo!("format {format:?}"),
+    }
+}
+
+/// Stride should be in bytes.
+pub fn encode_texture(data: Vec<Rgba8>, format: Format, stride: u32, output: &mut [u8]) {
+    match format.data_format() {
         _ => todo!("format {format:?}"),
     }
 }

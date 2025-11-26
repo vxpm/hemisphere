@@ -519,10 +519,10 @@ impl System {
                 self.scheduler.schedule_now(System::pi_check_interrupts);
             }
             Reg::PixelCopySrc => {
-                self.gpu.pixel.copy_src = dbg!(pixel::CopySrc::from_bits(value));
+                self.gpu.pixel.copy_src = pixel::CopySrc::from_bits(value);
             }
             Reg::PixelCopyDimensions => {
-                self.gpu.pixel.copy_dimensions = dbg!(pixel::CopyDimensions::from_bits(value));
+                self.gpu.pixel.copy_dimensions = pixel::CopyDimensions::from_bits(value);
             }
             Reg::PixelCopyClearAr => {
                 self.gpu.pixel.clear_color.r = value.bits(0, 8) as u8;
@@ -808,8 +808,9 @@ impl System {
             Reg::TevKSel7 => {
                 value.write_ne_bytes(self.gpu.environment.stage_consts[7].as_mut_bytes());
             }
-
-            _ => tracing::warn!("unimplemented write to internal GX register {reg:?}"),
+            _ => {
+                tracing::warn!("unimplemented write to internal GX register {reg:?}: 0x{value:06X}")
+            }
         }
 
         if reg.is_tev() {
