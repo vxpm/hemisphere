@@ -114,7 +114,7 @@ pub enum Reg {
     PixelToken = 0x47,
     PixelTokenInt = 0x48,
     PixelCopySrc = 0x49,
-    PixelCopySrcSize = 0x4A,
+    PixelCopyDimensions = 0x4A,
     PixelCopyDstBase0 = 0x4B,
     PixelCopyDstBase1 = 0x4C,
     PixelCopyDstStride = 0x4D,
@@ -517,6 +517,12 @@ impl System {
             Reg::PixelTokenInt => {
                 self.gpu.pixel.interrupt.set_token(true);
                 self.scheduler.schedule_now(System::pi_check_interrupts);
+            }
+            Reg::PixelCopySrc => {
+                self.gpu.pixel.copy_src = dbg!(pixel::CopySrc::from_bits(value));
+            }
+            Reg::PixelCopyDimensions => {
+                self.gpu.pixel.copy_dimensions = dbg!(pixel::CopyDimensions::from_bits(value));
             }
             Reg::PixelCopyClearAr => {
                 self.gpu.pixel.clear_color.r = value.bits(0, 8) as u8;

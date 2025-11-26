@@ -1,5 +1,8 @@
 use crate::system::gpu::colors::Abgr8;
-use bitos::{bitos, integer::u2};
+use bitos::{
+    bitos,
+    integer::{u2, u10},
+};
 
 #[bitos(3)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -49,6 +52,24 @@ pub struct ConstantAlpha {
     pub value: u8,
     #[bits(8)]
     pub enabled: bool,
+}
+
+#[bitos(32)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct CopySrc {
+    #[bits(0..10)]
+    pub x: u10,
+    #[bits(10..20)]
+    pub y: u10,
+}
+
+#[bitos(32)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct CopyDimensions {
+    #[bits(0..10)]
+    pub width_minus_one: u10,
+    #[bits(10..20)]
+    pub height_minus_one: u10,
 }
 
 #[bitos(32)]
@@ -178,6 +199,8 @@ pub struct Interface {
     pub control: Control,
     pub interrupt: InterruptStatus,
     pub constant_alpha: ConstantAlpha,
+    pub copy_src: CopySrc,
+    pub copy_dimensions: CopyDimensions,
     pub clear_color: Abgr8,
     pub clear_depth: u32,
     pub depth_mode: DepthMode,

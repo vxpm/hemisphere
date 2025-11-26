@@ -35,7 +35,7 @@ pub struct Shared {
 pub struct Renderer {
     device: wgpu::Device,
     queue: wgpu::Queue,
-    shared: Arc<Mutex<Shared>>,
+    _shared: Arc<Mutex<Shared>>,
 
     current_encoder: wgpu::CommandEncoder,
     current_pass: wgpu::RenderPass<'static>,
@@ -113,7 +113,7 @@ impl Renderer {
         let mut value = Self {
             device,
             queue,
-            shared: shared.clone(),
+            _shared: shared.clone(),
 
             current_encoder: encoder,
             current_pass: pass,
