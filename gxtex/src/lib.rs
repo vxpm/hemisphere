@@ -34,6 +34,15 @@ impl Pixel {
         }
     }
 
+    pub fn to_rgb565(self) -> u16 {
+        let r = range_conv::<255, 31>(self.r);
+        let g = range_conv::<255, 63>(self.g);
+        let b = range_conv::<255, 31>(self.b);
+        0u16.with_bits(0, 5, b as u16)
+            .with_bits(5, 11, g as u16)
+            .with_bits(11, 16, r as u16)
+    }
+
     pub fn from_rgb5a3(value: u16) -> Self {
         if value.bit(15) {
             Pixel {
@@ -47,8 +56,31 @@ impl Pixel {
                 r: range_conv::<15, 255>(value.bits(8, 12) as u8),
                 g: range_conv::<15, 255>(value.bits(4, 8) as u8),
                 b: range_conv::<15, 255>(value.bits(0, 4) as u8),
-                a: range_conv::<8, 255>(value.bits(12, 15) as u8),
+                a: value.bits(12, 15) as u8 * 32,
             }
+        }
+    }
+
+    pub fn to_rgb5a3(self) -> u16 {
+        if self.a == 255 {
+            let r = range_conv::<255, 31>(self.r);
+            let g = range_conv::<255, 31>(self.g);
+            let b = range_conv::<255, 31>(self.b);
+            0u16.with_bits(0, 5, b as u16)
+                .with_bits(5, 10, g as u16)
+                .with_bits(10, 15, r as u16)
+                .with_bit(15, true)
+        } else {
+            let r = range_conv::<255, 15>(self.r);
+            let g = range_conv::<255, 15>(self.g);
+            let b = range_conv::<255, 15>(self.b);
+            let a = self.a / 32;
+
+            0u16.with_bits(0, 4, b as u16)
+                .with_bits(4, 8, g as u16)
+                .with_bits(8, 12, r as u16)
+                .with_bits(12, 15, a as u16)
+                .with_bit(15, false)
         }
     }
 
@@ -307,14 +339,22 @@ impl Format for I8 {
     const TILE_WIDTH: usize = 8;
     const TILE_HEIGHT: usize = 4;
 
-    type EncodeSettings = ();
+    type EncodeSettings = IntensitySource;
 
     fn encode_tile(
-        settings: &Self::EncodeSettings,
+        source: &Self::EncodeSettings,
         data: &mut [u8],
         get: impl Fn(usize, usize) -> Pixel,
     ) {
-        todo!()
+        for y in 0..Self::TILE_HEIGHT {
+            for x in 0..Self::TILE_WIDTH {
+                let pixel = get(x, y);
+                let intensity = source.get(pixel);
+
+                let index = y * Self::TILE_WIDTH + x;
+                data[index] = intensity;
+            }
+        }
     }
 
     fn decode_tile(data: &[u8], mut set: impl FnMut(usize, usize, Pixel)) {
@@ -345,14 +385,24 @@ impl Format for IA8 {
     const TILE_WIDTH: usize = 4;
     const TILE_HEIGHT: usize = 4;
 
-    type EncodeSettings = ();
+    type EncodeSettings = (IntensitySource, AlphaSource);
 
     fn encode_tile(
-        settings: &Self::EncodeSettings,
+        (source_intensity, source_alpha): &Self::EncodeSettings,
         data: &mut [u8],
         get: impl Fn(usize, usize) -> Pixel,
     ) {
-        todo!()
+        for y in 0..Self::TILE_HEIGHT {
+            for x in 0..Self::TILE_WIDTH {
+                let pixel = get(x, y);
+                let intensity = source_intensity.get(pixel);
+                let alpha = source_alpha.get(pixel);
+
+                let index = y * Self::TILE_WIDTH + x;
+                data[2 * index] = alpha;
+                data[2 * index + 1] = intensity;
+            }
+        }
     }
 
     fn decode_tile(data: &[u8], mut set: impl FnMut(usize, usize, Pixel)) {
@@ -386,12 +436,17 @@ impl Format for Rgb565 {
 
     type EncodeSettings = ();
 
-    fn encode_tile(
-        settings: &Self::EncodeSettings,
-        data: &mut [u8],
-        get: impl Fn(usize, usize) -> Pixel,
-    ) {
-        todo!()
+    fn encode_tile(_: &Self::EncodeSettings, data: &mut [u8], get: impl Fn(usize, usize) -> Pixel) {
+        for y in 0..Self::TILE_HEIGHT {
+            for x in 0..Self::TILE_WIDTH {
+                let pixel = get(x, y);
+                let [high, low] = pixel.to_rgb565().to_be_bytes();
+
+                let index = y * Self::TILE_WIDTH + x;
+                data[2 * index] = high;
+                data[2 * index + 1] = low;
+            }
+        }
     }
 
     fn decode_tile(data: &[u8], mut set: impl FnMut(usize, usize, Pixel)) {
@@ -414,12 +469,17 @@ impl Format for Rgb5A3 {
 
     type EncodeSettings = ();
 
-    fn encode_tile(
-        settings: &Self::EncodeSettings,
-        data: &mut [u8],
-        get: impl Fn(usize, usize) -> Pixel,
-    ) {
-        todo!()
+    fn encode_tile(_: &Self::EncodeSettings, data: &mut [u8], get: impl Fn(usize, usize) -> Pixel) {
+        for y in 0..Self::TILE_HEIGHT {
+            for x in 0..Self::TILE_WIDTH {
+                let pixel = get(x, y);
+                let [high, low] = pixel.to_rgb5a3().to_be_bytes();
+
+                let index = y * Self::TILE_WIDTH + x;
+                data[2 * index] = high;
+                data[2 * index + 1] = low;
+            }
+        }
     }
 
     fn decode_tile(data: &[u8], mut set: impl FnMut(usize, usize, Pixel)) {
@@ -436,19 +496,29 @@ impl Format for Rgb5A3 {
 pub struct Rgba8;
 
 impl Format for Rgba8 {
-    const NIBBLES_PER_TEXEL: usize = 4;
+    const NIBBLES_PER_TEXEL: usize = 8;
     const TILE_WIDTH: usize = 4;
     const TILE_HEIGHT: usize = 4;
     const BYTES_PER_TILE: usize = 64;
 
     type EncodeSettings = ();
 
-    fn encode_tile(
-        settings: &Self::EncodeSettings,
-        data: &mut [u8],
-        get: impl Fn(usize, usize) -> Pixel,
-    ) {
-        todo!()
+    fn encode_tile(_: &Self::EncodeSettings, data: &mut [u8], get: impl Fn(usize, usize) -> Pixel) {
+        for y in 0..Self::TILE_HEIGHT {
+            for x in 0..Self::TILE_WIDTH {
+                let pixel = get(x, y);
+                let index = y * Self::TILE_WIDTH + x;
+                let offset = 2 * index;
+
+                let ar_offset = offset;
+                let gb_offset = 32 + offset;
+
+                data[ar_offset] = pixel.a;
+                data[ar_offset + 1] = pixel.r;
+                data[gb_offset] = pixel.g;
+                data[gb_offset + 1] = pixel.b;
+            }
+        }
     }
 
     fn decode_tile(data: &[u8], mut set: impl FnMut(usize, usize, Pixel)) {
@@ -457,11 +527,11 @@ impl Format for Rgba8 {
                 let index = y * Self::TILE_WIDTH + x;
                 let offset = 2 * index;
 
-                let ar_index = offset;
-                let gb_index = 32 + offset;
+                let ar_offset = offset;
+                let gb_offset = 32 + offset;
 
-                let (a, r) = (data[ar_index], data[ar_index + 1]);
-                let (g, b) = (data[gb_index], data[gb_index + 1]);
+                let (a, r) = (data[ar_offset], data[ar_offset + 1]);
+                let (g, b) = (data[gb_offset], data[gb_offset + 1]);
 
                 set(x, y, Pixel { r, g, b, a })
             }
@@ -532,7 +602,7 @@ impl Format for Cmpr {
 
 #[cfg(test)]
 mod test {
-    use crate::{AlphaSource, Format, I4, IA4, IntensitySource, Pixel, decode, encode};
+    use super::*;
 
     fn test_format<F: Format>(settings: &F::EncodeSettings, name: &str) {
         let img = image::open("resources/test.webp").unwrap();
@@ -547,7 +617,8 @@ mod test {
             })
             .collect::<Vec<_>>();
 
-        let mut encoded = vec![0; img.width() as usize * img.height() as usize];
+        let mut encoded =
+            vec![0; img.width() as usize * img.height() as usize * F::NIBBLES_PER_TEXEL / 2];
         encode::<F>(
             settings,
             img.width() as usize,
@@ -575,5 +646,10 @@ mod test {
     fn test() {
         test_format::<I4>(&IntensitySource::Y, "I4");
         test_format::<IA4>(&(IntensitySource::Y, AlphaSource::A), "IA4");
+        test_format::<I8>(&IntensitySource::Y, "I8");
+        test_format::<IA8>(&(IntensitySource::Y, AlphaSource::A), "IA8");
+        test_format::<Rgb565>(&(), "RGB565");
+        test_format::<Rgb5A3>(&(), "RGB5A3");
+        test_format::<Rgba8>(&(), "RGBA8");
     }
 }
