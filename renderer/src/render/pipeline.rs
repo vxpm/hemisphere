@@ -93,12 +93,12 @@ impl Pipeline {
         } else {
             let color = wgpu::BlendComponent {
                 src_factor: remove_dst_alpha(color_src),
-                dst_factor: remove_dst_alpha(color_src),
+                dst_factor: remove_dst_alpha(color_dst),
                 operation: settings.blend.op,
             };
             let alpha = wgpu::BlendComponent {
-                src_factor: remove_dst_alpha(color_src),
-                dst_factor: remove_dst_alpha(color_src),
+                src_factor: remove_dst_alpha(alpha_src),
+                dst_factor: remove_dst_alpha(alpha_dst),
                 operation: settings.blend.op,
             };
 
