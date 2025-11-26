@@ -179,8 +179,12 @@ pub fn decode<F: Format>(width: usize, height: usize, data: &[u8]) -> Vec<Pixel>
             F::decode_tile(tile_data, |x, y, value| {
                 assert!(x <= F::TILE_WIDTH);
                 assert!(y <= F::TILE_HEIGHT);
-                let image_index = (base_y + y) * width + (base_x + x);
-                if let Some(pixel) = pixels.get_mut(image_index) {
+
+                let x = base_x + x;
+                let y = base_y + y;
+                if x < width && y < height {
+                    let image_index = y * width + x;
+                    let pixel = pixels.get_mut(image_index).unwrap();
                     *pixel = value;
                 }
             });
