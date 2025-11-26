@@ -16,7 +16,9 @@ use hemisphere::{
     system::gpu::{
         Topology, VertexAttributes,
         colors::Rgba,
-        pixel::{self, BlendFactor, BlendMode, CompareMode, ConstantAlpha, DepthMode},
+        pixel::{
+            self, BlendMode, CompareMode, ConstantAlpha, DepthMode, DstBlendFactor, SrcBlendFactor,
+        },
         transform::ChannelControl,
     },
 };
@@ -237,7 +239,13 @@ impl Renderer {
     pub fn set_framebuffer_format(&mut self, format: pixel::Format) {
         self.flush();
         // dbg!(format);
-        self.pipeline.settings.has_alpha = format.has_alpha();
+        match format {
+            pixel::Format::RGB8Z24 | pixel::Format::RGB565Z16 => {
+                self.pipeline.settings.has_alpha = false
+            }
+            pixel::Format::RGBA6Z24 => self.pipeline.settings.has_alpha = true,
+            _ => (),
+        }
     }
 
     pub fn set_viewport(&mut self, viewport: Viewport) {
@@ -263,19 +271,28 @@ impl Renderer {
     }
 
     pub fn set_blend_mode(&mut self, mode: BlendMode) {
-        let factor = |factor: BlendFactor| match factor {
-            BlendFactor::Zero => wgpu::BlendFactor::Zero,
-            BlendFactor::One => wgpu::BlendFactor::One,
-            BlendFactor::SrcColor => wgpu::BlendFactor::Src,
-            BlendFactor::InverseSrcColor => wgpu::BlendFactor::OneMinusSrc,
-            BlendFactor::SrcAlpha => wgpu::BlendFactor::SrcAlpha,
-            BlendFactor::InverseSrcAlpha => wgpu::BlendFactor::OneMinusSrcAlpha,
-            BlendFactor::DstAlpha => wgpu::BlendFactor::DstAlpha,
-            BlendFactor::InverseDstAlpha => wgpu::BlendFactor::OneMinusDstAlpha,
+        let src = match mode.src_factor() {
+            SrcBlendFactor::Zero => wgpu::BlendFactor::Zero,
+            SrcBlendFactor::One => wgpu::BlendFactor::One,
+            SrcBlendFactor::DstColor => wgpu::BlendFactor::Dst,
+            SrcBlendFactor::InverseDstColor => wgpu::BlendFactor::OneMinusDst,
+            SrcBlendFactor::SrcAlpha => wgpu::BlendFactor::SrcAlpha,
+            SrcBlendFactor::InverseSrcAlpha => wgpu::BlendFactor::OneMinusSrcAlpha,
+            SrcBlendFactor::DstAlpha => wgpu::BlendFactor::DstAlpha,
+            SrcBlendFactor::InverseDstAlpha => wgpu::BlendFactor::OneMinusDstAlpha,
         };
 
-        let src = factor(mode.src_factor());
-        let dst = factor(mode.dst_factor());
+        let dst = match mode.dst_factor() {
+            DstBlendFactor::Zero => wgpu::BlendFactor::Zero,
+            DstBlendFactor::One => wgpu::BlendFactor::One,
+            DstBlendFactor::SrcColor => wgpu::BlendFactor::Src,
+            DstBlendFactor::InverseSrcColor => wgpu::BlendFactor::OneMinusSrc,
+            DstBlendFactor::SrcAlpha => wgpu::BlendFactor::SrcAlpha,
+            DstBlendFactor::InverseSrcAlpha => wgpu::BlendFactor::OneMinusSrcAlpha,
+            DstBlendFactor::DstAlpha => wgpu::BlendFactor::DstAlpha,
+            DstBlendFactor::InverseDstAlpha => wgpu::BlendFactor::OneMinusDstAlpha,
+        };
+
         let op = if mode.blend_subtract() {
             wgpu::BlendOperation::Subtract
         } else {

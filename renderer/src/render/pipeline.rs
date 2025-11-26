@@ -29,9 +29,14 @@ pub struct Pipeline {
 fn split_factor(factor: wgpu::BlendFactor) -> (wgpu::BlendFactor, wgpu::BlendFactor) {
     match factor {
         wgpu::BlendFactor::Src => (wgpu::BlendFactor::Src, wgpu::BlendFactor::SrcAlpha),
+        wgpu::BlendFactor::Dst => (wgpu::BlendFactor::Dst, wgpu::BlendFactor::DstAlpha),
         wgpu::BlendFactor::OneMinusSrc => (
             wgpu::BlendFactor::OneMinusSrc,
             wgpu::BlendFactor::OneMinusSrcAlpha,
+        ),
+        wgpu::BlendFactor::OneMinusDst => (
+            wgpu::BlendFactor::OneMinusDst,
+            wgpu::BlendFactor::OneMinusDstAlpha,
         ),
         _ => (factor, factor),
     }

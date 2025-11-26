@@ -102,7 +102,21 @@ pub struct DepthMode {
 
 #[bitos(3)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum BlendFactor {
+pub enum SrcBlendFactor {
+    #[default]
+    Zero = 0x0,
+    One = 0x1,
+    DstColor = 0x2,
+    InverseDstColor = 0x3,
+    SrcAlpha = 0x4,
+    InverseSrcAlpha = 0x5,
+    DstAlpha = 0x6,
+    InverseDstAlpha = 0x7,
+}
+
+#[bitos(3)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum DstBlendFactor {
     #[default]
     Zero = 0x0,
     One = 0x1,
@@ -150,9 +164,9 @@ pub struct BlendMode {
     #[bits(4)]
     pub alpha_mask: bool,
     #[bits(5..8)]
-    pub dst_factor: BlendFactor,
+    pub dst_factor: DstBlendFactor,
     #[bits(8..11)]
-    pub src_factor: BlendFactor,
+    pub src_factor: SrcBlendFactor,
     #[bits(11)]
     pub blend_subtract: bool,
     #[bits(12..16)]
