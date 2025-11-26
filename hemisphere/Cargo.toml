@@ -12,6 +12,7 @@ gekko.workspace = true
 util.workspace = true
 dol.workspace = true
 iso.workspace = true
+gxtex.workspace = true
 
 bitos.workspace = true
 bytesize.workspace = true

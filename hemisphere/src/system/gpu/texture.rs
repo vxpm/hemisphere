@@ -228,216 +228,177 @@ impl Interface {
     }
 }
 
-fn decode_basic_tex<
-    const TILE_WIDTH: u32,
-    const TILE_HEIGHT: u32,
-    F: FnMut(&[u8], usize) -> Rgba8,
->(
-    data: &[u8],
-    width: u32,
-    height: u32,
-    mut decode: F,
-) -> Vec<Rgba8> {
-    let mut pixels = vec![
-        Rgba8 {
-            r: 0,
-            g: 0,
-            b: 0,
-            a: 0
-        };
-        width as usize * height as usize
-    ];
+// fn decode_basic_tex<
+//     const TILE_WIDTH: u32,
+//     const TILE_HEIGHT: u32,
+//     F: FnMut(&[u8], usize) -> Rgba8,
+// >(
+//     data: &[u8],
+//     width: u32,
+//     height: u32,
+//     mut decode: F,
+// ) -> Vec<Rgba8> {
+//     let mut pixels = vec![
+//         Rgba8 {
+//             r: 0,
+//             g: 0,
+//             b: 0,
+//             a: 0
+//         };
+//         width as usize * height as usize
+//     ];
+//
+//     let width_in_tiles = width.div_ceil(TILE_WIDTH);
+//     let height_in_tiles = height.div_ceil(TILE_HEIGHT);
+//
+//     let mut data_index = 0;
+//     for tile_y in 0..height_in_tiles {
+//         for tile_x in 0..width_in_tiles {
+//             for inner_y in 0..TILE_HEIGHT {
+//                 for inner_x in 0..TILE_WIDTH {
+//                     let x = tile_x * TILE_WIDTH + inner_x;
+//                     let y = tile_y * TILE_HEIGHT + inner_y;
+//                     let image_index = y * width + x;
+//
+//                     if let Some(pixel) = pixels.get_mut(image_index as usize) {
+//                         *pixel = decode(data, data_index);
+//                     }
+//
+//                     data_index += 1;
+//                 }
+//             }
+//         }
+//     }
+//
+//     pixels
+// }
 
-    let width_in_tiles = width.div_ceil(TILE_WIDTH);
-    let height_in_tiles = height.div_ceil(TILE_HEIGHT);
+// fn encode_basic_tex<const TILE_WIDTH: u32, const TILE_HEIGHT: u32, F: FnMut(&mut [u8], usize)>(
+//     data: &[u8],
+//     stride: u32,
+//     width: u32,
+//     height: u32,
+//     mut encode: F,
+// ) -> Vec<Rgba8> {
+//     let width_in_tiles = width.div_ceil(TILE_WIDTH);
+//     let height_in_tiles = height.div_ceil(TILE_HEIGHT);
+//
+//     let rounded_width = width * TILE_WIDTH;
+//     let rounded_height = height * TILE_HEIGHT;
+//
+//     let mut pixels = vec![
+//         Rgba8 {
+//             r: 0,
+//             g: 0,
+//             b: 0,
+//             a: 0
+//         };
+//         rounded_width as usize * rounded_height as usize
+//     ];
+//
+//     let mut data_index = 0;
+//     for tile_y in 0..height_in_tiles {
+//         for tile_x in 0..width_in_tiles {
+//             for inner_y in 0..TILE_HEIGHT {
+//                 for inner_x in 0..TILE_WIDTH {
+//                     let x = tile_x * TILE_WIDTH + inner_x;
+//                     let y = tile_y * TILE_HEIGHT + inner_y;
+//                     let image_index = y * width + x;
+//
+//                     if let Some(pixel) = pixels.get_mut(image_index as usize) {
+//                         *pixel = encode(data, data_index);
+//                     }
+//
+//                     data_index += 1;
+//                 }
+//             }
+//
+//             data_index += stride as usize;
+//         }
+//     }
+//
+//     pixels
+// }
 
-    let mut data_index = 0;
-    for tile_y in 0..height_in_tiles {
-        for tile_x in 0..width_in_tiles {
-            for inner_y in 0..TILE_HEIGHT {
-                for inner_x in 0..TILE_WIDTH {
-                    let x = tile_x * TILE_WIDTH + inner_x;
-                    let y = tile_y * TILE_HEIGHT + inner_y;
-                    let image_index = y * width + x;
-
-                    if let Some(pixel) = pixels.get_mut(image_index as usize) {
-                        *pixel = decode(data, data_index);
-                    }
-
-                    data_index += 1;
-                }
-            }
-        }
-    }
-
-    pixels
-}
-
-fn decode_cmpr_tex(data: &[u8], width: u32, height: u32) -> Vec<Rgba8> {
-    const TILE_WIDTH: u32 = 8;
-    const TILE_HEIGHT: u32 = 8;
-
-    let mut pixels = vec![Default::default(); width as usize * height as usize];
-
-    let width_in_tiles = width.div_ceil(TILE_WIDTH);
-    let height_in_tiles = height.div_ceil(TILE_HEIGHT);
-
-    let mut data_index = 0;
-    for tile_y in 0..height_in_tiles {
-        for tile_x in 0..width_in_tiles {
-            let base_tile_x = tile_x * TILE_WIDTH;
-            let base_tile_y = tile_y * TILE_HEIGHT;
-
-            for subtile_y in 0..2 {
-                for subtile_x in 0..2 {
-                    let subtile_base_x = base_tile_x + subtile_x * 4;
-                    let subtile_base_y = base_tile_y + subtile_y * 4;
-
-                    // read palette
-                    let a = u16::read_be_bytes(&data[data_index..]);
-                    let b = u16::read_be_bytes(&data[data_index + 2..]);
-
-                    let mut palette = [Rgba8::default(); 4];
-                    palette[0] = Rgba8::from_rgb565(a);
-                    palette[1] = Rgba8::from_rgb565(b);
-
-                    if a > b {
-                        palette[2] = palette[0].lerp(palette[1], 1.0 / 3.0);
-                        palette[3] = palette[0].lerp(palette[1], 2.0 / 3.0);
-                    } else {
-                        palette[2] = palette[0].lerp(palette[1], 0.5);
-                    }
-
-                    let mut indices = data[data_index + 4..][..4]
-                        .iter()
-                        .copied()
-                        .flat_map(|b| [b.bits(6, 8), b.bits(4, 6), b.bits(2, 4), b.bits(0, 2)]);
-
-                    for inner_y in 0..4 {
-                        for inner_x in 0..4 {
-                            let index = indices.next().unwrap();
-                            let color = palette[index as usize];
-
-                            let x = subtile_base_x + inner_x;
-                            let y = subtile_base_y + inner_y;
-                            let image_index = y * width + x;
-
-                            if let Some(pixel) = pixels.get_mut(image_index as usize) {
-                                *pixel = color;
-                            }
-                        }
-                    }
-
-                    data_index += 8;
-                }
-            }
-        }
-    }
-
-    pixels
-}
+// fn decode_cmpr_tex(data: &[u8], width: u32, height: u32) -> Vec<Rgba8> {
+//     const TILE_WIDTH: u32 = 8;
+//     const TILE_HEIGHT: u32 = 8;
+//
+//     let mut pixels = vec![Default::default(); width as usize * height as usize];
+//
+//     let width_in_tiles = width.div_ceil(TILE_WIDTH);
+//     let height_in_tiles = height.div_ceil(TILE_HEIGHT);
+//
+//     let mut data_index = 0;
+//     for tile_y in 0..height_in_tiles {
+//         for tile_x in 0..width_in_tiles {
+//             let base_tile_x = tile_x * TILE_WIDTH;
+//             let base_tile_y = tile_y * TILE_HEIGHT;
+//
+//             for subtile_y in 0..2 {
+//                 for subtile_x in 0..2 {
+//                     let subtile_base_x = base_tile_x + subtile_x * 4;
+//                     let subtile_base_y = base_tile_y + subtile_y * 4;
+//
+//                     // read palette
+//                     let a = u16::read_be_bytes(&data[data_index..]);
+//                     let b = u16::read_be_bytes(&data[data_index + 2..]);
+//
+//                     let mut palette = [Rgba8::default(); 4];
+//                     palette[0] = Rgba8::from_rgb565(a);
+//                     palette[1] = Rgba8::from_rgb565(b);
+//
+//                     if a > b {
+//                         palette[2] = palette[0].lerp(palette[1], 1.0 / 3.0);
+//                         palette[3] = palette[0].lerp(palette[1], 2.0 / 3.0);
+//                     } else {
+//                         palette[2] = palette[0].lerp(palette[1], 0.5);
+//                     }
+//
+//                     let mut indices = data[data_index + 4..][..4]
+//                         .iter()
+//                         .copied()
+//                         .flat_map(|b| [b.bits(6, 8), b.bits(4, 6), b.bits(2, 4), b.bits(0, 2)]);
+//
+//                     for inner_y in 0..4 {
+//                         for inner_x in 0..4 {
+//                             let index = indices.next().unwrap();
+//                             let color = palette[index as usize];
+//
+//                             let x = subtile_base_x + inner_x;
+//                             let y = subtile_base_y + inner_y;
+//                             let image_index = y * width + x;
+//
+//                             if let Some(pixel) = pixels.get_mut(image_index as usize) {
+//                                 *pixel = color;
+//                             }
+//                         }
+//                     }
+//
+//                     data_index += 8;
+//                 }
+//             }
+//         }
+//     }
+//
+//     pixels
+// }
 
 pub fn decode_texture(data: &[u8], format: Format) -> Vec<Rgba8> {
-    match format.data_format() {
-        DataFormat::Intensity4 => {
-            decode_basic_tex::<8, 8, _>(data, format.width(), format.height(), |data, index| {
-                let value = data[index / 2];
-                let intensity = if index % 2 == 0 {
-                    value.bits(4, 8)
-                } else {
-                    value.bits(0, 4)
-                } * 16;
-
-                Rgba8 {
-                    r: intensity,
-                    g: intensity,
-                    b: intensity,
-                    a: intensity,
-                }
-            })
-        }
-        DataFormat::Intensity4Alpha => {
-            decode_basic_tex::<8, 4, _>(data, format.width(), format.height(), |data, index| {
-                let value = data[index];
-                let intensity = value.bits(0, 4) * 16;
-                let alpha = value.bits(4, 8) * 16;
-
-                Rgba8 {
-                    r: intensity,
-                    g: intensity,
-                    b: intensity,
-                    a: alpha,
-                }
-            })
-        }
-        DataFormat::Intensity8 => {
-            decode_basic_tex::<8, 4, _>(data, format.width(), format.height(), |data, index| {
-                let intensity = data[index];
-                Rgba8 {
-                    r: intensity,
-                    g: intensity,
-                    b: intensity,
-                    a: intensity,
-                }
-            })
-        }
-        DataFormat::Intensity8Alpha => {
-            decode_basic_tex::<4, 4, _>(data, format.width(), format.height(), |data, index| {
-                let [alpha, intensity] = u16::read_be_bytes(&data[2 * index..]).to_be_bytes();
-                Rgba8 {
-                    r: intensity,
-                    g: intensity,
-                    b: intensity,
-                    a: alpha,
-                }
-            })
-        }
-        DataFormat::Rgb565 => {
-            decode_basic_tex::<4, 4, _>(data, format.width(), format.height(), |data, index| {
-                let pixel = u16::read_be_bytes(&data[2 * index..]);
-                Rgba8 {
-                    r: pixel.bits(11, 16) as u8 * 8,
-                    g: pixel.bits(5, 11) as u8 * 4,
-                    b: pixel.bits(0, 5) as u8 * 8,
-                    a: 255,
-                }
-            })
-        }
-        DataFormat::Rgb5A3 => {
-            decode_basic_tex::<4, 4, _>(data, format.width(), format.height(), |data, index| {
-                let pixel = u16::read_be_bytes(&data[2 * index..]);
-                if pixel.bit(15) {
-                    Rgba8 {
-                        r: pixel.bits(10, 15) as u8 * 8,
-                        g: pixel.bits(5, 10) as u8 * 8,
-                        b: pixel.bits(0, 5) as u8 * 8,
-                        a: 255,
-                    }
-                } else {
-                    Rgba8 {
-                        r: pixel.bits(8, 12) as u8 * 16,
-                        g: pixel.bits(4, 8) as u8 * 16,
-                        b: pixel.bits(0, 4) as u8 * 16,
-                        a: pixel.bits(12, 15) as u8 * 32,
-                    }
-                }
-            })
-        }
-        DataFormat::Rgba8 => {
-            decode_basic_tex::<4, 4, _>(data, format.width(), format.height(), |data, index| {
-                let block = index / 16;
-                let pixel = index % 16;
-
-                let [a, r] = u16::read_be_bytes(&data[64 * block + 2 * pixel..]).to_be_bytes();
-                let [g, b] = u16::read_be_bytes(&data[64 * block + 2 * pixel + 32..]).to_be_bytes();
-
-                Rgba8 { r, g, b, a }
-            })
-        }
-        DataFormat::Cmp => decode_cmpr_tex(data, format.width(), format.height()),
+    let width = format.width() as usize;
+    let height = format.height() as usize;
+    let pixels = match format.data_format() {
+        DataFormat::Intensity4 => gxtex::decode::<gxtex::Intensity4>(width, height, data),
+        DataFormat::Intensity4Alpha => gxtex::decode::<gxtex::Intensity4Alpha>(width, height, data),
+        DataFormat::Intensity8 => gxtex::decode::<gxtex::Intensity8>(width, height, data),
+        DataFormat::Intensity8Alpha => gxtex::decode::<gxtex::Intensity8Alpha>(width, height, data),
+        DataFormat::Rgb565 => gxtex::decode::<gxtex::Rgb565>(width, height, data),
+        DataFormat::Rgb5A3 => gxtex::decode::<gxtex::Rgb5A3>(width, height, data),
+        DataFormat::Rgba8 => gxtex::decode::<gxtex::Rgba8>(width, height, data),
+        DataFormat::Cmp => gxtex::decode::<gxtex::Cmpr>(width, height, data),
         DataFormat::C8 | DataFormat::C4 => {
             vec![
-                Rgba8 {
+                gxtex::Pixel {
                     r: 255,
                     g: 255,
                     b: 255,
@@ -447,7 +408,17 @@ pub fn decode_texture(data: &[u8], format: Format) -> Vec<Rgba8> {
             ]
         }
         _ => todo!("format {format:?}"),
-    }
+    };
+
+    pixels
+        .into_iter()
+        .map(|c| Rgba8 {
+            r: c.r,
+            g: c.g,
+            b: c.b,
+            a: c.a,
+        })
+        .collect()
 }
 
 /// Stride should be in bytes.

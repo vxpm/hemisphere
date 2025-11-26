@@ -1,0 +1,12 @@
+[package]
+name = "gxtex"
+description = "Encoding and decoding of GX texture formats"
+version = "0.1.0"
+edition = "2024"
+
+[lints]
+workspace = true
+
+[dependencies]
+bitut.workspace = true
+zerocopy.workspace = true

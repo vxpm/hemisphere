@@ -400,7 +400,7 @@ dependencies = [
 [[package]]
 name = "bitut"
 version = "0.2.1"
-source = "git+https://github.com/vxpm/bitut#826242b6927c5b07c1451af3b51302c5f9195b89"
+source = "git+https://github.com/vxpm/bitut.git#826242b6927c5b07c1451af3b51302c5f9195b89"
 
 [[package]]
 name = "block"
@@ -1825,6 +1825,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "gxtex"
+version = "0.1.0"
+dependencies = [
+ "bitut",
+ "zerocopy",
+]
+
+[[package]]
 name = "half"
 version = "2.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1872,6 +1880,7 @@ dependencies = [
  "easyerr",
  "gekko",
  "glam",
+ "gxtex",
  "iso",
  "ordered-float",
  "rustc-hash 2.1.1",

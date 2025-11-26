@@ -6,6 +6,7 @@ members = [
     "gekko",
     "dol",
     "iso",
+    "gxtex",
     "ppcjit",
     "dspint",
     "hemisphere",
@@ -23,6 +24,7 @@ default-members = [
     "gekko",
     "dol",
     "iso",
+    "gxtex",
     "ppcjit",
     "dspint",
     "hemisphere",
@@ -74,7 +76,10 @@ opt-level = 2
 opt-level = 2
 
 [profile.dev.package."util"]
-opt-level = 2
+opt-level = 3
+
+[profile.dev.package."gxtex"]
+opt-level = 3
 
 [profile.dev.package."gekko"]
 opt-level = 2
@@ -107,6 +112,7 @@ util = { path = "./util" }
 gekko = { path = "./gekko" }
 dol = { path = "./dol" }
 iso = { path = "./iso" }
+gxtex = { path = "./gxtex" }
 ppcjit = { path = "./ppcjit" }
 dspint = { path = "./dspint" }
 cores = { path = "./cores" }
@@ -115,6 +121,7 @@ renderer = { path = "./renderer" }
 
 # actual dependencies
 binrw = { version = "0.15", features = ["std"], default-features = false }
+bitut = { git = "https://github.com/vxpm/bitut.git" }
 bitos = { git = "https://github.com/vxpm/bitos.git", features = ["zerocopy"] }
 bytesize = "2"
 clap = { version = "4.5", features = ["derive"] }
