@@ -7,6 +7,12 @@ edition = "2024"
 [lints]
 workspace = true
 
+[dev-dependencies]
+image = { version = "0.25", default-features = false, features = [
+    "png",
+    "webp",
+] }
+
 [dependencies]
 bitut.workspace = true
 zerocopy.workspace = true
