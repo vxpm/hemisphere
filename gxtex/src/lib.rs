@@ -25,6 +25,7 @@ pub struct Pixel {
 }
 
 impl Pixel {
+    #[inline(always)]
     pub fn from_rgb565(value: u16) -> Self {
         Self {
             r: range_conv::<31, 255>(value.bits(11, 16) as u8),
@@ -34,6 +35,7 @@ impl Pixel {
         }
     }
 
+    #[inline(always)]
     pub fn to_rgb565(self) -> u16 {
         let r = range_conv::<255, 31>(self.r);
         let g = range_conv::<255, 63>(self.g);
@@ -43,6 +45,7 @@ impl Pixel {
             .with_bits(11, 16, r as u16)
     }
 
+    #[inline(always)]
     pub fn from_rgb5a3(value: u16) -> Self {
         if value.bit(15) {
             Pixel {
@@ -61,6 +64,7 @@ impl Pixel {
         }
     }
 
+    #[inline(always)]
     pub fn to_rgb5a3(self) -> u16 {
         if self.a == 255 {
             let r = range_conv::<255, 31>(self.r);
@@ -84,6 +88,7 @@ impl Pixel {
         }
     }
 
+    #[inline(always)]
     pub fn lerp(self, rhs: Self, t: f32) -> Self {
         let lerp = |a, b, t| a * (1.0 - t) + b * t;
         Self {
@@ -94,6 +99,7 @@ impl Pixel {
         }
     }
 
+    #[inline(always)]
     pub fn y(&self) -> u8 {
         let (r, g, b) = (self.r as f32, self.g as f32, self.b as f32);
         (0.257 * r + 0.504 * g + 0.098 * b + 16.0) as u8
@@ -548,12 +554,8 @@ impl Format for Cmpr {
 
     type EncodeSettings = ();
 
-    fn encode_tile(
-        settings: &Self::EncodeSettings,
-        data: &mut [u8],
-        get: impl Fn(usize, usize) -> Pixel,
-    ) {
-        todo!()
+    fn encode_tile(_: &Self::EncodeSettings, _: &mut [u8], _: impl Fn(usize, usize) -> Pixel) {
+        unimplemented!("cmpr encoding not implemented")
     }
 
     fn decode_tile(data: &[u8], mut set: impl FnMut(usize, usize, Pixel)) {
