@@ -1,7 +1,7 @@
 use crate::system::gpu::{colors::Abgr8, texture};
 use bitos::{
-    bitos,
-    integer::{u2, u10},
+    Bits, bitos,
+    integer::{u2, u3, u4, u10},
 };
 use gekko::Address;
 
@@ -107,8 +107,10 @@ pub struct CopyFormat {
 pub struct CopyCmd {
     #[bits(0..2)]
     pub clamp: u2,
-    #[bits(3..7)]
-    pub format: CopyFormat,
+    #[bits(3)]
+    pub format_bit_3: bool,
+    #[bits(4..7)]
+    pub format_bits_0to2: u3,
     #[bits(7..9)]
     pub gamma: u2,
     #[bits(11)]
@@ -116,6 +118,14 @@ pub struct CopyCmd {
     /// to XFB or to texture?
     #[bits(14)]
     pub to_xfb: bool,
+}
+
+impl CopyCmd {
+    pub fn format(&self) -> texture::DataFormat {
+        texture::DataFormat::from_bits(u4::new(
+            (self.format_bit_3() as u8) << 3 | self.format_bits_0to2().value(),
+        ))
+    }
 }
 
 #[bitos(16)]

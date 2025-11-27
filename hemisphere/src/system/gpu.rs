@@ -1044,16 +1044,18 @@ impl System {
     }
 
     pub fn gx_do_efb_copy(&mut self, cmd: pixel::CopyCmd) {
-        println!(
-            "copy from ({}, {}) [{}x{}] to {} with stride {} and format {:?}",
-            self.gpu.pixel.copy_src.x().value(),
-            self.gpu.pixel.copy_src.y().value(),
-            self.gpu.pixel.copy_dimensions.width(),
-            self.gpu.pixel.copy_dimensions.height(),
-            self.gpu.pixel.copy_dst,
-            self.gpu.pixel.copy_stride,
-            cmd.format(),
-        );
+        if !cmd.to_xfb() {
+            println!(
+                "copy from ({}, {}) [{}x{}] to {} with stride {} and format {:?}",
+                self.gpu.pixel.copy_src.x().value(),
+                self.gpu.pixel.copy_src.y().value(),
+                self.gpu.pixel.copy_dimensions.width(),
+                self.gpu.pixel.copy_dimensions.height(),
+                self.gpu.pixel.copy_dst,
+                self.gpu.pixel.copy_stride,
+                cmd.format(),
+            );
+        }
 
         self.config.renderer.exec(Action::EfbCopy {
             clear: cmd.clear(),
