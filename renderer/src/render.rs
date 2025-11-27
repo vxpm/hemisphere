@@ -645,8 +645,10 @@ impl Renderer {
         let width = width / divisor;
         let height = height / divisor;
 
-        let bytes_per_row = (width as u32 * 4).next_multiple_of(256);
-        let size = bytes_per_row as u64 * height as u64;
+        let row_size = width as u32 * 4;
+        let row_stride = row_size.next_multiple_of(256);
+
+        let size = row_stride as u64 * height as u64;
         let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("copy buffer"),
             size,
@@ -658,9 +660,10 @@ impl Renderer {
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
 
+        let reduced: wgpu::Texture;
         let source = if half {
-            let reduced = self.device.create_texture(&wgpu::TextureDescriptor {
-                label: None,
+            reduced = self.device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("reduced color texture for copy"),
                 dimension: wgpu::TextureDimension::D2,
                 size: wgpu::Extent3d {
                     width: width as u32,
@@ -689,9 +692,9 @@ impl Renderer {
                 &reduced.create_view(&wgpu::TextureViewDescriptor::default()),
             );
 
-            reduced
+            &reduced
         } else {
-            color.clone()
+            color
         };
 
         encoder.copy_texture_to_buffer(
@@ -709,7 +712,7 @@ impl Renderer {
                 buffer: &buffer,
                 layout: wgpu::TexelCopyBufferLayout {
                     offset: 0,
-                    bytes_per_row: Some(bytes_per_row),
+                    bytes_per_row: Some(row_stride),
                     rows_per_image: None,
                 },
             },
@@ -737,9 +740,9 @@ impl Renderer {
         let mapped = buffer.get_mapped_range(..);
         let data = &*mapped;
 
-        let mut pixels = vec![];
+        let mut pixels = Vec::with_capacity(width as usize * height as usize);
         for row in 0..height as usize {
-            let row_data = &data[row * bytes_per_row as usize..][..width as usize * 4];
+            let row_data = &data[row * row_stride as usize..][..row_size as usize];
             pixels.extend(row_data.chunks_exact(4).map(|c| Rgba8 {
                 r: c[0],
                 g: c[1],
