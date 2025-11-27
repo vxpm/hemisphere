@@ -1075,12 +1075,12 @@ impl System {
                 let pixels = receiver.recv().unwrap();
                 let stride = self.gpu.pixel.copy_stride;
                 let output = &mut self.mem.ram[self.gpu.pixel.copy_dst.value() as usize..];
-                // [..2 * width as usize * height as usize];
 
                 encode_color_texture(
                     pixels,
                     cmd.color_format(),
                     stride,
+                    self.gpu.pixel.copy_dimensions.width() as u32,
                     self.gpu.pixel.copy_dimensions.height() as u32,
                     output,
                 );

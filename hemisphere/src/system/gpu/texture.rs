@@ -233,6 +233,7 @@ pub fn encode_color_texture(
     data: Vec<Rgba8>,
     format: ColorCopyFormat,
     stride: u32,
+    width: u32,
     height: u32,
     output: &mut [u8],
 ) {
@@ -250,7 +251,18 @@ pub fn encode_color_texture(
         ColorCopyFormat::RGB565 => {
             gxtex::encode::<gxtex::Rgb565>(
                 &(),
-                stride as usize * 4,
+                stride as usize,
+                width as usize,
+                height as usize,
+                &pixels,
+                output,
+            );
+        }
+        ColorCopyFormat::RGBA8 => {
+            gxtex::encode::<gxtex::Rgb565>(
+                &(),
+                stride as usize,
+                width as usize,
                 height as usize,
                 &pixels,
                 output,

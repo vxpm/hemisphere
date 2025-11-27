@@ -122,26 +122,29 @@ pub trait Format {
     fn decode_tile(data: &[u8], set: impl FnMut(usize, usize, Pixel));
 }
 
+pub fn compute_size<F: Format>(width: usize, height: usize) -> usize {
+    (width * height * F::NIBBLES_PER_TEXEL).div_ceil(2)
+}
+
+/// Stride is in tiles.
 pub fn encode<F: Format>(
     settings: &F::EncodeSettings,
     stride: usize,
+    width: usize,
     height: usize,
     data: &[Pixel],
     buffer: &mut [u8],
 ) {
-    let width = data.len() / height;
     assert!(data.len().is_multiple_of(height));
-    assert!(stride.is_multiple_of(F::TILE_WIDTH));
     assert!(buffer.len() >= ((width * height * F::NIBBLES_PER_TEXEL).div_ceil(2)));
 
-    let stride_in_tiles = stride / F::TILE_WIDTH;
     let width_in_tiles = width.div_ceil(F::TILE_WIDTH);
     let height_in_tiles = height.div_ceil(F::TILE_HEIGHT);
 
     for tile_y in 0..height_in_tiles {
         for tile_x in 0..width_in_tiles {
             // where should data be written to?
-            let tile_index = tile_y * stride_in_tiles + tile_x;
+            let tile_index = tile_y * stride + tile_x;
             let tile_offset = tile_index * F::BYTES_PER_TILE;
             let out = &mut buffer[tile_offset..][..F::BYTES_PER_TILE];
 
@@ -623,10 +626,10 @@ mod test {
             })
             .collect::<Vec<_>>();
 
-        let mut encoded =
-            vec![0; img.width() as usize * img.height() as usize * F::NIBBLES_PER_TEXEL / 2];
+        let mut encoded = vec![0; compute_size::<F>(img.width() as usize, img.height() as usize)];
         encode::<F>(
             settings,
+            img.width() as usize,
             img.width() as usize,
             img.height() as usize,
             &pixels,
@@ -649,7 +652,7 @@ mod test {
     }
 
     #[test]
-    fn test() {
+    fn test_basic() {
         test_format::<I4>(&IntensitySource::Y, "I4");
         test_format::<IA4>(&(IntensitySource::Y, AlphaSource::A), "IA4");
         test_format::<I8>(&IntensitySource::Y, "I8");
@@ -657,5 +660,56 @@ mod test {
         test_format::<Rgb565>(&(), "RGB565");
         test_format::<Rgb5A3>(&(), "RGB5A3");
         test_format::<Rgba8>(&(), "RGBA8");
+    }
+
+    #[test]
+    fn test_collage() {
+        let img = image::open("resources/test.webp").unwrap();
+        let pixels = img
+            .to_rgba8()
+            .pixels()
+            .map(|p| Pixel {
+                r: p.0[0],
+                g: p.0[1],
+                b: p.0[2],
+                a: p.0[3],
+            })
+            .collect::<Vec<_>>();
+
+        let width = 2 * img.width() as usize;
+        let height = 2 * img.height() as usize;
+        let mut encoded = vec![0; compute_size::<Rgba8>(width, height)];
+
+        encode::<Rgba8>(
+            &(),
+            width,
+            width / 2,
+            height / 2,
+            &pixels,
+            &mut encoded[0..],
+        );
+        encode::<Rgba8>(&(), width, width / 2, height / 2, &pixels, &mut encoded[..]);
+
+        // encode::<Rgba8>(
+        //     &(),
+        //     stride,
+        //     img.height() as usize,
+        //     &pixels,
+        //     &mut encoded[bytes_per_img..],
+        // );
+
+        let decoded = decode::<Rgba8>(width, height, &encoded);
+        let img = image::RgbaImage::from_vec(
+            width as u32,
+            height as u32,
+            decoded
+                .into_iter()
+                .flat_map(|p| [p.r, p.g, p.b, p.a])
+                .collect(),
+        )
+        .unwrap();
+
+        _ = std::fs::create_dir("local");
+        img.save(format!("local/collage.png")).unwrap();
     }
 }
