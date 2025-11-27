@@ -151,11 +151,6 @@ pub fn encode<F: Format>(
             let tile_offset = tile_index * F::BYTES_PER_TILE;
             let out = &mut buffer[tile_offset..][..F::BYTES_PER_TILE];
 
-            // let tile_index = tile_y * stride + tile_x;
-            // let tile_offset = tile_index * F::BYTES_PER_TILE;
-            // println!("encoding {tile_y}:{tile_x}, index {tile_index} offset {tile_offset}");
-            // let out = &mut buffer[tile_offset..][..F::BYTES_PER_TILE];
-
             // find pixels in this tile
             let base_x = tile_x * F::TILE_WIDTH;
             let base_y = tile_y * F::TILE_HEIGHT;
@@ -164,13 +159,8 @@ pub fn encode<F: Format>(
                 assert!(y <= F::TILE_HEIGHT);
                 let x = base_x + x;
                 let y = base_y + y;
-
-                if x < width && y < height {
-                    let image_index = y * width + x;
-                    data.get(image_index).copied().unwrap_or_default()
-                } else {
-                    Default::default()
-                }
+                let image_index = y * width + x;
+                data.get(image_index).copied().unwrap_or_default()
             });
         }
     }
@@ -668,20 +658,29 @@ mod test {
         img.save(format!("local/test_out_{name}.png")).unwrap();
     }
 
-    // #[test]
-    // fn test_basic() {
-    //     test_format::<I4>(&IntensitySource::Y, "I4");
-    //     test_format::<IA4>(&(IntensitySource::Y, AlphaSource::A), "IA4");
-    //     test_format::<I8>(&IntensitySource::Y, "I8");
-    //     test_format::<IA8>(&(IntensitySource::Y, AlphaSource::A), "IA8");
-    //     test_format::<Rgb565>(&(), "RGB565");
-    //     test_format::<Rgb5A3>(&(), "RGB5A3");
-    //     test_format::<Rgba8>(&(), "RGBA8");
-    // }
+    #[test]
+    fn test_basic() {
+        test_format::<I4>(&IntensitySource::Y, "resources/waterfall.webp", "I4");
+        test_format::<IA4>(
+            &(IntensitySource::Y, AlphaSource::A),
+            "resources/waterfall.webp",
+            "IA4",
+        );
+        test_format::<I8>(&IntensitySource::Y, "resources/waterfall.webp", "I8");
+        test_format::<IA8>(
+            &(IntensitySource::Y, AlphaSource::A),
+            "resources/waterfall.webp",
+            "IA8",
+        );
+        test_format::<Rgb565>(&(), "resources/waterfall.webp", "RGB565");
+        test_format::<Rgb5A3>(&(), "resources/waterfall.webp", "RGB5A3");
+        test_format::<Rgba8>(&(), "resources/waterfall.webp", "RGBA8");
+    }
 
     #[test]
     fn test_bad() {
-        test_format::<Rgba8>(&(), "resources/badbig.png", "bad");
+        test_format::<Rgba8>(&(), "resources/bad.png", "bad");
+        test_format::<Rgba8>(&(), "resources/badbig.png", "bigbad");
     }
 
     #[test]
