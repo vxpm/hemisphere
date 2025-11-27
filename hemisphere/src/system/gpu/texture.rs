@@ -1,4 +1,4 @@
-use crate::system::gpu::colors::Rgba8;
+use crate::system::gpu::{colors::Rgba8, pixel::ColorCopyFormat};
 use bitos::{
     bitos,
     integer::{u2, u10},
@@ -229,9 +229,33 @@ pub fn decode_texture(data: &[u8], format: Encoding) -> Vec<Rgba8> {
         .collect()
 }
 
-/// Stride should be in bytes.
-pub fn encode_texture(data: Vec<Rgba8>, format: Encoding, stride: u32, output: &mut [u8]) {
-    match format.format() {
+pub fn encode_color_texture(
+    data: Vec<Rgba8>,
+    format: ColorCopyFormat,
+    stride: u32,
+    height: u32,
+    output: &mut [u8],
+) {
+    let pixels = data
+        .into_iter()
+        .map(|c| gxtex::Pixel {
+            r: c.r,
+            g: c.g,
+            b: c.b,
+            a: c.a,
+        })
+        .collect::<Vec<_>>();
+
+    match format {
+        ColorCopyFormat::RGB565 => {
+            gxtex::encode::<gxtex::Rgb565>(
+                &(),
+                stride as usize * 4,
+                height as usize,
+                &pixels,
+                output,
+            );
+        }
         _ => todo!("format {format:?}"),
     }
 }

@@ -15,6 +15,7 @@ use crate::{
             ArrayDescriptor, AttributeMode, VertexAttributeStream,
             attributes::{self, Attribute, AttributeDescriptor},
         },
+        texture::encode_color_texture,
     },
 };
 use bitos::{
@@ -1058,23 +1059,36 @@ impl System {
                     cmd.depth_format().texture_format(),
                 );
             } else {
-                println!(
-                    "copy from ({}, {}) [{}x{}] to {} with stride {} and format {:?} (encoding {:?})",
-                    self.gpu.pixel.copy_src.x().value(),
-                    self.gpu.pixel.copy_src.y().value(),
-                    self.gpu.pixel.copy_dimensions.width(),
-                    self.gpu.pixel.copy_dimensions.height(),
-                    self.gpu.pixel.copy_dst,
-                    self.gpu.pixel.copy_stride,
+                let (sender, receiver) = oneshot::channel();
+
+                let width = self.gpu.pixel.copy_dimensions.width();
+                let height = self.gpu.pixel.copy_dimensions.height();
+                self.config.renderer.exec(Action::ColorCopy {
+                    x: self.gpu.pixel.copy_src.x().value(),
+                    y: self.gpu.pixel.copy_src.y().value(),
+                    width,
+                    height,
+                    clear: cmd.clear(),
+                    response: sender,
+                });
+
+                let pixels = receiver.recv().unwrap();
+                let stride = self.gpu.pixel.copy_stride;
+                let output = &mut self.mem.ram[self.gpu.pixel.copy_dst.value() as usize..];
+                // [..2 * width as usize * height as usize];
+
+                encode_color_texture(
+                    pixels,
                     cmd.color_format(),
-                    cmd.color_format().texture_format(),
+                    stride,
+                    self.gpu.pixel.copy_dimensions.height() as u32,
+                    output,
                 );
             }
         }
 
-        self.config.renderer.exec(Action::EfbCopy {
-            clear: cmd.clear(),
-            to_xfb: cmd.to_xfb(),
-        });
+        self.config
+            .renderer
+            .exec(Action::XfbCopy { clear: cmd.clear() });
     }
 }

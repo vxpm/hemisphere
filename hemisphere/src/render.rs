@@ -8,7 +8,10 @@ use crate::system::gpu::{
     transform::{BaseTexGen, ChannelControl, Light},
 };
 use glam::Mat4;
+use oneshot::Sender;
 use ordered_float::OrderedFloat;
+
+pub use oneshot;
 
 /// Wrapper around a [`Mat4`] that allows hashing through [`OrderedFloat`].
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -117,9 +120,23 @@ pub enum Action {
         id: u32,
     },
     Draw(Topology, Vec<VertexAttributes>),
-    EfbCopy {
+    ColorCopy {
+        x: u16,
+        y: u16,
+        width: u16,
+        height: u16,
         clear: bool,
-        to_xfb: bool,
+        response: Sender<Vec<Rgba8>>,
+    },
+    DepthCopy {
+        x: u16,
+        y: u16,
+        width: u16,
+        height: u16,
+        clear: bool,
+    },
+    XfbCopy {
+        clear: bool,
     },
 }
 

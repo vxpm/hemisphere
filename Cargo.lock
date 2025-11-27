@@ -1883,6 +1883,7 @@ dependencies = [
  "glam",
  "gxtex",
  "iso",
+ "oneshot",
  "ordered-float",
  "rustc-hash 2.1.1",
  "seq-macro",
@@ -3001,6 +3002,12 @@ name = "once_cell_polyfill"
 version = "1.70.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
+
+[[package]]
+name = "oneshot"
+version = "0.1.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b4ce411919553d3f9fa53a0880544cda985a112117a0444d5ff1e870a893d6ea"
 
 [[package]]
 name = "orbclient"

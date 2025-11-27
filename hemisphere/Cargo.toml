@@ -24,6 +24,7 @@ glam.workspace = true
 rustc-hash.workspace = true
 ordered-float.workspace = true
 seq-macro.workspace = true
+oneshot.workspace = true
 
 backtrace = "0.3"
 color-backtrace = "0.7"

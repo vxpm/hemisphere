@@ -12,10 +12,10 @@ use crate::render::{
 };
 use glam::Mat4;
 use hemisphere::{
-    render::{Action, TexEnvConfig, TexGenConfig, Viewport},
+    render::{Action, TexEnvConfig, TexGenConfig, Viewport, oneshot},
     system::gpu::{
         Topology, VertexAttributes,
-        colors::Rgba,
+        colors::{Rgba, Rgba8},
         pixel::{
             self, BlendMode, CompareMode, ConstantAlpha, DepthMode, DstBlendFactor, SrcBlendFactor,
         },
@@ -78,11 +78,11 @@ impl Renderer {
         let index_buffers = Buffers::new(wgpu::BufferUsages::INDEX);
         let storage_buffers = Buffers::new(wgpu::BufferUsages::STORAGE);
 
-        let front = framebuffer.external().create_view(&Default::default());
+        let external = framebuffer.external().create_view(&Default::default());
         let color = framebuffer.color().create_view(&Default::default());
         let depth = framebuffer.depth().create_view(&Default::default());
 
-        let shared = Arc::new(Mutex::new(Shared { xfb: front }));
+        let shared = Arc::new(Mutex::new(Shared { xfb: external }));
 
         let mut encoder = device.create_command_encoder(&Default::default());
         let pass = encoder
@@ -166,9 +166,6 @@ impl Renderer {
                 Topology::LineStrip => tracing::warn!("ignored line strip primitive"),
                 Topology::PointList => tracing::warn!("ignored point list primitive"),
             },
-            Action::EfbCopy { clear, to_xfb } => {
-                self.next_pass(clear, to_xfb);
-            }
             Action::SetAmbient(idx, color) => {
                 self.current_config.ambient[idx as usize] = color.into();
                 self.current_config_dirty = true;
@@ -200,6 +197,22 @@ impl Renderer {
                 l.direction = light.direction;
 
                 self.current_config_dirty = true;
+            }
+            Action::ColorCopy {
+                x,
+                y,
+                width,
+                height,
+                clear,
+                response,
+            } => {
+                self.next_pass(false, false);
+                let data = self.get_pixels(x, y, width, height);
+                response.send(data).unwrap();
+            }
+            Action::DepthCopy { .. } => todo!(),
+            Action::XfbCopy { clear } => {
+                self.next_pass(clear, true);
             }
         }
     }
@@ -380,10 +393,10 @@ impl Renderer {
 
     pub fn set_texture(&mut self, index: usize, id: u32) {
         let current = self.textures.get_texture_id(index);
-        if current != id {
-            self.flush();
-            self.textures.set_texture(index, id);
-        }
+        self.flush();
+        self.textures.set_texture(index, id);
+        // if current != id {
+        // }
     }
 
     fn flush_config(&mut self) {
@@ -546,7 +559,7 @@ impl Renderer {
     }
 
     // Finishes the current render pass and starts the next one.
-    pub fn next_pass(&mut self, clear: bool, to_xfb: bool) {
+    pub fn next_pass(&mut self, clear: bool, copy_to_xfb: bool) {
         self.flush();
 
         let external = self.framebuffer.external().create_view(&Default::default());
@@ -596,7 +609,7 @@ impl Renderer {
 
         std::mem::drop(previous_pass);
 
-        if to_xfb {
+        if copy_to_xfb {
             previous_encoder.copy_texture_to_texture(
                 wgpu::TexelCopyTextureInfoBase {
                     texture: color.texture(),
@@ -620,5 +633,78 @@ impl Renderer {
 
         self.index_buffers.recall();
         self.storage_buffers.recall();
+    }
+
+    pub fn get_pixels(&self, x: u16, y: u16, width: u16, height: u16) -> Vec<Rgba8> {
+        let color = self.framebuffer.color();
+
+        let size = (width as u64).next_multiple_of(64) * height as u64 * 4;
+        let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("copy buffer"),
+            size,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
+
+        encoder.copy_texture_to_buffer(
+            wgpu::TexelCopyTextureInfo {
+                texture: color,
+                mip_level: 0,
+                origin: wgpu::Origin3d {
+                    x: x as u32,
+                    y: y as u32,
+                    z: 0,
+                },
+                aspect: wgpu::TextureAspect::default(),
+            },
+            wgpu::TexelCopyBufferInfo {
+                buffer: &buffer,
+                layout: wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some((width as u32 * 4).next_multiple_of(256)),
+                    rows_per_image: None,
+                },
+            },
+            wgpu::Extent3d {
+                width: width as u32,
+                height: height as u32,
+                depth_or_array_layers: 1,
+            },
+        );
+
+        let (sender, receiver) = oneshot::channel();
+        encoder.map_buffer_on_submit(&buffer, wgpu::MapMode::Read, .., |r| {
+            sender.send(r).unwrap()
+        });
+
+        let cmd = encoder.finish();
+        self.queue.submit([cmd]);
+        self.device
+            .poll(wgpu::wgt::PollType::wait_indefinitely())
+            .unwrap();
+
+        let result = receiver.recv().unwrap();
+        result.unwrap();
+
+        let mapped = buffer.get_mapped_range(..);
+        let data = &*mapped;
+
+        let mut pixels = vec![];
+        let bytes_per_row = (width as usize * 4).next_multiple_of(256);
+        for row in 0..height as usize {
+            let row_data = &data[row * bytes_per_row..][..bytes_per_row];
+            pixels.extend(row_data.chunks_exact(4).map(|c| Rgba8 {
+                r: c[0],
+                g: c[1],
+                b: c[2],
+                a: c[3],
+            }));
+        }
+
+        pixels
     }
 }

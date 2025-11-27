@@ -151,6 +151,7 @@ eyre-pretty = { git = "https://github.com/vxpm/eyre-pretty" }
 nanorand = "0.8"
 ordered-float = "5"
 seq-macro = "0.3"
+oneshot = { version = "0.1", default-features = false, features = ["std"] }
 
 # lints
 [workspace.lints.clippy]
