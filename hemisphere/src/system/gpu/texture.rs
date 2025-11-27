@@ -268,6 +268,16 @@ pub fn encode_color_texture(
                 output,
             );
         }
+        ColorCopyFormat::RGB5A3 => {
+            gxtex::encode::<gxtex::Rgb5A3>(
+                &(),
+                stride as usize,
+                width as usize,
+                height as usize,
+                &pixels,
+                output,
+            );
+        }
         _ => todo!("format {format:?}"),
     }
 }

@@ -203,11 +203,12 @@ impl Renderer {
                 y,
                 width,
                 height,
+                half,
                 clear,
                 response,
             } => {
                 self.next_pass(clear, false);
-                let data = self.get_pixels(x, y, width, height);
+                let data = self.get_pixels(x, y, width, height, half);
                 response.send(data).unwrap();
             }
             Action::DepthCopy { .. } => todo!(),
@@ -635,8 +636,14 @@ impl Renderer {
         self.storage_buffers.recall();
     }
 
-    pub fn get_pixels(&self, x: u16, y: u16, width: u16, height: u16) -> Vec<Rgba8> {
+    pub fn get_pixels(&self, x: u16, y: u16, width: u16, height: u16, half: bool) -> Vec<Rgba8> {
         let color = self.framebuffer.color();
+
+        let divisor = if half { 2 } else { 1 };
+        let x = x / divisor;
+        let y = y / divisor;
+        let width = width / divisor;
+        let height = height / divisor;
 
         let bytes_per_row = (width as u32 * 4).next_multiple_of(256);
         let size = bytes_per_row as u64 * height as u64;
@@ -651,9 +658,45 @@ impl Renderer {
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
 
+        let source = if half {
+            let reduced = self.device.create_texture(&wgpu::TextureDescriptor {
+                label: None,
+                dimension: wgpu::TextureDimension::D2,
+                size: wgpu::Extent3d {
+                    width: width as u32,
+                    height: height as u32,
+                    depth_or_array_layers: 1,
+                },
+                format: wgpu::TextureFormat::Rgba8Unorm,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+                view_formats: &[],
+                mip_level_count: 1,
+                sample_count: 1,
+            });
+
+            let blitter =
+                wgpu::util::TextureBlitter::new(&self.device, wgpu::TextureFormat::Rgba8Unorm);
+
+            let source = color.create_view(&wgpu::TextureViewDescriptor {
+                dimension: Some(wgpu::TextureViewDimension::D2),
+                ..Default::default()
+            });
+
+            blitter.copy(
+                &self.device,
+                &mut encoder,
+                &source,
+                &reduced.create_view(&wgpu::TextureViewDescriptor::default()),
+            );
+
+            reduced
+        } else {
+            color.clone()
+        };
+
         encoder.copy_texture_to_buffer(
             wgpu::TexelCopyTextureInfo {
-                texture: color,
+                texture: &source,
                 mip_level: 0,
                 origin: wgpu::Origin3d {
                     x: x as u32,

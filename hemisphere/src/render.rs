@@ -125,6 +125,7 @@ pub enum Action {
         y: u16,
         width: u16,
         height: u16,
+        half: bool,
         clear: bool,
         response: Sender<Vec<Rgba8>>,
     },

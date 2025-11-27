@@ -1059,10 +1059,6 @@ impl System {
                     cmd.depth_format().texture_format(),
                 );
             } else {
-                if cmd.half() {
-                    panic!();
-                }
-
                 let (sender, receiver) = oneshot::channel();
 
                 let width = self.gpu.pixel.copy_dimensions.width();
@@ -1072,14 +1068,16 @@ impl System {
                     y: self.gpu.pixel.copy_src.y().value(),
                     width,
                     height,
+                    half: cmd.half(),
                     clear: cmd.clear(),
                     response: sender,
                 });
 
+                let divisor = if cmd.half() { 2 } else { 1 };
                 let pixels = receiver.recv().unwrap();
                 let stride = self.gpu.pixel.copy_stride;
-                let width = self.gpu.pixel.copy_dimensions.width() as u32;
-                let height = self.gpu.pixel.copy_dimensions.height() as u32;
+                let width = self.gpu.pixel.copy_dimensions.width() as u32 / divisor;
+                let height = self.gpu.pixel.copy_dimensions.height() as u32 / divisor;
                 let output = &mut self.mem.ram[self.gpu.pixel.copy_dst.value() as usize..];
                 encode_color_texture(pixels, cmd.color_format(), stride, width, height, output);
             }
