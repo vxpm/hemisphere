@@ -113,16 +113,15 @@ pub enum Reg {
     PixelRefresh = 0x46,
     PixelToken = 0x47,
     PixelTokenInt = 0x48,
-    PixelCopySrc = 0x49,
-    PixelCopyDimensions = 0x4A,
-    PixelCopyDstBase0 = 0x4B,
-    PixelCopyDstBase1 = 0x4C,
-    PixelCopyDstStride = 0x4D,
+    PixelCopySrc = 0x49,        // texCopyTL
+    PixelCopyDimensions = 0x4A, // texCopyHW
+    PixelCopyDst = 0x4B,        // not a register in libogc, set manually
+    PixelCopyDstStride = 0x4D,  // texCopyDst
     PixelCopyScale = 0x4E,
     PixelCopyClearAr = 0x4F,
     PixelCopyClearGb = 0x50,
     PixelCopyClearZ = 0x51,
-    PixelCopyCmd = 0x52,
+    PixelCopyCmd = 0x52, // texCopyCtrl
     PixelCopyFilter0 = 0x53,
     PixelCopyFilter1 = 0x54,
     PixelXBound = 0x55,
@@ -524,6 +523,12 @@ impl System {
             Reg::PixelCopyDimensions => {
                 self.gpu.pixel.copy_dimensions = pixel::CopyDimensions::from_bits(value);
             }
+            Reg::PixelCopyDst => {
+                self.gpu.pixel.copy_dst = Address(value << 5);
+            }
+            Reg::PixelCopyDstStride => {
+                self.gpu.pixel.copy_stride = value;
+            }
             Reg::PixelCopyClearAr => {
                 self.gpu.pixel.clear_color.r = value.bits(0, 8) as u8;
                 self.gpu.pixel.clear_color.a = value.bits(8, 16) as u8;
@@ -535,10 +540,7 @@ impl System {
             Reg::PixelCopyClearZ => value.write_be_bytes(self.gpu.pixel.clear_depth.as_mut_bytes()),
             Reg::PixelCopyCmd => {
                 let cmd = pixel::CopyCmd::from_bits(value);
-                self.config.renderer.exec(Action::EfbCopy {
-                    clear: cmd.clear(),
-                    to_xfb: cmd.to_xfb(),
-                });
+                self.gx_do_efb_copy(cmd);
             }
 
             Reg::TexMode0 => {
@@ -1039,5 +1041,23 @@ impl System {
         self.config
             .renderer
             .exec(Action::Draw(topology, attributes));
+    }
+
+    pub fn gx_do_efb_copy(&mut self, cmd: pixel::CopyCmd) {
+        println!(
+            "copy from ({}, {}) [{}x{}] to {} with stride {} and format {:?}",
+            self.gpu.pixel.copy_src.x().value(),
+            self.gpu.pixel.copy_src.y().value(),
+            self.gpu.pixel.copy_dimensions.width(),
+            self.gpu.pixel.copy_dimensions.height(),
+            self.gpu.pixel.copy_dst,
+            self.gpu.pixel.copy_stride,
+            cmd.format(),
+        );
+
+        self.config.renderer.exec(Action::EfbCopy {
+            clear: cmd.clear(),
+            to_xfb: cmd.to_xfb(),
+        });
     }
 }

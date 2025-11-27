@@ -1,8 +1,9 @@
-use crate::system::gpu::colors::Abgr8;
+use crate::system::gpu::{colors::Abgr8, texture};
 use bitos::{
     bitos,
     integer::{u2, u10},
 };
+use gekko::Address;
 
 #[bitos(3)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -72,17 +73,47 @@ pub struct CopyDimensions {
     pub height_minus_one: u10,
 }
 
+impl CopyDimensions {
+    pub fn width(&self) -> u16 {
+        self.width_minus_one().value() as u16 + 1
+    }
+
+    pub fn height(&self) -> u16 {
+        self.height_minus_one().value() as u16 + 1
+    }
+}
+
+#[bitos(2)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CopyMode {
+    #[default]
+    Normal = 0,
+    Channels = 1,
+    Depth = 2,
+    DepthSpecial = 3,
+}
+
+#[bitos(4)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct CopyFormat {
+    #[bits(0..4)]
+    pub encoding: texture::DataFormat,
+    // #[bits(4..5)]
+    // pub copy_mode: CopyMode,
+}
+
 #[bitos(32)]
 #[derive(Debug, Default)]
 pub struct CopyCmd {
     #[bits(0..2)]
     pub clamp: u2,
-    #[bits(4..7)]
-    pub format: Format,
+    #[bits(3..7)]
+    pub format: CopyFormat,
     #[bits(7..9)]
     pub gamma: u2,
     #[bits(11)]
     pub clear: bool,
+    /// to XFB or to texture?
     #[bits(14)]
     pub to_xfb: bool,
 }
@@ -200,7 +231,9 @@ pub struct Interface {
     pub interrupt: InterruptStatus,
     pub constant_alpha: ConstantAlpha,
     pub copy_src: CopySrc,
+    pub copy_dst: Address,
     pub copy_dimensions: CopyDimensions,
+    pub copy_stride: u32,
     pub clear_color: Abgr8,
     pub clear_depth: u32,
     pub depth_mode: DepthMode,
