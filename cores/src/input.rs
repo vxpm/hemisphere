@@ -48,12 +48,8 @@ impl InputCore for GilrsCore {
         };
 
         let axis = |axis| (255.0 * ((gamepad.value(axis) + 1.0) / 2.0)) as u8;
-        let button = |button| {
-            (255.0
-                * gamepad
-                    .button_data(button)
-                    .map_or(0.0, |v| v.value())) as u8
-        };
+        let button =
+            |button| (255.0 * gamepad.button_data(button).map_or(0.0, |v| v.value())) as u8;
 
         Some(ControllerState {
             analog_x: axis(Axis::LeftStickX),
