@@ -695,9 +695,8 @@ impl Renderer {
         let data = &*mapped;
 
         let mut pixels = vec![];
-        let bytes_per_row = (width as usize * 4).next_multiple_of(256);
         for row in 0..height as usize {
-            let row_data = &data[row * bytes_per_row..][..bytes_per_row];
+            let row_data = &data[row * bytes_per_row as usize..][..bytes_per_row as usize];
             pixels.extend(row_data.chunks_exact(4).map(|c| Rgba8 {
                 r: c[0],
                 g: c[1],

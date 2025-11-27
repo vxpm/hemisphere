@@ -1078,16 +1078,10 @@ impl System {
 
                 let pixels = receiver.recv().unwrap();
                 let stride = self.gpu.pixel.copy_stride;
+                let width = self.gpu.pixel.copy_dimensions.width() as u32;
+                let height = self.gpu.pixel.copy_dimensions.height() as u32;
                 let output = &mut self.mem.ram[self.gpu.pixel.copy_dst.value() as usize..];
-
-                encode_color_texture(
-                    pixels,
-                    cmd.color_format(),
-                    stride,
-                    self.gpu.pixel.copy_dimensions.width() as u32,
-                    self.gpu.pixel.copy_dimensions.height() as u32,
-                    output,
-                );
+                encode_color_texture(pixels, cmd.color_format(), stride, width, height, output);
             }
         } else {
             self.config

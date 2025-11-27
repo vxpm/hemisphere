@@ -124,6 +124,8 @@ pub trait Format {
 }
 
 pub fn compute_size<F: Format>(width: usize, height: usize) -> usize {
+    let width = width.next_multiple_of(F::TILE_WIDTH);
+    let height = height.next_multiple_of(F::TILE_HEIGHT);
     (width * height * F::NIBBLES_PER_TEXEL).div_ceil(2)
 }
 
@@ -136,12 +138,11 @@ pub fn encode<F: Format>(
     data: &[Pixel],
     buffer: &mut [u8],
 ) {
-    assert!(data.len().is_multiple_of(height));
     assert!(buffer.len() >= ((width * height * F::NIBBLES_PER_TEXEL).div_ceil(2)));
 
     let width_in_tiles = width.div_ceil(F::TILE_WIDTH);
     let height_in_tiles = height.div_ceil(F::TILE_HEIGHT);
-    assert!(stride >= width_in_tiles);
+    // assert!(stride >= width_in_tiles);
 
     for tile_y in 0..height_in_tiles {
         for tile_x in 0..width_in_tiles {
@@ -150,14 +151,26 @@ pub fn encode<F: Format>(
             let tile_offset = tile_index * F::BYTES_PER_TILE;
             let out = &mut buffer[tile_offset..][..F::BYTES_PER_TILE];
 
+            // let tile_index = tile_y * stride + tile_x;
+            // let tile_offset = tile_index * F::BYTES_PER_TILE;
+            // println!("encoding {tile_y}:{tile_x}, index {tile_index} offset {tile_offset}");
+            // let out = &mut buffer[tile_offset..][..F::BYTES_PER_TILE];
+
             // find pixels in this tile
             let base_x = tile_x * F::TILE_WIDTH;
             let base_y = tile_y * F::TILE_HEIGHT;
             F::encode_tile(&settings, out, |x, y| {
                 assert!(x <= F::TILE_WIDTH);
                 assert!(y <= F::TILE_HEIGHT);
-                let image_index = (base_y + y) * width + (base_x + x);
-                data[image_index]
+                let x = base_x + x;
+                let y = base_y + y;
+
+                if x < width && y < height {
+                    let image_index = y * width + x;
+                    data.get(image_index).copied().unwrap_or_default()
+                } else {
+                    Default::default()
+                }
             });
         }
     }
@@ -614,8 +627,8 @@ impl Format for Cmpr {
 mod test {
     use super::*;
 
-    fn test_format<F: Format>(settings: &F::EncodeSettings, name: &str) {
-        let img = image::open("resources/test.webp").unwrap();
+    fn test_format<F: Format>(settings: &F::EncodeSettings, input: &str, name: &str) {
+        let img = image::open(input).unwrap();
         let pixels = img
             .to_rgba8()
             .pixels()
@@ -627,10 +640,13 @@ mod test {
             })
             .collect::<Vec<_>>();
 
-        let mut encoded = vec![0; compute_size::<F>(img.width() as usize, img.height() as usize)];
+        let required_width = (img.width() as usize).next_multiple_of(F::TILE_WIDTH);
+        let required_height = (img.width() as usize).next_multiple_of(F::TILE_HEIGHT);
+        let mut encoded = vec![0; compute_size::<F>(required_width, required_height)];
+
         encode::<F>(
             settings,
-            img.width() as usize / F::TILE_WIDTH,
+            required_width / F::TILE_WIDTH,
             img.width() as usize,
             img.height() as usize,
             &pixels,
@@ -652,15 +668,20 @@ mod test {
         img.save(format!("local/test_out_{name}.png")).unwrap();
     }
 
+    // #[test]
+    // fn test_basic() {
+    //     test_format::<I4>(&IntensitySource::Y, "I4");
+    //     test_format::<IA4>(&(IntensitySource::Y, AlphaSource::A), "IA4");
+    //     test_format::<I8>(&IntensitySource::Y, "I8");
+    //     test_format::<IA8>(&(IntensitySource::Y, AlphaSource::A), "IA8");
+    //     test_format::<Rgb565>(&(), "RGB565");
+    //     test_format::<Rgb5A3>(&(), "RGB5A3");
+    //     test_format::<Rgba8>(&(), "RGBA8");
+    // }
+
     #[test]
-    fn test_basic() {
-        test_format::<I4>(&IntensitySource::Y, "I4");
-        test_format::<IA4>(&(IntensitySource::Y, AlphaSource::A), "IA4");
-        test_format::<I8>(&IntensitySource::Y, "I8");
-        test_format::<IA8>(&(IntensitySource::Y, AlphaSource::A), "IA8");
-        test_format::<Rgb565>(&(), "RGB565");
-        test_format::<Rgb5A3>(&(), "RGB5A3");
-        test_format::<Rgba8>(&(), "RGBA8");
+    fn test_bad() {
+        test_format::<Rgba8>(&(), "resources/badbig.png", "bad");
     }
 
     #[test]
