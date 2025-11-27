@@ -180,6 +180,8 @@ pub struct CopyCmd {
     pub format_bits_0to2: u3,
     #[bits(7..9)]
     pub gamma: u2,
+    #[bits(9)]
+    pub half: bool,
     #[bits(11)]
     pub clear: bool,
     /// to XFB or to texture?

@@ -1059,6 +1059,10 @@ impl System {
                     cmd.depth_format().texture_format(),
                 );
             } else {
+                if cmd.half() {
+                    panic!();
+                }
+
                 let (sender, receiver) = oneshot::channel();
 
                 let width = self.gpu.pixel.copy_dimensions.width();
@@ -1085,10 +1089,10 @@ impl System {
                     output,
                 );
             }
+        } else {
+            self.config
+                .renderer
+                .exec(Action::XfbCopy { clear: cmd.clear() });
         }
-
-        self.config
-            .renderer
-            .exec(Action::XfbCopy { clear: cmd.clear() });
     }
 }

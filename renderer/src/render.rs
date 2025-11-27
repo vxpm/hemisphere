@@ -206,7 +206,7 @@ impl Renderer {
                 clear,
                 response,
             } => {
-                self.next_pass(false, false);
+                self.next_pass(clear, false);
                 let data = self.get_pixels(x, y, width, height);
                 response.send(data).unwrap();
             }
@@ -392,7 +392,7 @@ impl Renderer {
     }
 
     pub fn set_texture(&mut self, index: usize, id: u32) {
-        let current = self.textures.get_texture_id(index);
+        // let current = self.textures.get_texture_id(index);
         self.flush();
         self.textures.set_texture(index, id);
         // if current != id {
@@ -638,7 +638,8 @@ impl Renderer {
     pub fn get_pixels(&self, x: u16, y: u16, width: u16, height: u16) -> Vec<Rgba8> {
         let color = self.framebuffer.color();
 
-        let size = (width as u64).next_multiple_of(64) * height as u64 * 4;
+        let bytes_per_row = (width as u32 * 4).next_multiple_of(256);
+        let size = bytes_per_row as u64 * height as u64;
         let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("copy buffer"),
             size,
@@ -665,7 +666,7 @@ impl Renderer {
                 buffer: &buffer,
                 layout: wgpu::TexelCopyBufferLayout {
                     offset: 0,
-                    bytes_per_row: Some((width as u32 * 4).next_multiple_of(256)),
+                    bytes_per_row: Some(bytes_per_row),
                     rows_per_image: None,
                 },
             },

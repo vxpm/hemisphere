@@ -119,6 +119,7 @@ pub trait Format {
         data: &mut [u8],
         get: impl Fn(usize, usize) -> Pixel,
     );
+
     fn decode_tile(data: &[u8], set: impl FnMut(usize, usize, Pixel));
 }
 
@@ -140,6 +141,7 @@ pub fn encode<F: Format>(
 
     let width_in_tiles = width.div_ceil(F::TILE_WIDTH);
     let height_in_tiles = height.div_ceil(F::TILE_HEIGHT);
+    assert!(stride >= width_in_tiles);
 
     for tile_y in 0..height_in_tiles {
         for tile_x in 0..width_in_tiles {
@@ -187,8 +189,7 @@ pub fn decode<F: Format>(width: usize, height: usize, data: &[u8]) -> Vec<Pixel>
                 let y = base_y + y;
                 if x < width && y < height {
                     let image_index = y * width + x;
-                    let pixel = pixels.get_mut(image_index).unwrap();
-                    *pixel = value;
+                    pixels[image_index] = value;
                 }
             });
         }
@@ -629,7 +630,7 @@ mod test {
         let mut encoded = vec![0; compute_size::<F>(img.width() as usize, img.height() as usize)];
         encode::<F>(
             settings,
-            img.width() as usize,
+            img.width() as usize / F::TILE_WIDTH,
             img.width() as usize,
             img.height() as usize,
             &pixels,
@@ -678,25 +679,45 @@ mod test {
 
         let width = 2 * img.width() as usize;
         let height = 2 * img.height() as usize;
+        let stride_tiles = width / Rgba8::TILE_WIDTH;
+        let stride_bytes = stride_tiles * Rgba8::BYTES_PER_TILE;
         let mut encoded = vec![0; compute_size::<Rgba8>(width, height)];
 
         encode::<Rgba8>(
             &(),
-            width,
+            stride_tiles,
             width / 2,
             height / 2,
             &pixels,
             &mut encoded[0..],
         );
-        encode::<Rgba8>(&(), width, width / 2, height / 2, &pixels, &mut encoded[..]);
 
-        // encode::<Rgba8>(
-        //     &(),
-        //     stride,
-        //     img.height() as usize,
-        //     &pixels,
-        //     &mut encoded[bytes_per_img..],
-        // );
+        encode::<Rgba8>(
+            &(),
+            stride_tiles,
+            width / 2,
+            height / 2,
+            &pixels,
+            &mut encoded[stride_bytes / 2..],
+        );
+
+        encode::<Rgba8>(
+            &(),
+            stride_tiles,
+            width / 2,
+            height / 2,
+            &pixels,
+            &mut encoded[(height / Rgba8::TILE_HEIGHT / 2) * stride_bytes..],
+        );
+
+        encode::<Rgba8>(
+            &(),
+            stride_tiles,
+            width / 2,
+            height / 2,
+            &pixels,
+            &mut encoded[(height / Rgba8::TILE_HEIGHT / 2) * stride_bytes + stride_bytes / 2..],
+        );
 
         let decoded = decode::<Rgba8>(width, height, &encoded);
         let img = image::RgbaImage::from_vec(
