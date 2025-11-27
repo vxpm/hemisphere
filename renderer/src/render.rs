@@ -236,14 +236,14 @@ impl Renderer {
         self.insert_vertex(vertex)
     }
 
-    pub fn set_framebuffer_format(&mut self, format: pixel::Format) {
+    pub fn set_framebuffer_format(&mut self, format: pixel::BufferFormat) {
         self.flush();
         // dbg!(format);
         match format {
-            pixel::Format::RGB8Z24 | pixel::Format::RGB565Z16 => {
+            pixel::BufferFormat::RGB8Z24 | pixel::BufferFormat::RGB565Z16 => {
                 self.pipeline.settings.has_alpha = false
             }
-            pixel::Format::RGBA6Z24 => self.pipeline.settings.has_alpha = true,
+            pixel::BufferFormat::RGBA6Z24 => self.pipeline.settings.has_alpha = true,
             _ => (),
         }
     }

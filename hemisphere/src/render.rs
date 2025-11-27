@@ -4,7 +4,7 @@ use crate::system::gpu::{
     Topology, VertexAttributes,
     colors::{Abgr8, Rgba, Rgba8},
     environment::{Constant, StageOps, StageRefs},
-    pixel::{BlendMode, ConstantAlpha, DepthMode, Format},
+    pixel::{BlendMode, BufferFormat, ConstantAlpha, DepthMode},
     transform::{BaseTexGen, ChannelControl, Light},
 };
 use glam::Mat4;
@@ -92,7 +92,7 @@ pub struct TexGenConfig {
 }
 
 pub enum Action {
-    SetFramebufferFormat(Format),
+    SetFramebufferFormat(BufferFormat),
     SetViewport(Viewport),
     SetClearColor(Rgba),
     SetDepthMode(DepthMode),

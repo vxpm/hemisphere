@@ -222,6 +222,7 @@ impl System {
     fn exi_uart_transfer_write(&mut self) {
         assert!(!self.external.channel0.control.dma());
         let value = self.external.channel0.immediate;
+
         for byte in value.to_be_bytes() {
             print!("{}", char::from_u32(byte as u32).unwrap());
             if byte == b'\r' {

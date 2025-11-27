@@ -33,7 +33,7 @@ pub enum MinFilter {
 
 #[bitos(4)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum DataFormat {
+pub enum Format {
     #[default]
     I4 = 0x0,
     I8 = 0x1,
@@ -76,16 +76,16 @@ pub struct Mode {
 
 #[bitos(32)]
 #[derive(Debug, Clone, Copy, Default)]
-pub struct Format {
+pub struct Encoding {
     #[bits(0..10)]
     pub width_minus_one: u10,
     #[bits(10..20)]
     pub height_minus_one: u10,
     #[bits(20..24)]
-    pub data_format: DataFormat,
+    pub format: Format,
 }
 
-impl Format {
+impl Encoding {
     pub fn width(&self) -> u32 {
         self.width_minus_one().value() as u32 + 1
     }
@@ -99,18 +99,18 @@ impl Format {
         let pixels = |n| self.width().next_multiple_of(n) * self.height().next_multiple_of(n);
         let pixels_ab = |a, b| self.width().next_multiple_of(a) * self.height().next_multiple_of(b);
 
-        match self.data_format() {
-            DataFormat::I4 => pixels(8) / 2,
-            DataFormat::I8 => pixels_ab(8, 4),
-            DataFormat::IA4 => pixels(8),
-            DataFormat::IA8 => pixels(4) * 2,
-            DataFormat::Rgb565 => pixels(4) * 2,
-            DataFormat::Rgb5A3 => pixels(4) * 2,
-            DataFormat::Rgba8 => pixels(4) * 4,
-            DataFormat::Cmp => pixels(8) / 2,
-            DataFormat::C8 => pixels(1),
-            DataFormat::C4 => pixels(1) / 2,
-            _ => todo!("format {:?}", self.data_format()),
+        match self.format() {
+            Format::I4 => pixels(8) / 2,
+            Format::I8 => pixels_ab(8, 4),
+            Format::IA4 => pixels(8),
+            Format::IA8 => pixels(4) * 2,
+            Format::Rgb565 => pixels(4) * 2,
+            Format::Rgb5A3 => pixels(4) * 2,
+            Format::Rgba8 => pixels(4) * 4,
+            Format::Cmp => pixels(8) / 2,
+            Format::C8 => pixels(1),
+            Format::C4 => pixels(1) / 2,
+            _ => todo!("format {:?}", self.format()),
         }
     }
 }
@@ -150,7 +150,7 @@ pub struct Scaling {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct TextureMap {
     pub address: Address,
-    pub format: Format,
+    pub format: Encoding,
     pub mode: Mode,
     pub scaling: Scaling,
     pub dirty: bool,
@@ -192,19 +192,19 @@ impl Interface {
     }
 }
 
-pub fn decode_texture(data: &[u8], format: Format) -> Vec<Rgba8> {
+pub fn decode_texture(data: &[u8], format: Encoding) -> Vec<Rgba8> {
     let width = format.width() as usize;
     let height = format.height() as usize;
-    let pixels = match format.data_format() {
-        DataFormat::I4 => gxtex::decode::<gxtex::I4>(width, height, data),
-        DataFormat::IA4 => gxtex::decode::<gxtex::IA4>(width, height, data),
-        DataFormat::I8 => gxtex::decode::<gxtex::I8>(width, height, data),
-        DataFormat::IA8 => gxtex::decode::<gxtex::IA8>(width, height, data),
-        DataFormat::Rgb565 => gxtex::decode::<gxtex::Rgb565>(width, height, data),
-        DataFormat::Rgb5A3 => gxtex::decode::<gxtex::Rgb5A3>(width, height, data),
-        DataFormat::Rgba8 => gxtex::decode::<gxtex::Rgba8>(width, height, data),
-        DataFormat::Cmp => gxtex::decode::<gxtex::Cmpr>(width, height, data),
-        DataFormat::C8 | DataFormat::C4 => {
+    let pixels = match format.format() {
+        Format::I4 => gxtex::decode::<gxtex::I4>(width, height, data),
+        Format::IA4 => gxtex::decode::<gxtex::IA4>(width, height, data),
+        Format::I8 => gxtex::decode::<gxtex::I8>(width, height, data),
+        Format::IA8 => gxtex::decode::<gxtex::IA8>(width, height, data),
+        Format::Rgb565 => gxtex::decode::<gxtex::Rgb565>(width, height, data),
+        Format::Rgb5A3 => gxtex::decode::<gxtex::Rgb5A3>(width, height, data),
+        Format::Rgba8 => gxtex::decode::<gxtex::Rgba8>(width, height, data),
+        Format::Cmp => gxtex::decode::<gxtex::Cmpr>(width, height, data),
+        Format::C8 | Format::C4 => {
             vec![
                 gxtex::Pixel {
                     r: 255,
@@ -230,8 +230,8 @@ pub fn decode_texture(data: &[u8], format: Format) -> Vec<Rgba8> {
 }
 
 /// Stride should be in bytes.
-pub fn encode_texture(data: Vec<Rgba8>, format: Format, stride: u32, output: &mut [u8]) {
-    match format.data_format() {
+pub fn encode_texture(data: Vec<Rgba8>, format: Encoding, stride: u32, output: &mut [u8]) {
+    match format.format() {
         _ => todo!("format {format:?}"),
     }
 }

@@ -7,7 +7,7 @@ use gekko::Address;
 
 #[bitos(3)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum Format {
+pub enum BufferFormat {
     #[default]
     RGB8Z24 = 0x0,
     RGBA6Z24 = 0x1,
@@ -19,9 +19,13 @@ pub enum Format {
     YUV420 = 0x7,
 }
 
-impl Format {
+impl BufferFormat {
     pub fn has_alpha(self) -> bool {
         self == Self::RGBA6Z24
+    }
+
+    pub fn is_depth(self) -> bool {
+        self == Self::Z24
     }
 }
 
@@ -39,7 +43,7 @@ pub enum DepthCompression {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Control {
     #[bits(0..3)]
-    pub format: Format,
+    pub format: BufferFormat,
     #[bits(3..5)]
     pub depth_compression: DepthCompression,
     #[bits(6)]
@@ -83,23 +87,86 @@ impl CopyDimensions {
     }
 }
 
-#[bitos(2)]
+#[bitos(4)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum CopyMode {
+pub enum DepthCopyFormat {
     #[default]
-    Normal = 0,
-    Channels = 1,
-    Depth = 2,
-    DepthSpecial = 3,
+    Z4 = 0x0,
+    Z8 = 0x1,
+    Reserved0 = 0x2,
+    Z16 = 0x3,
+    Reserved1 = 0x4,
+    Reserved2 = 0x5,
+    Z24X8 = 0x6,
+    Reserved3 = 0x7,
+    Reserved4 = 0x8,
+    Z8M = 0x9,
+    Z8L = 0xA,
+    Z8H = 0xB,
+    Z16L = 0xC,
+    Reserved6 = 0xD,
+    Reserved7 = 0xE,
+    Reserved8 = 0xF,
+}
+
+impl DepthCopyFormat {
+    pub fn texture_format(&self) -> texture::Format {
+        use texture::Format::*;
+        match self {
+            Self::Z4 => I4,
+            Self::Z8 => I8,
+            Self::Z16 => IA8,
+            Self::Z24X8 => Rgba8,
+            Self::Z8M => I8,
+            Self::Z8L => I8,
+            Self::Z8H => I8,
+            Self::Z16L => IA8,
+            _ => panic!("reserved copy format {self:?}"),
+        }
+    }
 }
 
 #[bitos(4)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct CopyFormat {
-    #[bits(0..4)]
-    pub encoding: texture::DataFormat,
-    // #[bits(4..5)]
-    // pub copy_mode: CopyMode,
+pub enum ColorCopyFormat {
+    #[default]
+    R4 = 0x0,
+    Reserved0 = 0x1,
+    RA4 = 0x2,
+    RA8 = 0x3,
+    RGB565 = 0x4,
+    RGB5A3 = 0x5,
+    RGBA8 = 0x6,
+    A8 = 0x7,
+    R8 = 0x8,
+    G8 = 0x9,
+    B8 = 0xA,
+    RG8 = 0xB,
+    GB8 = 0xC,
+    Reserved1 = 0xD,
+    Reserved2 = 0xE,
+    Reserved3 = 0xF,
+}
+
+impl ColorCopyFormat {
+    pub fn texture_format(&self) -> texture::Format {
+        use texture::Format::*;
+        match self {
+            Self::R4 => I4,
+            Self::RA4 => IA4,
+            Self::RA8 => IA8,
+            Self::RGB565 => Rgb565,
+            Self::RGB5A3 => Rgb5A3,
+            Self::RGBA8 => Rgba8,
+            Self::A8 => I8,
+            Self::R8 => I8,
+            Self::G8 => I8,
+            Self::B8 => I8,
+            Self::RG8 => IA8,
+            Self::GB8 => IA8,
+            _ => panic!("reserved copy format {self:?}"),
+        }
+    }
 }
 
 #[bitos(32)]
@@ -121,8 +188,14 @@ pub struct CopyCmd {
 }
 
 impl CopyCmd {
-    pub fn format(&self) -> texture::DataFormat {
-        texture::DataFormat::from_bits(u4::new(
+    pub fn color_format(&self) -> ColorCopyFormat {
+        ColorCopyFormat::from_bits(u4::new(
+            (self.format_bit_3() as u8) << 3 | self.format_bits_0to2().value(),
+        ))
+    }
+
+    pub fn depth_format(&self) -> DepthCopyFormat {
+        DepthCopyFormat::from_bits(u4::new(
             (self.format_bit_3() as u8) << 3 | self.format_bits_0to2().value(),
         ))
     }

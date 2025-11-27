@@ -1045,16 +1045,31 @@ impl System {
 
     pub fn gx_do_efb_copy(&mut self, cmd: pixel::CopyCmd) {
         if !cmd.to_xfb() {
-            println!(
-                "copy from ({}, {}) [{}x{}] to {} with stride {} and format {:?}",
-                self.gpu.pixel.copy_src.x().value(),
-                self.gpu.pixel.copy_src.y().value(),
-                self.gpu.pixel.copy_dimensions.width(),
-                self.gpu.pixel.copy_dimensions.height(),
-                self.gpu.pixel.copy_dst,
-                self.gpu.pixel.copy_stride,
-                cmd.format(),
-            );
+            if self.gpu.pixel.control.format().is_depth() {
+                println!(
+                    "copy from ({}, {}) [{}x{}] to {} with stride {} and format {:?} (encoding {:?})",
+                    self.gpu.pixel.copy_src.x().value(),
+                    self.gpu.pixel.copy_src.y().value(),
+                    self.gpu.pixel.copy_dimensions.width(),
+                    self.gpu.pixel.copy_dimensions.height(),
+                    self.gpu.pixel.copy_dst,
+                    self.gpu.pixel.copy_stride,
+                    cmd.depth_format(),
+                    cmd.depth_format().texture_format(),
+                );
+            } else {
+                println!(
+                    "copy from ({}, {}) [{}x{}] to {} with stride {} and format {:?} (encoding {:?})",
+                    self.gpu.pixel.copy_src.x().value(),
+                    self.gpu.pixel.copy_src.y().value(),
+                    self.gpu.pixel.copy_dimensions.width(),
+                    self.gpu.pixel.copy_dimensions.height(),
+                    self.gpu.pixel.copy_dst,
+                    self.gpu.pixel.copy_stride,
+                    cmd.color_format(),
+                    cmd.color_format().texture_format(),
+                );
+            }
         }
 
         self.config.renderer.exec(Action::EfbCopy {
