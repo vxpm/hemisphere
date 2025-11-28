@@ -207,6 +207,7 @@ pub enum IntensitySource {
     R,
     G,
     B,
+    A,
 }
 
 impl IntensitySource {
@@ -217,6 +218,7 @@ impl IntensitySource {
             Self::R => pixel.r,
             Self::G => pixel.g,
             Self::B => pixel.b,
+            Self::A => pixel.a,
         }
     }
 }

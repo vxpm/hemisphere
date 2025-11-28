@@ -4,6 +4,7 @@ use bitos::{
     integer::{u2, u10},
 };
 use gekko::Address;
+use gxtex::{AlphaSource, IntensitySource};
 use rustc_hash::FxBuildHasher;
 use std::collections::HashMap;
 
@@ -247,47 +248,36 @@ pub fn encode_color_texture(
         })
         .collect::<Vec<_>>();
 
+    macro_rules! encode {
+        ($fmt:ty) => {
+            encode!($fmt => ())
+        };
+        ($fmt:ty => $settings:expr) => {
+            gxtex::encode::<$fmt>(
+                &$settings,
+                stride as usize,
+                width as usize,
+                height as usize,
+                &pixels,
+                output,
+            )
+        };
+    }
+
     match format {
-        ColorCopyFormat::Y8 => {
-            gxtex::encode::<gxtex::I8>(
-                &gxtex::IntensitySource::Y,
-                stride as usize,
-                width as usize,
-                height as usize,
-                &pixels,
-                output,
-            );
-        }
-        ColorCopyFormat::RGB565 => {
-            gxtex::encode::<gxtex::Rgb565>(
-                &(),
-                stride as usize,
-                width as usize,
-                height as usize,
-                &pixels,
-                output,
-            );
-        }
-        ColorCopyFormat::RGBA8 => {
-            gxtex::encode::<gxtex::Rgb565>(
-                &(),
-                stride as usize,
-                width as usize,
-                height as usize,
-                &pixels,
-                output,
-            );
-        }
-        ColorCopyFormat::RGB5A3 => {
-            gxtex::encode::<gxtex::Rgb5A3>(
-                &(),
-                stride as usize,
-                width as usize,
-                height as usize,
-                &pixels,
-                output,
-            );
-        }
-        _ => todo!("format {format:?}"),
+        ColorCopyFormat::R4 => encode!(gxtex::I4 => IntensitySource::R),
+        ColorCopyFormat::Y8 => encode!(gxtex::I8 => IntensitySource::Y),
+        ColorCopyFormat::RA4 => encode!(gxtex::IA4 => (IntensitySource::R, AlphaSource::A)),
+        ColorCopyFormat::RA8 => encode!(gxtex::IA8 => (IntensitySource::R, AlphaSource::A)),
+        ColorCopyFormat::RGB565 => encode!(gxtex::Rgb565),
+        ColorCopyFormat::RGB5A3 => encode!(gxtex::Rgb5A3),
+        ColorCopyFormat::RGBA8 => encode!(gxtex::Rgba8),
+        ColorCopyFormat::A8 => encode!(gxtex::I8 => IntensitySource::A),
+        ColorCopyFormat::R8 => encode!(gxtex::I8 => IntensitySource::R),
+        ColorCopyFormat::G8 => encode!(gxtex::I8 => IntensitySource::G),
+        ColorCopyFormat::B8 => encode!(gxtex::I8 => IntensitySource::B),
+        ColorCopyFormat::RG8 => encode!(gxtex::IA8 => (IntensitySource::R, AlphaSource::G)),
+        ColorCopyFormat::GB8 => encode!(gxtex::IA8 => (IntensitySource::G, AlphaSource::B)),
+        _ => panic!("reserved color format"),
     }
 }
