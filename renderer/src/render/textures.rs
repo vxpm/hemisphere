@@ -1,8 +1,21 @@
+use std::collections::hash_map::Entry;
+
 use rustc_hash::FxHashMap;
 
+struct CachedTexture {
+    texture: wgpu::Texture,
+    generation: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct TextureHandle {
+    pub id: u32,
+    pub generation: u32,
+}
+
 pub struct Textures {
-    cached: FxHashMap<u32, wgpu::Texture>,
-    texture_ids: [u32; 8],
+    cached: FxHashMap<u32, CachedTexture>,
+    current: [TextureHandle; 8],
     textures: [wgpu::Texture; 8],
     samplers: [wgpu::Sampler; 8],
 }
@@ -49,7 +62,7 @@ impl Textures {
 
         Self {
             cached: FxHashMap::default(),
-            texture_ids: [0; 8],
+            current: [TextureHandle::default(); 8],
             textures,
             samplers,
         }
@@ -63,7 +76,7 @@ impl Textures {
         width: u32,
         height: u32,
         data: &[u8],
-    ) {
+    ) -> TextureHandle {
         let size = wgpu::Extent3d {
             width,
             height,
@@ -87,16 +100,42 @@ impl Textures {
             size,
         );
 
-        self.cached.insert(id, texture);
+        match self.cached.entry(id) {
+            Entry::Occupied(mut o) => {
+                let cached = o.get_mut();
+                cached.texture = texture;
+                cached.generation += 1;
+
+                TextureHandle {
+                    id,
+                    generation: cached.generation,
+                }
+            }
+            Entry::Vacant(v) => {
+                v.insert(CachedTexture {
+                    texture,
+                    generation: 0,
+                });
+
+                TextureHandle { id, generation: 0 }
+            }
+        }
     }
 
-    pub fn get_texture_id(&self, index: usize) -> u32 {
-        self.texture_ids[index]
+    pub fn get_texture(&self, id: u32) -> Option<TextureHandle> {
+        self.cached.get(&id).map(|c| TextureHandle {
+            id,
+            generation: c.generation,
+        })
     }
 
-    pub fn set_texture(&mut self, index: usize, id: u32) {
-        self.texture_ids[index] = id;
-        self.textures[index] = self.cached.get(&id).unwrap().clone();
+    pub fn get_texture_slot(&self, index: usize) -> TextureHandle {
+        self.current[index]
+    }
+
+    pub fn set_texture_slot(&mut self, index: usize, handle: TextureHandle) {
+        self.current[index] = handle;
+        self.textures[index] = self.cached.get(&handle.id).unwrap().texture.clone();
     }
 
     pub fn textures(&self) -> &[wgpu::Texture; 8] {

@@ -390,17 +390,23 @@ impl Renderer {
     }
 
     pub fn load_texture(&mut self, id: u32, width: u32, height: u32, data: &[u8]) {
-        self.flush();
         self.textures
             .update_texture(&self.device, &self.queue, id, width, height, data);
     }
 
     pub fn set_texture(&mut self, index: usize, id: u32) {
-        // let current = self.textures.get_texture_id(index);
+        let in_slot = self.textures.get_texture_slot(index);
+        let handle = self
+            .textures
+            .get_texture(id)
+            .expect("texture should exist before being set");
+
+        if in_slot == handle {
+            return;
+        }
+
         self.flush();
-        self.textures.set_texture(index, id);
-        // if current != id {
-        // }
+        self.textures.set_texture_slot(index, handle);
     }
 
     fn flush_config(&mut self) {
