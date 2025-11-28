@@ -131,7 +131,7 @@ impl DepthCopyFormat {
 pub enum ColorCopyFormat {
     #[default]
     R4 = 0x0,
-    Reserved0 = 0x1,
+    Y8 = 0x1,
     RA4 = 0x2,
     RA8 = 0x3,
     RGB565 = 0x4,
@@ -143,9 +143,9 @@ pub enum ColorCopyFormat {
     B8 = 0xA,
     RG8 = 0xB,
     GB8 = 0xC,
-    Reserved1 = 0xD,
-    Reserved2 = 0xE,
-    Reserved3 = 0xF,
+    Reserved0 = 0xD,
+    Reserved1 = 0xE,
+    Reserved2 = 0xF,
 }
 
 impl ColorCopyFormat {
@@ -153,6 +153,7 @@ impl ColorCopyFormat {
         use texture::Format::*;
         match self {
             Self::R4 => I4,
+            Self::Y8 => I8,
             Self::RA4 => IA4,
             Self::RA8 => IA8,
             Self::RGB565 => Rgb565,

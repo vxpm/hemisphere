@@ -248,6 +248,16 @@ pub fn encode_color_texture(
         .collect::<Vec<_>>();
 
     match format {
+        ColorCopyFormat::Y8 => {
+            gxtex::encode::<gxtex::I8>(
+                &gxtex::IntensitySource::Y,
+                stride as usize,
+                width as usize,
+                height as usize,
+                &pixels,
+                output,
+            );
+        }
         ColorCopyFormat::RGB565 => {
             gxtex::encode::<gxtex::Rgb565>(
                 &(),
