@@ -363,11 +363,12 @@ fn main() -> Result<()> {
         let base_limits = if adapter.get_info().backend == wgpu::Backend::Gl {
             wgpu::Limits::downlevel_defaults()
         } else {
-            wgpu::Limits::default()
+            wgpu::Limits::defaults()
         };
 
         wgpu::DeviceDescriptor {
             label: Some("hemisphere-egui wgpu device"),
+            required_features: wgpu::Features::DUAL_SOURCE_BLENDING,
             required_limits: wgpu::Limits {
                 // required by egui
                 max_texture_dimension_2d: 8192,

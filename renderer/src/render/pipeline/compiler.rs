@@ -46,6 +46,10 @@ fn base_module() -> wesl::syntax::TranslationUnit {
             alpha_channels: array<Channel, 2>,
             consts: array<vec4f, 4>,
             post_transform_mat: array<mat4x4f, 8>,
+            constant_alpha: u32,
+            _pad0: u32,
+            _pad1: u32,
+            _pad2: u32,
         }
 
         // A primitive vertex
@@ -103,6 +107,11 @@ fn base_module() -> wesl::syntax::TranslationUnit {
             @location(9) tex_coord6: vec3f,
             @location(10) tex_coord7: vec3f,
         };
+
+        struct FragmentOutput {
+            @location(0) @blend_src(0) color: vec4f,
+            @location(0) @blend_src(1) blend: vec4f,
+        }
     }
 }
 
@@ -482,7 +491,7 @@ fn fragment_stage(texenv: &TexEnvSettings) -> wesl::syntax::GlobalDeclaration {
 
     wesl::quote_declaration! {
         @fragment
-        fn fs_main(in: base::VertexOutput) -> @location(0) vec4f {
+        fn fs_main(in: base::VertexOutput) -> base::FragmentOutput {
             const R3: u32 = 0;
             const R0: u32 = 1;
             const R1: u32 = 2;
@@ -502,7 +511,15 @@ fn fragment_stage(texenv: &TexEnvSettings) -> wesl::syntax::GlobalDeclaration {
 
             @#compute_stages {}
 
-            return vec4f(regs[last_color_output].rgb, regs[last_alpha_output].a);
+            var out: base::FragmentOutput;
+            out.blend = vec4f(regs[last_color_output].rgb, regs[last_alpha_output].a);
+            if config.constant_alpha < 256 {
+                out.color = vec4f(regs[last_color_output].rgb, f32(config.constant_alpha) / 255.0);
+            } else {
+                out.color = out.blend;
+            }
+
+            return out;
         }
     }
 }
@@ -510,11 +527,12 @@ fn fragment_stage(texenv: &TexEnvSettings) -> wesl::syntax::GlobalDeclaration {
 fn main_module(texenv: &TexEnvSettings, texgen: &TexGenSettings) -> wesl::syntax::TranslationUnit {
     use wesl::syntax::*;
 
+    let extensions = wesl::quote_directive!(enable dual_source_blending;);
     let [color_chan, alpha_chan] = compute_channels();
     let vertex = vertex_stage(texgen);
     let fragment = fragment_stage(texenv);
 
-    wesl::quote_module! {
+    let mut module = wesl::quote_module! {
         import package::base;
 
         const #color_chan = 0;
@@ -522,7 +540,10 @@ fn main_module(texenv: &TexEnvSettings, texgen: &TexGenSettings) -> wesl::syntax
 
         const #vertex = 0;
         const #fragment = 0;
-    }
+    };
+    module.global_directives.push(extensions);
+
+    module
 }
 
 pub fn compile(texenv: &TexEnvSettings, texgen: &TexGenSettings) -> String {
@@ -552,6 +573,7 @@ pub fn compile(texenv: &TexEnvSettings, texgen: &TexGenSettings) -> String {
         }
     };
 
+    // println!("{}", compiled.syntax.to_string());
     // println!("{texenv:#?}");
 
     compiled.syntax.to_string()

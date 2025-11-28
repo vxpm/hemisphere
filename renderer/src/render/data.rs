@@ -62,4 +62,8 @@ pub struct Config {
     pub alpha_channels: [Channel; 2],
     pub consts: [Rgba; 4],
     pub post_transform_mat: [Mat4; 8],
+    pub constant_alpha: u32,
+    pub _pad0: u32,
+    pub _pad1: u32,
+    pub _pad2: u32,
 }

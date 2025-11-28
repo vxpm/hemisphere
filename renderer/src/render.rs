@@ -56,6 +56,8 @@ pub struct Renderer {
     vertices: Vec<data::Vertex>,
     indices: Vec<u32>,
     configs: Vec<data::Config>,
+
+    actions: u64,
 }
 
 fn set_channel(channel: &mut data::Channel, control: ChannelControl) {
@@ -135,6 +137,8 @@ impl Renderer {
             vertices: Vec::new(),
             indices: Vec::new(),
             configs: Vec::new(),
+
+            actions: 0,
         };
 
         value.reset();
@@ -219,6 +223,8 @@ impl Renderer {
                 self.next_pass(clear, true);
             }
         }
+
+        self.actions += 1;
     }
 
     pub fn insert_vertex(&mut self, vertex: data::Vertex) -> u32 {
@@ -293,8 +299,8 @@ impl Renderer {
             SrcBlendFactor::One => wgpu::BlendFactor::One,
             SrcBlendFactor::DstColor => wgpu::BlendFactor::Dst,
             SrcBlendFactor::InverseDstColor => wgpu::BlendFactor::OneMinusDst,
-            SrcBlendFactor::SrcAlpha => wgpu::BlendFactor::SrcAlpha,
-            SrcBlendFactor::InverseSrcAlpha => wgpu::BlendFactor::OneMinusSrcAlpha,
+            SrcBlendFactor::SrcAlpha => wgpu::BlendFactor::Src1Alpha,
+            SrcBlendFactor::InverseSrcAlpha => wgpu::BlendFactor::OneMinusSrc1Alpha,
             SrcBlendFactor::DstAlpha => wgpu::BlendFactor::DstAlpha,
             SrcBlendFactor::InverseDstAlpha => wgpu::BlendFactor::OneMinusDstAlpha,
         };
@@ -302,10 +308,10 @@ impl Renderer {
         let dst = match mode.dst_factor() {
             DstBlendFactor::Zero => wgpu::BlendFactor::Zero,
             DstBlendFactor::One => wgpu::BlendFactor::One,
-            DstBlendFactor::SrcColor => wgpu::BlendFactor::Src,
-            DstBlendFactor::InverseSrcColor => wgpu::BlendFactor::OneMinusSrc,
-            DstBlendFactor::SrcAlpha => wgpu::BlendFactor::SrcAlpha,
-            DstBlendFactor::InverseSrcAlpha => wgpu::BlendFactor::OneMinusSrcAlpha,
+            DstBlendFactor::SrcColor => wgpu::BlendFactor::Src1,
+            DstBlendFactor::InverseSrcColor => wgpu::BlendFactor::OneMinusSrc1,
+            DstBlendFactor::SrcAlpha => wgpu::BlendFactor::Src1Alpha,
+            DstBlendFactor::InverseSrcAlpha => wgpu::BlendFactor::OneMinusSrc1Alpha,
             DstBlendFactor::DstAlpha => wgpu::BlendFactor::DstAlpha,
             DstBlendFactor::InverseDstAlpha => wgpu::BlendFactor::OneMinusDstAlpha,
         };
@@ -353,8 +359,13 @@ impl Renderer {
         }
     }
 
-    pub fn set_constant_alpha_mode(&mut self, _mode: ConstantAlpha) {
-        // TODO: do something with it...
+    pub fn set_constant_alpha_mode(&mut self, mode: ConstantAlpha) {
+        self.current_config.constant_alpha = if mode.enabled() {
+            mode.value() as u32
+        } else {
+            u32::MAX
+        };
+        self.current_config_dirty = true;
     }
 
     pub fn set_projection_mat(&mut self, mat: Mat4) {

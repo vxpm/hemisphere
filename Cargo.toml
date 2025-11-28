@@ -106,6 +106,9 @@ codegen-units = 384
 [profile.release]
 panic = "abort"
 
+[patch.crates-io]
+wgpu = { path = "../wgpu/wgpu" }
+
 [workspace.dependencies]
 # workspace crates
 util = { path = "./util" }
