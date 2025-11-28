@@ -224,6 +224,10 @@ impl System {
         let value = self.external.channel0.immediate;
 
         for byte in value.to_be_bytes() {
+            if byte == 0x1B {
+                continue;
+            }
+
             print!("{}", char::from_u32(byte as u32).unwrap());
             if byte == b'\r' {
                 print!("\n");
