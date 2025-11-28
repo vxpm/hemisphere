@@ -8,14 +8,14 @@ use crate::system::gpu::colors::Rgba;
 #[bitos(3)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ColorChannel {
-    Color0 = 0x0,
-    Color1 = 0x1,
-    Alpha0 = 0x2,
-    Alpha1 = 0x3,
-    ColorAlpha0 = 0x4,
-    ColorAlpha1 = 0x5,
-    Zero = 0x6,
-    AlphaBump = 0x7,
+    Channel0 = 0x0,
+    Channel1 = 0x1,
+    Reserved0 = 0x2,
+    Reserved1 = 0x3,
+    Reserved2 = 0x4,
+    AlphaBump = 0x5,
+    AlphaBumpNormalized = 0x6,
+    Zero = 0x7,
 }
 
 #[bitos(10)]

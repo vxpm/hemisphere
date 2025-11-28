@@ -19,14 +19,14 @@ fn sample_tex(stage: &TexEnvStage) -> wesl::syntax::Expression {
 fn get_color_channel(stage: &TexEnvStage) -> wesl::syntax::Expression {
     use wesl::syntax::*;
     match stage.refs.color() {
-        ColorChannel::Color0 => wesl::quote_expression! { in.chan0 },
-        ColorChannel::Color1 => wesl::quote_expression! { in.chan1 },
-        ColorChannel::Alpha0 => wesl::quote_expression! { in.chan0.aaaa },
-        ColorChannel::Alpha1 => wesl::quote_expression! { in.chan1.aaaa },
-        ColorChannel::ColorAlpha0 => wesl::quote_expression! { in.chan0 },
-        ColorChannel::ColorAlpha1 => wesl::quote_expression! { in.chan1 },
-        ColorChannel::Zero => todo!(),
+        ColorChannel::Channel0 => wesl::quote_expression! { in.chan0 },
+        ColorChannel::Channel1 => wesl::quote_expression! { in.chan1 },
         ColorChannel::AlphaBump => wesl::quote_expression! { vec4f(base::PLACEHOLDER_RGB, 0.0) },
+        ColorChannel::AlphaBumpNormalized => {
+            wesl::quote_expression! { vec4f(base::PLACEHOLDER_RGB, 0.0) }
+        }
+        ColorChannel::Zero => wesl::quote_expression! { vec4f(0.0) },
+        _ => panic!("reserved color channel"),
     }
 }
 
