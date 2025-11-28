@@ -666,8 +666,8 @@ impl Renderer {
                 label: Some("reduced color texture for copy"),
                 dimension: wgpu::TextureDimension::D2,
                 size: wgpu::Extent3d {
-                    width: width as u32,
-                    height: height as u32,
+                    width: 640 / 2,
+                    height: 528 / 2,
                     depth_or_array_layers: 1,
                 },
                 format: wgpu::TextureFormat::Rgba8Unorm,
@@ -681,6 +681,7 @@ impl Renderer {
                 wgpu::util::TextureBlitter::new(&self.device, wgpu::TextureFormat::Rgba8Unorm);
 
             let source = color.create_view(&wgpu::TextureViewDescriptor {
+                label: Some("color texture view"),
                 dimension: Some(wgpu::TextureViewDimension::D2),
                 ..Default::default()
             });
