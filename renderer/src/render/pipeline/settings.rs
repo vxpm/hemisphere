@@ -42,18 +42,18 @@ impl Default for DepthSettings {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct TexEnvSettings {
     pub stages: Vec<TexEnvStage>,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct TexGenStageSettings {
     pub base: BaseTexGen,
     pub normalize: bool,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct TexGenSettings {
     pub stages: Vec<TexGenStageSettings>,
 }
