@@ -2,7 +2,7 @@ use crate::{
     render::{self, Action},
     system::{
         System,
-        gpu::{colors::Abgr8, command::ArrayDescriptor},
+        gpu::{DEPTH_24_BIT_MAX, colors::Abgr8, command::ArrayDescriptor},
     },
 };
 use bitos::{
@@ -283,8 +283,6 @@ impl Default for Interface {
     }
 }
 
-const Z_MAX: f32 = 16_777_215.0;
-
 impl Interface {
     /// Returns the matrix at `index` in internal memory.
     #[inline]
@@ -447,10 +445,14 @@ impl System {
 
             Reg::ViewportScaleX => xf.viewport.width = f32::from_bits(value) * 2.0,
             Reg::ViewportScaleY => xf.viewport.height = f32::from_bits(value) * -2.0,
-            Reg::ViewportScaleZ => xf.viewport.far_minus_near = f32::from_bits(value) / Z_MAX,
+            Reg::ViewportScaleZ => {
+                xf.viewport.far_minus_near = f32::from_bits(value) / DEPTH_24_BIT_MAX as f32
+            }
             Reg::ViewportOffsetX => xf.viewport.center_x = f32::from_bits(value) - 342.0,
             Reg::ViewportOffsetY => xf.viewport.center_y = f32::from_bits(value) - 342.0,
-            Reg::ViewportOffsetZ => xf.viewport.far = f32::from_bits(value) / Z_MAX,
+            Reg::ViewportOffsetZ => {
+                xf.viewport.far = f32::from_bits(value) / DEPTH_24_BIT_MAX as f32
+            }
 
             Reg::ProjectionParam0 => xf.projection_params[0] = f32::from_bits(value),
             Reg::ProjectionParam1 => xf.projection_params[1] = f32::from_bits(value),

@@ -28,6 +28,8 @@ use seq_macro::seq;
 use strum::FromRepr;
 use zerocopy::IntoBytes;
 
+pub const DEPTH_24_BIT_MAX: u32 = 16_777_215;
+
 /// An internal GX register.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, FromRepr)]
 #[repr(u8)]
@@ -538,7 +540,12 @@ impl System {
                 self.gpu.pixel.clear_color.b = value.bits(0, 8) as u8;
                 self.gpu.pixel.clear_color.g = value.bits(8, 16) as u8;
             }
-            Reg::PixelCopyClearZ => value.write_be_bytes(self.gpu.pixel.clear_depth.as_mut_bytes()),
+            Reg::PixelCopyClearZ => {
+                value.write_be_bytes(self.gpu.pixel.clear_depth.as_mut_bytes());
+                self.config.renderer.exec(Action::SetClearDepth(
+                    self.gpu.pixel.clear_depth as f32 / u32::MAX as f32,
+                ));
+            }
             Reg::PixelCopyCmd => {
                 let cmd = pixel::CopyCmd::from_bits(value);
                 self.gx_do_efb_copy(cmd);
@@ -1047,17 +1054,17 @@ impl System {
     pub fn gx_do_efb_copy(&mut self, cmd: pixel::CopyCmd) {
         if !cmd.to_xfb() {
             if self.gpu.pixel.control.format().is_depth() {
-                println!(
-                    "copy from ({}, {}) [{}x{}] to {} with stride {} and format {:?} (encoding {:?})",
-                    self.gpu.pixel.copy_src.x().value(),
-                    self.gpu.pixel.copy_src.y().value(),
-                    self.gpu.pixel.copy_dimensions.width(),
-                    self.gpu.pixel.copy_dimensions.height(),
-                    self.gpu.pixel.copy_dst,
-                    self.gpu.pixel.copy_stride,
-                    cmd.depth_format(),
-                    cmd.depth_format().texture_format(),
-                );
+                // println!(
+                //     "copy from ({}, {}) [{}x{}] to {} with stride {} and format {:?} (encoding {:?})",
+                //     self.gpu.pixel.copy_src.x().value(),
+                //     self.gpu.pixel.copy_src.y().value(),
+                //     self.gpu.pixel.copy_dimensions.width(),
+                //     self.gpu.pixel.copy_dimensions.height(),
+                //     self.gpu.pixel.copy_dst,
+                //     self.gpu.pixel.copy_stride,
+                //     cmd.depth_format(),
+                //     cmd.depth_format().texture_format(),
+                // );
             } else {
                 let (sender, receiver) = oneshot::channel();
 

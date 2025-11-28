@@ -98,6 +98,7 @@ pub enum Action {
     SetFramebufferFormat(BufferFormat),
     SetViewport(Viewport),
     SetClearColor(Rgba),
+    SetClearDepth(f32),
     SetDepthMode(DepthMode),
     SetBlendMode(BlendMode),
     SetConstantAlpha(ConstantAlpha),

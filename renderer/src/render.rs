@@ -48,6 +48,7 @@ pub struct Renderer {
 
     viewport: Viewport,
     clear_color: wgpu::Color,
+    clear_depth: f32,
     current_projection_mat: Mat4,
     current_config: data::Config,
     current_config_dirty: bool,
@@ -126,6 +127,7 @@ impl Renderer {
 
             viewport: Default::default(),
             clear_color: wgpu::Color::BLACK,
+            clear_depth: 1.0,
             current_projection_mat: Default::default(),
             current_config: Default::default(),
             current_config_dirty: true,
@@ -144,6 +146,7 @@ impl Renderer {
             Action::SetFramebufferFormat(fmt) => self.set_framebuffer_format(fmt),
             Action::SetViewport(viewport) => self.set_viewport(viewport),
             Action::SetClearColor(color) => self.set_clear_color(color),
+            Action::SetClearDepth(depth) => self.clear_depth = depth,
             Action::SetBlendMode(mode) => self.set_blend_mode(mode),
             Action::SetDepthMode(mode) => self.set_depth_mode(mode),
             Action::SetConstantAlpha(mode) => self.set_constant_alpha_mode(mode),
@@ -574,7 +577,7 @@ impl Renderer {
         };
 
         let depth_op = if clear && self.pipeline.settings.depth.write {
-            wgpu::LoadOp::Clear(1.0)
+            wgpu::LoadOp::Clear(self.clear_depth)
         } else {
             wgpu::LoadOp::Load
         };
