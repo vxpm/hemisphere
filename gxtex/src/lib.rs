@@ -129,7 +129,7 @@ pub fn compute_size<F: Format>(width: usize, height: usize) -> usize {
     (width * height * F::NIBBLES_PER_TEXEL).div_ceil(2)
 }
 
-/// Stride is in tiles.
+/// Stride is in cache lines.
 pub fn encode<F: Format>(
     settings: &F::EncodeSettings,
     stride: usize,
@@ -140,6 +140,7 @@ pub fn encode<F: Format>(
 ) {
     assert!(buffer.len() >= ((width * height * F::NIBBLES_PER_TEXEL).div_ceil(2)));
 
+    let cache_lines_per_tile = F::BYTES_PER_TILE / 32;
     let width_in_tiles = width.div_ceil(F::TILE_WIDTH);
     let height_in_tiles = height.div_ceil(F::TILE_HEIGHT);
     // assert!(stride >= width_in_tiles);
@@ -147,7 +148,7 @@ pub fn encode<F: Format>(
     for tile_y in 0..height_in_tiles {
         for tile_x in 0..width_in_tiles {
             // where should data be written to?
-            let tile_index = tile_y * stride + tile_x;
+            let tile_index = tile_y * stride / cache_lines_per_tile + tile_x;
             let tile_offset = tile_index * F::BYTES_PER_TILE;
             let out = &mut buffer[tile_offset..][..F::BYTES_PER_TILE];
 
@@ -633,7 +634,7 @@ mod test {
             .collect::<Vec<_>>();
 
         let required_width = (img.width() as usize).next_multiple_of(F::TILE_WIDTH);
-        let required_height = (img.width() as usize).next_multiple_of(F::TILE_HEIGHT);
+        let required_height = (img.height() as usize).next_multiple_of(F::TILE_HEIGHT);
         let mut encoded = vec![0; compute_size::<F>(required_width, required_height)];
 
         encode::<F>(
@@ -687,7 +688,7 @@ mod test {
 
     #[test]
     fn test_collage() {
-        let img = image::open("resources/test.webp").unwrap();
+        let img = image::open("resources/waterfall.webp").unwrap();
         let pixels = img
             .to_rgba8()
             .pixels()
@@ -701,13 +702,13 @@ mod test {
 
         let width = 2 * img.width() as usize;
         let height = 2 * img.height() as usize;
-        let stride_tiles = width / Rgba8::TILE_WIDTH;
-        let stride_bytes = stride_tiles * Rgba8::BYTES_PER_TILE;
+        let stride_cache = width / Rgba8::TILE_WIDTH * 2;
+        let stride_bytes = stride_cache / 2 * Rgba8::BYTES_PER_TILE;
         let mut encoded = vec![0; compute_size::<Rgba8>(width, height)];
 
         encode::<Rgba8>(
             &(),
-            stride_tiles,
+            stride_cache,
             width / 2,
             height / 2,
             &pixels,
@@ -716,7 +717,7 @@ mod test {
 
         encode::<Rgba8>(
             &(),
-            stride_tiles,
+            stride_cache,
             width / 2,
             height / 2,
             &pixels,
@@ -725,7 +726,7 @@ mod test {
 
         encode::<Rgba8>(
             &(),
-            stride_tiles,
+            stride_cache,
             width / 2,
             height / 2,
             &pixels,
@@ -734,7 +735,7 @@ mod test {
 
         encode::<Rgba8>(
             &(),
-            stride_tiles,
+            stride_cache,
             width / 2,
             height / 2,
             &pixels,
