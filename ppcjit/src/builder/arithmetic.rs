@@ -1124,4 +1124,23 @@ impl BlockBuilder<'_> {
 
         FLOAT_INFO
     }
+
+    pub fn ps_div(&mut self, ins: Ins) -> InstructionInfo {
+        self.check_floats();
+
+        let ps_a = self.get_ps(ins.fpr_a());
+        let ps_b = self.get_ps(ins.fpr_b());
+
+        let value = self.bd.ins().fdiv(ps_a, ps_b);
+        self.set_ps(ins.fpr_d(), value);
+
+        let ps0 = self.get(ins.fpr_d());
+        self.update_fprf_cmpz(ps0);
+
+        if ins.field_rc() {
+            self.update_cr1_float();
+        }
+
+        FLOAT_INFO
+    }
 }

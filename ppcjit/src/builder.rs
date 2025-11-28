@@ -603,6 +603,7 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Oris => self.oris(ins),
             Opcode::PsAdd => self.ps_add(ins),
             Opcode::PsCmpo0 => self.ps_cmpo0(ins),
+            Opcode::PsDiv => self.ps_div(ins),
             Opcode::PsMadd => self.ps_madd(ins),
             Opcode::PsMadds0 => self.ps_madds0(ins),
             Opcode::PsMadds1 => self.ps_madds1(ins),
