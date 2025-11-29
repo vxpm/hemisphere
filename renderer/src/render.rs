@@ -14,7 +14,7 @@ use glam::Mat4;
 use hemisphere::{
     render::{Action, TexEnvConfig, TexGenConfig, Viewport, oneshot},
     system::gpu::{
-        Topology, VertexAttributes,
+        DEPTH_24_BIT_MAX, Topology, VertexAttributes,
         colors::{Rgba, Rgba8},
         pixel::{
             self, BlendMode, CompareMode, ConstantAlpha, DepthMode, DstBlendFactor, SrcBlendFactor,
@@ -218,7 +218,19 @@ impl Renderer {
                 let data = self.get_pixels(x, y, width, height, half);
                 response.send(data).unwrap();
             }
-            Action::DepthCopy { .. } => todo!(),
+            Action::DepthCopy {
+                x,
+                y,
+                width,
+                height,
+                half,
+                clear,
+                response,
+            } => {
+                self.next_pass(clear, false);
+                let data = self.get_depth(x, y, width, height, half);
+                response.send(data).unwrap();
+            }
             Action::XfbCopy { clear } => {
                 self.next_pass(clear, true);
             }
@@ -773,5 +785,115 @@ impl Renderer {
         }
 
         pixels
+    }
+
+    pub fn get_depth(&self, x: u16, y: u16, width: u16, height: u16, half: bool) -> Vec<u32> {
+        let depth = self.framebuffer.depth();
+
+        let divisor = if half { 2 } else { 1 };
+        let x = x / divisor;
+        let y = y / divisor;
+        let width = width / divisor;
+        let height = height / divisor;
+
+        let row_size = width as u32 * 4;
+        let row_stride = row_size.next_multiple_of(256);
+
+        let size = row_stride as u64 * height as u64;
+        let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("copy buffer"),
+            size,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
+
+        let source = self.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("reduced depth texture for copy"),
+            dimension: wgpu::TextureDimension::D2,
+            size: wgpu::Extent3d {
+                width: 640 / divisor as u32,
+                height: 528 / divisor as u32,
+                depth_or_array_layers: 1,
+            },
+            format: wgpu::TextureFormat::R32Float,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+            mip_level_count: 1,
+            sample_count: 1,
+        });
+
+        let blitter =
+            wgpu::util::TextureBlitter::new(&self.device, wgpu::TextureFormat::Depth32Float);
+
+        let depth_view = depth.create_view(&wgpu::TextureViewDescriptor {
+            label: Some("depth texture view"),
+            dimension: Some(wgpu::TextureViewDimension::D2),
+            ..Default::default()
+        });
+
+        blitter.copy(
+            &self.device,
+            &mut encoder,
+            &depth_view,
+            &source.create_view(&wgpu::TextureViewDescriptor::default()),
+        );
+
+        encoder.copy_texture_to_buffer(
+            wgpu::TexelCopyTextureInfo {
+                texture: &source,
+                mip_level: 0,
+                origin: wgpu::Origin3d {
+                    x: x as u32,
+                    y: y as u32,
+                    z: 0,
+                },
+                aspect: wgpu::TextureAspect::DepthOnly,
+            },
+            wgpu::TexelCopyBufferInfo {
+                buffer: &buffer,
+                layout: wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(row_stride),
+                    rows_per_image: None,
+                },
+            },
+            wgpu::Extent3d {
+                width: width as u32,
+                height: height as u32,
+                depth_or_array_layers: 1,
+            },
+        );
+
+        let (sender, receiver) = oneshot::channel();
+        encoder.map_buffer_on_submit(&buffer, wgpu::MapMode::Read, .., |r| {
+            sender.send(r).unwrap()
+        });
+
+        let cmd = encoder.finish();
+        self.queue.submit([cmd]);
+        self.device
+            .poll(wgpu::wgt::PollType::wait_indefinitely())
+            .unwrap();
+
+        let result = receiver.recv().unwrap();
+        result.unwrap();
+
+        let mapped = buffer.get_mapped_range(..);
+        let data = &*mapped;
+
+        let mut depth = Vec::with_capacity(width as usize * height as usize);
+        for row in 0..height as usize {
+            let row_data = &data[row * row_stride as usize..][..row_size as usize];
+            depth.extend(row_data.chunks_exact(4).map(|c| {
+                let float = f32::from_ne_bytes([c[0], c[1], c[2], c[3]]);
+                (float * DEPTH_24_BIT_MAX as f32) as u32
+            }));
+        }
+
+        depth
     }
 }

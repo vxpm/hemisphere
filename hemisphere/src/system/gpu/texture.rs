@@ -1,4 +1,7 @@
-use crate::system::gpu::{colors::Rgba8, pixel::ColorCopyFormat};
+use crate::system::gpu::{
+    colors::Rgba8,
+    pixel::{ColorCopyFormat, DepthCopyFormat},
+};
 use bitos::{
     bitos,
     integer::{u2, u10},
@@ -279,5 +282,53 @@ pub fn encode_color_texture(
         ColorCopyFormat::RG8 => encode!(gxtex::IA8 => (IntensitySource::R, AlphaSource::G)),
         ColorCopyFormat::GB8 => encode!(gxtex::IA8 => (IntensitySource::G, AlphaSource::B)),
         _ => panic!("reserved color format"),
+    }
+}
+
+pub fn encode_depth_texture(
+    data: Vec<u32>,
+    format: DepthCopyFormat,
+    stride: u32,
+    width: u32,
+    height: u32,
+    output: &mut [u8],
+) {
+    let depth = data
+        .into_iter()
+        .map(u32::to_be_bytes)
+        .map(|c| gxtex::Pixel {
+            r: c[0],
+            g: c[1],
+            b: c[2],
+            a: 0,
+        })
+        .collect::<Vec<_>>();
+
+    macro_rules! encode {
+        ($fmt:ty) => {
+            encode!($fmt => ())
+        };
+        ($fmt:ty => $settings:expr) => {
+            gxtex::encode::<$fmt>(
+                &$settings,
+                stride as usize,
+                width as usize,
+                height as usize,
+                &depth,
+                output,
+            )
+        };
+    }
+
+    match format {
+        DepthCopyFormat::Z4 => todo!(),
+        DepthCopyFormat::Z8 => todo!(),
+        DepthCopyFormat::Z16 => todo!(),
+        DepthCopyFormat::Z24X8 => todo!(),
+        DepthCopyFormat::Z8M => todo!(),
+        DepthCopyFormat::Z8L => todo!(),
+        DepthCopyFormat::Z8H => todo!(),
+        DepthCopyFormat::Z16L => todo!(),
+        _ => panic!("reserved depth format"),
     }
 }

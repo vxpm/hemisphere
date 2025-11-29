@@ -50,7 +50,8 @@ impl Framebuffer {
                 size,
                 format: wgpu::TextureFormat::Depth32Float,
                 usage: wgpu::TextureUsages::TEXTURE_BINDING
-                    | wgpu::TextureUsages::RENDER_ATTACHMENT,
+                    | wgpu::TextureUsages::RENDER_ATTACHMENT
+                    | wgpu::TextureUsages::COPY_SRC,
                 view_formats: &[],
                 mip_level_count: 1,
                 sample_count: 1,

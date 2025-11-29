@@ -15,7 +15,7 @@ use crate::{
             ArrayDescriptor, AttributeMode, VertexAttributeStream,
             attributes::{self, Attribute, AttributeDescriptor},
         },
-        texture::encode_color_texture,
+        texture::{encode_color_texture, encode_depth_texture},
     },
 };
 use bitos::{
@@ -1052,46 +1052,67 @@ impl System {
     }
 
     pub fn gx_do_efb_copy(&mut self, cmd: pixel::CopyCmd) {
-        if !cmd.to_xfb() {
-            if self.gpu.pixel.control.format().is_depth() {
-                // println!(
-                //     "copy from ({}, {}) [{}x{}] to {} with stride {} and format {:?} (encoding {:?})",
-                //     self.gpu.pixel.copy_src.x().value(),
-                //     self.gpu.pixel.copy_src.y().value(),
-                //     self.gpu.pixel.copy_dimensions.width(),
-                //     self.gpu.pixel.copy_dimensions.height(),
-                //     self.gpu.pixel.copy_dst,
-                //     self.gpu.pixel.copy_stride,
-                //     cmd.depth_format(),
-                //     cmd.depth_format().texture_format(),
-                // );
-            } else {
-                let (sender, receiver) = oneshot::channel();
-
-                let width = self.gpu.pixel.copy_dimensions.width();
-                let height = self.gpu.pixel.copy_dimensions.height();
-                self.config.renderer.exec(Action::ColorCopy {
-                    x: self.gpu.pixel.copy_src.x().value(),
-                    y: self.gpu.pixel.copy_src.y().value(),
-                    width,
-                    height,
-                    half: cmd.half(),
-                    clear: cmd.clear(),
-                    response: sender,
-                });
-
-                let divisor = if cmd.half() { 2 } else { 1 };
-                let pixels = receiver.recv().unwrap();
-                let stride = self.gpu.pixel.copy_stride;
-                let width = self.gpu.pixel.copy_dimensions.width() as u32 / divisor;
-                let height = self.gpu.pixel.copy_dimensions.height() as u32 / divisor;
-                let output = &mut self.mem.ram[self.gpu.pixel.copy_dst.value() as usize..];
-                encode_color_texture(pixels, cmd.color_format(), stride, width, height, output);
-            }
-        } else {
+        if cmd.to_xfb() {
             self.config
                 .renderer
                 .exec(Action::XfbCopy { clear: cmd.clear() });
+            return;
+        }
+
+        if self.gpu.pixel.control.format().is_depth() {
+            println!(
+                "copy from ({}, {}) [{}x{}] to {} with stride {} and format {:?} (encoding {:?})",
+                self.gpu.pixel.copy_src.x().value(),
+                self.gpu.pixel.copy_src.y().value(),
+                self.gpu.pixel.copy_dimensions.width(),
+                self.gpu.pixel.copy_dimensions.height(),
+                self.gpu.pixel.copy_dst,
+                self.gpu.pixel.copy_stride,
+                cmd.depth_format(),
+                cmd.depth_format().texture_format(),
+            );
+
+            let (sender, receiver) = oneshot::channel();
+            let width = self.gpu.pixel.copy_dimensions.width();
+            let height = self.gpu.pixel.copy_dimensions.height();
+            self.config.renderer.exec(Action::DepthCopy {
+                x: self.gpu.pixel.copy_src.x().value(),
+                y: self.gpu.pixel.copy_src.y().value(),
+                width,
+                height,
+                half: cmd.half(),
+                clear: cmd.clear(),
+                response: sender,
+            });
+
+            let divisor = if cmd.half() { 2 } else { 1 };
+            let pixels = receiver.recv().unwrap();
+            let stride = self.gpu.pixel.copy_stride;
+            let width = self.gpu.pixel.copy_dimensions.width() as u32 / divisor;
+            let height = self.gpu.pixel.copy_dimensions.height() as u32 / divisor;
+            let output = &mut self.mem.ram[self.gpu.pixel.copy_dst.value() as usize..];
+            encode_depth_texture(pixels, cmd.depth_format(), stride, width, height, output);
+        } else {
+            let (sender, receiver) = oneshot::channel();
+            let width = self.gpu.pixel.copy_dimensions.width();
+            let height = self.gpu.pixel.copy_dimensions.height();
+            self.config.renderer.exec(Action::ColorCopy {
+                x: self.gpu.pixel.copy_src.x().value(),
+                y: self.gpu.pixel.copy_src.y().value(),
+                width,
+                height,
+                half: cmd.half(),
+                clear: cmd.clear(),
+                response: sender,
+            });
+
+            let divisor = if cmd.half() { 2 } else { 1 };
+            let pixels = receiver.recv().unwrap();
+            let stride = self.gpu.pixel.copy_stride;
+            let width = self.gpu.pixel.copy_dimensions.width() as u32 / divisor;
+            let height = self.gpu.pixel.copy_dimensions.height() as u32 / divisor;
+            let output = &mut self.mem.ram[self.gpu.pixel.copy_dst.value() as usize..];
+            encode_color_texture(pixels, cmd.color_format(), stride, width, height, output);
         }
     }
 }
