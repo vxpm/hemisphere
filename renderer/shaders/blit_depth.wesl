@@ -28,7 +28,7 @@ fn vs_main(
 }
 
 @fragment
-fn fs_main(in: VertexOutput) -> @location(0) u32 {
+fn fs_main(in: VertexOutput) -> @location(0) f32 {
     let depth: f32 = textureSample(texture, texture_sampler, in.uv);
-    return u32(depth * 16777215);
+    return depth;
 }

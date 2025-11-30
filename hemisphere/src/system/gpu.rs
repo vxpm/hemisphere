@@ -1060,17 +1060,17 @@ impl System {
         }
 
         if self.gpu.pixel.control.format().is_depth() {
-            // println!(
-            //     "copy from ({}, {}) [{}x{}] to {} with stride {} and format {:?} (encoding {:?})",
-            //     self.gpu.pixel.copy_src.x().value(),
-            //     self.gpu.pixel.copy_src.y().value(),
-            //     self.gpu.pixel.copy_dimensions.width(),
-            //     self.gpu.pixel.copy_dimensions.height(),
-            //     self.gpu.pixel.copy_dst,
-            //     self.gpu.pixel.copy_stride,
-            //     cmd.depth_format(),
-            //     cmd.depth_format().texture_format(),
-            // );
+            println!(
+                "copy from ({}, {}) [{}x{}] to {} with stride {} and format {:?} (encoding {:?})",
+                self.gpu.pixel.copy_src.x().value(),
+                self.gpu.pixel.copy_src.y().value(),
+                self.gpu.pixel.copy_dimensions.width(),
+                self.gpu.pixel.copy_dimensions.height(),
+                self.gpu.pixel.copy_dst,
+                self.gpu.pixel.copy_stride,
+                cmd.depth_format(),
+                cmd.depth_format().texture_format(),
+            );
 
             let (sender, receiver) = oneshot::channel();
             let width = self.gpu.pixel.copy_dimensions.width();

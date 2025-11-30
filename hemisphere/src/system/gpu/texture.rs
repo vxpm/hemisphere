@@ -322,13 +322,13 @@ pub fn encode_depth_texture(
 
     match format {
         DepthCopyFormat::Z4 => todo!(),
-        DepthCopyFormat::Z8 => todo!(),
-        DepthCopyFormat::Z16 => todo!(),
-        DepthCopyFormat::Z24X8 => todo!(),
-        DepthCopyFormat::Z8M => todo!(),
-        DepthCopyFormat::Z8L => todo!(),
+        DepthCopyFormat::Z8 => encode!(gxtex::I8 => IntensitySource::R),
+        DepthCopyFormat::Z16 => encode!(gxtex::IA8 => (IntensitySource::R, AlphaSource::G)),
+        DepthCopyFormat::Z24X8 => encode!(gxtex::Rgba8),
+        DepthCopyFormat::Z8M => encode!(gxtex::I8 => IntensitySource::G),
+        DepthCopyFormat::Z8L => encode!(gxtex::I8 => IntensitySource::R),
         DepthCopyFormat::Z8H => encode!(gxtex::I8 => IntensitySource::B),
-        DepthCopyFormat::Z16L => todo!(),
+        DepthCopyFormat::Z16L => encode!(gxtex::IA8 => (IntensitySource::R, AlphaSource::G)),
         _ => panic!("reserved depth format"),
     }
 }

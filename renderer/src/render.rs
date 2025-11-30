@@ -120,7 +120,7 @@ impl Renderer {
         let depth_blitter = Blitter::new(
             &device,
             wgpu::TextureFormat::Depth32Float,
-            wgpu::TextureFormat::R32Uint,
+            wgpu::TextureFormat::R32Float,
         );
 
         let mut value = Self {
@@ -821,14 +821,14 @@ impl Renderer {
         let target = self.device.create_texture(&wgpu::TextureDescriptor {
             label: Some("depth copy texture"),
             size: wgpu::Extent3d {
-                width: width as u32,
-                height: height as u32,
+                width: 640 / divisor as u32,
+                height: 528 / divisor as u32,
                 depth_or_array_layers: 1,
             },
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::R32Uint,
+            format: wgpu::TextureFormat::R32Float,
             usage: wgpu::TextureUsages::COPY_SRC | wgpu::TextureUsages::RENDER_ATTACHMENT,
             view_formats: &[],
         });
@@ -917,8 +917,9 @@ impl Renderer {
         for row in 0..height as usize {
             let row_data = &data[row * row_stride as usize..][..row_size as usize];
             depth.extend(row_data.chunks_exact(4).map(|c| {
-                let value = u32::from_ne_bytes([c[0], c[1], c[2], c[3]]);
-                value
+                let value = f32::from_ne_bytes([c[0], c[1], c[2], c[3]]);
+                // TODO: it's wrong to assume this is the max depth
+                (value * DEPTH_24_BIT_MAX as f32) as u32
             }));
         }
 
