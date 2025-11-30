@@ -4,11 +4,14 @@ mod framebuffer;
 mod pipeline;
 mod textures;
 
-use crate::render::{
-    buffers::Buffers,
-    framebuffer::Framebuffer,
-    pipeline::{Pipeline, TexGenStageSettings},
-    textures::Textures,
+use crate::{
+    blit::Blitter,
+    render::{
+        buffers::Buffers,
+        framebuffer::Framebuffer,
+        pipeline::{Pipeline, TexGenStageSettings},
+        textures::Textures,
+    },
 };
 use glam::Mat4;
 use hemisphere::{
@@ -45,6 +48,7 @@ pub struct Renderer {
     textures: Textures,
     index_buffers: Buffers,
     storage_buffers: Buffers,
+    depth_blitter: Blitter,
 
     viewport: Viewport,
     clear_color: wgpu::Color,
@@ -113,6 +117,12 @@ impl Renderer {
             })
             .forget_lifetime();
 
+        let depth_blitter = Blitter::new(
+            &device,
+            wgpu::TextureFormat::Depth32Float,
+            wgpu::TextureFormat::R32Uint,
+        );
+
         let mut value = Self {
             device,
             queue,
@@ -126,6 +136,7 @@ impl Renderer {
             textures,
             index_buffers,
             storage_buffers,
+            depth_blitter,
 
             viewport: Default::default(),
             clear_color: wgpu::Color::BLACK,
@@ -807,27 +818,20 @@ impl Renderer {
             mapped_at_creation: false,
         });
 
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
-
-        let source = self.device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("reduced depth texture for copy"),
-            dimension: wgpu::TextureDimension::D2,
+        let target = self.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("depth copy texture"),
             size: wgpu::Extent3d {
-                width: 640 / divisor as u32,
-                height: 528 / divisor as u32,
+                width: width as u32,
+                height: height as u32,
                 depth_or_array_layers: 1,
             },
-            format: wgpu::TextureFormat::R32Float,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
-            view_formats: &[],
             mip_level_count: 1,
             sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::R32Uint,
+            usage: wgpu::TextureUsages::COPY_SRC | wgpu::TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[],
         });
-
-        let blitter =
-            wgpu::util::TextureBlitter::new(&self.device, wgpu::TextureFormat::Depth32Float);
 
         let depth_view = depth.create_view(&wgpu::TextureViewDescriptor {
             label: Some("depth texture view"),
@@ -835,23 +839,47 @@ impl Renderer {
             ..Default::default()
         });
 
-        blitter.copy(
-            &self.device,
-            &mut encoder,
-            &depth_view,
-            &source.create_view(&wgpu::TextureViewDescriptor::default()),
-        );
+        let target_view = target.create_view(&wgpu::TextureViewDescriptor {
+            label: Some("depth copy texture view"),
+            dimension: Some(wgpu::TextureViewDimension::D2),
+            ..Default::default()
+        });
+
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
+
+        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("depth copy pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &target_view,
+                depth_slice: None,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
+
+        self.depth_blitter
+            .blit(&self.device, &depth_view, &mut pass);
+
+        std::mem::drop(pass);
 
         encoder.copy_texture_to_buffer(
             wgpu::TexelCopyTextureInfo {
-                texture: &source,
+                texture: &target,
                 mip_level: 0,
                 origin: wgpu::Origin3d {
                     x: x as u32,
                     y: y as u32,
                     z: 0,
                 },
-                aspect: wgpu::TextureAspect::DepthOnly,
+                aspect: wgpu::TextureAspect::All,
             },
             wgpu::TexelCopyBufferInfo {
                 buffer: &buffer,
@@ -889,8 +917,8 @@ impl Renderer {
         for row in 0..height as usize {
             let row_data = &data[row * row_stride as usize..][..row_size as usize];
             depth.extend(row_data.chunks_exact(4).map(|c| {
-                let float = f32::from_ne_bytes([c[0], c[1], c[2], c[3]]);
-                (float * DEPTH_24_BIT_MAX as f32) as u32
+                let value = u32::from_ne_bytes([c[0], c[1], c[2], c[3]]);
+                value
             }));
         }
 

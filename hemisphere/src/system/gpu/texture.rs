@@ -295,11 +295,11 @@ pub fn encode_depth_texture(
 ) {
     let depth = data
         .into_iter()
-        .map(u32::to_be_bytes)
+        .map(u32::to_le_bytes)
         .map(|c| gxtex::Pixel {
-            r: c[0],
-            g: c[1],
-            b: c[2],
+            r: c[0], // low
+            g: c[1], // mid
+            b: c[2], // high
             a: 0,
         })
         .collect::<Vec<_>>();
@@ -327,7 +327,7 @@ pub fn encode_depth_texture(
         DepthCopyFormat::Z24X8 => todo!(),
         DepthCopyFormat::Z8M => todo!(),
         DepthCopyFormat::Z8L => todo!(),
-        DepthCopyFormat::Z8H => todo!(),
+        DepthCopyFormat::Z8H => encode!(gxtex::I8 => IntensitySource::B),
         DepthCopyFormat::Z16L => todo!(),
         _ => panic!("reserved depth format"),
     }

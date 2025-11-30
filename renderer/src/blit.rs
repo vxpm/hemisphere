@@ -8,7 +8,23 @@ pub struct Blitter {
 }
 
 impl Blitter {
-    pub fn new(device: &wgpu::Device, format: wgpu::TextureFormat) -> Self {
+    pub fn new(
+        device: &wgpu::Device,
+        source_fmt: wgpu::TextureFormat,
+        target_fmt: wgpu::TextureFormat,
+    ) -> Self {
+        let sample_type = if source_fmt.is_depth_stencil_format() {
+            wgpu::TextureSampleType::Depth
+        } else {
+            wgpu::TextureSampleType::Float { filterable: true }
+        };
+
+        let shader = if source_fmt.is_depth_stencil_format() {
+            include_wesl!("blit_depth")
+        } else {
+            include_wesl!("blit")
+        };
+
         let group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: None,
             entries: &[
@@ -16,7 +32,7 @@ impl Blitter {
                     binding: 0,
                     visibility: wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        sample_type,
                         view_dimension: wgpu::TextureViewDimension::D2,
                         multisampled: false,
                     },
@@ -39,7 +55,7 @@ impl Blitter {
 
         let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: None,
-            source: wgpu::ShaderSource::Wgsl(include_wesl!("blit").into()),
+            source: wgpu::ShaderSource::Wgsl(shader.into()),
         });
 
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -65,9 +81,9 @@ impl Blitter {
                 entry_point: Some("fs_main"),
                 compilation_options: Default::default(),
                 targets: &[Some(wgpu::ColorTargetState {
-                    format,
+                    format: target_fmt,
                     blend: None,
-                    write_mask: Default::default(),
+                    write_mask: wgpu::ColorWrites::all(),
                 })],
             }),
             multisample: Default::default(),
