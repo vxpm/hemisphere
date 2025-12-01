@@ -6,6 +6,7 @@ mod debug;
 mod disasm;
 mod efb;
 mod registers;
+mod renderer_info;
 mod subsystem;
 mod variables;
 mod windows;
@@ -223,6 +224,10 @@ impl eframe::App for App {
 
                     if ui.button("EFB").clicked() {
                         self.create_window(efb::Window);
+                    }
+
+                    if ui.button("Renderer").clicked() {
+                        self.create_window(renderer_info::Window::default());
                     }
 
                     ui.menu_button("Subsystems", |ui| {

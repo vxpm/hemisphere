@@ -27,18 +27,22 @@ use hemisphere::{
 };
 use std::{
     num::NonZero,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 use zerocopy::IntoBytes;
 
 pub struct Shared {
-    pub xfb: wgpu::TextureView,
+    pub xfb: Mutex<wgpu::TextureView>,
+    pub rendered_anything: AtomicBool,
 }
 
 pub struct Renderer {
     device: wgpu::Device,
     queue: wgpu::Queue,
-    _shared: Arc<Mutex<Shared>>,
+    shared: Arc<Shared>,
 
     current_encoder: wgpu::CommandEncoder,
     current_pass: wgpu::RenderPass<'static>,
@@ -78,7 +82,7 @@ fn set_channel(channel: &mut data::Channel, control: ChannelControl) {
 }
 
 impl Renderer {
-    pub fn new(device: wgpu::Device, queue: wgpu::Queue) -> (Self, Arc<Mutex<Shared>>) {
+    pub fn new(device: wgpu::Device, queue: wgpu::Queue) -> (Self, Arc<Shared>) {
         let framebuffer = Framebuffer::new(&device);
         let pipeline = Pipeline::new(&device);
         let textures = Textures::new(&device);
@@ -89,7 +93,10 @@ impl Renderer {
         let color = framebuffer.color().create_view(&Default::default());
         let depth = framebuffer.depth().create_view(&Default::default());
 
-        let shared = Arc::new(Mutex::new(Shared { xfb: external }));
+        let shared = Arc::new(Shared {
+            xfb: Mutex::new(external),
+            rendered_anything: AtomicBool::new(false),
+        });
 
         let mut encoder = device.create_command_encoder(&Default::default());
         let pass = encoder
@@ -126,7 +133,7 @@ impl Renderer {
         let mut value = Self {
             device,
             queue,
-            _shared: shared.clone(),
+            shared: shared.clone(),
 
             current_encoder: encoder,
             current_pass: pass,
@@ -677,6 +684,8 @@ impl Renderer {
 
         self.index_buffers.recall();
         self.storage_buffers.recall();
+
+        self.shared.rendered_anything.store(true, Ordering::SeqCst);
     }
 
     pub fn get_pixels(&self, x: u16, y: u16, width: u16, height: u16, half: bool) -> Vec<Rgba8> {

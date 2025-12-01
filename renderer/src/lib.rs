@@ -6,7 +6,7 @@ mod render;
 use crate::{blit::Blitter, render::Renderer};
 use flume::{Receiver, Sender};
 use hemisphere::render::{Action, Renderer as RendererInterface};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, atomic::Ordering};
 
 #[expect(clippy::needless_pass_by_value, reason = "makes it clearer")]
 fn worker(mut renderer: Renderer, receiver: Receiver<Action>) {
@@ -18,7 +18,7 @@ fn worker(mut renderer: Renderer, receiver: Receiver<Action>) {
 struct Inner {
     device: wgpu::Device,
     blitter: Blitter,
-    shared: Arc<Mutex<render::Shared>>,
+    shared: Arc<render::Shared>,
 }
 
 /// A WGPU based renderer implementation.
@@ -52,10 +52,15 @@ impl WgpuRenderer {
     }
 
     pub fn render(&self, pass: &mut wgpu::RenderPass<'_>) {
-        let shared = self.inner.shared.lock().unwrap();
+        let xfb = self.inner.shared.xfb.lock().unwrap();
+        self.inner.blitter.blit(&self.inner.device, &xfb, pass);
+    }
+
+    pub fn rendered_anything(&self) -> bool {
         self.inner
-            .blitter
-            .blit(&self.inner.device, &shared.xfb, pass);
+            .shared
+            .rendered_anything
+            .swap(false, Ordering::SeqCst)
     }
 }
 

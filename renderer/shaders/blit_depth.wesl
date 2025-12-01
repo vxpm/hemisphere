@@ -3,7 +3,7 @@ struct VertexOutput {
     @location(0) uv: vec2<f32>,
 };
 
-@group(0) @binding(0) var texture: texture_depth_2d;
+@group(0) @binding(0) var texture: texture_2d<f32>;
 @group(0) @binding(1) var texture_sampler: sampler;
 
 var<private> POSITIONS: array<vec2f, 4> = array<vec2f, 4>(
@@ -29,6 +29,6 @@ fn vs_main(
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) f32 {
-    let depth: f32 = textureSample(texture, texture_sampler, in.uv);
+    let depth: f32 = textureSample(texture, texture_sampler, in.uv).r;
     return depth;
 }

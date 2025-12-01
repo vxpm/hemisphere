@@ -14,7 +14,7 @@ impl Blitter {
         target_fmt: wgpu::TextureFormat,
     ) -> Self {
         let sample_type = if source_fmt.is_depth_stencil_format() {
-            wgpu::TextureSampleType::Depth
+            wgpu::TextureSampleType::Float { filterable: true }
         } else {
             wgpu::TextureSampleType::Float { filterable: true }
         };
