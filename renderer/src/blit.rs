@@ -13,16 +13,11 @@ impl Blitter {
         source_fmt: wgpu::TextureFormat,
         target_fmt: wgpu::TextureFormat,
     ) -> Self {
-        let sample_type = if source_fmt.is_depth_stencil_format() {
-            wgpu::TextureSampleType::Float { filterable: true }
-        } else {
-            wgpu::TextureSampleType::Float { filterable: true }
-        };
-
-        let shader = if source_fmt.is_depth_stencil_format() {
-            include_wesl!("blit_depth")
-        } else {
-            include_wesl!("blit")
+        let sample_type = wgpu::TextureSampleType::Float { filterable: true };
+        let shader = match source_fmt.components() {
+            1 => include_wesl!("blit_depth"),
+            4 => include_wesl!("blit"),
+            _ => unimplemented!(),
         };
 
         let group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {

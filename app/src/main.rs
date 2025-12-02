@@ -373,7 +373,8 @@ fn main() -> Result<()> {
 
         wgpu::DeviceDescriptor {
             label: Some("hemisphere-egui wgpu device"),
-            required_features: wgpu::Features::DUAL_SOURCE_BLENDING,
+            required_features: wgpu::Features::DUAL_SOURCE_BLENDING
+                | wgpu::Features::FLOAT32_FILTERABLE,
             required_limits: wgpu::Limits {
                 // required by egui
                 max_texture_dimension_2d: 8192,
@@ -388,7 +389,7 @@ fn main() -> Result<()> {
         wgpu_options: WgpuConfiguration {
             wgpu_setup: WgpuSetup::CreateNew(WgpuSetupCreateNew {
                 instance_descriptor: wgpu::InstanceDescriptor {
-                    backends: wgpu::Backends::all(),
+                    backends: wgpu::Backends::GL,
                     ..Default::default()
                 },
                 power_preference: wgpu::PowerPreference::HighPerformance,
