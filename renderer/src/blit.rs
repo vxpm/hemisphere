@@ -15,8 +15,8 @@ impl Blitter {
     ) -> Self {
         let sample_type = wgpu::TextureSampleType::Float { filterable: true };
         let shader = match source_fmt.components() {
-            1 => include_wesl!("blit_depth"),
-            4 => include_wesl!("blit"),
+            1 => include_wesl!("blit_f32"),
+            4 => include_wesl!("blit_vec4f"),
             _ => unimplemented!(),
         };
 

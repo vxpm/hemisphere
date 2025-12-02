@@ -55,6 +55,7 @@ impl Pipeline {
         device: &wgpu::Device,
         layout: &wgpu::PipelineLayout,
         settings: &PipelineSettings,
+        id: u32,
     ) -> wgpu::RenderPipeline {
         let depth_stencil = if settings.depth.enabled {
             wgpu::DepthStencilState {
@@ -118,14 +119,16 @@ impl Pipeline {
             write_mask |= wgpu::ColorWrites::ALPHA;
         }
 
+        let label = format!("shader {}", id);
         let shader = compiler::compile(&settings.texenv, &settings.texgen);
         let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: None,
+            label: Some(&label),
             source: wgpu::ShaderSource::Wgsl(Cow::Owned(shader)),
         });
 
+        let label = format!("render pipeline {}", id);
         device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("uber render pipeline"),
+            label: Some(&label),
             layout: Some(layout),
             primitive: wgpu::PrimitiveState {
                 topology: wgpu::PrimitiveTopology::TriangleList,
@@ -225,7 +228,7 @@ impl Pipeline {
         });
 
         let settings = PipelineSettings::default();
-        let pipeline = Self::create_pipeline(device, &layout, &settings);
+        let pipeline = Self::create_pipeline(device, &layout, &settings, 0);
         let mut cached = HashMap::new();
         cached.insert(settings.clone(), pipeline.clone());
 
@@ -252,10 +255,16 @@ impl Pipeline {
     }
 
     pub fn update(&mut self, device: &wgpu::Device) {
+        let len = self.cached.len() as u32;
         self.pipeline = match self.cached.entry(self.settings.clone()) {
             Entry::Occupied(o) => o.get().clone(),
             Entry::Vacant(v) => v
-                .insert(Self::create_pipeline(device, &self.layout, &self.settings))
+                .insert(Self::create_pipeline(
+                    device,
+                    &self.layout,
+                    &self.settings,
+                    len,
+                ))
                 .clone(),
         };
     }

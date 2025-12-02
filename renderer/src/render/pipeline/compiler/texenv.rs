@@ -12,7 +12,7 @@ fn sample_tex(stage: &TexEnvStage) -> wesl::syntax::Expression {
     let coord_ident = wesl::syntax::Ident::new(format!("in.tex_coord{map}"));
 
     wesl::quote_expression! {
-        textureSample(#tex_ident, #sampler_ident, #coord_ident.xy)
+        textureSample(#tex_ident, #sampler_ident, #coord_ident.xy / #coord_ident.z)
     }
 }
 

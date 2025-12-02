@@ -232,6 +232,8 @@ impl Renderer {
                 clear,
                 response,
             } => {
+                self.current_pass
+                    .insert_debug_marker("color copy requested");
                 self.next_pass(clear, false);
                 let data = self.get_color_data(x, y, width, height, half);
                 response.send(data).unwrap();
@@ -245,11 +247,14 @@ impl Renderer {
                 clear,
                 response,
             } => {
+                self.current_pass
+                    .insert_debug_marker("depth copy requested");
                 self.next_pass(clear, false);
                 let data = self.get_depth_data(x, y, width, height, half);
                 response.send(data).unwrap();
             }
             Action::XfbCopy { clear } => {
+                self.current_pass.insert_debug_marker("XFB copy requested");
                 self.next_pass(clear, true);
             }
         }
@@ -290,11 +295,10 @@ impl Renderer {
     }
 
     pub fn set_framebuffer_format(&mut self, format: pixel::BufferFormat) {
-        self.flush();
-        // dbg!(format);
         match format {
             pixel::BufferFormat::RGB8Z24 | pixel::BufferFormat::RGB565Z16 => {
-                self.pipeline.settings.has_alpha = false
+                self.pipeline.settings.has_alpha = false;
+                self.flush("changed framebuffer format");
             }
             pixel::BufferFormat::RGBA6Z24 => self.pipeline.settings.has_alpha = true,
             _ => (),
@@ -302,6 +306,7 @@ impl Renderer {
     }
 
     pub fn set_viewport(&mut self, viewport: Viewport) {
+        self.current_pass.insert_debug_marker("changed viewport");
         self.current_pass.set_viewport(
             viewport.top_left_x,
             viewport.top_left_y,
@@ -361,7 +366,7 @@ impl Renderer {
             alpha_write: mode.alpha_mask(),
         };
 
-        self.flush();
+        self.flush("changed blend settings");
         self.pipeline.settings.blend = blend;
     }
 
@@ -384,15 +389,19 @@ impl Renderer {
         };
 
         if self.pipeline.settings.depth != depth {
-            self.flush();
+            self.flush("depth settings changed");
             self.pipeline.settings.depth = depth;
         }
     }
 
     pub fn set_constant_alpha_mode(&mut self, mode: ConstantAlpha) {
         self.current_config.constant_alpha = if mode.enabled() {
+            self.current_pass
+                .insert_debug_marker("enabled constant alpha");
             mode.value() as u32
         } else {
+            self.current_pass
+                .insert_debug_marker("disabled constant alpha");
             u32::MAX
         };
         self.current_config_dirty = true;
@@ -446,7 +455,7 @@ impl Renderer {
             return;
         }
 
-        self.flush();
+        self.flush("texture slot changed");
         self.textures.set_texture_slot(index, handle);
     }
 
@@ -527,11 +536,13 @@ impl Renderer {
         self.current_config_dirty = true;
     }
 
-    pub fn flush(&mut self) {
+    pub fn flush(&mut self, reason: &str) {
         if self.vertices.is_empty() {
             return;
         }
 
+        self.current_pass
+            .insert_debug_marker(&format!("[FLUSH]: {reason}"));
         self.pipeline.update(&self.device);
 
         let index_buf =
@@ -611,7 +622,7 @@ impl Renderer {
 
     // Finishes the current render pass and starts the next one.
     pub fn next_pass(&mut self, clear: bool, copy_to_xfb: bool) {
-        self.flush();
+        self.flush("finishing pass");
 
         let external = self.framebuffer.external().create_view(&Default::default());
         let color = self.framebuffer.color().create_view(&Default::default());

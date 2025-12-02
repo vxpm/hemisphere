@@ -389,7 +389,7 @@ fn main() -> Result<()> {
         wgpu_options: WgpuConfiguration {
             wgpu_setup: WgpuSetup::CreateNew(WgpuSetupCreateNew {
                 instance_descriptor: wgpu::InstanceDescriptor {
-                    backends: wgpu::Backends::GL,
+                    backends: wgpu::Backends::PRIMARY,
                     ..Default::default()
                 },
                 power_preference: wgpu::PowerPreference::HighPerformance,

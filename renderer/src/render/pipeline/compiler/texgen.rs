@@ -51,7 +51,7 @@ pub fn get_output(
 ) -> wesl::syntax::Expression {
     use wesl::syntax::*;
     match format {
-        TexGenOutputKind::Vec2 => wesl::quote_expression! { vec3f(#transformed.xy, 0.0) },
+        TexGenOutputKind::Vec2 => wesl::quote_expression! { vec3f(#transformed.xy, 1.0) },
         TexGenOutputKind::Vec3 => transformed,
     }
 }
@@ -70,20 +70,5 @@ pub fn post_transform(
     normalized: wesl::syntax::Expression,
 ) -> wesl::syntax::Expression {
     use wesl::syntax::*;
-
-    // let [
-    //     [m00, m01, m02, m03],
-    //     [m10, m11, m12, m13],
-    //     [m20, m21, m22, m23],
-    //     [m30, m31, m32, m33],
-    // ] = matrix.to_cols_array_2d();
-    //
-    // let matrix = wesl::quote_expression! { mat4x4f(
-    //     vec4f(#m00, #m01, #m02, #m03),
-    //     vec4f(#m10, #m11, #m12, #m13),
-    //     vec4f(#m20, #m21, #m22, #m23),
-    //     vec4f(#m30, #m31, #m32, #m33),
-    // ) };
-
     wesl::quote_expression! { (config.post_transform_mat[#stage_index] * vec4f(#normalized, 1.0)).xyz }
 }
