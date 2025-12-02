@@ -59,8 +59,22 @@ impl AppWindow for Window {
         if let Some(renderdoc) = &mut self.renderdoc {
             ui.horizontal(|ui| {
                 ui.checkbox(&mut self.capture, "Capture (Renderdoc)");
-                if self.capture {
-                    renderdoc.trigger_capture();
+
+                let null = std::ptr::null();
+                if self.is_capturing {
+                    if ctx.renderer.rendered_anything() {
+                        renderdoc.end_frame_capture(null, null);
+                        self.is_capturing = false;
+                    } else {
+                        renderdoc.discard_frame_capture(null, null);
+                        renderdoc.start_frame_capture(null, null);
+                    }
+                }
+
+                if self.capture && !self.is_capturing {
+                    ctx.renderer.rendered_anything();
+                    renderdoc.start_frame_capture(null, null);
+                    self.is_capturing = true;
                 }
             });
         } else {

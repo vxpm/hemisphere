@@ -298,7 +298,9 @@ impl eframe::App for App {
             let target = Cycles::from_duration(FRAMETIME);
 
             let mut cycles = 0u64;
-            while cycles < target && self.last_update.elapsed() <= 2 * FRAMETIME {
+            while cycles < target && self.last_update.elapsed() <= 2 * FRAMETIME
+                || start.elapsed() <= FRAMETIME / 4
+            {
                 let executed = self
                     .state
                     .emulator
