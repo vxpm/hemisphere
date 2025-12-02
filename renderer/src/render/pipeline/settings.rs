@@ -1,4 +1,10 @@
-use hemisphere::{render::TexEnvStage, system::gpu::transform::BaseTexGen};
+use hemisphere::{
+    render::TexEnvStage,
+    system::gpu::{
+        environment::{AlphaCompare, AlphaLogic},
+        transform::BaseTexGen,
+    },
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BlendSettings {
@@ -43,8 +49,15 @@ impl Default for DepthSettings {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
+pub struct AlphaFunctionSettings {
+    pub comparison: [AlphaCompare; 2],
+    pub logic: AlphaLogic,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct TexEnvSettings {
     pub stages: Vec<TexEnvStage>,
+    pub alpha_function: AlphaFunctionSettings,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]

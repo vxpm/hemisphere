@@ -3,7 +3,7 @@
 use crate::system::gpu::{
     Topology, VertexAttributes,
     colors::{Abgr8, Rgba, Rgba8},
-    environment::{Constant, StageOps, StageRefs},
+    environment::{AlphaFunction, Constant, StageOps, StageRefs},
     pixel::{BlendMode, BufferFormat, ConstantAlpha, DepthMode},
     transform::{BaseTexGen, ChannelControl, Light},
 };
@@ -102,6 +102,7 @@ pub enum Action {
     SetDepthMode(DepthMode),
     SetBlendMode(BlendMode),
     SetConstantAlpha(ConstantAlpha),
+    SetAlphaFunction(AlphaFunction),
     SetProjectionMatrix(Mat4),
     SetTexEnvConfig(TexEnvConfig),
     SetTexGenConfig(TexGenConfig),

@@ -1,7 +1,11 @@
 use hemisphere::{
     render::TexEnvStage,
-    system::gpu::environment::{AlphaInputSrc, ColorChannel, ColorInputSrc, Constant},
+    system::gpu::environment::{
+        AlphaCompare, AlphaInputSrc, AlphaLogic, ColorChannel, ColorInputSrc, Constant,
+    },
 };
+
+use crate::render::pipeline::AlphaFunctionSettings;
 
 fn sample_tex(stage: &TexEnvStage) -> wesl::syntax::Expression {
     use wesl::syntax::*;
@@ -157,5 +161,34 @@ pub fn get_alpha_input(stage: &TexEnvStage, input: AlphaInputSrc) -> wesl::synta
             wesl::quote_expression! { (#constant) }
         }
         AlphaInputSrc::Zero => wesl::quote_expression! { 0.0 },
+    }
+}
+
+fn get_alpha_comparison_helper(compare: AlphaCompare, idx: usize) -> wesl::syntax::Expression {
+    use wesl::syntax::*;
+
+    let alpha_ref = wesl::syntax::Ident::new(format!("alpha_ref{idx}"));
+    match compare {
+        AlphaCompare::Never => wesl::quote_expression! { false },
+        AlphaCompare::Less => wesl::quote_expression! { alpha < #alpha_ref },
+        AlphaCompare::Equal => wesl::quote_expression! { alpha == #alpha_ref },
+        AlphaCompare::LessOrEqual => wesl::quote_expression! { alpha <= #alpha_ref },
+        AlphaCompare::Greater => wesl::quote_expression! { alpha > #alpha_ref },
+        AlphaCompare::NotEqual => wesl::quote_expression! { alpha != #alpha_ref },
+        AlphaCompare::GreaterOrEqual => wesl::quote_expression! { alpha >= #alpha_ref },
+        AlphaCompare::Always => wesl::quote_expression! { true },
+    }
+}
+
+pub fn get_alpha_comparison(settings: &AlphaFunctionSettings) -> wesl::syntax::Expression {
+    use wesl::syntax::*;
+    let a = get_alpha_comparison_helper(settings.comparison[0], 0);
+    let b = get_alpha_comparison_helper(settings.comparison[1], 1);
+
+    match settings.logic {
+        AlphaLogic::And => wesl::quote_expression! { (#a) && (#b) },
+        AlphaLogic::Or => wesl::quote_expression! { (#a) || (#b) },
+        AlphaLogic::Xor => wesl::quote_expression! { (#a) ^ (#b) },
+        AlphaLogic::Xnor => wesl::quote_expression! { !((#a) ^ (#b)) },
     }
 }

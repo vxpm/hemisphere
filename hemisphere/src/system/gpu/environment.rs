@@ -265,6 +265,41 @@ pub struct StageOps {
     pub alpha: StageAlpha,
 }
 
+#[bitos(3)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum AlphaCompare {
+    #[default]
+    Never = 0x0,
+    Less = 0x1,
+    Equal = 0x2,
+    LessOrEqual = 0x3,
+    Greater = 0x4,
+    NotEqual = 0x5,
+    GreaterOrEqual = 0x6,
+    Always = 0x7,
+}
+
+#[bitos(2)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum AlphaLogic {
+    #[default]
+    And = 0b00,
+    Or = 0b01,
+    Xor = 0b10,
+    Xnor = 0b11,
+}
+
+#[bitos(32)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
+pub struct AlphaFunction {
+    #[bits(0..16)]
+    pub refs: [u8; 2],
+    #[bits(16..22)]
+    pub comparison: [AlphaCompare; 2],
+    #[bits(22..24)]
+    pub logic: AlphaLogic,
+}
+
 #[derive(Debug, Default)]
 pub struct Interface {
     pub active_stages: u8,
@@ -273,4 +308,5 @@ pub struct Interface {
     pub stage_refs: [StageRefsPair; 8],
     pub stage_consts: [StageConstsPair; 8],
     pub constants: [Rgba; 4],
+    pub alpha_function: AlphaFunction,
 }

@@ -794,6 +794,12 @@ impl System {
                 self.gpu.environment.constants[2].b = b as f32 / 255.0;
                 self.gpu.environment.constants[2].g = g as f32 / 255.0;
             }
+            Reg::TevAlphaFunc => {
+                value.write_ne_bytes(self.gpu.environment.alpha_function.as_mut_bytes());
+                self.config.renderer.exec(Action::SetAlphaFunction(
+                    self.gpu.environment.alpha_function.clone(),
+                ));
+            }
             Reg::TevKSel0 => {
                 value.write_ne_bytes(self.gpu.environment.stage_consts[0].as_mut_bytes());
             }
@@ -1060,18 +1066,6 @@ impl System {
         }
 
         if self.gpu.pixel.control.format().is_depth() {
-            println!(
-                "copy from ({}, {}) [{}x{}] to {} with stride {} and format {:?} (encoding {:?})",
-                self.gpu.pixel.copy_src.x().value(),
-                self.gpu.pixel.copy_src.y().value(),
-                self.gpu.pixel.copy_dimensions.width(),
-                self.gpu.pixel.copy_dimensions.height(),
-                self.gpu.pixel.copy_dst,
-                self.gpu.pixel.copy_stride,
-                cmd.depth_format(),
-                cmd.depth_format().texture_format(),
-            );
-
             let (sender, receiver) = oneshot::channel();
             let width = self.gpu.pixel.copy_dimensions.width();
             let height = self.gpu.pixel.copy_dimensions.height();

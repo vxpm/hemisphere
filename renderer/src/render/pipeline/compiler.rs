@@ -47,9 +47,8 @@ fn base_module() -> wesl::syntax::TranslationUnit {
             consts: array<vec4f, 4>,
             post_transform_mat: array<mat4x4f, 8>,
             constant_alpha: u32,
+            alpha_refs: array<u32, 2>,
             _pad0: u32,
-            _pad1: u32,
-            _pad2: u32,
         }
 
         // A primitive vertex
@@ -513,6 +512,8 @@ fn fragment_stage(texenv: &TexEnvSettings) -> wesl::syntax::GlobalDeclaration {
         @#s15 {}
     });
 
+    let alpha_comparison = texenv::get_alpha_comparison(&texenv.alpha_function);
+
     wesl::quote_declaration! {
         @fragment
         fn fs_main(in: base::VertexOutput) -> base::FragmentOutput {
@@ -534,6 +535,16 @@ fn fragment_stage(texenv: &TexEnvSettings) -> wesl::syntax::GlobalDeclaration {
             regs = consts;
 
             @#compute_stages {}
+
+            let color = regs[last_color_output].rgb;
+            let alpha = regs[last_alpha_output].a;
+
+            let alpha_ref0 = f32(config.alpha_refs[0]) / 255.0;
+            let alpha_ref1 = f32(config.alpha_refs[1]) / 255.0;
+
+            if !(#alpha_comparison) {
+                discard;
+            }
 
             var out: base::FragmentOutput;
             out.blend = vec4f(regs[last_color_output].rgb, regs[last_alpha_output].a);

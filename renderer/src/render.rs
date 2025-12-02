@@ -19,6 +19,7 @@ use hemisphere::{
     system::gpu::{
         DEPTH_24_BIT_MAX, Topology, VertexAttributes,
         colors::{Rgba, Rgba8},
+        environment::AlphaFunction,
         pixel::{
             self, BlendMode, CompareMode, ConstantAlpha, DepthMode, DstBlendFactor, SrcBlendFactor,
         },
@@ -171,6 +172,7 @@ impl Renderer {
             Action::SetClearDepth(depth) => self.clear_depth = depth,
             Action::SetBlendMode(mode) => self.set_blend_mode(mode),
             Action::SetDepthMode(mode) => self.set_depth_mode(mode),
+            Action::SetAlphaFunction(func) => self.set_alpha_function(func),
             Action::SetConstantAlpha(mode) => self.set_constant_alpha_mode(mode),
             Action::SetProjectionMatrix(mat) => self.set_projection_mat(mat),
             Action::SetTexEnvConfig(config) => self.set_texenv_config(config),
@@ -394,14 +396,17 @@ impl Renderer {
         }
     }
 
+    pub fn set_alpha_function(&mut self, func: AlphaFunction) {
+        self.pipeline.settings.texenv.alpha_function.comparison = func.comparison();
+        self.pipeline.settings.texenv.alpha_function.logic = func.logic();
+        self.current_config.alpha_refs = func.refs().map(|x| x as u32);
+        self.current_config_dirty = true;
+    }
+
     pub fn set_constant_alpha_mode(&mut self, mode: ConstantAlpha) {
         self.current_config.constant_alpha = if mode.enabled() {
-            self.current_pass
-                .insert_debug_marker("enabled constant alpha");
             mode.value() as u32
         } else {
-            self.current_pass
-                .insert_debug_marker("disabled constant alpha");
             u32::MAX
         };
         self.current_config_dirty = true;
