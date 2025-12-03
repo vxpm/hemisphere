@@ -5,7 +5,7 @@ use crate::{
     stream::{BinRingBuffer, BinaryStream},
     system::{
         System,
-        gx::{self, Gpu, Reg as GxReg, Topology, command::attributes::AttributeDescriptor},
+        gx::{self, Gpu, Reg as GxReg, Topology, cp::attributes::AttributeDescriptor},
     },
 };
 use attributes::VertexAttributeTable;

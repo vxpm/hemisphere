@@ -1,5 +1,5 @@
 pub mod colors;
-pub mod command;
+pub mod cp;
 pub mod environment;
 pub mod pixel;
 pub mod texture;
@@ -11,7 +11,7 @@ use crate::{
     stream::{BinReader, BinaryStream},
     system::gx::{
         colors::Rgba,
-        command::{
+        cp::{
             ArrayDescriptor, AttributeMode, VertexAttributeStream,
             attributes::{self, Attribute, AttributeDescriptor},
         },
@@ -396,7 +396,7 @@ pub struct VertexAttributes {
 
 #[derive(Debug, Default)]
 pub struct Gpu {
-    pub command: command::Interface,
+    pub command: cp::Interface,
     pub transform: transform::Interface,
     pub environment: environment::Interface,
     pub texture: texture::Interface,

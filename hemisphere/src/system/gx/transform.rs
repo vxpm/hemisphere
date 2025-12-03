@@ -2,7 +2,7 @@ use crate::{
     render::{self, Action},
     system::{
         System,
-        gx::{DEPTH_24_BIT_MAX, colors::Abgr8, command::ArrayDescriptor},
+        gx::{DEPTH_24_BIT_MAX, colors::Abgr8, cp::ArrayDescriptor},
     },
 };
 use bitos::{
