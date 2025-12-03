@@ -1,5 +1,6 @@
 ///! Transform unit (XF).
 use crate::{
+    Primitive,
     render::{self, Action},
     system::{
         System,
@@ -37,8 +38,8 @@ pub enum Reg {
     AlphaControl0 = 0x10,
     AlphaControl1 = 0x11,
     DualTextureTransform = 0x12,
-    MatrixIndex0 = 0x18,
-    MatrixIndex1 = 0x19,
+    MatIndexLow = 0x18,
+    MatIndexHigh = 0x19,
     ViewportScaleX = 0x1A,
     ViewportScaleY = 0x1B,
     ViewportScaleZ = 0x1C,
@@ -243,6 +244,15 @@ pub struct ChannelControl {
     pub lights4to7: [bool; 4],
 }
 
+#[bitos(64)]
+#[derive(Debug, Clone, Copy, Default)]
+pub struct MatrixIndices {
+    #[bits(0..6)]
+    pub view: u6,
+    #[bits(6..54)]
+    pub tex: [u6; 8],
+}
+
 #[derive(Debug, Default)]
 pub struct Viewport {
     pub width: f32,
@@ -261,6 +271,7 @@ pub struct Internal {
     pub alpha_control: [ChannelControl; 2],
     pub viewport: Viewport,
     pub viewport_dirty: bool,
+    pub mat_indices: MatrixIndices,
     pub projection_params: [f32; 6],
     pub projection_orthographic: bool,
     pub texgen: [TexGen; 8],
@@ -394,6 +405,9 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
 
     let xf = &mut sys.gpu.transform.internal;
     match reg {
+        Reg::MatIndexLow => value.write_ne_bytes(&mut xf.mat_indices.as_mut_bytes()[0..4]),
+        Reg::MatIndexHigh => value.write_ne_bytes(&mut xf.mat_indices.as_mut_bytes()[4..8]),
+
         Reg::Ambient0 => {
             xf.ambient[0] = Abgr8::from_u32(value);
             sys.config

@@ -10,10 +10,7 @@ use crate::{
     },
 };
 use attributes::VertexAttributeTable;
-use bitos::{
-    BitUtils, bitos,
-    integer::{u3, u6},
-};
+use bitos::{BitUtils, bitos, integer::u3};
 use gekko::Address;
 use strum::FromRepr;
 use zerocopy::IntoBytes;
@@ -364,21 +361,11 @@ pub struct Arrays {
     pub general_purpose: [ArrayDescriptor; 4],
 }
 
-#[bitos(64)]
-#[derive(Debug, Clone, Copy, Default)]
-pub struct MatrixIndices {
-    #[bits(0..6)]
-    pub view: u6,
-    #[bits(6..54)]
-    pub tex: [u6; 8],
-}
-
 #[derive(Debug, Clone, Default)]
 pub struct Internal {
     pub vertex_descriptor: VertexDescriptor,
     pub vertex_attr_tables: [VertexAttributeTable; 8],
     pub arrays: Arrays,
-    pub mat_indices: MatrixIndices,
 }
 
 impl Internal {
@@ -638,9 +625,11 @@ impl Gpu {
 /// Sets the value of an internal command processor register.
 pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
     let cp = &mut sys.gpu.command.internal;
+    let xf = &mut sys.gpu.transform.internal;
+
     match reg {
-        Reg::MatIndexLow => value.write_ne_bytes(&mut cp.mat_indices.as_mut_bytes()[0..4]),
-        Reg::MatIndexHigh => value.write_ne_bytes(&mut cp.mat_indices.as_mut_bytes()[4..8]),
+        Reg::MatIndexLow => value.write_ne_bytes(&mut xf.mat_indices.as_mut_bytes()[0..4]),
+        Reg::MatIndexHigh => value.write_ne_bytes(&mut xf.mat_indices.as_mut_bytes()[4..8]),
 
         Reg::VcdLow => value.write_ne_bytes(&mut cp.vertex_descriptor.as_mut_bytes()[0..4]),
         Reg::VcdHigh => value.write_ne_bytes(&mut cp.vertex_descriptor.as_mut_bytes()[4..8]),

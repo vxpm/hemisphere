@@ -913,7 +913,7 @@ fn read_attribute<A: Attribute>(
 
 fn extract_attributes(sys: &mut System, stream: &VertexAttributeStream) -> Vec<VertexAttributes> {
     let vat = stream.table_index();
-    let default_pos_matrix_idx = sys.gpu.command.internal.mat_indices.view().value();
+    let default_pos_matrix_idx = sys.gpu.transform.internal.mat_indices.view().value();
 
     let mut vertices = Vec::with_capacity(stream.count() as usize);
     let mut data = stream.data();
@@ -931,7 +931,7 @@ fn extract_attributes(sys: &mut System, stream: &VertexAttributeStream) -> Vec<V
             N in 0..8 {
                 let default = sys
                     .gpu
-                    .command
+                    .transform
                     .internal
                     .mat_indices
                     .tex_at(N)
