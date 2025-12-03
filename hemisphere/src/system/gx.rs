@@ -4,8 +4,8 @@ pub mod colors;
 pub mod cp;
 pub mod pe;
 pub mod tev;
-pub mod texture;
-pub mod transform;
+pub mod tex;
+pub mod xf;
 
 use crate::{
     Primitive, System,
@@ -17,7 +17,7 @@ use crate::{
             ArrayDescriptor, AttributeMode, VertexAttributeStream,
             attributes::{self, Attribute, AttributeDescriptor},
         },
-        texture::{LutCount, encode_color_texture, encode_depth_texture},
+        tex::{LutCount, encode_color_texture, encode_depth_texture},
     },
 };
 use bitos::{
@@ -399,9 +399,9 @@ pub struct VertexAttributes {
 #[derive(Debug, Default)]
 pub struct Gpu {
     pub command: cp::Interface,
-    pub transform: transform::Interface,
+    pub transform: xf::Interface,
     pub environment: tev::Interface,
-    pub texture: texture::Interface,
+    pub texture: tex::Interface,
     pub pixel: pe::Interface,
 }
 
@@ -989,7 +989,7 @@ fn update_texture(sys: &mut System, index: usize) {
     let slice = &sys.mem.ram[start..][..len];
 
     if !sys.gpu.texture.insert_cache(map.address, slice) {
-        let data = texture::decode_texture(slice, map.format);
+        let data = tex::decode_texture(slice, map.format);
         sys.config.renderer.exec(Action::LoadTexture {
             id: map.address.value(),
             width: map.format.width(),

@@ -5,7 +5,7 @@ use crate::system::gx::{
     colors::{Abgr8, Rgba, Rgba8},
     pe::{BlendMode, BufferFormat, ConstantAlpha, DepthMode},
     tev::{AlphaFunction, Constant, StageOps, StageRefs},
-    transform::{BaseTexGen, ChannelControl, Light},
+    xf::{BaseTexGen, ChannelControl, Light},
 };
 use glam::Mat4;
 use oneshot::Sender;

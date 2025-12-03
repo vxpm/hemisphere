@@ -23,7 +23,7 @@ use hemisphere::{
             self, BlendMode, CompareMode, ConstantAlpha, DepthMode, DstBlendFactor, SrcBlendFactor,
         },
         tev::AlphaFunction,
-        transform::ChannelControl,
+        xf::ChannelControl,
     },
 };
 use std::{

@@ -1,4 +1,5 @@
-use crate::system::gx::{colors::Abgr8, texture};
+///! Pixel engine (PE).
+use crate::system::gx::{colors::Abgr8, tex};
 use bitos::{
     Bits, bitos,
     integer::{u2, u3, u4, u10},
@@ -110,8 +111,8 @@ pub enum DepthCopyFormat {
 }
 
 impl DepthCopyFormat {
-    pub fn texture_format(&self) -> texture::Format {
-        use texture::Format::*;
+    pub fn texture_format(&self) -> tex::Format {
+        use tex::Format::*;
         match self {
             Self::Z4 => I4,
             Self::Z8 => I8,
@@ -149,8 +150,8 @@ pub enum ColorCopyFormat {
 }
 
 impl ColorCopyFormat {
-    pub fn texture_format(&self) -> texture::Format {
-        use texture::Format::*;
+    pub fn texture_format(&self) -> tex::Format {
+        use tex::Format::*;
         match self {
             Self::R4 => I4,
             Self::Y8 => I8,

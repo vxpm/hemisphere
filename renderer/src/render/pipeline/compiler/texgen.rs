@@ -1,6 +1,4 @@
-use hemisphere::system::gx::transform::{
-    TexGenInputKind, TexGenKind, TexGenOutputKind, TexGenSource,
-};
+use hemisphere::system::gx::xf::{TexGenInputKind, TexGenKind, TexGenOutputKind, TexGenSource};
 
 pub fn get_source(source: TexGenSource) -> wesl::syntax::Expression {
     use wesl::syntax::*;

@@ -2,7 +2,7 @@ use hemisphere::{
     render::TexEnvStage,
     system::gx::{
         tev::{AlphaCompare, AlphaLogic},
-        transform::BaseTexGen,
+        xf::BaseTexGen,
     },
 };
 

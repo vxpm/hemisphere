@@ -1,3 +1,4 @@
+///! Transform unit (XF).
 use crate::{
     render::{self, Action},
     system::{
