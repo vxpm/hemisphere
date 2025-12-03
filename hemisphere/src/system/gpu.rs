@@ -15,7 +15,7 @@ use crate::{
             ArrayDescriptor, AttributeMode, VertexAttributeStream,
             attributes::{self, Attribute, AttributeDescriptor},
         },
-        texture::{encode_color_texture, encode_depth_texture},
+        texture::{LutCount, LutFormat, LutRef, encode_color_texture, encode_depth_texture},
     },
 };
 use bitos::{
@@ -138,8 +138,8 @@ pub enum Reg {
     TexLoadBlock1 = 0x61,
     TexLoadBlock2 = 0x62,
     TexLoadBlock3 = 0x63,
-    TexLoadLut0 = 0x64,
-    TexLoadLut1 = 0x65,
+    TexLutAddress = 0x64,
+    TexLutCount = 0x65,
     TexInvTags = 0x66,
     TexPerfMode = 0x67,
     TexFieldMode = 0x68,
@@ -169,11 +169,10 @@ pub enum Reg {
     TexAddress1 = 0x95,
     TexAddress2 = 0x96,
     TexAddress3 = 0x97,
-
-    TexSetLut0 = 0x98,
-    TexSetLut1 = 0x99,
-    TexSetLut2 = 0x9A,
-    TexSetLut3 = 0x9B,
+    TexLutRef0 = 0x98,
+    TexLutRef1 = 0x99,
+    TexLutRef2 = 0x9A,
+    TexLutRef3 = 0x9B,
 
     TexMode4 = 0xA0,
     TexMode5 = 0xA1,
@@ -199,6 +198,10 @@ pub enum Reg {
     TexAddress5 = 0xB5,
     TexAddress6 = 0xB6,
     TexAddress7 = 0xB7,
+    TexLutRef4 = 0xB8,
+    TexLutRef5 = 0xB9,
+    TexLutRef6 = 0xBA,
+    TexLutRef7 = 0xBB,
 
     // TEV
     TevColor0 = 0xC0,
@@ -551,6 +554,13 @@ impl System {
                 self.gx_do_efb_copy(cmd);
             }
 
+            Reg::TexLutAddress => {
+                println!("lut address: {}", Address(value.bits(0, 21)));
+            }
+            Reg::TexLutCount => {
+                println!("lut count: {:?}", LutCount::from_bits(value));
+            }
+
             Reg::TexMode0 => {
                 value.write_ne_bytes(self.gpu.texture.maps[0].mode.as_mut_bytes());
                 self.gpu.texture.maps[0].dirty = true;
@@ -648,6 +658,17 @@ impl System {
             Reg::TexAddress7 => {
                 self.gpu.texture.maps[7].address = Address(value << 5);
                 self.gpu.texture.maps[7].dirty = true;
+            }
+
+            Reg::TexLutRef0
+            | Reg::TexLutRef1
+            | Reg::TexLutRef2
+            | Reg::TexLutRef3
+            | Reg::TexLutRef4
+            | Reg::TexLutRef5
+            | Reg::TexLutRef6
+            | Reg::TexLutRef7 => {
+                println!("{:?}", LutRef::from_bits(value));
             }
 
             Reg::TevColor0 => {

@@ -4,7 +4,7 @@ use crate::system::gpu::{
 };
 use bitos::{
     bitos,
-    integer::{u2, u10},
+    integer::{u2, u10, u11},
 };
 use gekko::Address;
 use gxtex::{AlphaSource, IntensitySource};
@@ -158,6 +158,34 @@ pub struct TextureMap {
     pub mode: Mode,
     pub scaling: Scaling,
     pub dirty: bool,
+}
+
+#[bitos(2)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum LutFormat {
+    #[default]
+    IA8 = 0b00,
+    RGB565 = 0b01,
+    RGB5A3 = 0b10,
+    Reserved0 = 0b11,
+}
+
+#[bitos(32)]
+#[derive(Debug, Clone, Copy, Default)]
+pub struct LutCount {
+    #[bits(0..10)]
+    pub tmem_offset: u10,
+    #[bits(10..21)]
+    pub count: u11,
+}
+
+#[bitos(32)]
+#[derive(Debug, Clone, Copy, Default)]
+pub struct LutRef {
+    #[bits(0..10)]
+    pub tmem_offset: u10,
+    #[bits(10..12)]
+    pub format: LutFormat,
 }
 
 #[derive(Default)]

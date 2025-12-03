@@ -608,7 +608,7 @@ pub fn compile(texenv: &TexEnvSettings, texgen: &TexGenSettings) -> String {
         }
     };
 
-    println!("{texenv:#?}");
+    // println!("{texenv:#?}");
 
     compiled.syntax.to_string()
 }
