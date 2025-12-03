@@ -1,6 +1,6 @@
 use crate::system::gx::{
     colors::Rgba8,
-    pixel::{ColorCopyFormat, DepthCopyFormat},
+    pe::{ColorCopyFormat, DepthCopyFormat},
 };
 use bitos::{
     bitos,

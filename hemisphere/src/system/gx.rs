@@ -1,7 +1,9 @@
+///! Graphics subsystem (GX).
 pub mod colors;
+
 pub mod cp;
-pub mod environment;
-pub mod pixel;
+pub mod pe;
+pub mod tev;
 pub mod texture;
 pub mod transform;
 
@@ -398,9 +400,9 @@ pub struct VertexAttributes {
 pub struct Gpu {
     pub command: cp::Interface,
     pub transform: transform::Interface,
-    pub environment: environment::Interface,
+    pub environment: tev::Interface,
     pub texture: texture::Interface,
-    pub pixel: pixel::Interface,
+    pub pixel: pe::Interface,
 }
 
 pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
@@ -451,13 +453,13 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
                 .exec(Action::SetBlendMode(sys.gpu.pixel.blend_mode));
         }
         Reg::PixelConstantAlpha => {
-            sys.gpu.pixel.constant_alpha = pixel::ConstantAlpha::from_bits(value);
+            sys.gpu.pixel.constant_alpha = pe::ConstantAlpha::from_bits(value);
             sys.config
                 .renderer
                 .exec(Action::SetConstantAlpha(sys.gpu.pixel.constant_alpha));
         }
         Reg::PixelControl => {
-            sys.gpu.pixel.control = pixel::Control::from_bits(value);
+            sys.gpu.pixel.control = pe::Control::from_bits(value);
             sys.config
                 .renderer
                 .exec(Action::SetFramebufferFormat(sys.gpu.pixel.control.format()));
@@ -474,10 +476,10 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
             sys.scheduler.schedule_now(System::pi_check_interrupts);
         }
         Reg::PixelCopySrc => {
-            sys.gpu.pixel.copy_src = pixel::CopySrc::from_bits(value);
+            sys.gpu.pixel.copy_src = pe::CopySrc::from_bits(value);
         }
         Reg::PixelCopyDimensions => {
-            sys.gpu.pixel.copy_dimensions = pixel::CopyDimensions::from_bits(value);
+            sys.gpu.pixel.copy_dimensions = pe::CopyDimensions::from_bits(value);
         }
         Reg::PixelCopyDst => {
             sys.gpu.pixel.copy_dst = Address(value << 5);
@@ -500,7 +502,7 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
             ));
         }
         Reg::PixelCopyCmd => {
-            let cmd = pixel::CopyCmd::from_bits(value);
+            let cmd = pe::CopyCmd::from_bits(value);
             do_efb_copy(sys, cmd);
         }
 
@@ -1039,7 +1041,7 @@ fn draw(sys: &mut System, topology: Topology, stream: &VertexAttributeStream) {
     sys.config.renderer.exec(Action::Draw(topology, attributes));
 }
 
-fn do_efb_copy(sys: &mut System, cmd: pixel::CopyCmd) {
+fn do_efb_copy(sys: &mut System, cmd: pe::CopyCmd) {
     if cmd.to_xfb() {
         sys.config
             .renderer

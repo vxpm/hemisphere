@@ -3,8 +3,8 @@
 use crate::system::gx::{
     Topology, VertexAttributes,
     colors::{Abgr8, Rgba, Rgba8},
-    environment::{AlphaFunction, Constant, StageOps, StageRefs},
-    pixel::{BlendMode, BufferFormat, ConstantAlpha, DepthMode},
+    pe::{BlendMode, BufferFormat, ConstantAlpha, DepthMode},
+    tev::{AlphaFunction, Constant, StageOps, StageRefs},
     transform::{BaseTexGen, ChannelControl, Light},
 };
 use glam::Mat4;

@@ -1,3 +1,4 @@
+///! Texture Environment (TEV).
 use bitos::{
     bitos,
     integer::{u2, u3},

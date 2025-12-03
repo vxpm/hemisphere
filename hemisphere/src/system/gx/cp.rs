@@ -1,3 +1,4 @@
+///! Command processor (GP).
 pub mod attributes;
 
 use crate::{

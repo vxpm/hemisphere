@@ -1,7 +1,7 @@
 use hemisphere::{
     render::TexEnvStage,
     system::gx::{
-        environment::{AlphaCompare, AlphaLogic},
+        tev::{AlphaCompare, AlphaLogic},
         transform::BaseTexGen,
     },
 };

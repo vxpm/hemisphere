@@ -19,10 +19,10 @@ use hemisphere::{
     system::gx::{
         DEPTH_24_BIT_MAX, Topology, VertexAttributes,
         colors::{Rgba, Rgba8},
-        environment::AlphaFunction,
-        pixel::{
+        pe::{
             self, BlendMode, CompareMode, ConstantAlpha, DepthMode, DstBlendFactor, SrcBlendFactor,
         },
+        tev::AlphaFunction,
         transform::ChannelControl,
     },
 };
@@ -296,13 +296,13 @@ impl Renderer {
         self.insert_vertex(vertex)
     }
 
-    pub fn set_framebuffer_format(&mut self, format: pixel::BufferFormat) {
+    pub fn set_framebuffer_format(&mut self, format: pe::BufferFormat) {
         match format {
-            pixel::BufferFormat::RGB8Z24 | pixel::BufferFormat::RGB565Z16 => {
+            pe::BufferFormat::RGB8Z24 | pe::BufferFormat::RGB565Z16 => {
                 self.pipeline.settings.has_alpha = false;
                 self.flush("changed framebuffer format");
             }
-            pixel::BufferFormat::RGBA6Z24 => self.pipeline.settings.has_alpha = true,
+            pe::BufferFormat::RGBA6Z24 => self.pipeline.settings.has_alpha = true,
             _ => (),
         }
     }
