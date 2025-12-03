@@ -752,7 +752,7 @@ pub fn process(sys: &mut System) {
             Command::SetBP { register, value } => gx::set_register(sys, register, value),
             Command::SetXF { start, values } => {
                 for (offset, value) in values.into_iter().enumerate() {
-                    sys.xf_write(start + offset as u16, value);
+                    gx::xf::write(sys, start + offset as u16, value);
                 }
             }
             Command::IndexedSetXFA {
@@ -761,7 +761,7 @@ pub fn process(sys: &mut System) {
                 index,
             } => {
                 let array = sys.gpu.command.internal.arrays.general_purpose[0];
-                sys.xf_write_indexed(array, base, length, index);
+                gx::xf::write_indexed(sys, array, base, length, index);
             }
             Command::IndexedSetXFB {
                 base,
@@ -769,7 +769,7 @@ pub fn process(sys: &mut System) {
                 index,
             } => {
                 let array = sys.gpu.command.internal.arrays.general_purpose[1];
-                sys.xf_write_indexed(array, base, length, index);
+                gx::xf::write_indexed(sys, array, base, length, index);
             }
             Command::IndexedSetXFC {
                 base,
@@ -777,7 +777,7 @@ pub fn process(sys: &mut System) {
                 index,
             } => {
                 let array = sys.gpu.command.internal.arrays.general_purpose[2];
-                sys.xf_write_indexed(array, base, length, index);
+                gx::xf::write_indexed(sys, array, base, length, index);
             }
             Command::IndexedSetXFD {
                 base,
@@ -785,7 +785,7 @@ pub fn process(sys: &mut System) {
                 index,
             } => {
                 let array = sys.gpu.command.internal.arrays.general_purpose[3];
-                sys.xf_write_indexed(array, base, length, index);
+                gx::xf::write_indexed(sys, array, base, length, index);
             }
             Command::Draw {
                 topology,

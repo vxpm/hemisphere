@@ -361,190 +361,187 @@ impl Interface {
     }
 }
 
-impl System {
-    pub fn gx_update_texgens(&mut self) {
-        let mut stages = Vec::new();
-        for texgen in self
-            .gpu
-            .transform
-            .internal
-            .texgen
-            .iter()
-            .take(self.gpu.transform.internal.active_texgens as usize)
-            .cloned()
-        {
-            let stage = render::TexGenStage {
-                base: texgen.base,
-                normalize: texgen.post.normalize(),
-                post_matrix: self
-                    .gpu
-                    .transform
-                    .post_matrix(texgen.post.mat_index().value()),
+pub fn update_texgens(sys: &mut System) {
+    let mut stages = Vec::new();
+    for texgen in sys
+        .gpu
+        .transform
+        .internal
+        .texgen
+        .iter()
+        .take(sys.gpu.transform.internal.active_texgens as usize)
+        .cloned()
+    {
+        let stage = render::TexGenStage {
+            base: texgen.base,
+            normalize: texgen.post.normalize(),
+            post_matrix: sys
+                .gpu
+                .transform
+                .post_matrix(texgen.post.mat_index().value()),
+        };
+
+        stages.push(stage);
+    }
+
+    let config = render::TexGenConfig { stages };
+    sys.config.renderer.exec(Action::SetTexGenConfig(config));
+}
+
+/// Sets the value of an internal transform unit register.
+pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
+    tracing::debug!("wrote {value:02X} to internal XF register {reg:?}");
+
+    let xf = &mut sys.gpu.transform.internal;
+    match reg {
+        Reg::Ambient0 => {
+            xf.ambient[0] = Abgr8::from_u32(value);
+            sys.config
+                .renderer
+                .exec(Action::SetAmbient(0, xf.ambient[0]));
+        }
+        Reg::Ambient1 => {
+            xf.ambient[1] = Abgr8::from_u32(value);
+            sys.config
+                .renderer
+                .exec(Action::SetAmbient(1, xf.ambient[1]));
+        }
+        Reg::Material0 => {
+            xf.material[0] = Abgr8::from_u32(value);
+            sys.config
+                .renderer
+                .exec(Action::SetMaterial(0, xf.material[0]));
+        }
+        Reg::Material1 => {
+            xf.material[1] = Abgr8::from_u32(value);
+            sys.config
+                .renderer
+                .exec(Action::SetMaterial(1, xf.material[1]));
+        }
+        Reg::ColorControl0 => {
+            xf.color_control[0] = ChannelControl::from_bits(value);
+            sys.config
+                .renderer
+                .exec(Action::SetColorChannel(0, xf.color_control[0]));
+        }
+        Reg::ColorControl1 => {
+            xf.color_control[1] = ChannelControl::from_bits(value);
+            sys.config
+                .renderer
+                .exec(Action::SetColorChannel(1, xf.color_control[1]));
+        }
+        Reg::AlphaControl0 => {
+            xf.alpha_control[0] = ChannelControl::from_bits(value);
+            sys.config
+                .renderer
+                .exec(Action::SetAlphaChannel(0, xf.alpha_control[0]));
+        }
+        Reg::AlphaControl1 => {
+            xf.alpha_control[1] = ChannelControl::from_bits(value);
+            sys.config
+                .renderer
+                .exec(Action::SetAlphaChannel(1, xf.alpha_control[1]));
+        }
+
+        Reg::ViewportScaleX => xf.viewport.width = f32::from_bits(value) * 2.0,
+        Reg::ViewportScaleY => xf.viewport.height = f32::from_bits(value) * -2.0,
+        Reg::ViewportScaleZ => {
+            xf.viewport.far_minus_near = f32::from_bits(value) / DEPTH_24_BIT_MAX as f32
+        }
+        Reg::ViewportOffsetX => xf.viewport.center_x = f32::from_bits(value) - 342.0,
+        Reg::ViewportOffsetY => xf.viewport.center_y = f32::from_bits(value) - 342.0,
+        Reg::ViewportOffsetZ => xf.viewport.far = f32::from_bits(value) / DEPTH_24_BIT_MAX as f32,
+
+        Reg::ProjectionParam0 => xf.projection_params[0] = f32::from_bits(value),
+        Reg::ProjectionParam1 => xf.projection_params[1] = f32::from_bits(value),
+        Reg::ProjectionParam2 => xf.projection_params[2] = f32::from_bits(value),
+        Reg::ProjectionParam3 => xf.projection_params[3] = f32::from_bits(value),
+        Reg::ProjectionParam4 => xf.projection_params[4] = f32::from_bits(value),
+        Reg::ProjectionParam5 => xf.projection_params[5] = f32::from_bits(value),
+        Reg::ProjectionOrthographic => xf.projection_orthographic = value != 0,
+
+        Reg::TexGenCount => xf.active_texgens = value as u8,
+        Reg::TexGen0 => xf.texgen[0].base = BaseTexGen::from_bits(value),
+        Reg::TexGen1 => xf.texgen[1].base = BaseTexGen::from_bits(value),
+        Reg::TexGen2 => xf.texgen[2].base = BaseTexGen::from_bits(value),
+        Reg::TexGen3 => xf.texgen[3].base = BaseTexGen::from_bits(value),
+        Reg::TexGen4 => xf.texgen[4].base = BaseTexGen::from_bits(value),
+        Reg::TexGen5 => xf.texgen[5].base = BaseTexGen::from_bits(value),
+        Reg::TexGen6 => xf.texgen[6].base = BaseTexGen::from_bits(value),
+        Reg::TexGen7 => xf.texgen[7].base = BaseTexGen::from_bits(value),
+        Reg::PostTexGen0 => xf.texgen[0].post = PostTexGen::from_bits(value),
+        Reg::PostTexGen1 => xf.texgen[1].post = PostTexGen::from_bits(value),
+        Reg::PostTexGen2 => xf.texgen[2].post = PostTexGen::from_bits(value),
+        Reg::PostTexGen3 => xf.texgen[3].post = PostTexGen::from_bits(value),
+        Reg::PostTexGen4 => xf.texgen[4].post = PostTexGen::from_bits(value),
+        Reg::PostTexGen5 => xf.texgen[5].post = PostTexGen::from_bits(value),
+        Reg::PostTexGen6 => xf.texgen[6].post = PostTexGen::from_bits(value),
+        Reg::PostTexGen7 => xf.texgen[7].post = PostTexGen::from_bits(value),
+
+        _ => tracing::warn!("unimplemented write to internal XF register {reg:?}"),
+    }
+
+    if reg.is_texgen() {
+        self::update_texgens(sys);
+    }
+
+    if reg.is_viewport() {
+        sys.gpu.transform.internal.viewport_dirty = true;
+    }
+
+    if reg.is_projection_param() {
+        sys.config.renderer.exec(Action::SetProjectionMatrix(
+            sys.gpu.transform.projection_matrix(),
+        ));
+    }
+}
+
+/// Writes to transform unit memory.
+pub fn write(sys: &mut System, addr: u16, value: u32) {
+    match addr {
+        0x0000..0x0400 => sys.gpu.transform.ram[addr as usize] = value,
+        0x0400..0x0460 => sys.gpu.transform.ram[addr as usize] = value.with_bits(0, 12, 0),
+        0x0500..0x0600 => {
+            sys.gpu.transform.ram[addr as usize] = value;
+            self::update_texgens(sys);
+        }
+        0x0600..0x0680 => {
+            if matches!(
+                addr,
+                0x603 | 0x613 | 0x623 | 0x633 | 0x643 | 0x653 | 0x663 | 0x673
+            ) {
+                sys.gpu.transform.ram[addr as usize] = value;
+            } else {
+                sys.gpu.transform.ram[addr as usize] = value.with_bits(0, 12, 0);
+            }
+
+            if let Some(light_offset) = addr.checked_sub(0x0600) {
+                let index = light_offset / 0x10;
+                if index < 7 {
+                    sys.config.renderer.exec(Action::SetLight(
+                        index as u8,
+                        *sys.gpu.transform.light(index as u8),
+                    ));
+                }
+            }
+        }
+        0x1000..0x1057 => {
+            let register = addr as u8;
+            let Some(register) = Reg::from_repr(register) else {
+                panic!("unknown XF register {register:02X}");
             };
 
-            stages.push(stage);
+            self::set_register(sys, register, value);
         }
-
-        let config = render::TexGenConfig { stages };
-        self.config.renderer.exec(Action::SetTexGenConfig(config));
+        _ => tracing::debug!("writing to unknown XF memory"),
     }
+}
 
-    /// Sets the value of an internal transform unit register.
-    pub fn xf_set(&mut self, reg: Reg, value: u32) {
-        tracing::debug!("wrote {value:02X} to internal XF register {reg:?}");
-
-        let xf = &mut self.gpu.transform.internal;
-        match reg {
-            Reg::Ambient0 => {
-                xf.ambient[0] = Abgr8::from_u32(value);
-                self.config
-                    .renderer
-                    .exec(Action::SetAmbient(0, xf.ambient[0]));
-            }
-            Reg::Ambient1 => {
-                xf.ambient[1] = Abgr8::from_u32(value);
-                self.config
-                    .renderer
-                    .exec(Action::SetAmbient(1, xf.ambient[1]));
-            }
-            Reg::Material0 => {
-                xf.material[0] = Abgr8::from_u32(value);
-                self.config
-                    .renderer
-                    .exec(Action::SetMaterial(0, xf.material[0]));
-            }
-            Reg::Material1 => {
-                xf.material[1] = Abgr8::from_u32(value);
-                self.config
-                    .renderer
-                    .exec(Action::SetMaterial(1, xf.material[1]));
-            }
-            Reg::ColorControl0 => {
-                xf.color_control[0] = ChannelControl::from_bits(value);
-                self.config
-                    .renderer
-                    .exec(Action::SetColorChannel(0, xf.color_control[0]));
-            }
-            Reg::ColorControl1 => {
-                xf.color_control[1] = ChannelControl::from_bits(value);
-                self.config
-                    .renderer
-                    .exec(Action::SetColorChannel(1, xf.color_control[1]));
-            }
-            Reg::AlphaControl0 => {
-                xf.alpha_control[0] = ChannelControl::from_bits(value);
-                self.config
-                    .renderer
-                    .exec(Action::SetAlphaChannel(0, xf.alpha_control[0]));
-            }
-            Reg::AlphaControl1 => {
-                xf.alpha_control[1] = ChannelControl::from_bits(value);
-                self.config
-                    .renderer
-                    .exec(Action::SetAlphaChannel(1, xf.alpha_control[1]));
-            }
-
-            Reg::ViewportScaleX => xf.viewport.width = f32::from_bits(value) * 2.0,
-            Reg::ViewportScaleY => xf.viewport.height = f32::from_bits(value) * -2.0,
-            Reg::ViewportScaleZ => {
-                xf.viewport.far_minus_near = f32::from_bits(value) / DEPTH_24_BIT_MAX as f32
-            }
-            Reg::ViewportOffsetX => xf.viewport.center_x = f32::from_bits(value) - 342.0,
-            Reg::ViewportOffsetY => xf.viewport.center_y = f32::from_bits(value) - 342.0,
-            Reg::ViewportOffsetZ => {
-                xf.viewport.far = f32::from_bits(value) / DEPTH_24_BIT_MAX as f32
-            }
-
-            Reg::ProjectionParam0 => xf.projection_params[0] = f32::from_bits(value),
-            Reg::ProjectionParam1 => xf.projection_params[1] = f32::from_bits(value),
-            Reg::ProjectionParam2 => xf.projection_params[2] = f32::from_bits(value),
-            Reg::ProjectionParam3 => xf.projection_params[3] = f32::from_bits(value),
-            Reg::ProjectionParam4 => xf.projection_params[4] = f32::from_bits(value),
-            Reg::ProjectionParam5 => xf.projection_params[5] = f32::from_bits(value),
-            Reg::ProjectionOrthographic => xf.projection_orthographic = value != 0,
-
-            Reg::TexGenCount => xf.active_texgens = value as u8,
-            Reg::TexGen0 => xf.texgen[0].base = BaseTexGen::from_bits(value),
-            Reg::TexGen1 => xf.texgen[1].base = BaseTexGen::from_bits(value),
-            Reg::TexGen2 => xf.texgen[2].base = BaseTexGen::from_bits(value),
-            Reg::TexGen3 => xf.texgen[3].base = BaseTexGen::from_bits(value),
-            Reg::TexGen4 => xf.texgen[4].base = BaseTexGen::from_bits(value),
-            Reg::TexGen5 => xf.texgen[5].base = BaseTexGen::from_bits(value),
-            Reg::TexGen6 => xf.texgen[6].base = BaseTexGen::from_bits(value),
-            Reg::TexGen7 => xf.texgen[7].base = BaseTexGen::from_bits(value),
-            Reg::PostTexGen0 => xf.texgen[0].post = PostTexGen::from_bits(value),
-            Reg::PostTexGen1 => xf.texgen[1].post = PostTexGen::from_bits(value),
-            Reg::PostTexGen2 => xf.texgen[2].post = PostTexGen::from_bits(value),
-            Reg::PostTexGen3 => xf.texgen[3].post = PostTexGen::from_bits(value),
-            Reg::PostTexGen4 => xf.texgen[4].post = PostTexGen::from_bits(value),
-            Reg::PostTexGen5 => xf.texgen[5].post = PostTexGen::from_bits(value),
-            Reg::PostTexGen6 => xf.texgen[6].post = PostTexGen::from_bits(value),
-            Reg::PostTexGen7 => xf.texgen[7].post = PostTexGen::from_bits(value),
-
-            _ => tracing::warn!("unimplemented write to internal XF register {reg:?}"),
-        }
-
-        if reg.is_texgen() {
-            self.gx_update_texgens();
-        }
-
-        if reg.is_viewport() {
-            self.gpu.transform.internal.viewport_dirty = true;
-        }
-
-        if reg.is_projection_param() {
-            self.config.renderer.exec(Action::SetProjectionMatrix(
-                self.gpu.transform.projection_matrix(),
-            ));
-        }
-    }
-
-    /// Writes to transform unit memory.
-    pub fn xf_write(&mut self, addr: u16, value: u32) {
-        match addr {
-            0x0000..0x0400 => self.gpu.transform.ram[addr as usize] = value,
-            0x0400..0x0460 => self.gpu.transform.ram[addr as usize] = value.with_bits(0, 12, 0),
-            0x0500..0x0600 => {
-                self.gpu.transform.ram[addr as usize] = value;
-                self.gx_update_texgens();
-            }
-            0x0600..0x0680 => {
-                if matches!(
-                    addr,
-                    0x603 | 0x613 | 0x623 | 0x633 | 0x643 | 0x653 | 0x663 | 0x673
-                ) {
-                    self.gpu.transform.ram[addr as usize] = value;
-                } else {
-                    self.gpu.transform.ram[addr as usize] = value.with_bits(0, 12, 0);
-                }
-
-                if let Some(light_offset) = addr.checked_sub(0x0600) {
-                    let index = light_offset / 0x10;
-                    if index < 7 {
-                        self.config.renderer.exec(Action::SetLight(
-                            index as u8,
-                            *self.gpu.transform.light(index as u8),
-                        ));
-                    }
-                }
-            }
-            0x1000..0x1057 => {
-                let register = addr as u8;
-                let Some(register) = Reg::from_repr(register) else {
-                    panic!("unknown XF register {register:02X}");
-                };
-
-                self.xf_set(register, value);
-            }
-            _ => tracing::debug!("writing to unknown XF memory"),
-        }
-    }
-
-    pub fn xf_write_indexed(&mut self, array: ArrayDescriptor, base: u16, length: u8, index: u16) {
-        for offset in 0..length {
-            let current = array.address + (index as u32 + offset as u32) * array.stride;
-            let value = self.read::<u32>(current);
-            self.xf_write(base + offset as u16, value);
-        }
+/// Writes the contents of an array to transform unit memory.
+pub fn write_indexed(sys: &mut System, array: ArrayDescriptor, base: u16, length: u8, index: u16) {
+    for offset in 0..length {
+        let current = array.address + (index as u32 + offset as u32) * array.stride;
+        let value = sys.read::<u32>(current);
+        self::write(sys, base + offset as u16, value);
     }
 }
