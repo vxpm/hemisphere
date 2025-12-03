@@ -686,6 +686,11 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
         Reg::Tex6CoordPtr => value.write_ne_bytes(cp.arrays.tex_coords[6].address.as_mut_bytes()),
         Reg::Tex7CoordPtr => value.write_ne_bytes(cp.arrays.tex_coords[7].address.as_mut_bytes()),
 
+        Reg::GpArr0Ptr => value.write_ne_bytes(cp.arrays.general_purpose[0].address.as_mut_bytes()),
+        Reg::GpArr1Ptr => value.write_ne_bytes(cp.arrays.general_purpose[1].address.as_mut_bytes()),
+        Reg::GpArr2Ptr => value.write_ne_bytes(cp.arrays.general_purpose[2].address.as_mut_bytes()),
+        Reg::GpArr3Ptr => value.write_ne_bytes(cp.arrays.general_purpose[3].address.as_mut_bytes()),
+
         Reg::PositionStride => value.write_ne_bytes(cp.arrays.position.stride.as_mut_bytes()),
         Reg::NormalStride => value.write_ne_bytes(cp.arrays.normal.stride.as_mut_bytes()),
         Reg::DiffuseStride => value.write_ne_bytes(cp.arrays.diffuse.stride.as_mut_bytes()),
@@ -699,6 +704,19 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
         Reg::Tex5CoordStride => value.write_ne_bytes(cp.arrays.tex_coords[5].stride.as_mut_bytes()),
         Reg::Tex6CoordStride => value.write_ne_bytes(cp.arrays.tex_coords[6].stride.as_mut_bytes()),
         Reg::Tex7CoordStride => value.write_ne_bytes(cp.arrays.tex_coords[7].stride.as_mut_bytes()),
+
+        Reg::GpArr0Stride => {
+            value.write_ne_bytes(cp.arrays.general_purpose[0].stride.as_mut_bytes())
+        }
+        Reg::GpArr1Stride => {
+            value.write_ne_bytes(cp.arrays.general_purpose[1].stride.as_mut_bytes())
+        }
+        Reg::GpArr2Stride => {
+            value.write_ne_bytes(cp.arrays.general_purpose[2].stride.as_mut_bytes())
+        }
+        Reg::GpArr3Stride => {
+            value.write_ne_bytes(cp.arrays.general_purpose[3].stride.as_mut_bytes())
+        }
 
         _ => tracing::warn!("unimplemented write to internal CP register {reg:?}"),
     }
