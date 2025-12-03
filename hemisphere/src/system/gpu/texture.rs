@@ -157,6 +157,7 @@ pub struct TextureMap {
     pub format: Encoding,
     pub mode: Mode,
     pub scaling: Scaling,
+    pub lut: LutRef,
     pub dirty: bool,
 }
 

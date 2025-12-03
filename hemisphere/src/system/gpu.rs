@@ -660,15 +660,37 @@ impl System {
                 self.gpu.texture.maps[7].dirty = true;
             }
 
-            Reg::TexLutRef0
-            | Reg::TexLutRef1
-            | Reg::TexLutRef2
-            | Reg::TexLutRef3
-            | Reg::TexLutRef4
-            | Reg::TexLutRef5
-            | Reg::TexLutRef6
-            | Reg::TexLutRef7 => {
-                println!("{:?}", LutRef::from_bits(value));
+            Reg::TexLutRef0 => {
+                value.write_ne_bytes(self.gpu.texture.maps[0].lut.as_mut_bytes());
+                self.gpu.texture.maps[0].dirty = true;
+            }
+            Reg::TexLutRef1 => {
+                value.write_ne_bytes(self.gpu.texture.maps[1].lut.as_mut_bytes());
+                self.gpu.texture.maps[1].dirty = true;
+            }
+            Reg::TexLutRef2 => {
+                value.write_ne_bytes(self.gpu.texture.maps[2].lut.as_mut_bytes());
+                self.gpu.texture.maps[2].dirty = true;
+            }
+            Reg::TexLutRef3 => {
+                value.write_ne_bytes(self.gpu.texture.maps[3].lut.as_mut_bytes());
+                self.gpu.texture.maps[3].dirty = true;
+            }
+            Reg::TexLutRef4 => {
+                value.write_ne_bytes(self.gpu.texture.maps[4].lut.as_mut_bytes());
+                self.gpu.texture.maps[4].dirty = true;
+            }
+            Reg::TexLutRef5 => {
+                value.write_ne_bytes(self.gpu.texture.maps[5].lut.as_mut_bytes());
+                self.gpu.texture.maps[5].dirty = true;
+            }
+            Reg::TexLutRef6 => {
+                value.write_ne_bytes(self.gpu.texture.maps[6].lut.as_mut_bytes());
+                self.gpu.texture.maps[6].dirty = true;
+            }
+            Reg::TexLutRef7 => {
+                value.write_ne_bytes(self.gpu.texture.maps[7].lut.as_mut_bytes());
+                self.gpu.texture.maps[7].dirty = true;
             }
 
             Reg::TevColor0 => {
