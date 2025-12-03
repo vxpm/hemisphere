@@ -1,6 +1,9 @@
 //! Processor interface.
 
-use crate::{Primitive, system::System};
+use crate::{
+    Primitive,
+    system::{System, gpu},
+};
 use bitos::{bitos, integer::u26};
 use gekko::{Address, Exception};
 use std::collections::VecDeque;
@@ -204,8 +207,8 @@ impl System {
         }
 
         if self.gpu.command.control.linked_mode() {
-            self.cp_sync_to_pi();
-            self.cp_consume();
+            gpu::command::sync_to_pi(self);
+            gpu::command::consume(self);
         }
 
         self.processor.fifo_buffer = Some(fifo_buffer);

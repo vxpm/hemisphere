@@ -634,208 +634,173 @@ impl Gpu {
     }
 }
 
-/// Command Processor
-impl System {
-    /// Sets the value of an internal command processor register.
-    pub fn cp_set(&mut self, reg: Reg, value: u32) {
-        let cp = &mut self.gpu.command.internal;
-        match reg {
-            Reg::MatIndexLow => value.write_ne_bytes(&mut cp.mat_indices.as_mut_bytes()[0..4]),
-            Reg::MatIndexHigh => value.write_ne_bytes(&mut cp.mat_indices.as_mut_bytes()[4..8]),
+/// Sets the value of an internal command processor register.
+pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
+    let cp = &mut sys.gpu.command.internal;
+    match reg {
+        Reg::MatIndexLow => value.write_ne_bytes(&mut cp.mat_indices.as_mut_bytes()[0..4]),
+        Reg::MatIndexHigh => value.write_ne_bytes(&mut cp.mat_indices.as_mut_bytes()[4..8]),
 
-            Reg::VcdLow => value.write_ne_bytes(&mut cp.vertex_descriptor.as_mut_bytes()[0..4]),
-            Reg::VcdHigh => value.write_ne_bytes(&mut cp.vertex_descriptor.as_mut_bytes()[4..8]),
+        Reg::VcdLow => value.write_ne_bytes(&mut cp.vertex_descriptor.as_mut_bytes()[0..4]),
+        Reg::VcdHigh => value.write_ne_bytes(&mut cp.vertex_descriptor.as_mut_bytes()[4..8]),
 
-            Reg::Vat0A => value.write_ne_bytes(cp.vertex_attr_tables[0].a.as_mut_bytes()),
-            Reg::Vat1A => value.write_ne_bytes(cp.vertex_attr_tables[1].a.as_mut_bytes()),
-            Reg::Vat2A => value.write_ne_bytes(cp.vertex_attr_tables[2].a.as_mut_bytes()),
-            Reg::Vat3A => value.write_ne_bytes(cp.vertex_attr_tables[3].a.as_mut_bytes()),
-            Reg::Vat4A => value.write_ne_bytes(cp.vertex_attr_tables[4].a.as_mut_bytes()),
-            Reg::Vat5A => value.write_ne_bytes(cp.vertex_attr_tables[5].a.as_mut_bytes()),
-            Reg::Vat6A => value.write_ne_bytes(cp.vertex_attr_tables[6].a.as_mut_bytes()),
-            Reg::Vat7A => value.write_ne_bytes(cp.vertex_attr_tables[7].a.as_mut_bytes()),
+        Reg::Vat0A => value.write_ne_bytes(cp.vertex_attr_tables[0].a.as_mut_bytes()),
+        Reg::Vat1A => value.write_ne_bytes(cp.vertex_attr_tables[1].a.as_mut_bytes()),
+        Reg::Vat2A => value.write_ne_bytes(cp.vertex_attr_tables[2].a.as_mut_bytes()),
+        Reg::Vat3A => value.write_ne_bytes(cp.vertex_attr_tables[3].a.as_mut_bytes()),
+        Reg::Vat4A => value.write_ne_bytes(cp.vertex_attr_tables[4].a.as_mut_bytes()),
+        Reg::Vat5A => value.write_ne_bytes(cp.vertex_attr_tables[5].a.as_mut_bytes()),
+        Reg::Vat6A => value.write_ne_bytes(cp.vertex_attr_tables[6].a.as_mut_bytes()),
+        Reg::Vat7A => value.write_ne_bytes(cp.vertex_attr_tables[7].a.as_mut_bytes()),
 
-            Reg::Vat0B => value.write_ne_bytes(cp.vertex_attr_tables[0].b.as_mut_bytes()),
-            Reg::Vat1B => value.write_ne_bytes(cp.vertex_attr_tables[1].b.as_mut_bytes()),
-            Reg::Vat2B => value.write_ne_bytes(cp.vertex_attr_tables[2].b.as_mut_bytes()),
-            Reg::Vat3B => value.write_ne_bytes(cp.vertex_attr_tables[3].b.as_mut_bytes()),
-            Reg::Vat4B => value.write_ne_bytes(cp.vertex_attr_tables[4].b.as_mut_bytes()),
-            Reg::Vat5B => value.write_ne_bytes(cp.vertex_attr_tables[5].b.as_mut_bytes()),
-            Reg::Vat6B => value.write_ne_bytes(cp.vertex_attr_tables[6].b.as_mut_bytes()),
-            Reg::Vat7B => value.write_ne_bytes(cp.vertex_attr_tables[7].b.as_mut_bytes()),
+        Reg::Vat0B => value.write_ne_bytes(cp.vertex_attr_tables[0].b.as_mut_bytes()),
+        Reg::Vat1B => value.write_ne_bytes(cp.vertex_attr_tables[1].b.as_mut_bytes()),
+        Reg::Vat2B => value.write_ne_bytes(cp.vertex_attr_tables[2].b.as_mut_bytes()),
+        Reg::Vat3B => value.write_ne_bytes(cp.vertex_attr_tables[3].b.as_mut_bytes()),
+        Reg::Vat4B => value.write_ne_bytes(cp.vertex_attr_tables[4].b.as_mut_bytes()),
+        Reg::Vat5B => value.write_ne_bytes(cp.vertex_attr_tables[5].b.as_mut_bytes()),
+        Reg::Vat6B => value.write_ne_bytes(cp.vertex_attr_tables[6].b.as_mut_bytes()),
+        Reg::Vat7B => value.write_ne_bytes(cp.vertex_attr_tables[7].b.as_mut_bytes()),
 
-            Reg::Vat0C => value.write_ne_bytes(cp.vertex_attr_tables[0].c.as_mut_bytes()),
-            Reg::Vat1C => value.write_ne_bytes(cp.vertex_attr_tables[1].c.as_mut_bytes()),
-            Reg::Vat2C => value.write_ne_bytes(cp.vertex_attr_tables[2].c.as_mut_bytes()),
-            Reg::Vat3C => value.write_ne_bytes(cp.vertex_attr_tables[3].c.as_mut_bytes()),
-            Reg::Vat4C => value.write_ne_bytes(cp.vertex_attr_tables[4].c.as_mut_bytes()),
-            Reg::Vat5C => value.write_ne_bytes(cp.vertex_attr_tables[5].c.as_mut_bytes()),
-            Reg::Vat6C => value.write_ne_bytes(cp.vertex_attr_tables[6].c.as_mut_bytes()),
-            Reg::Vat7C => value.write_ne_bytes(cp.vertex_attr_tables[7].c.as_mut_bytes()),
+        Reg::Vat0C => value.write_ne_bytes(cp.vertex_attr_tables[0].c.as_mut_bytes()),
+        Reg::Vat1C => value.write_ne_bytes(cp.vertex_attr_tables[1].c.as_mut_bytes()),
+        Reg::Vat2C => value.write_ne_bytes(cp.vertex_attr_tables[2].c.as_mut_bytes()),
+        Reg::Vat3C => value.write_ne_bytes(cp.vertex_attr_tables[3].c.as_mut_bytes()),
+        Reg::Vat4C => value.write_ne_bytes(cp.vertex_attr_tables[4].c.as_mut_bytes()),
+        Reg::Vat5C => value.write_ne_bytes(cp.vertex_attr_tables[5].c.as_mut_bytes()),
+        Reg::Vat6C => value.write_ne_bytes(cp.vertex_attr_tables[6].c.as_mut_bytes()),
+        Reg::Vat7C => value.write_ne_bytes(cp.vertex_attr_tables[7].c.as_mut_bytes()),
 
-            Reg::PositionPtr => value.write_ne_bytes(cp.arrays.position.address.as_mut_bytes()),
-            Reg::NormalPtr => value.write_ne_bytes(cp.arrays.normal.address.as_mut_bytes()),
-            Reg::DiffusePtr => value.write_ne_bytes(cp.arrays.diffuse.address.as_mut_bytes()),
-            Reg::SpecularPtr => value.write_ne_bytes(cp.arrays.specular.address.as_mut_bytes()),
+        Reg::PositionPtr => value.write_ne_bytes(cp.arrays.position.address.as_mut_bytes()),
+        Reg::NormalPtr => value.write_ne_bytes(cp.arrays.normal.address.as_mut_bytes()),
+        Reg::DiffusePtr => value.write_ne_bytes(cp.arrays.diffuse.address.as_mut_bytes()),
+        Reg::SpecularPtr => value.write_ne_bytes(cp.arrays.specular.address.as_mut_bytes()),
 
-            Reg::Tex0CoordPtr => {
-                value.write_ne_bytes(cp.arrays.tex_coords[0].address.as_mut_bytes())
-            }
-            Reg::Tex1CoordPtr => {
-                value.write_ne_bytes(cp.arrays.tex_coords[1].address.as_mut_bytes())
-            }
-            Reg::Tex2CoordPtr => {
-                value.write_ne_bytes(cp.arrays.tex_coords[2].address.as_mut_bytes())
-            }
-            Reg::Tex3CoordPtr => {
-                value.write_ne_bytes(cp.arrays.tex_coords[3].address.as_mut_bytes())
-            }
-            Reg::Tex4CoordPtr => {
-                value.write_ne_bytes(cp.arrays.tex_coords[4].address.as_mut_bytes())
-            }
-            Reg::Tex5CoordPtr => {
-                value.write_ne_bytes(cp.arrays.tex_coords[5].address.as_mut_bytes())
-            }
-            Reg::Tex6CoordPtr => {
-                value.write_ne_bytes(cp.arrays.tex_coords[6].address.as_mut_bytes())
-            }
-            Reg::Tex7CoordPtr => {
-                value.write_ne_bytes(cp.arrays.tex_coords[7].address.as_mut_bytes())
-            }
+        Reg::Tex0CoordPtr => value.write_ne_bytes(cp.arrays.tex_coords[0].address.as_mut_bytes()),
+        Reg::Tex1CoordPtr => value.write_ne_bytes(cp.arrays.tex_coords[1].address.as_mut_bytes()),
+        Reg::Tex2CoordPtr => value.write_ne_bytes(cp.arrays.tex_coords[2].address.as_mut_bytes()),
+        Reg::Tex3CoordPtr => value.write_ne_bytes(cp.arrays.tex_coords[3].address.as_mut_bytes()),
+        Reg::Tex4CoordPtr => value.write_ne_bytes(cp.arrays.tex_coords[4].address.as_mut_bytes()),
+        Reg::Tex5CoordPtr => value.write_ne_bytes(cp.arrays.tex_coords[5].address.as_mut_bytes()),
+        Reg::Tex6CoordPtr => value.write_ne_bytes(cp.arrays.tex_coords[6].address.as_mut_bytes()),
+        Reg::Tex7CoordPtr => value.write_ne_bytes(cp.arrays.tex_coords[7].address.as_mut_bytes()),
 
-            Reg::PositionStride => value.write_ne_bytes(cp.arrays.position.stride.as_mut_bytes()),
-            Reg::NormalStride => value.write_ne_bytes(cp.arrays.normal.stride.as_mut_bytes()),
-            Reg::DiffuseStride => value.write_ne_bytes(cp.arrays.diffuse.stride.as_mut_bytes()),
-            Reg::SpecularStride => value.write_ne_bytes(cp.arrays.specular.stride.as_mut_bytes()),
+        Reg::PositionStride => value.write_ne_bytes(cp.arrays.position.stride.as_mut_bytes()),
+        Reg::NormalStride => value.write_ne_bytes(cp.arrays.normal.stride.as_mut_bytes()),
+        Reg::DiffuseStride => value.write_ne_bytes(cp.arrays.diffuse.stride.as_mut_bytes()),
+        Reg::SpecularStride => value.write_ne_bytes(cp.arrays.specular.stride.as_mut_bytes()),
 
-            Reg::Tex0CoordStride => {
-                value.write_ne_bytes(cp.arrays.tex_coords[0].stride.as_mut_bytes())
-            }
-            Reg::Tex1CoordStride => {
-                value.write_ne_bytes(cp.arrays.tex_coords[1].stride.as_mut_bytes())
-            }
-            Reg::Tex2CoordStride => {
-                value.write_ne_bytes(cp.arrays.tex_coords[2].stride.as_mut_bytes())
-            }
-            Reg::Tex3CoordStride => {
-                value.write_ne_bytes(cp.arrays.tex_coords[3].stride.as_mut_bytes())
-            }
-            Reg::Tex4CoordStride => {
-                value.write_ne_bytes(cp.arrays.tex_coords[4].stride.as_mut_bytes())
-            }
-            Reg::Tex5CoordStride => {
-                value.write_ne_bytes(cp.arrays.tex_coords[5].stride.as_mut_bytes())
-            }
-            Reg::Tex6CoordStride => {
-                value.write_ne_bytes(cp.arrays.tex_coords[6].stride.as_mut_bytes())
-            }
-            Reg::Tex7CoordStride => {
-                value.write_ne_bytes(cp.arrays.tex_coords[7].stride.as_mut_bytes())
-            }
+        Reg::Tex0CoordStride => value.write_ne_bytes(cp.arrays.tex_coords[0].stride.as_mut_bytes()),
+        Reg::Tex1CoordStride => value.write_ne_bytes(cp.arrays.tex_coords[1].stride.as_mut_bytes()),
+        Reg::Tex2CoordStride => value.write_ne_bytes(cp.arrays.tex_coords[2].stride.as_mut_bytes()),
+        Reg::Tex3CoordStride => value.write_ne_bytes(cp.arrays.tex_coords[3].stride.as_mut_bytes()),
+        Reg::Tex4CoordStride => value.write_ne_bytes(cp.arrays.tex_coords[4].stride.as_mut_bytes()),
+        Reg::Tex5CoordStride => value.write_ne_bytes(cp.arrays.tex_coords[5].stride.as_mut_bytes()),
+        Reg::Tex6CoordStride => value.write_ne_bytes(cp.arrays.tex_coords[6].stride.as_mut_bytes()),
+        Reg::Tex7CoordStride => value.write_ne_bytes(cp.arrays.tex_coords[7].stride.as_mut_bytes()),
 
-            _ => tracing::warn!("unimplemented write to internal CP register {reg:?}"),
+        _ => tracing::warn!("unimplemented write to internal CP register {reg:?}"),
+    }
+}
+
+/// Pops a value from the CP FIFO in memory.
+fn fifo_pop(sys: &mut System) -> u8 {
+    assert!(sys.gpu.command.fifo.count() > 0);
+
+    let data = sys.read::<u8>(sys.gpu.command.fifo.read_ptr);
+    sys.gpu.command.fifo.read_ptr += 1;
+    if sys.gpu.command.fifo.read_ptr > sys.gpu.command.fifo.end {
+        sys.gpu.command.fifo.read_ptr = sys.gpu.command.fifo.start;
+    }
+
+    data
+}
+
+/// Consumes commands available in the CP FIFO.
+pub fn consume(sys: &mut System) {
+    if !sys.gpu.command.control.fifo_read_enable() {
+        return;
+    }
+
+    while sys.gpu.command.fifo.count() > 0 {
+        let data = fifo_pop(sys);
+        sys.gpu.command.queue.push_be(data);
+    }
+}
+
+/// Process consumed CP commands until the queue is either empty or incomplete.
+pub fn process(sys: &mut System) {
+    loop {
+        if sys.gpu.command.queue.is_empty() {
+            break;
+        }
+
+        let Some(cmd) = sys.gpu.read_command() else {
+            break;
+        };
+
+        if !matches!(cmd, Command::Nop | Command::InvalidateVertexCache) {
+            tracing::debug!("processing {:02X?}", cmd);
+        }
+
+        match cmd {
+            Command::Nop => (),
+            Command::InvalidateVertexCache => (),
+            Command::Call { address, length } => gpu::call(sys, address, length),
+            Command::SetCP { register, value } => self::set_register(sys, register, value),
+            Command::SetBP { register, value } => gpu::set_register(sys, register, value),
+            Command::SetXF { start, values } => {
+                for (offset, value) in values.into_iter().enumerate() {
+                    sys.xf_write(start + offset as u16, value);
+                }
+            }
+            Command::IndexedSetXFA {
+                base,
+                length,
+                index,
+            } => {
+                let array = sys.gpu.command.internal.arrays.general_purpose[0];
+                sys.xf_write_indexed(array, base, length, index);
+            }
+            Command::IndexedSetXFB {
+                base,
+                length,
+                index,
+            } => {
+                let array = sys.gpu.command.internal.arrays.general_purpose[1];
+                sys.xf_write_indexed(array, base, length, index);
+            }
+            Command::IndexedSetXFC {
+                base,
+                length,
+                index,
+            } => {
+                let array = sys.gpu.command.internal.arrays.general_purpose[2];
+                sys.xf_write_indexed(array, base, length, index);
+            }
+            Command::IndexedSetXFD {
+                base,
+                length,
+                index,
+            } => {
+                let array = sys.gpu.command.internal.arrays.general_purpose[3];
+                sys.xf_write_indexed(array, base, length, index);
+            }
+            Command::Draw {
+                topology,
+                vertex_attributes,
+            } => {
+                gpu::draw(sys, topology, &vertex_attributes);
+            }
         }
     }
 
-    /// Pops a value from the CP FIFO in memory.
-    fn cp_fifo_pop(&mut self) -> u8 {
-        assert!(self.gpu.command.fifo.count() > 0);
+    sys.scheduler.schedule(1 << 20, self::process);
+}
 
-        let data = self.read::<u8>(self.gpu.command.fifo.read_ptr);
-        self.gpu.command.fifo.read_ptr += 1;
-        if self.gpu.command.fifo.read_ptr > self.gpu.command.fifo.end {
-            self.gpu.command.fifo.read_ptr = self.gpu.command.fifo.start;
-        }
-
-        data
-    }
-
-    /// Process consumed CP commands until the queue is either empty or incomplete.
-    pub fn cp_process(&mut self) {
-        loop {
-            if self.gpu.command.queue.is_empty() {
-                break;
-            }
-
-            let Some(cmd) = self.gpu.read_command() else {
-                break;
-            };
-
-            if !matches!(cmd, Command::Nop | Command::InvalidateVertexCache) {
-                tracing::debug!("processing {:02X?}", cmd);
-            }
-
-            match cmd {
-                Command::Nop => (),
-                Command::InvalidateVertexCache => (),
-                Command::Call { address, length } => gpu::call(self, address, length),
-                Command::SetCP { register, value } => self.cp_set(register, value),
-                Command::SetBP { register, value } => gpu::set_register(self, register, value),
-                Command::SetXF { start, values } => {
-                    for (offset, value) in values.into_iter().enumerate() {
-                        self.xf_write(start + offset as u16, value);
-                    }
-                }
-                Command::IndexedSetXFA {
-                    base,
-                    length,
-                    index,
-                } => {
-                    let array = self.gpu.command.internal.arrays.general_purpose[0];
-                    self.xf_write_indexed(array, base, length, index);
-                }
-                Command::IndexedSetXFB {
-                    base,
-                    length,
-                    index,
-                } => {
-                    let array = self.gpu.command.internal.arrays.general_purpose[1];
-                    self.xf_write_indexed(array, base, length, index);
-                }
-                Command::IndexedSetXFC {
-                    base,
-                    length,
-                    index,
-                } => {
-                    let array = self.gpu.command.internal.arrays.general_purpose[2];
-                    self.xf_write_indexed(array, base, length, index);
-                }
-                Command::IndexedSetXFD {
-                    base,
-                    length,
-                    index,
-                } => {
-                    let array = self.gpu.command.internal.arrays.general_purpose[3];
-                    self.xf_write_indexed(array, base, length, index);
-                }
-                Command::Draw {
-                    topology,
-                    vertex_attributes,
-                } => {
-                    gpu::draw(self, topology, &vertex_attributes);
-                }
-            }
-        }
-
-        self.scheduler.schedule(1 << 20, System::cp_process);
-    }
-
-    /// Synchronizes the CP fifo to the PI fifo.
-    pub fn cp_sync_to_pi(&mut self) {
-        self.gpu.command.fifo.start = self.processor.fifo_start;
-        self.gpu.command.fifo.end = self.processor.fifo_end;
-        self.gpu.command.fifo.write_ptr = self.processor.fifo_current.address();
-    }
-
-    /// Consumes commands available in the CP FIFO.
-    pub fn cp_consume(&mut self) {
-        if !self.gpu.command.control.fifo_read_enable() {
-            return;
-        }
-
-        while self.gpu.command.fifo.count() > 0 {
-            let data = self.cp_fifo_pop();
-            self.gpu.command.queue.push_be(data);
-        }
-    }
+/// Synchronizes the CP fifo to the PI fifo.
+pub fn sync_to_pi(sys: &mut System) {
+    sys.gpu.command.fifo.start = sys.processor.fifo_start;
+    sys.gpu.command.fifo.end = sys.processor.fifo_end;
+    sys.gpu.command.fifo.write_ptr = sys.processor.fifo_current.address();
 }

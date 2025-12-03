@@ -394,7 +394,6 @@ pub struct VertexAttributes {
     pub tex_coords_matrix: [Mat4; 8],
 }
 
-/// GX subsystem
 #[derive(Debug, Default)]
 pub struct Gpu {
     pub command: command::Interface,
