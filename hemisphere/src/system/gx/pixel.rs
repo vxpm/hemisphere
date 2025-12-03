@@ -1,4 +1,4 @@
-use crate::system::gpu::{colors::Abgr8, texture};
+use crate::system::gx::{colors::Abgr8, texture};
 use bitos::{
     Bits, bitos,
     integer::{u2, u3, u4, u10},

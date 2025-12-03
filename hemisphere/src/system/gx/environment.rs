@@ -3,7 +3,7 @@ use bitos::{
     integer::{u2, u3},
 };
 
-use crate::system::gpu::colors::Rgba;
+use crate::system::gx::colors::Rgba;
 
 #[bitos(3)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

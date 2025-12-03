@@ -1,4 +1,4 @@
-use hemisphere::system::gpu::transform::{
+use hemisphere::system::gx::transform::{
     TexGenInputKind, TexGenKind, TexGenOutputKind, TexGenSource,
 };
 

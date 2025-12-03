@@ -1,4 +1,4 @@
-use crate::system::gpu::{
+use crate::system::gx::{
     colors::Rgba8,
     pixel::{ColorCopyFormat, DepthCopyFormat},
 };

@@ -1,6 +1,6 @@
 use hemisphere::{
     render::TexEnvStage,
-    system::gpu::environment::{
+    system::gx::environment::{
         AlphaCompare, AlphaInputSrc, AlphaLogic, ColorChannel, ColorInputSrc, Constant,
     },
 };

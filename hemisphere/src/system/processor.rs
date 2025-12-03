@@ -2,7 +2,7 @@
 
 use crate::{
     Primitive,
-    system::{System, gpu},
+    system::{System, gx},
 };
 use bitos::{bitos, integer::u26};
 use gekko::{Address, Exception};
@@ -207,8 +207,8 @@ impl System {
         }
 
         if self.gpu.command.control.linked_mode() {
-            gpu::command::sync_to_pi(self);
-            gpu::command::consume(self);
+            gx::command::sync_to_pi(self);
+            gx::command::consume(self);
         }
 
         self.processor.fifo_buffer = Some(fifo_buffer);

@@ -9,7 +9,7 @@ use crate::{
     Primitive, System,
     render::{Action, TexEnvConfig, TexEnvStage},
     stream::{BinReader, BinaryStream},
-    system::gpu::{
+    system::gx::{
         colors::Rgba,
         command::{
             ArrayDescriptor, AttributeMode, VertexAttributeStream,

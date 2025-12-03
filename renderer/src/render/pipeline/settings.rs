@@ -1,6 +1,6 @@
 use hemisphere::{
     render::TexEnvStage,
-    system::gpu::{
+    system::gx::{
         environment::{AlphaCompare, AlphaLogic},
         transform::BaseTexGen,
     },

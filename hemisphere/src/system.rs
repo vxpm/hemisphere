@@ -7,7 +7,7 @@ pub mod dspi;
 pub mod eabi;
 pub mod executable;
 pub mod external;
-pub mod gpu;
+pub mod gx;
 pub mod lazy;
 pub mod mem;
 pub mod mmu;
@@ -21,7 +21,7 @@ use crate::{
     system::{
         dspi::Dsp,
         executable::{DebugInfo, Executable},
-        gpu::Gpu,
+        gx::Gpu,
         lazy::Lazy,
         mem::Memory,
         mmu::Mmu,
@@ -195,7 +195,7 @@ impl System {
 
     pub fn new(mut config: Config) -> Self {
         let mut scheduler = Scheduler::default();
-        scheduler.schedule(1 << 16, gpu::command::process);
+        scheduler.schedule(1 << 16, gx::command::process);
 
         let mut system = System {
             scheduler,

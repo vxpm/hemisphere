@@ -6,7 +6,7 @@ use crate::system::{
     System, disk, external,
     mem::{IPL_LEN, RAM_LEN},
 };
-use crate::system::{audio, dspi, gpu, serial};
+use crate::system::{audio, dspi, gx, serial};
 use gekko::Address;
 use std::ops::Range;
 use zerocopy::IntoBytes;
@@ -306,7 +306,7 @@ impl System {
             Mmio::CpControl => {
                 ne!(self.gpu.command.control.as_mut_bytes());
                 if self.gpu.command.control.linked_mode() {
-                    gpu::command::sync_to_pi(self);
+                    gx::command::sync_to_pi(self);
                 }
             }
             Mmio::CpClear => {
@@ -316,53 +316,53 @@ impl System {
             }
             Mmio::CpFifoStartLow => {
                 ne!(self.gpu.command.fifo.start.as_mut_bytes()[0..2]);
-                gpu::command::consume(self);
+                gx::command::consume(self);
             }
             Mmio::CpFifoStartHigh => {
                 ne!(self.gpu.command.fifo.start.as_mut_bytes()[2..4]);
-                gpu::command::consume(self);
+                gx::command::consume(self);
             }
             Mmio::CpFifoEndLow => {
                 ne!(self.gpu.command.fifo.end.as_mut_bytes()[0..2]);
-                gpu::command::consume(self);
+                gx::command::consume(self);
             }
             Mmio::CpFifoEndHigh => {
                 ne!(self.gpu.command.fifo.end.as_mut_bytes()[2..4]);
-                gpu::command::consume(self);
+                gx::command::consume(self);
             }
             Mmio::CpHighWatermarkLow => {
                 ne!(self.gpu.command.fifo.high_mark.as_mut_bytes()[0..2]);
-                gpu::command::consume(self);
+                gx::command::consume(self);
             }
             Mmio::CpHighWatermarkHigh => {
                 ne!(self.gpu.command.fifo.high_mark.as_mut_bytes()[2..4]);
-                gpu::command::consume(self);
+                gx::command::consume(self);
             }
             Mmio::CpLowWatermarkLow => {
                 ne!(self.gpu.command.fifo.low_mark.as_mut_bytes()[0..2]);
-                gpu::command::consume(self);
+                gx::command::consume(self);
             }
             Mmio::CpLowWatermarkHigh => {
                 ne!(self.gpu.command.fifo.low_mark.as_mut_bytes()[2..4]);
-                gpu::command::consume(self);
+                gx::command::consume(self);
             }
             // Mmio::CpFifoCountLow => ne!(self.gpu.command.fifo.count().as_mut_bytes()[0..2]),
             // Mmio::CpFifoCountHigh => ne!(self.gpu.command.fifo.count().as_mut_bytes()[2..4]),
             Mmio::CpFifoWritePtrLow => {
                 ne!(self.gpu.command.fifo.write_ptr.as_mut_bytes()[0..2]);
-                gpu::command::consume(self);
+                gx::command::consume(self);
             }
             Mmio::CpFifoWritePtrHigh => {
                 ne!(self.gpu.command.fifo.write_ptr.as_mut_bytes()[2..4]);
-                gpu::command::consume(self);
+                gx::command::consume(self);
             }
             Mmio::CpFifoReadPtrLow => {
                 ne!(self.gpu.command.fifo.read_ptr.as_mut_bytes()[0..2]);
-                gpu::command::consume(self);
+                gx::command::consume(self);
             }
             Mmio::CpFifoReadPtrHigh => {
                 ne!(self.gpu.command.fifo.read_ptr.as_mut_bytes()[2..4]);
-                gpu::command::consume(self);
+                gx::command::consume(self);
             }
 
             // === Pixel Engine ===

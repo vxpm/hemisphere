@@ -1,6 +1,6 @@
 //! Renderer interface.
 
-use crate::system::gpu::{
+use crate::system::gx::{
     Topology, VertexAttributes,
     colors::{Abgr8, Rgba, Rgba8},
     environment::{AlphaFunction, Constant, StageOps, StageRefs},
