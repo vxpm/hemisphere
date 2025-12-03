@@ -5,7 +5,7 @@ use crate::{
     stream::{BinRingBuffer, BinaryStream},
     system::{
         System,
-        gpu::{Gpu, Reg as GxReg, Topology, command::attributes::AttributeDescriptor},
+        gpu::{self, Gpu, Reg as GxReg, Topology, command::attributes::AttributeDescriptor},
     },
 };
 use attributes::VertexAttributeTable;
@@ -768,9 +768,9 @@ impl System {
             match cmd {
                 Command::Nop => (),
                 Command::InvalidateVertexCache => (),
-                Command::Call { address, length } => self.gx_call(address, length),
+                Command::Call { address, length } => gpu::call(self, address, length),
                 Command::SetCP { register, value } => self.cp_set(register, value),
-                Command::SetBP { register, value } => self.gx_set(register, value),
+                Command::SetBP { register, value } => gpu::set_register(self, register, value),
                 Command::SetXF { start, values } => {
                     for (offset, value) in values.into_iter().enumerate() {
                         self.xf_write(start + offset as u16, value);
@@ -812,7 +812,7 @@ impl System {
                     topology,
                     vertex_attributes,
                 } => {
-                    self.gx_draw(topology, &vertex_attributes);
+                    gpu::draw(self, topology, &vertex_attributes);
                 }
             }
         }
