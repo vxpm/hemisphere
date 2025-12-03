@@ -1,4 +1,4 @@
-///! Command processor (GP).
+///! Command processor (CP).
 pub mod attributes;
 
 use crate::{
@@ -6,7 +6,7 @@ use crate::{
     stream::{BinRingBuffer, BinaryStream},
     system::{
         System,
-        gx::{self, Gpu, Reg as GxReg, Topology, cp::attributes::AttributeDescriptor},
+        gx::{self, Gpu, Reg as GxReg, Topology, cmd::attributes::AttributeDescriptor},
     },
 };
 use attributes::VertexAttributeTable;

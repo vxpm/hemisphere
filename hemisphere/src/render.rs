@@ -3,7 +3,7 @@
 use crate::system::gx::{
     Topology, VertexAttributes,
     colors::{Abgr8, Rgba, Rgba8},
-    pe::{BlendMode, BufferFormat, ConstantAlpha, DepthMode},
+    pix::{BlendMode, BufferFormat, ConstantAlpha, DepthMode},
     tev::{AlphaFunction, Constant, StageOps, StageRefs},
     xf::{BaseTexGen, ChannelControl, Light},
 };

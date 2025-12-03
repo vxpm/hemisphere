@@ -1,7 +1,7 @@
 /// Texture unit (TX).
 use crate::system::gx::{
     colors::Rgba8,
-    pe::{ColorCopyFormat, DepthCopyFormat},
+    pix::{ColorCopyFormat, DepthCopyFormat},
 };
 use bitos::{
     bitos,

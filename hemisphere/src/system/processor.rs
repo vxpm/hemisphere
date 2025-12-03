@@ -207,8 +207,8 @@ impl System {
         }
 
         if self.gpu.command.control.linked_mode() {
-            gx::cp::sync_to_pi(self);
-            gx::cp::consume(self);
+            gx::cmd::sync_to_pi(self);
+            gx::cmd::consume(self);
         }
 
         self.processor.fifo_buffer = Some(fifo_buffer);
