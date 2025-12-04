@@ -206,7 +206,7 @@ pub struct StageColor {
     #[bits(18)]
     pub negate: bool,
     #[bits(18)]
-    pub compare_op: bool,
+    pub compare_op: CompareOp,
     #[bits(19)]
     pub clamp: bool,
     #[bits(20..22)]
