@@ -561,8 +561,7 @@ impl System {
             Mmio::ExiChannel0DmaLength => ne!(self.external.channel0.dma_length.as_mut_bytes()),
             Mmio::ExiChannel0Control => {
                 ne!(self.external.channel0.control.as_mut_bytes());
-                tracing::debug!("{:?}", self.external.channel0.control);
-                self.exi_update();
+                exi::update(self);
             }
             Mmio::ExiChannel0Immediate => ne!(self.external.channel0.immediate.as_mut_bytes()),
             Mmio::ExiChannel1Param => {
@@ -574,7 +573,7 @@ impl System {
             Mmio::ExiChannel1DmaLength => ne!(self.external.channel1.dma_length.as_mut_bytes()),
             Mmio::ExiChannel1Control => {
                 ne!(self.external.channel1.control.as_mut_bytes());
-                self.exi_update();
+                exi::update(self);
             }
             Mmio::ExiChannel1Immediate => ne!(self.external.channel1.immediate.as_mut_bytes()),
             Mmio::ExiChannel2Param => {
@@ -586,7 +585,7 @@ impl System {
             Mmio::ExiChannel2DmaLength => ne!(self.external.channel2.dma_length.as_mut_bytes()),
             Mmio::ExiChannel2Control => {
                 ne!(self.external.channel2.control.as_mut_bytes());
-                self.exi_update();
+                exi::update(self);
             }
             Mmio::ExiChannel2Immediate => ne!(self.external.channel2.immediate.as_mut_bytes()),
 

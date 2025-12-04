@@ -160,180 +160,178 @@ pub struct Interface {
     pub channel2: Channel0,
 }
 
-impl System {
-    fn exi_ipl_transfer(&mut self) {
-        if !self.external.channel0.control.dma() {
-            self.external.channel0.ipl_base = self.external.channel0.immediate >> 6;
-            tracing::debug!("set IPL base to 0x{:08X}", self.external.channel0.ipl_base);
-            return;
-        }
-
-        let ram_base = self.external.channel0.dma_base.value() as usize;
-        let ipl_base = self.external.channel0.ipl_base as usize;
-        let length = self.external.channel0.dma_length as usize;
-        tracing::debug!(
-            "IPL ROM DMA: 0x{:08X} bytes from IPL 0x{:08X} to RAM 0x{:08X}",
-            length,
-            ipl_base,
-            ram_base
-        );
-
-        self.mem.ram[ram_base..][..length].copy_from_slice(&self.mem.ipl[ipl_base..][..length]);
+fn ipl_transfer(sys: &mut System) {
+    if !sys.external.channel0.control.dma() {
+        sys.external.channel0.ipl_base = sys.external.channel0.immediate >> 6;
+        tracing::debug!("set IPL base to 0x{:08X}", sys.external.channel0.ipl_base);
+        return;
     }
 
-    fn exi_sram_transfer_read(&mut self) {
-        let sram_base =
-            (((self.external.channel0.immediate & !0xA000_0000) - 0x0000_0100) >> 6) as usize;
-        tracing::debug!("SRAM TRANSFER {:?}", self.external.channel0.control);
+    let ram_base = sys.external.channel0.dma_base.value() as usize;
+    let ipl_base = sys.external.channel0.ipl_base as usize;
+    let length = sys.external.channel0.dma_length as usize;
+    tracing::debug!(
+        "IPL ROM DMA: 0x{:08X} bytes from IPL 0x{:08X} to RAM 0x{:08X}",
+        length,
+        ipl_base,
+        ram_base
+    );
 
-        if !self.external.channel0.control.dma() {
-            self.external.channel0.immediate = u32::read_be_bytes(&self.mem.sram[sram_base..]);
-            return;
-        }
+    sys.mem.ram[ram_base..][..length].copy_from_slice(&sys.mem.ipl[ipl_base..][..length]);
+}
 
-        let ram_base = self.external.channel0.dma_base.value() as usize;
-        let length = self.external.channel0.dma_length as usize;
-        tracing::debug!(
-            "SRAM DMA: 0x{:08X} bytes from SRAM 0x{:08X} to RAM 0x{:08X}",
-            length,
-            sram_base,
-            ram_base
-        );
+fn sram_transfer_read(sys: &mut System) {
+    let sram_base =
+        (((sys.external.channel0.immediate & !0xA000_0000) - 0x0000_0100) >> 6) as usize;
+    tracing::debug!("SRAM TRANSFER {:?}", sys.external.channel0.control);
 
-        self.mem.ram[ram_base..][..length].copy_from_slice(&self.mem.sram[sram_base..][..length]);
+    if !sys.external.channel0.control.dma() {
+        sys.external.channel0.immediate = u32::read_be_bytes(&sys.mem.sram[sram_base..]);
+        return;
     }
 
-    fn exi_sram_transfer_write(&mut self, current: u8) {
-        assert!(!self.external.channel0.control.dma());
+    let ram_base = sys.external.channel0.dma_base.value() as usize;
+    let length = sys.external.channel0.dma_length as usize;
+    tracing::debug!(
+        "SRAM DMA: 0x{:08X} bytes from SRAM 0x{:08X} to RAM 0x{:08X}",
+        length,
+        sram_base,
+        ram_base
+    );
 
-        self.external
-            .channel0
-            .immediate
-            .write_be_bytes(&mut self.mem.sram[current as usize..]);
+    sys.mem.ram[ram_base..][..length].copy_from_slice(&sys.mem.sram[sram_base..][..length]);
+}
 
-        let next = current + 4;
-        if next == 64 {
-            self.external.channel0.ipl_state = IplChipState::Idle;
-        } else {
-            self.external.channel0.ipl_state = IplChipState::SramWrite(next);
+fn sram_transfer_write(sys: &mut System, current: u8) {
+    assert!(!sys.external.channel0.control.dma());
+
+    sys.external
+        .channel0
+        .immediate
+        .write_be_bytes(&mut sys.mem.sram[current as usize..]);
+
+    let next = current + 4;
+    if next == 64 {
+        sys.external.channel0.ipl_state = IplChipState::Idle;
+    } else {
+        sys.external.channel0.ipl_state = IplChipState::SramWrite(next);
+    }
+}
+
+fn uart_transfer_write(sys: &mut System) {
+    assert!(!sys.external.channel0.control.dma());
+    let value = sys.external.channel0.immediate;
+
+    for byte in value.to_be_bytes() {
+        if byte == 0x1B {
+            continue;
+        }
+
+        print!("{}", char::from_u32(byte as u32).unwrap());
+        if byte == b'\r' {
+            print!("\n");
         }
     }
 
-    fn exi_uart_transfer_write(&mut self) {
-        assert!(!self.external.channel0.control.dma());
-        let value = self.external.channel0.immediate;
+    std::io::stdout().flush().unwrap();
+}
 
-        for byte in value.to_be_bytes() {
-            if byte == 0x1B {
-                continue;
-            }
-
-            print!("{}", char::from_u32(byte as u32).unwrap());
-            if byte == b'\r' {
-                print!("\n");
-            }
-        }
-
-        std::io::stdout().flush().unwrap();
+fn uart_transfer_read(sys: &mut System) {
+    if !sys.external.channel0.control.dma() {
+        sys.external.channel0.immediate = 0;
+        return;
     }
 
-    fn exi_uart_transfer_read(&mut self) {
-        if !self.external.channel0.control.dma() {
-            self.external.channel0.immediate = 0;
-            return;
-        }
+    let ram_base = sys.external.channel0.dma_base.value() as usize;
+    let length = sys.external.channel0.dma_length as usize;
+    tracing::debug!(
+        "UART DMA: 0x{:08X} bytes from UART to RAM 0x{:08X}",
+        length,
+        ram_base
+    );
 
-        let ram_base = self.external.channel0.dma_base.value() as usize;
-        let length = self.external.channel0.dma_length as usize;
-        tracing::debug!(
-            "UART DMA: 0x{:08X} bytes from UART to RAM 0x{:08X}",
-            length,
-            ram_base
-        );
+    sys.mem.ram[ram_base..][..length].fill(0);
+}
 
-        self.mem.ram[ram_base..][..length].fill(0);
-    }
-
-    fn exi_ipl_rtc_sram_transfer(&mut self) {
-        match self.external.channel0.clone().ipl_state {
-            IplChipState::SramWrite(current) => self.exi_sram_transfer_write(current),
-            IplChipState::UartWrite => self.exi_uart_transfer_write(),
-            IplChipState::Idle => {
-                // new transfer
-                match self.external.channel0.clone().immediate {
-                    0x0000_0000..0x2000_0000 => self.exi_ipl_transfer(),
-                    0x2000_0000 => {
-                        tracing::debug!("RTC read: 0x{:08X}", self.external.channel0.rtc);
-                        assert!(!self.external.channel0.control.dma());
-                        self.external.channel0.immediate = self.external.channel0.rtc;
-                    }
-                    0x2000_0100..0x2000_1100 => self.exi_sram_transfer_read(),
-                    0x2001_0000 => self.exi_uart_transfer_read(),
-                    0xA000_0000 => {
-                        tracing::debug!("RTC write: 0x{:08X}", self.external.channel0.immediate);
-                        assert!(!self.external.channel0.control.dma());
-                        self.external.channel0.rtc = self.external.channel0.immediate;
-                    }
-                    0xA000_0100..0xA000_1100 => {
-                        let sram_base = (((self.external.channel0.immediate & !0xA000_0000)
-                            - 0x0000_0100)
-                            >> 6) as u8;
-                        tracing::debug!("starting SRAM write: 0x{:08X}", sram_base);
-                        assert!(!self.external.channel0.control.dma());
-
-                        self.external.channel0.ipl_state = IplChipState::SramWrite(sram_base);
-                    }
-                    0xA001_0000 => {
-                        tracing::debug!("starting EXI UART write");
-                        self.external.channel0.ipl_state = IplChipState::UartWrite;
-                    }
-                    _ => todo!(),
+fn ipl_rtc_sram_transfer(sys: &mut System) {
+    match sys.external.channel0.clone().ipl_state {
+        IplChipState::SramWrite(current) => self::sram_transfer_write(sys, current),
+        IplChipState::UartWrite => self::uart_transfer_write(sys),
+        IplChipState::Idle => {
+            // new transfer
+            match sys.external.channel0.clone().immediate {
+                0x0000_0000..0x2000_0000 => self::ipl_transfer(sys),
+                0x2000_0000 => {
+                    tracing::debug!("RTC read: 0x{:08X}", sys.external.channel0.rtc);
+                    assert!(!sys.external.channel0.control.dma());
+                    sys.external.channel0.immediate = sys.external.channel0.rtc;
                 }
+                0x2000_0100..0x2000_1100 => self::sram_transfer_read(sys),
+                0x2001_0000 => self::uart_transfer_read(sys),
+                0xA000_0000 => {
+                    tracing::debug!("RTC write: 0x{:08X}", sys.external.channel0.immediate);
+                    assert!(!sys.external.channel0.control.dma());
+                    sys.external.channel0.rtc = sys.external.channel0.immediate;
+                }
+                0xA000_0100..0xA000_1100 => {
+                    let sram_base = (((sys.external.channel0.immediate & !0xA000_0000)
+                        - 0x0000_0100)
+                        >> 6) as u8;
+                    tracing::debug!("starting SRAM write: 0x{:08X}", sram_base);
+                    assert!(!sys.external.channel0.control.dma());
+
+                    sys.external.channel0.ipl_state = IplChipState::SramWrite(sram_base);
+                }
+                0xA001_0000 => {
+                    tracing::debug!("starting EXI UART write");
+                    sys.external.channel0.ipl_state = IplChipState::UartWrite;
+                }
+                _ => todo!(),
             }
         }
-
-        self.external.channel0.control.set_transfer_ongoing(false);
     }
 
-    pub fn exi_channel0_transfer(&mut self) {
-        match self.external.channel0.parameter.device0().unwrap() {
-            Device0::IplRtcSram => {
-                self.exi_ipl_rtc_sram_transfer();
-            }
-            Device0::SerialPort1 => {
-                // no ethernet adapter
-                tracing::debug!("SP1 read - ignoring");
-                self.external.channel0.immediate = 0;
-                self.external.channel0.control.set_transfer_ongoing(false);
-            }
-            _ => todo!(),
+    sys.external.channel0.control.set_transfer_ongoing(false);
+}
+
+pub fn channel0_transfer(sys: &mut System) {
+    match sys.external.channel0.parameter.device0().unwrap() {
+        Device0::IplRtcSram => {
+            self::ipl_rtc_sram_transfer(sys);
         }
+        Device0::SerialPort1 => {
+            // no ethernet adapter
+            tracing::debug!("SP1 read - ignoring");
+            sys.external.channel0.immediate = 0;
+            sys.external.channel0.control.set_transfer_ongoing(false);
+        }
+        _ => todo!(),
+    }
+}
+
+pub fn channel2_transfer(sys: &mut System) {
+    assert_eq!(
+        sys.external.channel2.parameter.device2(),
+        Some(Device2::AD16)
+    );
+
+    let op = sys.external.channel2.immediate;
+    if op == 0 {
+        tracing::warn!("checking AD16 ID");
+        sys.external.channel2.immediate = 0x04120000;
+    } else {
+        tracing::warn!("unknown AD16 op");
     }
 
-    pub fn exi_channel2_transfer(&mut self) {
-        assert_eq!(
-            self.external.channel2.parameter.device2(),
-            Some(Device2::AD16)
-        );
+    sys.external.channel2.control.set_transfer_ongoing(false);
+}
 
-        let op = self.external.channel2.immediate;
-        if op == 0 {
-            tracing::warn!("checking AD16 ID");
-            self.external.channel2.immediate = 0x04120000;
-        } else {
-            tracing::warn!("unknown AD16 op");
-        }
-
-        self.external.channel2.control.set_transfer_ongoing(false);
+pub fn update(sys: &mut System) {
+    if sys.external.channel0.control.transfer_ongoing() {
+        self::channel0_transfer(sys);
     }
 
-    pub fn exi_update(&mut self) {
-        if self.external.channel0.control.transfer_ongoing() {
-            self.exi_channel0_transfer();
-        }
-
-        if self.external.channel2.control.transfer_ongoing() {
-            self.exi_channel2_transfer();
-        }
+    if sys.external.channel2.control.transfer_ongoing() {
+        self::channel2_transfer(sys);
     }
 }
