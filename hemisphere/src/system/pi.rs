@@ -1,5 +1,4 @@
-//! Processor interface (PI).
-
+///! Processor interface (PI).
 use crate::{
     Primitive,
     system::{System, gx},
@@ -125,7 +124,7 @@ impl Default for Interface {
 }
 
 /// Returns which interrupt sources are active (i.e. triggered but maybe masked).
-pub fn get_active_interrupts(sys: &mut System) -> InterruptSources {
+pub fn get_active_interrupts(sys: &System) -> InterruptSources {
     let mut sources = InterruptSources::default();
 
     // VI
@@ -155,7 +154,7 @@ pub fn get_active_interrupts(sys: &mut System) -> InterruptSources {
 }
 
 /// Returns which interrupt sources are raised (i.e. triggered and unmasked).
-pub fn get_raised_interrupts(sys: &mut System) -> InterruptSources {
+pub fn get_raised_interrupts(sys: &System) -> InterruptSources {
     InterruptSources::from_bits(
         self::get_active_interrupts(sys).to_bits() & sys.processor.mask.sources().to_bits(),
     )
