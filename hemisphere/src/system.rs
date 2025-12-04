@@ -1,20 +1,21 @@
-//! State of the emulator.
+//! State of the system (i.e. GameCube and emulator).
 
-pub mod audio;
 pub mod bus;
-pub mod disk;
-pub mod dspi;
 pub mod eabi;
 pub mod executable;
-pub mod external;
-pub mod gx;
 pub mod lazy;
+pub mod scheduler;
+
+pub mod ai;
+pub mod di;
+pub mod dspi;
+pub mod exi;
+pub mod gx;
 pub mod mem;
 pub mod mmu;
-pub mod processor;
-pub mod scheduler;
-pub mod serial;
-pub mod video;
+pub mod pi;
+pub mod si;
+pub mod vi;
 
 use crate::{
     render::Renderer,
@@ -64,17 +65,17 @@ pub struct System {
     /// State of mechanisms that update lazily (e.g. time related registers).
     pub lazy: Lazy,
     /// The video interface.
-    pub video: video::Interface,
+    pub video: vi::Interface,
     /// The processor interface.
-    pub processor: processor::Interface,
+    pub processor: pi::Interface,
     /// The external interface.
-    pub external: external::Interface,
+    pub external: exi::Interface,
     /// The audio interface.
-    pub audio: audio::Interface,
+    pub audio: ai::Interface,
     /// The disk interface.
-    pub disk: disk::Interface,
+    pub disk: di::Interface,
     /// The serial interface.
-    pub serial: serial::Interface,
+    pub serial: si::Interface,
 }
 
 impl System {
@@ -210,12 +211,12 @@ impl System {
             ),
             mmu: Mmu::default(),
             lazy: Lazy::default(),
-            video: video::Interface::default(),
-            processor: processor::Interface::default(),
-            external: external::Interface::default(),
-            audio: audio::Interface::default(),
-            disk: disk::Interface::default(),
-            serial: serial::Interface::default(),
+            video: vi::Interface::default(),
+            processor: pi::Interface::default(),
+            external: exi::Interface::default(),
+            audio: ai::Interface::default(),
+            disk: di::Interface::default(),
+            serial: si::Interface::default(),
 
             config,
         };

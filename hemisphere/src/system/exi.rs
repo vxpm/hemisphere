@@ -1,5 +1,4 @@
-use std::io::Write;
-
+///! External interface (EXI).
 use crate::Primitive;
 use crate::system::System;
 use bitos::{
@@ -7,6 +6,7 @@ use bitos::{
     integer::{u2, u3},
 };
 use gekko::Address;
+use std::io::Write;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Device0 {

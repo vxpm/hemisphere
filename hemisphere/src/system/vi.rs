@@ -1,4 +1,5 @@
-use crate::system::{System, serial};
+///! Video interface (VI).
+use crate::system::{System, si};
 use bitos::{
     bitos,
     integer::{u4, u7, u9, u10, u24},
@@ -351,7 +352,7 @@ impl System {
         self.video.vertical_count += 1;
         if self.video.vertical_count as u32 > self.video.lines_per_frame() {
             self.video.vertical_count = 1;
-            serial::poll_controller(self, 0);
+            si::poll_controller(self, 0);
         }
 
         let cycles_per_frame = (FREQUENCY as f64 / self.video.refresh_rate()) as u32;

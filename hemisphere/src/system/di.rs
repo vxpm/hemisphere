@@ -1,3 +1,4 @@
+///! Disk interface (DI).
 use crate::system::System;
 use bitos::bitos;
 use gekko::Address;

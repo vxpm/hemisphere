@@ -1,3 +1,4 @@
+///! Memory of the system.
 use std::ffi::CStr;
 
 pub const RAM_LEN: u32 = 24 * bytesize::MIB as u32;

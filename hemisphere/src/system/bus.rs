@@ -3,10 +3,10 @@ mod mmio;
 use crate::Primitive;
 use crate::system::mem::L2C_LEN;
 use crate::system::{
-    System, disk, external,
+    System, di, exi,
     mem::{IPL_LEN, RAM_LEN},
 };
-use crate::system::{audio, dspi, gx, serial};
+use crate::system::{ai, dspi, gx, si};
 use gekko::Address;
 use std::ops::Range;
 use zerocopy::IntoBytes;
@@ -223,7 +223,7 @@ impl System {
 
             // === Audio Interface ===
             Mmio::AudioSampleCounter => {
-                audio::update_sample_counter(self);
+                ai::update_sample_counter(self);
                 let sample = self.audio.sample_counter.floor() as u32;
                 ne!(sample.as_bytes())
             }
@@ -476,22 +476,22 @@ impl System {
                 ne!(self.audio.dma_control.as_mut_bytes());
 
                 if !ongoing && self.audio.dma_control.transfer_ongoing() {
-                    self.scheduler.schedule(1620000, audio::do_dma);
+                    self.scheduler.schedule(1620000, ai::do_dma);
                 } else if !self.audio.dma_control.transfer_ongoing() {
-                    self.scheduler.cancel(audio::do_dma)
+                    self.scheduler.cancel(ai::do_dma)
                 }
             }
 
             // === Disk Interface ===
             Mmio::DiskStatus => {
-                let mut written = disk::Status::from_bits(0);
+                let mut written = di::Status::from_bits(0);
                 ne!(written.as_mut_bytes());
                 self.disk.write_status(written);
                 tracing::debug!(diskstatus = ?self.disk.status);
                 self.scheduler.schedule_now(System::pi_check_interrupts);
             }
             Mmio::DiskCover => {
-                let mut written = disk::Cover::from_bits(0);
+                let mut written = di::Cover::from_bits(0);
                 ne!(written.as_mut_bytes());
                 self.disk.write_cover(written);
                 self.disk.cover.set_open(false);
@@ -504,9 +504,9 @@ impl System {
             Mmio::DiskDmaBase => ne!(self.disk.dma_base.as_mut_bytes()),
             Mmio::DiskDmaLength => ne!(self.disk.dma_length.as_mut_bytes()),
             Mmio::DiskControl => {
-                let mut written = disk::Control::from_bits(0);
+                let mut written = di::Control::from_bits(0);
                 ne!(written.as_mut_bytes());
-                disk::write_control(self, written);
+                di::write_control(self, written);
             }
             Mmio::DiskConfiguration => {
                 ne!(self.disk.config.as_mut_bytes());
@@ -536,12 +536,12 @@ impl System {
             Mmio::SerialCommControl => {
                 let mut written = self.serial.comm_control;
                 ne!(written.as_mut_bytes());
-                serial::write_comm_control(self, written);
+                si::write_comm_control(self, written);
             }
             Mmio::SerialStatus => {
                 let mut written = self.serial.status;
                 ne!(written.as_mut_bytes());
-                serial::write_status(self, written);
+                si::write_status(self, written);
             }
             Mmio::SerialBuffer => {
                 value.write_be_bytes(&mut self.serial.buffer[offset..offset + size_of::<P>()])
@@ -549,12 +549,12 @@ impl System {
 
             // === External Interface ===
             Mmio::ExiChannel0Param => {
-                let mut written = external::Parameter::from_bits(0);
+                let mut written = exi::Parameter::from_bits(0);
                 ne!(written.as_mut_bytes());
                 self.external.channel0.parameter.write(written);
 
                 if self.external.channel0.parameter.device_select().value() == 0 {
-                    self.external.channel0.ipl_state = external::IplChipState::Idle;
+                    self.external.channel0.ipl_state = exi::IplChipState::Idle;
                 }
             }
             Mmio::ExiChannel0DmaBase => ne!(self.external.channel0.dma_base.as_mut_bytes()),
@@ -566,7 +566,7 @@ impl System {
             }
             Mmio::ExiChannel0Immediate => ne!(self.external.channel0.immediate.as_mut_bytes()),
             Mmio::ExiChannel1Param => {
-                let mut written = external::Parameter::from_bits(0);
+                let mut written = exi::Parameter::from_bits(0);
                 ne!(written.as_mut_bytes());
                 self.external.channel1.parameter.write(written);
             }
@@ -578,7 +578,7 @@ impl System {
             }
             Mmio::ExiChannel1Immediate => ne!(self.external.channel1.immediate.as_mut_bytes()),
             Mmio::ExiChannel2Param => {
-                let mut written = external::Parameter::from_bits(0);
+                let mut written = exi::Parameter::from_bits(0);
                 ne!(written.as_mut_bytes());
                 self.external.channel2.parameter.write(written);
             }

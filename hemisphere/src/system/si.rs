@@ -1,3 +1,4 @@
+///! Serial interface (SI).
 use crate::{cores::ControllerState, system::System};
 use bitos::{
     BitUtils, bitos,
