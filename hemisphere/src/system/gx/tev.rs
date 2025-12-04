@@ -206,8 +206,8 @@ impl Scale {
 #[bitos(1)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CompareOp {
-    GreaterThan,
-    Equal,
+    GreaterThan = 0b0,
+    Equal = 0b1,
 }
 
 impl std::fmt::Display for CompareOp {
