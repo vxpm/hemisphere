@@ -69,7 +69,7 @@ fn get_color_const(stage: &TexEnvStage) -> wesl::syntax::Expression {
     }
 }
 
-pub fn get_color_input(stage: &TexEnvStage, input: ColorInputSrc) -> wesl::syntax::Expression {
+fn get_color_input(stage: &TexEnvStage, input: ColorInputSrc) -> wesl::syntax::Expression {
     use wesl::syntax::*;
     match input {
         ColorInputSrc::R3Color => wesl::quote_expression! { regs[R3].rgb },
@@ -103,6 +103,46 @@ pub fn get_color_input(stage: &TexEnvStage, input: ColorInputSrc) -> wesl::synta
             wesl::quote_expression! { #constant.rgb }
         }
         ColorInputSrc::Zero => wesl::quote_expression! { vec3f(0f) },
+    }
+}
+
+pub fn color_stage(stage: &TexEnvStage) -> wesl::syntax::Statement {
+    use wesl::syntax::*;
+
+    let input_a = get_color_input(stage, stage.ops.color.input_a());
+    let input_b = get_color_input(stage, stage.ops.color.input_b());
+    let input_c = get_color_input(stage, stage.ops.color.input_c());
+    let input_d = get_color_input(stage, stage.ops.color.input_d());
+
+    let sign = if stage.ops.color.negate() { -1.0 } else { 1.0 };
+    let bias = stage.ops.color.bias().value();
+    let scale = stage.ops.color.scale().value();
+    let clamp = stage.ops.color.clamp();
+    let output = stage.ops.color.output() as u32;
+
+    let clamped = if clamp {
+        wesl::quote_expression! { color_add_mul }
+    } else {
+        wesl::quote_expression! { clamp(color_add_mul, vec3f(0f), vec3f(1f)) }
+    };
+
+    wesl::quote_statement! {
+        {
+            let input_a = #input_a;
+            let input_b = #input_b;
+            let input_c = #input_c;
+            let input_d = #input_d;
+            let sign = #sign;
+            let bias = #bias;
+            let scale = #scale;
+
+            let color_interpolation = sign * mix(input_a, input_b, input_c);
+            let color_add_mul = scale * (color_interpolation + input_d + bias);
+            let color_result = #clamped;
+
+            regs[#output] = vec4f(color_result, regs[#output].a);
+            last_color_output = #output;
+        }
     }
 }
 
@@ -141,7 +181,7 @@ fn get_alpha_const(stage: &TexEnvStage) -> wesl::syntax::Expression {
     }
 }
 
-pub fn get_alpha_input(stage: &TexEnvStage, input: AlphaInputSrc) -> wesl::syntax::Expression {
+fn get_alpha_input(stage: &TexEnvStage, input: AlphaInputSrc) -> wesl::syntax::Expression {
     use wesl::syntax::*;
     match input {
         AlphaInputSrc::R3Alpha => wesl::quote_expression! { regs[R3].a },
@@ -161,6 +201,46 @@ pub fn get_alpha_input(stage: &TexEnvStage, input: AlphaInputSrc) -> wesl::synta
             wesl::quote_expression! { (#constant) }
         }
         AlphaInputSrc::Zero => wesl::quote_expression! { 0f },
+    }
+}
+
+pub fn alpha_stage(stage: &TexEnvStage) -> wesl::syntax::Statement {
+    use wesl::syntax::*;
+
+    let input_a = get_alpha_input(stage, stage.ops.alpha.input_a());
+    let input_b = get_alpha_input(stage, stage.ops.alpha.input_b());
+    let input_c = get_alpha_input(stage, stage.ops.alpha.input_c());
+    let input_d = get_alpha_input(stage, stage.ops.alpha.input_d());
+
+    let sign = if stage.ops.alpha.negate() { -1.0 } else { 1.0 };
+    let bias = stage.ops.alpha.bias().value();
+    let scale = stage.ops.alpha.scale().value();
+    let clamp = stage.ops.alpha.clamp();
+    let output = stage.ops.alpha.output() as u32;
+
+    let clamped = if clamp {
+        wesl::quote_expression! { alpha_add_mul }
+    } else {
+        wesl::quote_expression! { clamp(alpha_add_mul, 0f, 1f) }
+    };
+
+    wesl::quote_statement! {
+        {
+            let input_a = #input_a;
+            let input_b = #input_b;
+            let input_c = #input_c;
+            let input_d = #input_d;
+            let sign = #sign;
+            let bias = #bias;
+            let scale = #scale;
+
+            let alpha_interpolation = sign * mix(input_a, input_b, input_c);
+            let alpha_add_mul = scale * (alpha_interpolation + input_d + bias);
+            let alpha_result = #clamped;
+
+            regs[#output] = vec4f(regs[#output].rgb, alpha_result);
+            last_alpha_output = #output;
+        }
     }
 }
 
