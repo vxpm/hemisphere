@@ -234,7 +234,7 @@ impl Renderer {
                 clear,
                 response,
             } => {
-                println!("color copy requested: ({x}, {y}) [{width}x{height}] (mip: {half})");
+                // println!("color copy requested: ({x}, {y}) [{width}x{height}] (mip: {half})");
                 self.current_pass.insert_debug_marker(&format!(
                     "color copy requested: ({x}, {y}) [{width}x{height}] (mip: {half})"
                 ));

@@ -112,6 +112,29 @@ pub enum ColorInputSrc {
     Zero = 0xF,
 }
 
+impl std::fmt::Display for ColorInputSrc {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::R3Color => "R3.C",
+            Self::R3Alpha => "R3.A",
+            Self::R0Color => "R0.C",
+            Self::R0Alpha => "R0.A",
+            Self::R1Color => "R1.C",
+            Self::R1Alpha => "R1.A",
+            Self::R2Color => "R2.C",
+            Self::R2Alpha => "R2.A",
+            Self::TexColor => "Tex.C",
+            Self::TexAlpha => "Tex.A",
+            Self::RasterColor => "Channel.C",
+            Self::RasterAlpha => "Channel.A",
+            Self::One => "1",
+            Self::Half => "0.5",
+            Self::Constant => "Constant",
+            Self::Zero => "0",
+        })
+    }
+}
+
 #[bitos(3)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AlphaInputSrc {
@@ -123,6 +146,21 @@ pub enum AlphaInputSrc {
     RasterAlpha = 0x5,
     Constant = 0x6,
     Zero = 0x7,
+}
+
+impl std::fmt::Display for AlphaInputSrc {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::R3Alpha => "R3.A",
+            Self::R0Alpha => "R0.A",
+            Self::R1Alpha => "R1.A",
+            Self::R2Alpha => "R2.A",
+            Self::TexAlpha => "Tex.A",
+            Self::RasterAlpha => "Channel.A",
+            Self::Constant => "Constant",
+            Self::Zero => "0",
+        })
+    }
 }
 
 #[bitos(2)]
@@ -172,6 +210,15 @@ pub enum CompareOp {
     Equal,
 }
 
+impl std::fmt::Display for CompareOp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::GreaterThan => f.write_str(">"),
+            Self::Equal => f.write_str("=="),
+        }
+    }
+}
+
 #[bitos(2)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CompareTarget {
@@ -219,19 +266,40 @@ pub struct StageColor {
 
 impl std::fmt::Debug for StageColor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let a = self.input_a();
-        let b = self.input_b();
-        let c = self.input_c();
-        let d = self.input_d();
-        let sign = if self.negate() { "-" } else { "+" };
-        let bias = self.bias().value();
-        let scale = self.scale().value();
-        let output = self.output();
+        if self.is_comparative() {
+            let a = self.input_a();
+            let b = self.input_b();
+            let c = self.input_c();
+            let d = self.input_d();
+            let op = self.compare_op();
+            let target = self.compare_target();
+            let output = self.output();
 
-        write!(
-            f,
-            "{output:?}.C = [[{sign}({a:?} * (1.0 - {c:?}) + {b:?} * {c:?})] + {d:?} + {bias}] * {scale}"
-        )
+            write!(
+                f,
+                "{output:?}.C = ({a}.{target:?} {op} {b}.{target:?}) ? {c} : {d}"
+            )
+        } else {
+            let a = self.input_a();
+            let b = self.input_b();
+            let c = self.input_c();
+            let d = self.input_d();
+            let sign = if self.negate() { "-" } else { "+" };
+            let bias = self.bias().value();
+            let scale = self.scale().value();
+            let output = self.output();
+
+            write!(
+                f,
+                "{output:?}.C = {scale} * ({sign}mix({a}, {b}, {c}) + {d} + {bias})"
+            )
+        }
+    }
+}
+
+impl StageColor {
+    pub fn is_comparative(&self) -> bool {
+        self.bias() == Bias::Comparative
     }
 }
 
@@ -268,19 +336,40 @@ pub struct StageAlpha {
 
 impl std::fmt::Debug for StageAlpha {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let a = self.input_a();
-        let b = self.input_b();
-        let c = self.input_c();
-        let d = self.input_d();
-        let sign = if self.negate() { "-" } else { "+" };
-        let bias = self.bias().value();
-        let scale = self.scale().value();
-        let output = self.output();
+        if self.is_comparative() {
+            let a = self.input_a();
+            let b = self.input_b();
+            let c = self.input_c();
+            let d = self.input_d();
+            let op = self.compare_op();
+            let target = self.compare_target();
+            let output = self.output();
 
-        write!(
-            f,
-            "{output:?}.A = [[{sign}({a:?} * (1.0 - {c:?}) + {b:?} * {c:?})] + {d:?} + {bias}] * {scale}"
-        )
+            write!(
+                f,
+                "{output:?}.A = ({a}.{target:?} {op} {b}.{target:?}) ? {c} : {d}"
+            )
+        } else {
+            let a = self.input_a();
+            let b = self.input_b();
+            let c = self.input_c();
+            let d = self.input_d();
+            let sign = if self.negate() { "-" } else { "+" };
+            let bias = self.bias().value();
+            let scale = self.scale().value();
+            let output = self.output();
+
+            write!(
+                f,
+                "{output:?}.A = {scale} * ({sign}mix({a}, {b}, {c}) + {d} + {bias})"
+            )
+        }
+    }
+}
+
+impl StageAlpha {
+    pub fn is_comparative(&self) -> bool {
+        self.bias() == Bias::Comparative
     }
 }
 

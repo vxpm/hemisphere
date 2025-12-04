@@ -158,9 +158,9 @@ fn comparative_color_stage(stage: &TexEnvStage) -> wesl::syntax::Statement {
     };
 
     let clamped = if clamp {
-        quote_expression! { color_add }
+        quote_expression! { color_compare }
     } else {
-        quote_expression! { clamp(color_add, vec3f(0f), vec3f(1f)) }
+        quote_expression! { clamp(color_compare, vec3f(0f), vec3f(1f)) }
     };
 
     wesl::quote_statement! {
@@ -168,8 +168,7 @@ fn comparative_color_stage(stage: &TexEnvStage) -> wesl::syntax::Statement {
             let input_c = #input_c.rgb;
             let input_d = #input_d.rgb;
 
-            let color_compare = select(input_c, vec3f(0f), #comparison);
-            let color_add = color_compare + input_d;
+            let color_compare = select(input_c, input_d, #comparison);
             let color_result = #clamped;
 
             regs[#output] = vec4f(color_result, regs[#output].a);
@@ -219,7 +218,7 @@ fn regular_color_stage(stage: &TexEnvStage) -> wesl::syntax::Statement {
 }
 
 pub fn color_stage(stage: &TexEnvStage) -> wesl::syntax::Statement {
-    if stage.ops.color.bias() == Bias::Comparative {
+    if stage.ops.color.is_comparative() {
         comparative_color_stage(stage)
     } else {
         regular_color_stage(stage)
@@ -305,9 +304,9 @@ fn comparative_alpha_stage(stage: &TexEnvStage) -> wesl::syntax::Statement {
     };
 
     let clamped = if clamp {
-        quote_expression! { alpha_add }
+        quote_expression! { alpha_compare }
     } else {
-        quote_expression! { clamp(alpha_add, 0f, 1f) }
+        quote_expression! { clamp(alpha_compare, 0f, 1f) }
     };
 
     wesl::quote_statement! {
@@ -315,8 +314,7 @@ fn comparative_alpha_stage(stage: &TexEnvStage) -> wesl::syntax::Statement {
             let input_c = #input_c.a;
             let input_d = #input_d.a;
 
-            let alpha_compare = select(input_c, 0f, #comparison);
-            let alpha_add = alpha_compare + input_d;
+            let alpha_compare = select(input_c, input_d, #comparison);
             let alpha_result = #clamped;
 
             regs[#output] = vec4f(regs[#output].rgb, alpha_result);
@@ -366,7 +364,7 @@ fn regular_alpha_stage(stage: &TexEnvStage) -> wesl::syntax::Statement {
 }
 
 pub fn alpha_stage(stage: &TexEnvStage) -> wesl::syntax::Statement {
-    if stage.ops.alpha.bias() == Bias::Comparative {
+    if stage.ops.alpha.is_comparative() {
         comparative_alpha_stage(stage)
     } else {
         regular_alpha_stage(stage)

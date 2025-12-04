@@ -1080,7 +1080,7 @@ fn do_efb_copy(sys: &mut System, cmd: pix::CopyCmd) {
         let width = sys.gpu.pixel.copy_dimensions.width();
         let height = sys.gpu.pixel.copy_dimensions.height();
 
-        println!("COPYING COLOR TO {}", sys.gpu.pixel.copy_dst);
+        // println!("COPYING COLOR TO {}", sys.gpu.pixel.copy_dst);
         sys.config.renderer.exec(Action::ColorCopy {
             x: sys.gpu.pixel.copy_src.x().value(),
             y: sys.gpu.pixel.copy_src.y().value(),
@@ -1091,7 +1091,7 @@ fn do_efb_copy(sys: &mut System, cmd: pix::CopyCmd) {
             response: sender,
         });
         let pixels = receiver.recv().unwrap();
-        println!("RECEIVED DATA TO COPY TO {}", sys.gpu.pixel.copy_dst);
+        // println!("RECEIVED DATA TO COPY TO {}", sys.gpu.pixel.copy_dst);
 
         let divisor = if cmd.half() { 2 } else { 1 };
         let stride = sys.gpu.pixel.copy_stride;
