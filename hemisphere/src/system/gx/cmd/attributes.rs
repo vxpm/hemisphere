@@ -1,4 +1,4 @@
-///! Vertex attribute parsing.
+//! Vertex attribute parsing.
 use crate::stream::BinReader;
 use crate::system::gx::cmd::{ArrayDescriptor, Arrays, AttributeMode, VertexDescriptor};
 use crate::system::gx::colors::Rgba;

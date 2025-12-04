@@ -1,4 +1,4 @@
-///! Serial interface (SI).
+//! Serial interface (SI).
 use crate::{
     cores::ControllerState,
     system::{System, pi},

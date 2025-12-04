@@ -1,4 +1,4 @@
-///! External interface (EXI).
+//! External interface (EXI).
 use crate::Primitive;
 use crate::system::System;
 use bitos::{

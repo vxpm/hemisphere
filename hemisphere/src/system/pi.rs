@@ -1,4 +1,4 @@
-///! Processor interface (PI).
+//! Processor interface (PI).
 use crate::{
     Primitive,
     system::{System, gx},

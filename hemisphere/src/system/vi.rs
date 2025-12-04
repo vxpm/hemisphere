@@ -1,4 +1,4 @@
-///! Video interface (VI).
+//! Video interface (VI).
 use crate::system::{System, pi, si};
 use bitos::{
     bitos,

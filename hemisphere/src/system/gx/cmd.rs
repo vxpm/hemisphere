@@ -1,4 +1,4 @@
-///! Command processor (CP).
+//! Command processor (CP).
 pub mod attributes;
 
 use crate::{

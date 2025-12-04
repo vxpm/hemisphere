@@ -1,4 +1,4 @@
-///! Memory mapping.
+//! Memory mapping.
 use bitos::BitUtils;
 use gekko::{Address, Bat, MemoryManagement};
 use tracing::{info_span, trace, warn};

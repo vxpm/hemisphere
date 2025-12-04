@@ -1,4 +1,4 @@
-/// Texture unit (TX).
+//! Texture unit (TX).
 use crate::system::gx::{
     colors::Rgba8,
     pix::{ColorCopyFormat, DepthCopyFormat},

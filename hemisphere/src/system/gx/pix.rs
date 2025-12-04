@@ -1,4 +1,4 @@
-///! Pixel engine (PE).
+//! Pixel engine (PE).
 use crate::system::gx::{colors::Abgr8, tex};
 use bitos::{
     Bits, bitos,

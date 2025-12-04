@@ -1,4 +1,4 @@
-///! Graphics subsystem (GX).
+//! Graphics subsystem (GX).
 pub mod colors;
 
 pub mod cmd;
@@ -33,7 +33,8 @@ use seq_macro::seq;
 use strum::FromRepr;
 use zerocopy::IntoBytes;
 
-pub const DEPTH_24_BIT_MAX: u32 = 16_777_215;
+/// Maximum value for the 24-bit depth.
+pub const DEPTH_24_BIT_MAX: u32 = (1 << 24) - 1;
 
 /// An internal GX register.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, FromRepr)]

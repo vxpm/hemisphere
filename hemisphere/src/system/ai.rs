@@ -1,4 +1,4 @@
-///! Audio interface (AI).
+//! Audio interface (AI).
 use crate::system::{System, pi};
 use bitos::{bitos, integer::u15};
 use gekko::Address;

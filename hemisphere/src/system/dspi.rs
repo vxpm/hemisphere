@@ -1,4 +1,4 @@
-///! DSP interface (DSPI).
+//! DSP interface (DSPI).
 use crate::system::System;
 use bitos::{
     BitUtils, bitos,

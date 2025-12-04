@@ -1,4 +1,4 @@
-///! Transform unit (XF).
+//! Transform unit (XF).
 use crate::{
     Primitive,
     render::{self, Action},

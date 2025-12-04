@@ -1,3 +1,4 @@
+//! Color types.
 use bitos::BitUtils;
 use ordered_float::OrderedFloat;
 use zerocopy::{FromBytes, Immutable, IntoBytes};
