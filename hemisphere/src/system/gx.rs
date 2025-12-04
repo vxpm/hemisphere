@@ -18,7 +18,7 @@ use crate::{
                 attributes::{self, Attribute, AttributeDescriptor},
             },
             colors::Rgba,
-            tex::{LutCount, encode_color_texture, encode_depth_texture},
+            tex::{encode_color_texture, encode_depth_texture},
         },
         pi,
     },
@@ -993,6 +993,7 @@ fn update_texture(sys: &mut System, index: usize) {
     let slice = &sys.mem.ram[start..][..len];
 
     if !sys.gpu.texture.insert_cache(map.address, slice) {
+        println!("READING TEXTURE FROM {}", map.address);
         let data = tex::decode_texture(slice, map.format);
         sys.config.renderer.exec(Action::LoadTexture {
             id: map.address.value(),
@@ -1078,6 +1079,8 @@ fn do_efb_copy(sys: &mut System, cmd: pix::CopyCmd) {
         let (sender, receiver) = oneshot::channel();
         let width = sys.gpu.pixel.copy_dimensions.width();
         let height = sys.gpu.pixel.copy_dimensions.height();
+
+        println!("COPYING COLOR TO {}", sys.gpu.pixel.copy_dst);
         sys.config.renderer.exec(Action::ColorCopy {
             x: sys.gpu.pixel.copy_src.x().value(),
             y: sys.gpu.pixel.copy_src.y().value(),
@@ -1087,9 +1090,10 @@ fn do_efb_copy(sys: &mut System, cmd: pix::CopyCmd) {
             clear: cmd.clear(),
             response: sender,
         });
+        let pixels = receiver.recv().unwrap();
+        println!("RECEIVED DATA TO COPY TO {}", sys.gpu.pixel.copy_dst);
 
         let divisor = if cmd.half() { 2 } else { 1 };
-        let pixels = receiver.recv().unwrap();
         let stride = sys.gpu.pixel.copy_stride;
         let width = sys.gpu.pixel.copy_dimensions.width() as u32 / divisor;
         let height = sys.gpu.pixel.copy_dimensions.height() as u32 / divisor;

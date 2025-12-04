@@ -46,6 +46,8 @@ impl BlockBuilder<'_> {
     pub fn fctiwz(&mut self, ins: Ins) -> InstructionInfo {
         self.check_floats();
 
+        // TODO: maybe manually round towards zero
+
         let fpr_b = self.get(ins.fpr_b());
         let int32 = self.bd.ins().fcvt_to_sint_sat(ir::types::I32, fpr_b);
         let int64 = self.bd.ins().sextend(ir::types::I64, int32);

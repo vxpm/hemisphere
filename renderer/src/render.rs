@@ -234,9 +234,12 @@ impl Renderer {
                 clear,
                 response,
             } => {
-                self.current_pass
-                    .insert_debug_marker("color copy requested");
-                self.next_pass(clear, false);
+                println!("color copy requested: ({x}, {y}) [{width}x{height}] (mip: {half})");
+                self.current_pass.insert_debug_marker(&format!(
+                    "color copy requested: ({x}, {y}) [{width}x{height}] (mip: {half})"
+                ));
+
+                self.next_pass(false, false);
                 let data = self.get_color_data(x, y, width, height, half);
                 response.send(data).unwrap();
             }
@@ -249,8 +252,10 @@ impl Renderer {
                 clear,
                 response,
             } => {
-                self.current_pass
-                    .insert_debug_marker("depth copy requested");
+                self.current_pass.insert_debug_marker(&format!(
+                    "depth copy requested: ({x}, {y}) [{width}x{height}] (mip: {half})"
+                ));
+
                 self.next_pass(clear, false);
                 let data = self.get_depth_data(x, y, width, height, half);
                 response.send(data).unwrap();
@@ -1044,7 +1049,7 @@ impl Renderer {
             depth.extend(row_data.chunks_exact(4).map(|c| {
                 let value = f32::from_ne_bytes([c[0], c[1], c[2], c[3]]);
                 // TODO: it's wrong to assume this is the max depth
-                (value * DEPTH_24_BIT_MAX as f32) as u32
+                (value * u16::MAX as f32) as u32
             }));
         }
 

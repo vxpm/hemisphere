@@ -21,9 +21,9 @@ pub struct Textures {
 }
 
 impl Textures {
-    fn create_texture(device: &wgpu::Device, size: wgpu::Extent3d) -> wgpu::Texture {
+    fn create_texture(device: &wgpu::Device, size: wgpu::Extent3d, label: &str) -> wgpu::Texture {
         device.create_texture(&wgpu::TextureDescriptor {
-            label: None,
+            label: Some(label),
             dimension: wgpu::TextureDimension::D2,
             size,
             format: wgpu::TextureFormat::Rgba8Unorm,
@@ -48,7 +48,7 @@ impl Textures {
     }
 
     pub fn new(device: &wgpu::Device) -> Self {
-        let textures = std::array::from_fn(|_| {
+        let textures = std::array::from_fn(|i| {
             Self::create_texture(
                 device,
                 wgpu::Extent3d {
@@ -56,6 +56,7 @@ impl Textures {
                     height: 1,
                     depth_or_array_layers: 1,
                 },
+                &format!("default texture {i}"),
             )
         });
         let samplers = std::array::from_fn(|_| Self::create_sampler(device));
@@ -83,7 +84,7 @@ impl Textures {
             depth_or_array_layers: 1,
         };
 
-        let texture = Self::create_texture(device, size);
+        let texture = Self::create_texture(device, size, &format!("texture {id:08X}"));
         queue.write_texture(
             wgpu::TexelCopyTextureInfo {
                 texture: &texture,

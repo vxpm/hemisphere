@@ -25,11 +25,11 @@ fn get_color_channel(stage: &TexEnvStage) -> wesl::syntax::Expression {
     match stage.refs.color() {
         ColorChannel::Channel0 => wesl::quote_expression! { in.chan0 },
         ColorChannel::Channel1 => wesl::quote_expression! { in.chan1 },
-        ColorChannel::AlphaBump => wesl::quote_expression! { vec4f(base::PLACEHOLDER_RGB, 0.0) },
+        ColorChannel::AlphaBump => wesl::quote_expression! { vec4f(base::PLACEHOLDER_RGB, 0f) },
         ColorChannel::AlphaBumpNormalized => {
-            wesl::quote_expression! { vec4f(base::PLACEHOLDER_RGB, 0.0) }
+            wesl::quote_expression! { vec4f(base::PLACEHOLDER_RGB, 0f) }
         }
-        ColorChannel::Zero => wesl::quote_expression! { vec4f(0.0) },
+        ColorChannel::Zero => wesl::quote_expression! { vec4f(0f) },
         _ => panic!("reserved color channel"),
     }
 }
@@ -37,14 +37,14 @@ fn get_color_channel(stage: &TexEnvStage) -> wesl::syntax::Expression {
 fn get_color_const(stage: &TexEnvStage) -> wesl::syntax::Expression {
     use wesl::syntax::*;
     match stage.color_const {
-        Constant::One => wesl::quote_expression! { vec4f(1.0) },
-        Constant::SevenEights => wesl::quote_expression! { vec4f(7.0 / 8.0) },
-        Constant::SixEights => wesl::quote_expression! { vec4f(6.0 / 8.0) },
-        Constant::FiveEights => wesl::quote_expression! { vec4f(5.0 / 8.0) },
-        Constant::FourEights => wesl::quote_expression! { vec4f(4.0 / 8.0) },
-        Constant::ThreeEights => wesl::quote_expression! { vec4f(3.0 / 8.0) },
-        Constant::TwoEights => wesl::quote_expression! { vec4f(2.0 / 8.0) },
-        Constant::OneEight => wesl::quote_expression! { vec4f(1.0 / 8.0) },
+        Constant::One => wesl::quote_expression! { vec4f(1f) },
+        Constant::SevenEights => wesl::quote_expression! { vec4f(7f / 8f) },
+        Constant::SixEights => wesl::quote_expression! { vec4f(6f / 8f) },
+        Constant::FiveEights => wesl::quote_expression! { vec4f(5f / 8f) },
+        Constant::FourEights => wesl::quote_expression! { vec4f(4f / 8f) },
+        Constant::ThreeEights => wesl::quote_expression! { vec4f(3f / 8f) },
+        Constant::TwoEights => wesl::quote_expression! { vec4f(2f / 8f) },
+        Constant::OneEight => wesl::quote_expression! { vec4f(1f / 8f) },
         Constant::Const0 => wesl::quote_expression! { consts[R0] },
         Constant::Const1 => wesl::quote_expression! { consts[R1] },
         Constant::Const2 => wesl::quote_expression! { consts[R2] },
@@ -96,27 +96,27 @@ pub fn get_color_input(stage: &TexEnvStage, input: ColorInputSrc) -> wesl::synta
             let color = get_color_channel(stage);
             wesl::quote_expression! { #color.aaa }
         }
-        ColorInputSrc::One => wesl::quote_expression! { vec3f(1.0) },
-        ColorInputSrc::Half => wesl::quote_expression! { vec3f(0.5) },
+        ColorInputSrc::One => wesl::quote_expression! { vec3f(1f) },
+        ColorInputSrc::Half => wesl::quote_expression! { vec3f(0.5f) },
         ColorInputSrc::Constant => {
             let constant = get_color_const(stage);
             wesl::quote_expression! { #constant.rgb }
         }
-        ColorInputSrc::Zero => wesl::quote_expression! { vec3f(0.0) },
+        ColorInputSrc::Zero => wesl::quote_expression! { vec3f(0f) },
     }
 }
 
 fn get_alpha_const(stage: &TexEnvStage) -> wesl::syntax::Expression {
     use wesl::syntax::*;
     match stage.alpha_const {
-        Constant::One => wesl::quote_expression! { 1.0 },
-        Constant::SevenEights => wesl::quote_expression! { (7.0 / 8.0) },
-        Constant::SixEights => wesl::quote_expression! { (6.0 / 8.0) },
-        Constant::FiveEights => wesl::quote_expression! { (5.0 / 8.0) },
-        Constant::FourEights => wesl::quote_expression! { (4.0 / 8.0) },
-        Constant::ThreeEights => wesl::quote_expression! { (3.0 / 8.0) },
-        Constant::TwoEights => wesl::quote_expression! { (2.0 / 8.0) },
-        Constant::OneEight => wesl::quote_expression! { (1.0 / 8.0) },
+        Constant::One => wesl::quote_expression! { 1f },
+        Constant::SevenEights => wesl::quote_expression! { (7f / 8f) },
+        Constant::SixEights => wesl::quote_expression! { (6f / 8f) },
+        Constant::FiveEights => wesl::quote_expression! { (5f / 8f) },
+        Constant::FourEights => wesl::quote_expression! { (4f / 8f) },
+        Constant::ThreeEights => wesl::quote_expression! { (3f / 8f) },
+        Constant::TwoEights => wesl::quote_expression! { (2f / 8f) },
+        Constant::OneEight => wesl::quote_expression! { (1f / 8f) },
         Constant::Const0 => wesl::quote_expression! { consts[R0].a },
         Constant::Const1 => wesl::quote_expression! { consts[R1].a },
         Constant::Const2 => wesl::quote_expression! { consts[R2].a },
@@ -160,7 +160,7 @@ pub fn get_alpha_input(stage: &TexEnvStage, input: AlphaInputSrc) -> wesl::synta
             let constant = get_alpha_const(stage);
             wesl::quote_expression! { (#constant) }
         }
-        AlphaInputSrc::Zero => wesl::quote_expression! { 0.0 },
+        AlphaInputSrc::Zero => wesl::quote_expression! { 0f },
     }
 }
 

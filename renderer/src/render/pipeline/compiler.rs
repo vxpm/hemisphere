@@ -417,8 +417,17 @@ fn fragment_stage(texenv: &TexEnvSettings) -> wesl::syntax::GlobalDeclaration {
         let color_compute = if clamp {
             wesl::quote_statement! {
                 {
-                    let color_lerp = #sign * (#input_a * (1.0 - #input_c) + #input_b * #input_c);
-                    let color_result = clamp(#scale * (color_lerp + #input_d + #bias), vec3f(0.0), vec3f(1.0));
+                    let input_a = #input_a;
+                    let input_b = #input_b;
+                    let input_c = #input_c;
+                    let input_d = #input_d;
+                    let sign = #sign;
+                    let bias = #bias;
+                    let scale = #scale;
+
+                    let color_lerp = sign * mix(input_a, input_b, input_c);
+                    let color_result = clamp(scale * (color_lerp + input_d + vec3f(bias)), vec3f(0f), vec3f(1f));
+
                     regs[#output] = vec4f(color_result, regs[#output].a);
                     last_color_output = #output;
                 }
@@ -426,8 +435,17 @@ fn fragment_stage(texenv: &TexEnvSettings) -> wesl::syntax::GlobalDeclaration {
         } else {
             wesl::quote_statement! {
                 {
-                    let color_lerp = #sign * (#input_a * (1.0 - #input_c) + #input_b * #input_c);
-                    let color_result = #scale * (color_lerp + #input_d + #bias);
+                    let input_a = #input_a;
+                    let input_b = #input_b;
+                    let input_c = #input_c;
+                    let input_d = #input_d;
+                    let sign = #sign;
+                    let bias = #bias;
+                    let scale = #scale;
+
+                    let color_lerp = sign * mix(input_a, input_b, input_c);
+                    let color_result = scale * (color_lerp + input_d + vec3f(bias));
+
                     regs[#output] = vec4f(color_result, regs[#output].a);
                     last_color_output = #output;
                 }
@@ -448,8 +466,17 @@ fn fragment_stage(texenv: &TexEnvSettings) -> wesl::syntax::GlobalDeclaration {
         let alpha_compute = if clamp {
             wesl::quote_statement! {
                 {
-                    let alpha_lerp = #sign * (#input_a * (1.0 - #input_c) + #input_b * #input_c);
-                    let alpha_result = #scale * (alpha_lerp + #input_d + #bias);
+                    let input_a = #input_a;
+                    let input_b = #input_b;
+                    let input_c = #input_c;
+                    let input_d = #input_d;
+                    let sign = #sign;
+                    let bias = #bias;
+                    let scale = #scale;
+
+                    let alpha_lerp = sign * mix(input_a, input_b, input_c);
+                    let alpha_result = scale * (alpha_lerp + input_d + bias);
+
                     regs[#output] = vec4f(regs[#output].rgb, alpha_result);
                     last_alpha_output = #output;
                 }
@@ -457,8 +484,17 @@ fn fragment_stage(texenv: &TexEnvSettings) -> wesl::syntax::GlobalDeclaration {
         } else {
             wesl::quote_statement! {
                 {
-                    let alpha_lerp = #sign * (#input_a * (1.0 - #input_c) + #input_b * #input_c);
-                    let alpha_result = clamp(#scale * (alpha_lerp + #input_d + #bias), 0.0, 1.0);
+                    let input_a = #input_a;
+                    let input_b = #input_b;
+                    let input_c = #input_c;
+                    let input_d = #input_d;
+                    let sign = #sign;
+                    let bias = #bias;
+                    let scale = #scale;
+
+                    let alpha_lerp = sign * mix(input_a, input_b, input_c);
+                    let alpha_result = clamp(scale * (alpha_lerp + input_d + bias), 0f, 1f);
+
                     regs[#output] = vec4f(regs[#output].rgb, alpha_result);
                     last_alpha_output = #output;
                 }

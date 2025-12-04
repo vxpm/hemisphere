@@ -131,7 +131,7 @@ pub enum Bias {
     Zero = 0b00,
     PositiveHalf = 0b01,
     NegativeHalf = 0b10,
-    Reserved = 0b11,
+    Comparative = 0b11,
 }
 
 impl Bias {
@@ -140,7 +140,7 @@ impl Bias {
             Self::Zero => 0.0,
             Self::PositiveHalf => 0.5,
             Self::NegativeHalf => -0.5,
-            Self::Reserved => 1.0,
+            _ => panic!("comparative tev stage"),
         }
     }
 }
@@ -163,6 +163,22 @@ impl Scale {
             Self::Half => 0.5,
         }
     }
+}
+
+#[bitos(1)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CompareOp {
+    GreaterThan,
+    Equal,
+}
+
+#[bitos(2)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CompareTarget {
+    R8 = 0b00,
+    GR16 = 0b01,
+    BGR16 = 0b10,
+    Component = 0b11,
 }
 
 #[bitos(2)]
@@ -189,10 +205,14 @@ pub struct StageColor {
     pub bias: Bias,
     #[bits(18)]
     pub negate: bool,
+    #[bits(18)]
+    pub compare_op: bool,
     #[bits(19)]
     pub clamp: bool,
     #[bits(20..22)]
     pub scale: Scale,
+    #[bits(20..22)]
+    pub compare_target: CompareTarget,
     #[bits(22..24)]
     pub output: OutputDst,
 }
