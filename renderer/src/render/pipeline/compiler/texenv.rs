@@ -1,8 +1,8 @@
 use hemisphere::{
     render::TexEnvStage,
     system::gx::tev::{
-        AlphaCompare, AlphaInputSrc, AlphaLogic, Bias, ColorChannel, ColorInputSrc, CompareTarget,
-        Constant,
+        AlphaCompare, AlphaInputSrc, AlphaLogic, Bias, ColorChannel, ColorInputSrc, CompareOp,
+        CompareTarget, Constant,
     },
 };
 use wesl::quote_expression;
@@ -74,37 +74,34 @@ fn get_color_const(stage: &TexEnvStage) -> wesl::syntax::Expression {
 fn get_color_input(stage: &TexEnvStage, input: ColorInputSrc) -> wesl::syntax::Expression {
     use wesl::syntax::*;
     match input {
-        ColorInputSrc::R3Color => quote_expression! { regs[R3].rgb },
-        ColorInputSrc::R3Alpha => quote_expression! { regs[R3].aaa },
-        ColorInputSrc::R0Color => quote_expression! { regs[R0].rgb },
-        ColorInputSrc::R0Alpha => quote_expression! { regs[R0].aaa },
-        ColorInputSrc::R1Color => quote_expression! { regs[R1].rgb },
-        ColorInputSrc::R1Alpha => quote_expression! { regs[R1].aaa },
-        ColorInputSrc::R2Color => quote_expression! { regs[R2].rgb },
-        ColorInputSrc::R2Alpha => quote_expression! { regs[R2].aaa },
+        ColorInputSrc::R3Color => quote_expression! { regs[R3].rgba },
+        ColorInputSrc::R3Alpha => quote_expression! { regs[R3].aaaa },
+        ColorInputSrc::R0Color => quote_expression! { regs[R0].rgba },
+        ColorInputSrc::R0Alpha => quote_expression! { regs[R0].aaaa },
+        ColorInputSrc::R1Color => quote_expression! { regs[R1].rgba },
+        ColorInputSrc::R1Alpha => quote_expression! { regs[R1].aaaa },
+        ColorInputSrc::R2Color => quote_expression! { regs[R2].rgba },
+        ColorInputSrc::R2Alpha => quote_expression! { regs[R2].aaaa },
         ColorInputSrc::TexColor => {
             let tex = sample_tex(stage);
-            quote_expression! { #tex.rgb }
+            quote_expression! { #tex.rgba }
         }
         ColorInputSrc::TexAlpha => {
             let tex = sample_tex(stage);
-            quote_expression! { #tex.aaa }
+            quote_expression! { #tex.aaaa }
         }
         ColorInputSrc::RasterColor => {
             let color = get_color_channel(stage);
-            quote_expression! { #color.rgb }
+            quote_expression! { #color.rgba }
         }
         ColorInputSrc::RasterAlpha => {
             let color = get_color_channel(stage);
-            quote_expression! { #color.aaa }
+            quote_expression! { #color.aaaa }
         }
-        ColorInputSrc::One => quote_expression! { vec3f(1f) },
-        ColorInputSrc::Half => quote_expression! { vec3f(0.5f) },
-        ColorInputSrc::Constant => {
-            let constant = get_color_const(stage);
-            quote_expression! { #constant.rgb }
-        }
-        ColorInputSrc::Zero => quote_expression! { vec3f(0f) },
+        ColorInputSrc::One => quote_expression! { vec4f(1f) },
+        ColorInputSrc::Half => quote_expression! { vec4f(0.5f) },
+        ColorInputSrc::Constant => get_color_const(stage),
+        ColorInputSrc::Zero => quote_expression! { vec4f(0f) },
     }
 }
 
@@ -115,11 +112,20 @@ fn get_compare_target(
 ) -> wesl::syntax::Expression {
     use wesl::syntax::*;
 
+    let as_uint = quote_expression! { vec4u(
+        u32(#input.r * 255.0),
+        u32(#input.g * 255.0),
+        u32(#input.b * 255.0),
+        u32(#input.a * 255.0),
+    ) };
+
     match target {
-        CompareTarget::R8 => quote_expression! { (#input).r },
-        CompareTarget::GR16 => quote_expression! { pack4xU8(vec3u((#input).r, (#input).g, 0, 0)) },
+        CompareTarget::R8 => quote_expression! { (#as_uint).r },
+        CompareTarget::GR16 => {
+            quote_expression! { pack4xU8(vec4u((#as_uint).r, (#as_uint).g, 0, 0)) }
+        }
         CompareTarget::BGR16 => {
-            quote_expression! { pack4xU8(vec3u((#input).r, (#input).g, (#input).b, 0)) }
+            quote_expression! { pack4xU8(vec4u((#as_uint).r, (#as_uint).g, (#as_uint).b, 0)) }
         }
         CompareTarget::Component => {
             if alpha {
@@ -139,30 +145,31 @@ fn comparative_color_stage(stage: &TexEnvStage) -> wesl::syntax::Statement {
     let input_c = get_color_input(stage, stage.ops.color.input_c());
     let input_d = get_color_input(stage, stage.ops.color.input_d());
 
-    let sign = if stage.ops.color.negate() { -1.0 } else { 1.0 };
-    let bias = stage.ops.color.bias().value();
-    let scale = stage.ops.color.scale().value();
+    let target = stage.ops.color.compare_target();
+    let op = stage.ops.color.compare_op();
     let clamp = stage.ops.color.clamp();
     let output = stage.ops.color.output() as u32;
 
+    let compare_target_a = get_compare_target(input_a, target, false);
+    let compare_target_b = get_compare_target(input_b, target, false);
+    let comparison = match op {
+        CompareOp::GreaterThan => quote_expression! { #compare_target_a > #compare_target_b },
+        CompareOp::Equal => quote_expression! { #compare_target_a == #compare_target_b },
+    };
+
     let clamped = if clamp {
-        quote_expression! { color_add_mul }
+        quote_expression! { color_add }
     } else {
-        quote_expression! { clamp(color_add_mul, vec3f(0f), vec3f(1f)) }
+        quote_expression! { clamp(color_add, vec3f(0f), vec3f(1f)) }
     };
 
     wesl::quote_statement! {
         {
-            let input_a = #input_a;
-            let input_b = #input_b;
-            let input_c = #input_c;
-            let input_d = #input_d;
-            let sign = #sign;
-            let bias = #bias;
-            let scale = #scale;
+            let input_c = #input_c.rgb;
+            let input_d = #input_d.rgb;
 
-            let color_interpolation = sign * mix(input_a, input_b, input_c);
-            let color_add_mul = scale * (color_interpolation + input_d + bias);
+            let color_compare = select(input_c, vec3f(0f), #comparison);
+            let color_add = color_compare + input_d;
             let color_result = #clamped;
 
             regs[#output] = vec4f(color_result, regs[#output].a);
@@ -193,10 +200,10 @@ fn regular_color_stage(stage: &TexEnvStage) -> wesl::syntax::Statement {
 
     wesl::quote_statement! {
         {
-            let input_a = #input_a;
-            let input_b = #input_b;
-            let input_c = #input_c;
-            let input_d = #input_d;
+            let input_a = #input_a.rgb;
+            let input_b = #input_b.rgb;
+            let input_c = #input_c.rgb;
+            let input_d = #input_d.rgb;
             let sign = #sign;
             let bias = #bias;
             let scale = #scale;
@@ -257,27 +264,68 @@ fn get_alpha_const(stage: &TexEnvStage) -> wesl::syntax::Expression {
 fn get_alpha_input(stage: &TexEnvStage, input: AlphaInputSrc) -> wesl::syntax::Expression {
     use wesl::syntax::*;
     match input {
-        AlphaInputSrc::R3Alpha => quote_expression! { regs[R3].a },
-        AlphaInputSrc::R0Alpha => quote_expression! { regs[R0].a },
-        AlphaInputSrc::R1Alpha => quote_expression! { regs[R1].a },
-        AlphaInputSrc::R2Alpha => quote_expression! { regs[R2].a },
+        AlphaInputSrc::R3Alpha => quote_expression! { regs[R3].aaaa },
+        AlphaInputSrc::R0Alpha => quote_expression! { regs[R0].aaaa },
+        AlphaInputSrc::R1Alpha => quote_expression! { regs[R1].aaaa },
+        AlphaInputSrc::R2Alpha => quote_expression! { regs[R2].aaaa },
         AlphaInputSrc::TexAlpha => {
             let tex = sample_tex(stage);
-            quote_expression! { #tex.a }
+            quote_expression! { #tex.aaaa }
         }
         AlphaInputSrc::RasterAlpha => {
             let color = get_color_channel(stage);
-            quote_expression! { #color.a }
+            quote_expression! { #color.aaaa }
         }
         AlphaInputSrc::Constant => {
             let constant = get_alpha_const(stage);
-            quote_expression! { (#constant) }
+            quote_expression! { vec4f(#constant) }
         }
-        AlphaInputSrc::Zero => quote_expression! { 0f },
+        AlphaInputSrc::Zero => quote_expression! { vec4f(0f) },
     }
 }
 
-pub fn alpha_stage(stage: &TexEnvStage) -> wesl::syntax::Statement {
+fn comparative_alpha_stage(stage: &TexEnvStage) -> wesl::syntax::Statement {
+    use wesl::syntax::*;
+
+    let input_a = get_alpha_input(stage, stage.ops.alpha.input_a());
+    let input_b = get_alpha_input(stage, stage.ops.alpha.input_b());
+    let input_c = get_alpha_input(stage, stage.ops.alpha.input_c());
+    let input_d = get_alpha_input(stage, stage.ops.alpha.input_d());
+
+    let target = stage.ops.alpha.compare_target();
+    let op = stage.ops.alpha.compare_op();
+    let clamp = stage.ops.alpha.clamp();
+    let output = stage.ops.alpha.output() as u32;
+
+    let compare_target_a = get_compare_target(input_a, target, true);
+    let compare_target_b = get_compare_target(input_b, target, true);
+    let comparison = match op {
+        CompareOp::GreaterThan => quote_expression! { #compare_target_a > #compare_target_b },
+        CompareOp::Equal => quote_expression! { #compare_target_a == #compare_target_b },
+    };
+
+    let clamped = if clamp {
+        quote_expression! { alpha_add }
+    } else {
+        quote_expression! { clamp(alpha_add, 0f, 1f) }
+    };
+
+    wesl::quote_statement! {
+        {
+            let input_c = #input_c.a;
+            let input_d = #input_d.a;
+
+            let alpha_compare = select(input_c, 0f, #comparison);
+            let alpha_add = alpha_compare + input_d;
+            let alpha_result = #clamped;
+
+            regs[#output] = vec4f(regs[#output].rgb, alpha_result);
+            last_alpha_output = #output;
+        }
+    }
+}
+
+fn regular_alpha_stage(stage: &TexEnvStage) -> wesl::syntax::Statement {
     use wesl::syntax::*;
 
     let input_a = get_alpha_input(stage, stage.ops.alpha.input_a());
@@ -299,10 +347,10 @@ pub fn alpha_stage(stage: &TexEnvStage) -> wesl::syntax::Statement {
 
     wesl::quote_statement! {
         {
-            let input_a = #input_a;
-            let input_b = #input_b;
-            let input_c = #input_c;
-            let input_d = #input_d;
+            let input_a = #input_a.a;
+            let input_b = #input_b.a;
+            let input_c = #input_c.a;
+            let input_d = #input_d.a;
             let sign = #sign;
             let bias = #bias;
             let scale = #scale;
@@ -314,6 +362,14 @@ pub fn alpha_stage(stage: &TexEnvStage) -> wesl::syntax::Statement {
             regs[#output] = vec4f(regs[#output].rgb, alpha_result);
             last_alpha_output = #output;
         }
+    }
+}
+
+pub fn alpha_stage(stage: &TexEnvStage) -> wesl::syntax::Statement {
+    if stage.ops.alpha.bias() == Bias::Comparative {
+        comparative_alpha_stage(stage)
+    } else {
+        regular_alpha_stage(stage)
     }
 }
 
