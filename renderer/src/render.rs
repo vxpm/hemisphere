@@ -634,6 +634,10 @@ impl Renderer {
         let depth = self.framebuffer.depth().create_view(&Default::default());
 
         let color_op = if clear && self.pipeline.settings.blend.color_write {
+            if !self.pipeline.settings.blend.alpha_write {
+                tracing::warn!("clearing alpha and color when only color should be cleared!");
+            }
+
             let color = if self.pipeline.settings.has_alpha {
                 self.clear_color
             } else {
