@@ -316,76 +316,72 @@ impl Interface {
     }
 }
 
-/// Video Interface
-impl System {
-    pub fn update_video_interface(&mut self) {
-        self.video.horizontal_count = 1;
-        self.video.vertical_count = 1;
-
-        self.scheduler.cancel(System::vi_vertical_count);
-        if self.video.display_config.enable() {
-            self.scheduler.schedule_now(System::vi_vertical_count);
+pub fn update_display_interrupts(sys: &mut System) {
+    let mut raised = false;
+    for (index, interrupt) in sys.video.interrupts.iter_mut().enumerate() {
+        if interrupt.enable() && interrupt.vertical_count().value() == sys.video.vertical_count {
+            raised = true;
+            interrupt.set_status(true);
+            tracing::debug!("raised display interrupt {index} ({interrupt:?})");
+        } else {
+            interrupt.set_status(false);
         }
     }
 
-    pub fn update_display_interrupts(&mut self) {
-        let mut raised = false;
-        for (index, interrupt) in self.video.interrupts.iter_mut().enumerate() {
-            if interrupt.enable() && interrupt.vertical_count().value() == self.video.vertical_count
-            {
-                raised = true;
-                interrupt.set_status(true);
-                tracing::debug!("raised display interrupt {index} ({interrupt:?})");
-            } else {
-                interrupt.set_status(false);
-            }
-        }
+    if raised {
+        pi::check_interrupts(sys);
+    }
+}
 
-        if raised {
-            pi::check_interrupts(self);
-        }
+pub fn vertical_count(sys: &mut System) {
+    self::update_display_interrupts(sys);
+
+    sys.video.vertical_count += 1;
+    if sys.video.vertical_count as u32 > sys.video.lines_per_frame() {
+        sys.video.vertical_count = 1;
+        si::poll_controller(sys, 0);
     }
 
-    pub fn vi_vertical_count(&mut self) {
-        self.update_display_interrupts();
+    let cycles_per_frame = (FREQUENCY as f64 / sys.video.refresh_rate()) as u32;
+    let cycles_per_line = cycles_per_frame
+        .checked_div(sys.video.lines_per_frame())
+        .unwrap_or(cycles_per_frame);
 
-        self.video.vertical_count += 1;
-        if self.video.vertical_count as u32 > self.video.lines_per_frame() {
-            self.video.vertical_count = 1;
-            si::poll_controller(self, 0);
-        }
+    sys.scheduler
+        .schedule(2 * cycles_per_line as u64, self::vertical_count);
+}
 
-        let cycles_per_frame = (FREQUENCY as f64 / self.video.refresh_rate()) as u32;
-        let cycles_per_line = cycles_per_frame
-            .checked_div(self.video.lines_per_frame())
-            .unwrap_or(cycles_per_frame);
+pub fn update(sys: &mut System) {
+    sys.video.horizontal_count = 1;
+    sys.video.vertical_count = 1;
 
-        self.scheduler
-            .schedule(2 * cycles_per_line as u64, System::vi_vertical_count);
+    sys.scheduler.cancel(self::vertical_count);
+    if sys.video.display_config.enable() {
+        sys.scheduler.schedule_now(self::vertical_count);
+    }
+}
+
+fn xfb_inner(sys: &System, base: Address) -> Option<&[u8]> {
+    let xfb = base.value();
+    let (width, height) = sys.video.xfb_resolution();
+
+    let pixels = width as u32 * height as u32;
+    if pixels == 0 {
+        return None;
     }
 
-    fn xfb_inner(&self, base: Address) -> Option<&[u8]> {
-        let xfb = base.value();
-        let (width, height) = self.video.xfb_resolution();
+    let length = 2 * pixels;
+    Some(&sys.mem.ram[xfb as usize..xfb as usize + length as usize])
+}
 
-        let pixels = width as u32 * height as u32;
-        if pixels == 0 {
-            return None;
-        }
+/// Returns the data of the top XFB in YCbCr format (y0, cb, y1, cr).
+pub fn top_xfb(sys: &System) -> Option<&[u8]> {
+    let base = sys.video.top_xfb_address();
+    xfb_inner(sys, base)
+}
 
-        let length = 2 * pixels;
-        Some(&self.mem.ram[xfb as usize..xfb as usize + length as usize])
-    }
-
-    /// Returns the data of the top XFB in YCbCr format (y0, cb, y1, cr).
-    pub fn top_xfb(&self) -> Option<&[u8]> {
-        let base = self.video.top_xfb_address();
-        self.xfb_inner(base)
-    }
-
-    /// Returns the data of the bottom XFB in YCbCr format (y0, cb, y1, cr).
-    pub fn bottom_xfb(&self) -> Option<&[u8]> {
-        let base = self.video.bottom_xfb_address();
-        self.xfb_inner(base)
-    }
+/// Returns the data of the bottom XFB in YCbCr format (y0, cb, y1, cr).
+pub fn bottom_xfb(sys: &System) -> Option<&[u8]> {
+    let base = sys.video.bottom_xfb_address();
+    xfb_inner(sys, base)
 }

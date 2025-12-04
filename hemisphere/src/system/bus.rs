@@ -6,7 +6,7 @@ use crate::system::{
     System, di, exi,
     mem::{IPL_LEN, RAM_LEN},
 };
-use crate::system::{ai, dspi, gx, pi, si};
+use crate::system::{ai, dspi, gx, pi, si, vi};
 use gekko::Address;
 use std::ops::Range;
 use zerocopy::IntoBytes;
@@ -376,7 +376,7 @@ impl System {
             Mmio::VideoVerticalTiming => ne!(self.video.vertical_timing.as_mut_bytes()),
             Mmio::VideoDisplayConfig => {
                 ne!(self.video.display_config.as_mut_bytes());
-                self.update_video_interface();
+                vi::update(self);
             }
             Mmio::VideoHorizontalTiming => {
                 ne!(self.video.horizontal_timing.as_mut_bytes())

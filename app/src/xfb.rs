@@ -1,5 +1,6 @@
 use crate::{Ctx, State, windows::AppWindow};
 use eframe::egui;
+use hemisphere::system;
 use serde::{Deserialize, Serialize};
 
 #[inline]
@@ -42,9 +43,9 @@ impl AppWindow for Window {
 
         self.xfb_resolution = emulator.system.video.xfb_resolution();
         let Some(xfb) = (if self.bottom {
-            emulator.system.bottom_xfb()
+            system::vi::bottom_xfb(&emulator.system)
         } else {
-            emulator.system.top_xfb()
+            system::vi::top_xfb(&emulator.system)
         }) else {
             return;
         };
