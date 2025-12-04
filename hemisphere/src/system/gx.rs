@@ -993,7 +993,7 @@ fn update_texture(sys: &mut System, index: usize) {
     let slice = &sys.mem.ram[start..][..len];
 
     if !sys.gpu.texture.insert_cache(map.address, slice) {
-        println!("READING TEXTURE FROM {}", map.address);
+        // println!("READING TEXTURE FROM {}", map.address);
         let data = tex::decode_texture(slice, map.format);
         sys.config.renderer.exec(Action::LoadTexture {
             id: map.address.value(),

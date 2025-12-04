@@ -391,6 +391,7 @@ fn main() -> Result<()> {
         wgpu_options: WgpuConfiguration {
             wgpu_setup: WgpuSetup::CreateNew(WgpuSetupCreateNew {
                 instance_descriptor: wgpu::InstanceDescriptor {
+                    flags: wgpu::InstanceFlags::debugging(),
                     backends: wgpu::Backends::PRIMARY,
                     ..Default::default()
                 },

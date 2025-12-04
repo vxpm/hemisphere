@@ -111,6 +111,15 @@ fn base_module() -> wesl::syntax::TranslationUnit {
             @location(0) @blend_src(0) color: vec4f,
             @location(0) @blend_src(1) blend: vec4f,
         }
+
+        fn vec4f_to_vec4u(value: vec4f) -> vec4u {
+            return vec4u(
+                u32(value.r * 255.0),
+                u32(value.g * 255.0),
+                u32(value.b * 255.0),
+                u32(value.a * 255.0),
+            );
+        }
     }
 }
 

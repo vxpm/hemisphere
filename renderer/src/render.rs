@@ -239,7 +239,7 @@ impl Renderer {
                     "color copy requested: ({x}, {y}) [{width}x{height}] (mip: {half})"
                 ));
 
-                self.next_pass(false, false);
+                self.next_pass(clear, false);
                 let data = self.get_color_data(x, y, width, height, half);
                 response.send(data).unwrap();
             }

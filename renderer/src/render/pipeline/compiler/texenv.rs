@@ -1,7 +1,7 @@
 use hemisphere::{
     render::TexEnvStage,
     system::gx::tev::{
-        AlphaCompare, AlphaInputSrc, AlphaLogic, Bias, ColorChannel, ColorInputSrc, CompareOp,
+        AlphaCompare, AlphaInputSrc, AlphaLogic, ColorChannel, ColorInputSrc, CompareOp,
         CompareTarget, Constant,
     },
 };
@@ -106,32 +106,26 @@ fn get_color_input(stage: &TexEnvStage, input: ColorInputSrc) -> wesl::syntax::E
 }
 
 fn get_compare_target(
-    input: wesl::syntax::Expression,
+    input_float: wesl::syntax::Expression,
+    input_uint: wesl::syntax::Expression,
     target: CompareTarget,
     alpha: bool,
 ) -> wesl::syntax::Expression {
     use wesl::syntax::*;
 
-    let as_uint = quote_expression! { vec4u(
-        u32(#input.r * 255.0),
-        u32(#input.g * 255.0),
-        u32(#input.b * 255.0),
-        u32(#input.a * 255.0),
-    ) };
-
     match target {
-        CompareTarget::R8 => quote_expression! { (#as_uint).r },
+        CompareTarget::R8 => quote_expression! { (#input_uint).r },
         CompareTarget::GR16 => {
-            quote_expression! { pack4xU8(vec4u((#as_uint).r, (#as_uint).g, 0, 0)) }
+            quote_expression! { pack4xU8(vec4u((#input_uint).r, (#input_uint).g, 0, 0)) }
         }
         CompareTarget::BGR16 => {
-            quote_expression! { pack4xU8(vec4u((#as_uint).r, (#as_uint).g, (#as_uint).b, 0)) }
+            quote_expression! { pack4xU8(vec4u((#input_uint).r, (#input_uint).g, (#input_uint).b, 0)) }
         }
         CompareTarget::Component => {
             if alpha {
-                quote_expression! { (#input).a }
+                quote_expression! { (#input_float).a }
             } else {
-                quote_expression! { (#input).rgb }
+                quote_expression! { (#input_float).rgb }
             }
         }
     }
@@ -150,8 +144,18 @@ fn comparative_color_stage(stage: &TexEnvStage) -> wesl::syntax::Statement {
     let clamp = stage.ops.color.clamp();
     let output = stage.ops.color.output() as u32;
 
-    let compare_target_a = get_compare_target(input_a, target, false);
-    let compare_target_b = get_compare_target(input_b, target, false);
+    let compare_target_a = get_compare_target(
+        quote_expression!(input_a),
+        quote_expression!(input_a_uint),
+        target,
+        false,
+    );
+    let compare_target_b = get_compare_target(
+        quote_expression!(input_b),
+        quote_expression!(input_b_uint),
+        target,
+        false,
+    );
     let comparison = match op {
         CompareOp::GreaterThan => quote_expression! { #compare_target_a > #compare_target_b },
         CompareOp::Equal => quote_expression! { #compare_target_a == #compare_target_b },
@@ -165,10 +169,15 @@ fn comparative_color_stage(stage: &TexEnvStage) -> wesl::syntax::Statement {
 
     wesl::quote_statement! {
         {
+            let input_a = #input_a;
+            let input_a_uint = base::vec4f_to_vec4u(#input_a);
+            let input_b = #input_b;
+            let input_b_uint = base::vec4f_to_vec4u(#input_b);
+
             let input_c = #input_c.rgb;
             let input_d = #input_d.rgb;
 
-            let color_compare = select(input_c, input_d, #comparison);
+            let color_compare = select(input_d, input_c, #comparison);
             let color_result = #clamped;
 
             regs[#output] = vec4f(color_result, regs[#output].a);
@@ -296,8 +305,18 @@ fn comparative_alpha_stage(stage: &TexEnvStage) -> wesl::syntax::Statement {
     let clamp = stage.ops.alpha.clamp();
     let output = stage.ops.alpha.output() as u32;
 
-    let compare_target_a = get_compare_target(input_a, target, true);
-    let compare_target_b = get_compare_target(input_b, target, true);
+    let compare_target_a = get_compare_target(
+        quote_expression!(input_a),
+        quote_expression!(input_a_uint),
+        target,
+        true,
+    );
+    let compare_target_b = get_compare_target(
+        quote_expression!(input_b),
+        quote_expression!(input_b_uint),
+        target,
+        true,
+    );
     let comparison = match op {
         CompareOp::GreaterThan => quote_expression! { #compare_target_a > #compare_target_b },
         CompareOp::Equal => quote_expression! { #compare_target_a == #compare_target_b },
@@ -311,10 +330,15 @@ fn comparative_alpha_stage(stage: &TexEnvStage) -> wesl::syntax::Statement {
 
     wesl::quote_statement! {
         {
+            let input_a = #input_a;
+            let input_a_uint = base::vec4f_to_vec4u(#input_a);
+            let input_b = #input_b;
+            let input_b_uint = base::vec4f_to_vec4u(#input_b);
+
             let input_c = #input_c.a;
             let input_d = #input_d.a;
 
-            let alpha_compare = select(input_c, input_d, #comparison);
+            let alpha_compare = select(input_d, input_c, #comparison);
             let alpha_result = #clamped;
 
             regs[#output] = vec4f(regs[#output].rgb, alpha_result);
