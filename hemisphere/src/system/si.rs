@@ -1,5 +1,8 @@
 ///! Serial interface (SI).
-use crate::{cores::ControllerState, system::System};
+use crate::{
+    cores::ControllerState,
+    system::{System, pi},
+};
 use bitos::{
     BitUtils, bitos,
     integer::{u2, u7, u10},
@@ -287,7 +290,7 @@ fn do_transfer(sys: &mut System) {
 
     sys.serial.comm_control.set_transfer_start(false);
     sys.serial.comm_control.set_transfer_interrupt(true);
-    sys.pi_check_interrupts();
+    pi::check_interrupts(sys);
 }
 
 pub fn write_comm_control(sys: &mut System, value: CommControl) {

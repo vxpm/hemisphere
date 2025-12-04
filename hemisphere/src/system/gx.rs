@@ -11,13 +11,16 @@ use crate::{
     Primitive, System,
     render::{Action, TexEnvConfig, TexEnvStage},
     stream::{BinReader, BinaryStream},
-    system::gx::{
-        cmd::{
-            ArrayDescriptor, AttributeMode, VertexAttributeStream,
-            attributes::{self, Attribute, AttributeDescriptor},
+    system::{
+        gx::{
+            cmd::{
+                ArrayDescriptor, AttributeMode, VertexAttributeStream,
+                attributes::{self, Attribute, AttributeDescriptor},
+            },
+            colors::Rgba,
+            tex::{LutCount, encode_color_texture, encode_depth_texture},
         },
-        colors::Rgba,
-        tex::{LutCount, encode_color_texture, encode_depth_texture},
+        pi,
     },
 };
 use bitos::{
@@ -466,14 +469,14 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
         }
         Reg::PixelDone => {
             sys.gpu.pixel.interrupt.set_finish(true);
-            sys.scheduler.schedule_now(System::pi_check_interrupts);
+            sys.scheduler.schedule_now(pi::check_interrupts);
         }
         Reg::PixelToken => {
             sys.gpu.pixel.token = value;
         }
         Reg::PixelTokenInt => {
             sys.gpu.pixel.interrupt.set_token(true);
-            sys.scheduler.schedule_now(System::pi_check_interrupts);
+            sys.scheduler.schedule_now(pi::check_interrupts);
         }
         Reg::PixelCopySrc => {
             sys.gpu.pixel.copy_src = pix::CopySrc::from_bits(value);

@@ -124,93 +124,91 @@ impl Default for Interface {
     }
 }
 
-impl System {
-    /// Returns which interrupt sources are active (i.e. triggered but maybe masked).
-    pub fn get_active_interrupts(&self) -> InterruptSources {
-        let mut sources = InterruptSources::default();
+/// Returns which interrupt sources are active (i.e. triggered but maybe masked).
+pub fn get_active_interrupts(sys: &mut System) -> InterruptSources {
+    let mut sources = InterruptSources::default();
 
-        // VI
-        let mut video = false;
-        for i in &self.video.interrupts {
-            video |= i.enable() && i.status();
-        }
-        sources.set_video_interface(video);
+    // VI
+    let mut video = false;
+    for i in &sys.video.interrupts {
+        video |= i.enable() && i.status();
+    }
+    sources.set_video_interface(video);
 
-        // PE
-        sources.set_pe_token(self.gpu.pixel.interrupt.token());
-        sources.set_pe_finish(self.gpu.pixel.interrupt.finish());
+    // PE
+    sources.set_pe_token(sys.gpu.pixel.interrupt.token());
+    sources.set_pe_finish(sys.gpu.pixel.interrupt.finish());
 
-        // AI
-        sources.set_audio_interface(self.audio.control.interrupt());
+    // AI
+    sources.set_audio_interface(sys.audio.control.interrupt());
 
-        // DSP
-        sources.set_dsp_interface(self.dsp.control.any_interrupt());
+    // DSP
+    sources.set_dsp_interface(sys.dsp.control.any_interrupt());
 
-        // DI
-        sources.set_dvd_interface(self.disk.status.any_interrupt());
+    // DI
+    sources.set_dvd_interface(sys.disk.status.any_interrupt());
 
-        // SI
-        sources.set_serial_interface(self.serial.any_interrupt());
+    // SI
+    sources.set_serial_interface(sys.serial.any_interrupt());
 
-        sources
+    sources
+}
+
+/// Returns which interrupt sources are raised (i.e. triggered and unmasked).
+pub fn get_raised_interrupts(sys: &mut System) -> InterruptSources {
+    InterruptSources::from_bits(
+        self::get_active_interrupts(sys).to_bits() & sys.processor.mask.sources().to_bits(),
+    )
+}
+
+/// Checks whether any of the currently raised interrutps can be taken and, if any, raises the
+/// interrupt exception.
+pub fn check_interrupts(sys: &mut System) {
+    if !sys.cpu.supervisor.config.msr.interrupts() {
+        return;
     }
 
-    /// Returns which interrupt sources are raised (i.e. triggered and unmasked).
-    pub fn get_raised_interrupts(&self) -> InterruptSources {
-        InterruptSources::from_bits(
-            self.get_active_interrupts().to_bits() & self.processor.mask.sources().to_bits(),
-        )
+    let raised = self::get_raised_interrupts(sys);
+    if raised.to_bits().value() != 0 {
+        tracing::debug!("raising interrupt exception for {raised:?}");
+        sys.cpu.raise_exception(Exception::Interrupt);
+    }
+}
+
+/// Pushes a value into the PI FIFO. Values are queued up until 32 bytes are available, then
+/// written all at once.
+pub fn fifo_push<P: Primitive>(sys: &mut System, value: P) {
+    let Some(mut fifo_buffer) = sys.processor.fifo_buffer.take() else {
+        unreachable!()
+    };
+
+    let mut buf = [0; 4];
+    value.write_be_bytes(&mut buf);
+    fifo_buffer.extend(&buf[..size_of::<P>()]);
+
+    if fifo_buffer.len() < 32 {
+        sys.processor.fifo_buffer = Some(fifo_buffer);
+        return;
     }
 
-    /// Checks whether any of the currently raised interrutps can be taken and, if any, raises the
-    /// interrupt exception.
-    pub fn pi_check_interrupts(&mut self) {
-        if !self.cpu.supervisor.config.msr.interrupts() {
-            return;
-        }
-
-        let raised = self.get_raised_interrupts();
-        if raised.to_bits().value() != 0 {
-            tracing::debug!("raising interrupt exception for {raised:?}");
-            self.cpu.raise_exception(Exception::Interrupt);
+    let data = fifo_buffer.drain(..32);
+    for byte in data {
+        let current = sys.processor.fifo_current.address();
+        sys.write(current, byte);
+        sys.processor.fifo_current.set_address(current + 1);
+        if sys.processor.fifo_current.address() > sys.processor.fifo_end {
+            std::hint::cold_path();
+            sys.processor.fifo_current.set_wrapped(true);
+            sys.processor
+                .fifo_current
+                .set_address(sys.processor.fifo_start);
         }
     }
 
-    /// Pushes a value into the PI FIFO. Values are queued up until 32 bytes are available, then
-    /// written all at once.
-    pub fn pi_fifo_push<P: Primitive>(&mut self, value: P) {
-        let Some(mut fifo_buffer) = self.processor.fifo_buffer.take() else {
-            unreachable!()
-        };
-
-        let mut buf = [0; 4];
-        value.write_be_bytes(&mut buf);
-        fifo_buffer.extend(&buf[..size_of::<P>()]);
-
-        if fifo_buffer.len() < 32 {
-            self.processor.fifo_buffer = Some(fifo_buffer);
-            return;
-        }
-
-        let data = fifo_buffer.drain(..32);
-        for byte in data {
-            let current = self.processor.fifo_current.address();
-            self.write(current, byte);
-            self.processor.fifo_current.set_address(current + 1);
-            if self.processor.fifo_current.address() > self.processor.fifo_end {
-                std::hint::cold_path();
-                self.processor.fifo_current.set_wrapped(true);
-                self.processor
-                    .fifo_current
-                    .set_address(self.processor.fifo_start);
-            }
-        }
-
-        if self.gpu.command.control.linked_mode() {
-            gx::cmd::sync_to_pi(self);
-            gx::cmd::consume(self);
-        }
-
-        self.processor.fifo_buffer = Some(fifo_buffer);
+    if sys.gpu.command.control.linked_mode() {
+        gx::cmd::sync_to_pi(sys);
+        gx::cmd::consume(sys);
     }
+
+    sys.processor.fifo_buffer = Some(fifo_buffer);
 }

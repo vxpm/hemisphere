@@ -1,5 +1,5 @@
 ///! Disk interface (DI).
-use crate::system::System;
+use crate::system::{System, pi};
 use bitos::bitos;
 use gekko::Address;
 use std::io::SeekFrom;
@@ -103,14 +103,14 @@ pub fn complete_transfer(sys: &mut System) {
     sys.disk.status.set_transfer_interrupt(true);
     sys.disk.control.set_transfer_ongoing(false);
     sys.disk.dma_length = 0;
-    sys.pi_check_interrupts();
+    pi::check_interrupts(sys);
 }
 
 pub fn complete_seek(sys: &mut System) {
     tracing::debug!("completed DI seek");
     sys.disk.status.set_transfer_interrupt(true);
     sys.disk.control.set_transfer_ongoing(false);
-    sys.pi_check_interrupts();
+    pi::check_interrupts(sys);
 }
 
 pub fn write_control(sys: &mut System, value: Control) {

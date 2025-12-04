@@ -1,5 +1,5 @@
 ///! Audio interface (AI).
-use crate::system::System;
+use crate::system::{System, pi};
 use bitos::{bitos, integer::u15};
 use gekko::Address;
 
@@ -76,7 +76,7 @@ pub fn update_sample_counter(sys: &mut System) {
 pub fn do_dma(sys: &mut System) {
     tracing::debug!("AI DMA finished");
     sys.dsp.control.set_ai_interrupt(true);
-    sys.pi_check_interrupts();
+    pi::check_interrupts(sys);
 
     if sys.audio.dma_control.transfer_ongoing() {
         sys.scheduler.schedule(1620000, do_dma);

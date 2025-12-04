@@ -6,7 +6,7 @@ use crate::system::{
     System, di, exi,
     mem::{IPL_LEN, RAM_LEN},
 };
-use crate::system::{ai, dspi, gx, si};
+use crate::system::{ai, dspi, gx, pi, si};
 use gekko::Address;
 use std::ops::Range;
 use zerocopy::IntoBytes;
@@ -140,7 +140,7 @@ impl System {
             // === Processor Interface ===
             // Interrupts
             Mmio::ProcessorInterruptCause => {
-                ne!((self.get_raised_interrupts().to_bits().value() as u32).as_bytes())
+                ne!((pi::get_raised_interrupts(self).to_bits().value() as u32).as_bytes())
             }
             Mmio::ProcessorInterruptMask => ne!(self.processor.mask.as_bytes()),
 
@@ -436,7 +436,7 @@ impl System {
             // Interrupts
             Mmio::ProcessorInterruptMask => {
                 ne!(self.processor.mask.as_mut_bytes());
-                self.scheduler.schedule_now(System::pi_check_interrupts);
+                self.scheduler.schedule_now(pi::check_interrupts);
             }
 
             // FIFO
@@ -488,7 +488,7 @@ impl System {
                 ne!(written.as_mut_bytes());
                 self.disk.write_status(written);
                 tracing::debug!(diskstatus = ?self.disk.status);
-                self.scheduler.schedule_now(System::pi_check_interrupts);
+                self.scheduler.schedule_now(pi::check_interrupts);
             }
             Mmio::DiskCover => {
                 let mut written = di::Cover::from_bits(0);
@@ -496,7 +496,7 @@ impl System {
                 self.disk.write_cover(written);
                 self.disk.cover.set_open(false);
                 tracing::debug!(diskcover = ?self.disk.cover);
-                self.scheduler.schedule_now(System::pi_check_interrupts);
+                self.scheduler.schedule_now(pi::check_interrupts);
             }
             Mmio::DiskCommand0 => ne!(self.disk.command[0].as_mut_bytes()),
             Mmio::DiskCommand1 => ne!(self.disk.command[1].as_mut_bytes()),
@@ -604,7 +604,7 @@ impl System {
             }
 
             // === PI FIFO ===
-            Mmio::ProcessorFifo => self.pi_fifo_push(value),
+            Mmio::ProcessorFifo => pi::fifo_push(self, value),
             _ => tracing::warn!("unimplemented write to known mmio register ({reg:?})"),
         }
     }

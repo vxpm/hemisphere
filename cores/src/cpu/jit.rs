@@ -5,7 +5,7 @@ use hemisphere::{
         self, Cpu, QuantizedType,
         disasm::{Extensions, Ins},
     },
-    system::System,
+    system::{self, System},
 };
 use indexmap::IndexMap;
 use ppcjit::{
@@ -396,7 +396,7 @@ static CTX_HOOKS: Hooks = {
     extern "sysv64-unwind" fn msr_changed(ctx: &mut Context) {
         ctx.system
             .scheduler
-            .schedule_now(System::pi_check_interrupts);
+            .schedule_now(system::pi::check_interrupts);
     }
 
     extern "sysv64-unwind" fn ibat_changed(ctx: &mut Context) {

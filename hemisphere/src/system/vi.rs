@@ -1,5 +1,5 @@
 ///! Video interface (VI).
-use crate::system::{System, si};
+use crate::system::{System, pi, si};
 use bitos::{
     bitos,
     integer::{u4, u7, u9, u10, u24},
@@ -342,7 +342,7 @@ impl System {
         }
 
         if raised {
-            self.pi_check_interrupts();
+            pi::check_interrupts(self);
         }
     }
 
