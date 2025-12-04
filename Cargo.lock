@@ -1120,7 +1120,6 @@ version = "0.1.0"
 dependencies = [
  "binrw",
  "bitos",
- "bytesize",
  "hemisphere",
  "libtest-mimic",
  "strum",
@@ -1884,7 +1883,6 @@ checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 name = "hemisphere"
 version = "0.1.0"
 dependencies = [
- "backtrace",
  "bitos",
  "bytesize",
  "color-backtrace",
@@ -2538,8 +2536,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1706dc14a2e140dec0a7a07109d9a3d5890b81e85bd6c60b906b249a77adf0ca"
 dependencies = [
  "mime",
- "phf 0.11.3",
- "phf_shared 0.11.3",
+ "phf",
+ "phf_shared",
  "unicase",
 ]
 
@@ -3116,17 +3114,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1fd6780a80ae0c52cc120a26a1a42c1ae51b247a253e4e06113d23d2c2edd078"
 dependencies = [
  "phf_macros",
- "phf_shared 0.11.3",
-]
-
-[[package]]
-name = "phf"
-version = "0.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "913273894cec178f401a31ec4b656318d95473527be05c0752cc41cdc32be8b7"
-dependencies = [
- "phf_shared 0.12.1",
- "serde",
+ "phf_shared",
 ]
 
 [[package]]
@@ -3135,7 +3123,7 @@ version = "0.11.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3c80231409c20246a13fddb31776fb942c38553c51e871f8cbd687a4cfb5843d"
 dependencies = [
- "phf_shared 0.11.3",
+ "phf_shared",
  "rand",
 ]
 
@@ -3146,7 +3134,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f84ac04429c13a7ff43785d75ad27569f2951ce0ffd30a3321230db2fc727216"
 dependencies = [
  "phf_generator",
- "phf_shared 0.11.3",
+ "phf_shared",
  "proc-macro2",
  "quote",
  "syn",
@@ -3161,15 +3149,6 @@ checksum = "67eabc2ef2a60eb7faa00097bd1ffdb5bd28e62bf39990626a582201b7a754e5"
 dependencies = [
  "siphasher",
  "unicase",
-]
-
-[[package]]
-name = "phf_shared"
-version = "0.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "06005508882fb681fd97892ecff4b7fd0fee13ef1aa569f8695dae7ab9099981"
-dependencies = [
- "siphasher",
 ]
 
 [[package]]
@@ -3274,16 +3253,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f9cac36a8d92f3c9d38ebfa606e3bbbbec229a8d757f03de0999898522856e33"
 
 [[package]]
-name = "powerpc-asm"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6279a5e74397a442815266b75cba540630860f62cc306e324079e3056a27225b"
-dependencies = [
- "phf 0.12.1",
- "thiserror 2.0.17",
-]
-
-[[package]]
 name = "ppcjit"
 version = "0.1.0"
 dependencies = [
@@ -3292,7 +3261,6 @@ dependencies = [
  "easyerr",
  "gekko",
  "memmap2",
- "powerpc-asm",
  "rustc-hash 2.1.1",
  "tracing",
  "zerocopy",
@@ -3523,7 +3491,6 @@ dependencies = [
  "flume",
  "glam",
  "hemisphere",
- "ordered-float",
  "rustc-hash 2.1.1",
  "tracing",
  "wesl",
@@ -3857,7 +3824,7 @@ checksum = "bf776ba3fa74f83bf4b63c3dcbbf82173db2632ed8452cb2d891d33f459de70f"
 dependencies = [
  "new_debug_unreachable",
  "parking_lot",
- "phf_shared 0.11.3",
+ "phf_shared",
  "precomputed-hash",
 ]
 

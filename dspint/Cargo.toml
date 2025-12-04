@@ -28,8 +28,8 @@ util.workspace = true
 hemisphere.workspace = true
 
 bitos.workspace = true
-bytesize.workspace = true
 tracing.workspace = true
 zerocopy.workspace = true
 strum.workspace = true
+
 tinyvec = "1.10"

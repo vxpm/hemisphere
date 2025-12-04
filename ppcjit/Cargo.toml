@@ -7,9 +7,6 @@ edition = "2024"
 [lints]
 workspace = true
 
-[dev-dependencies]
-powerpc-asm.workspace = true
-
 [dependencies]
 gekko.workspace = true
 
