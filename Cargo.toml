@@ -107,7 +107,7 @@ codegen-units = 384
 panic = "abort"
 
 [patch.crates-io]
-wgpu = { path = "../wgpu/wgpu" }
+wgpu = { git = "https://github.com/vxpm/wgpu", branch = "v27" }
 
 [workspace.dependencies]
 # workspace crates

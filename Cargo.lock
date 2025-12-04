@@ -2565,6 +2565,7 @@ dependencies = [
 [[package]]
 name = "naga"
 version = "27.0.4"
+source = "git+https://github.com/vxpm/wgpu?branch=v27#53002f2a99589da54e8ff2f164332fce08b53c86"
 dependencies = [
  "arrayvec",
  "bit-set",
@@ -4656,6 +4657,7 @@ dependencies = [
 [[package]]
 name = "wgpu"
 version = "27.0.4"
+source = "git+https://github.com/vxpm/wgpu?branch=v27#53002f2a99589da54e8ff2f164332fce08b53c86"
 dependencies = [
  "arrayvec",
  "bitflags 2.10.0",
@@ -4677,6 +4679,7 @@ dependencies = [
 [[package]]
 name = "wgpu-core"
 version = "27.0.4"
+source = "git+https://github.com/vxpm/wgpu?branch=v27#53002f2a99589da54e8ff2f164332fce08b53c86"
 dependencies = [
  "arrayvec",
  "bit-set",
@@ -4707,6 +4710,7 @@ dependencies = [
 [[package]]
 name = "wgpu-core-deps-apple"
 version = "27.0.4"
+source = "git+https://github.com/vxpm/wgpu?branch=v27#53002f2a99589da54e8ff2f164332fce08b53c86"
 dependencies = [
  "wgpu-hal",
 ]
@@ -4714,6 +4718,7 @@ dependencies = [
 [[package]]
 name = "wgpu-core-deps-emscripten"
 version = "27.0.4"
+source = "git+https://github.com/vxpm/wgpu?branch=v27#53002f2a99589da54e8ff2f164332fce08b53c86"
 dependencies = [
  "wgpu-hal",
 ]
@@ -4721,6 +4726,7 @@ dependencies = [
 [[package]]
 name = "wgpu-core-deps-windows-linux-android"
 version = "27.0.4"
+source = "git+https://github.com/vxpm/wgpu?branch=v27#53002f2a99589da54e8ff2f164332fce08b53c86"
 dependencies = [
  "wgpu-hal",
 ]
@@ -4728,6 +4734,7 @@ dependencies = [
 [[package]]
 name = "wgpu-hal"
 version = "27.0.4"
+source = "git+https://github.com/vxpm/wgpu?branch=v27#53002f2a99589da54e8ff2f164332fce08b53c86"
 dependencies = [
  "android_system_properties",
  "arrayvec",
@@ -4775,6 +4782,7 @@ dependencies = [
 [[package]]
 name = "wgpu-types"
 version = "27.0.4"
+source = "git+https://github.com/vxpm/wgpu?branch=v27#53002f2a99589da54e8ff2f164332fce08b53c86"
 dependencies = [
  "bitflags 2.10.0",
  "bytemuck",
