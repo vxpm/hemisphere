@@ -299,8 +299,8 @@ impl Renderer {
     pub fn set_framebuffer_format(&mut self, format: pix::BufferFormat) {
         match format {
             pix::BufferFormat::RGB8Z24 | pix::BufferFormat::RGB565Z16 => {
-                self.pipeline.settings.has_alpha = false;
                 self.flush("changed framebuffer format");
+                self.pipeline.settings.has_alpha = false;
             }
             pix::BufferFormat::RGBA6Z24 => self.pipeline.settings.has_alpha = true,
             _ => (),
@@ -634,7 +634,18 @@ impl Renderer {
         let depth = self.framebuffer.depth().create_view(&Default::default());
 
         let color_op = if clear && self.pipeline.settings.blend.color_write {
-            wgpu::LoadOp::Clear(self.clear_color)
+            let color = if self.pipeline.settings.has_alpha {
+                self.clear_color
+            } else {
+                wgpu::Color {
+                    r: self.clear_color.r,
+                    g: self.clear_color.g,
+                    b: self.clear_color.b,
+                    a: 1.0,
+                }
+            };
+
+            wgpu::LoadOp::Clear(color)
         } else {
             wgpu::LoadOp::Load
         };

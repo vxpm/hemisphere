@@ -78,7 +78,7 @@ impl Memory {
             decode_ipl(&mut ipl[0x0000_0100..0x001A_EEE8]);
         } else {
             tracing::info!("IPL was not detected as EU/PAL. Assuming USA/NTSC.");
-            decode_ipl(&mut ipl[0x0000_0000..0x0015_EE40]);
+            decode_ipl(&mut ipl[0x0000_0100..0x0015_EE40]);
         }
 
         Self {

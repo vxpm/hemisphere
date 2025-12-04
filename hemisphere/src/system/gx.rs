@@ -511,10 +511,10 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
         }
 
         Reg::TexLutAddress => {
-            println!("lut address: {}", Address(value.bits(0, 21)));
+            // println!("lut address: {}", Address(value.bits(0, 21)));
         }
         Reg::TexLutCount => {
-            println!("lut count: {:?}", LutCount::from_bits(value));
+            // println!("lut count: {:?}", LutCount::from_bits(value));
         }
 
         Reg::TexMode0 => {

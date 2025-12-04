@@ -115,7 +115,7 @@ impl Pipeline {
         if settings.blend.color_write {
             write_mask |= wgpu::ColorWrites::COLOR;
         }
-        if settings.blend.alpha_write {
+        if settings.blend.alpha_write && settings.has_alpha {
             write_mask |= wgpu::ColorWrites::ALPHA;
         }
 
