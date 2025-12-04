@@ -90,11 +90,11 @@ fn get_color_input(stage: &TexEnvStage, input: ColorInputSrc) -> wesl::syntax::E
             let tex = sample_tex(stage);
             quote_expression! { #tex.aaaa }
         }
-        ColorInputSrc::RasterColor => {
+        ColorInputSrc::ChanColor => {
             let color = get_color_channel(stage);
             quote_expression! { #color.rgba }
         }
-        ColorInputSrc::RasterAlpha => {
+        ColorInputSrc::ChanAlpha => {
             let color = get_color_channel(stage);
             quote_expression! { #color.aaaa }
         }
@@ -280,7 +280,7 @@ fn get_alpha_input(stage: &TexEnvStage, input: AlphaInputSrc) -> wesl::syntax::E
             let tex = sample_tex(stage);
             quote_expression! { #tex.aaaa }
         }
-        AlphaInputSrc::RasterAlpha => {
+        AlphaInputSrc::ChanAlpha => {
             let color = get_color_channel(stage);
             quote_expression! { #color.aaaa }
         }

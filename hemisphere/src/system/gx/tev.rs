@@ -104,8 +104,8 @@ pub enum ColorInputSrc {
     R2Alpha = 0x7,
     TexColor = 0x8,
     TexAlpha = 0x9,
-    RasterColor = 0xA,
-    RasterAlpha = 0xB,
+    ChanColor = 0xA,
+    ChanAlpha = 0xB,
     One = 0xC,
     Half = 0xD,
     Constant = 0xE,
@@ -125,8 +125,8 @@ impl std::fmt::Display for ColorInputSrc {
             Self::R2Alpha => "R2.A",
             Self::TexColor => "Tex.C",
             Self::TexAlpha => "Tex.A",
-            Self::RasterColor => "Channel.C",
-            Self::RasterAlpha => "Channel.A",
+            Self::ChanColor => "Channel.C",
+            Self::ChanAlpha => "Channel.A",
             Self::One => "1",
             Self::Half => "0.5",
             Self::Constant => "Constant",
@@ -143,7 +143,7 @@ pub enum AlphaInputSrc {
     R1Alpha = 0x2,
     R2Alpha = 0x3,
     TexAlpha = 0x4,
-    RasterAlpha = 0x5,
+    ChanAlpha = 0x5,
     Constant = 0x6,
     Zero = 0x7,
 }
@@ -156,7 +156,7 @@ impl std::fmt::Display for AlphaInputSrc {
             Self::R1Alpha => "R1.A",
             Self::R2Alpha => "R2.A",
             Self::TexAlpha => "Tex.A",
-            Self::RasterAlpha => "Channel.A",
+            Self::ChanAlpha => "Channel.A",
             Self::Constant => "Constant",
             Self::Zero => "0",
         })
@@ -264,8 +264,105 @@ pub struct StageColor {
     pub output: OutputDst,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StageColorPattern {
+    PassChanColor,
+    PassChanAlpha,
+    PassTexColor,
+    PassTexAlpha,
+    Modulate,
+    ModulateDouble,
+    Add,
+    SubTexFromColor,
+    SubColorFromTex,
+    Mix,
+}
+
+impl StageColor {
+    pub fn is_comparative(&self) -> bool {
+        self.bias() == Bias::Comparative
+    }
+
+    pub fn pattern(&self) -> Option<StageColorPattern> {
+        use ColorInputSrc as Input;
+        use StageColorPattern as Pattern;
+
+        if self.is_comparative() {
+            return None;
+        }
+
+        let inputs = (
+            self.input_a(),
+            self.input_b(),
+            self.input_c(),
+            self.input_d(),
+        );
+        let positive = !self.negate();
+        let scale = self.scale().value();
+        let bias = self.bias().value();
+
+        let no_scale_no_bias = scale == 1.0 && bias == 0.0;
+        let simple = positive && no_scale_no_bias;
+
+        Some(match inputs {
+            (Input::Zero, Input::Zero, Input::Zero, Input::ChanColor) if simple => {
+                Pattern::PassChanColor
+            }
+            (Input::Zero, Input::Zero, Input::Zero, Input::ChanAlpha) if simple => {
+                Pattern::PassChanAlpha
+            }
+            (Input::Zero, Input::Zero, Input::Zero, Input::TexColor) if simple => {
+                Pattern::PassTexColor
+            }
+            (Input::Zero, Input::Zero, Input::Zero, Input::TexAlpha) if simple => {
+                Pattern::PassTexAlpha
+            }
+            (Input::Zero, Input::TexColor, Input::ChanColor, Input::Zero) if simple => {
+                Pattern::Modulate
+            }
+            (Input::Zero, Input::ChanColor, Input::TexColor, Input::Zero) if simple => {
+                Pattern::Modulate
+            }
+            (Input::Zero, Input::TexColor, Input::ChanColor, Input::Zero)
+                if positive && scale == 2.0 && bias == 0.0 =>
+            {
+                Pattern::ModulateDouble
+            }
+            (Input::Zero, Input::ChanColor, Input::TexColor, Input::Zero)
+                if positive && scale == 2.0 && bias == 0.0 =>
+            {
+                Pattern::ModulateDouble
+            }
+            (Input::TexColor, Input::Zero, Input::Zero, Input::ChanColor) if simple => Pattern::Add,
+            (Input::ChanColor, Input::Zero, Input::Zero, Input::TexColor) if simple => Pattern::Add,
+            (Input::TexColor, Input::Zero, Input::Zero, Input::ChanColor)
+                if no_scale_no_bias && !positive =>
+            {
+                Pattern::SubTexFromColor
+            }
+            (Input::ChanColor, Input::Zero, Input::Zero, Input::TexColor)
+                if no_scale_no_bias && !positive =>
+            {
+                Pattern::SubColorFromTex
+            }
+            (Input::TexColor, Input::ChanColor, Input::TexAlpha, Input::Zero) if simple => {
+                Pattern::Mix
+            }
+            (Input::ChanColor, Input::TexColor, Input::ChanAlpha, Input::Zero) if simple => {
+                Pattern::Mix
+            }
+            _ => return None,
+        })
+    }
+}
+
 impl std::fmt::Debug for StageColor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let pattern = self
+            .pattern()
+            .map(|p| format!("[{p:?}] "))
+            .unwrap_or(String::new());
+
         if self.is_comparative() {
             let a = self.input_a();
             let b = self.input_b();
@@ -277,7 +374,7 @@ impl std::fmt::Debug for StageColor {
 
             write!(
                 f,
-                "{output:?}.C = ({a}.{target:?} {op} {b}.{target:?}) ? {c} : {d}"
+                "{output:?}.C = {pattern}({a}.{target:?} {op} {b}.{target:?}) ? {c} : {d}"
             )
         } else {
             let a = self.input_a();
@@ -291,15 +388,9 @@ impl std::fmt::Debug for StageColor {
 
             write!(
                 f,
-                "{output:?}.C = {scale} * ({sign}mix({a}, {b}, {c}) + {d} + {bias})"
+                "{output:?}.C = {pattern}{scale} * ({sign}mix({a}, {b}, {c}) + {d} + {bias})"
             )
         }
-    }
-}
-
-impl StageColor {
-    pub fn is_comparative(&self) -> bool {
-        self.bias() == Bias::Comparative
     }
 }
 
