@@ -182,6 +182,8 @@ impl AttributeDescriptor for NormalDescriptor {
         Some(match self.kind() {
             NormalKind::N3 => vec()?,
             NormalKind::N9 => {
+                tracing::warn!("parsing binormal and tangent");
+
                 let normal = vec()?;
                 vec()?;
                 vec()?;

@@ -492,7 +492,7 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
         Reg::PostTexGen6 => xf.texgen[6].post = PostTexGen::from_bits(value),
         Reg::PostTexGen7 => xf.texgen[7].post = PostTexGen::from_bits(value),
 
-        _ => tracing::warn!("unimplemented write to internal XF register {reg:?}"),
+        _ => tracing::warn!("unimplemented write to internal XF register {reg:?}: {value:08X}"),
     }
 
     if reg.is_texgen() {
