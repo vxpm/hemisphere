@@ -1,9 +1,9 @@
 #![feature(iter_array_chunks)]
 
-mod blit;
 mod render;
+mod util;
 
-use crate::{blit::Blitter, render::Renderer};
+use crate::{render::Renderer, util::blit::XfbBlitter};
 use flume::{Receiver, Sender};
 use hemisphere::render::{Action, Renderer as RendererInterface};
 use std::sync::{Arc, atomic::Ordering};
@@ -17,8 +17,8 @@ fn worker(mut renderer: Renderer, receiver: Receiver<Action>) {
 
 struct Inner {
     device: wgpu::Device,
-    blitter: Blitter,
     shared: Arc<render::Shared>,
+    blitter: XfbBlitter,
 }
 
 /// A WGPU based renderer implementation.
@@ -32,7 +32,7 @@ pub struct WgpuRenderer {
 
 impl WgpuRenderer {
     pub fn new(device: wgpu::Device, queue: wgpu::Queue, format: wgpu::TextureFormat) -> Self {
-        let blitter = Blitter::new(&device, wgpu::TextureFormat::Rgba8UnormSrgb, format);
+        let blitter = XfbBlitter::new(&device, format);
         let (renderer, shared) = Renderer::new(device.clone(), queue);
         let (sender, receiver) = flume::bounded(4096);
 
@@ -44,8 +44,8 @@ impl WgpuRenderer {
         Self {
             inner: Arc::new(Inner {
                 device,
-                blitter,
                 shared,
+                blitter,
             }),
             sender,
         }
@@ -53,7 +53,17 @@ impl WgpuRenderer {
 
     pub fn render(&self, pass: &mut wgpu::RenderPass<'_>) {
         let xfb = self.inner.shared.xfb.lock().unwrap();
-        self.inner.blitter.blit(&self.inner.device, &xfb, pass);
+        self.inner.blitter.blit_to_target(
+            &self.inner.device,
+            &xfb,
+            wgpu::Origin3d::ZERO,
+            wgpu::Extent3d {
+                width: 640,
+                height: 528,
+                depth_or_array_layers: 1,
+            },
+            pass,
+        );
     }
 
     pub fn rendered_anything(&self) -> bool {

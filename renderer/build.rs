@@ -13,6 +13,7 @@ fn main() {
         ..Default::default()
     });
 
-    wesl.build_artifact(&"package::blit_vec4f".parse().unwrap(), "blit_vec4f");
-    wesl.build_artifact(&"package::blit_f32".parse().unwrap(), "blit_f32");
+    wesl.build_artifact(&"package::xfb_blit".parse().unwrap(), "xfb_blit");
+    wesl.build_artifact(&"package::color_blit".parse().unwrap(), "color_blit");
+    wesl.build_artifact(&"package::depth_blit".parse().unwrap(), "depth_blit");
 }
