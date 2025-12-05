@@ -112,19 +112,11 @@ impl Pipeline {
         });
 
         let mut write_mask = wgpu::ColorWrites::empty();
-        if settings.blend.enabled {
-            if settings.blend.color_write {
-                write_mask |= wgpu::ColorWrites::COLOR;
-            }
-            if settings.blend.alpha_write && settings.has_alpha {
-                write_mask |= wgpu::ColorWrites::ALPHA;
-            }
-        } else {
-            if settings.has_alpha {
-                write_mask = wgpu::ColorWrites::all();
-            } else {
-                write_mask = wgpu::ColorWrites::COLOR;
-            }
+        if settings.blend.color_write {
+            write_mask |= wgpu::ColorWrites::COLOR;
+        }
+        if settings.blend.alpha_write && settings.has_alpha {
+            write_mask |= wgpu::ColorWrites::ALPHA;
         }
 
         let label = format!("shader {}", id);
