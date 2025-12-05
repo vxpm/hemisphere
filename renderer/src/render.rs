@@ -800,11 +800,7 @@ impl Renderer {
             wgpu::TexelCopyTextureInfo {
                 texture: &copy_target,
                 mip_level: 0,
-                origin: wgpu::Origin3d {
-                    x: x as u32,
-                    y: y as u32,
-                    z: 0,
-                },
+                origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::default(),
             },
             wgpu::TexelCopyBufferInfo {
@@ -896,11 +892,7 @@ impl Renderer {
         self.depth_blitter.blit_to_texture(
             &self.device,
             &depth_view,
-            wgpu::Origin3d {
-                x: x as u32,
-                y: y as u32,
-                z: 0,
-            },
+            wgpu::Origin3d::ZERO,
             wgpu::Extent3d {
                 width: width as u32,
                 height: height as u32,
