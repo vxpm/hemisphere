@@ -118,9 +118,9 @@ impl XfbBlitter {
         let bottom_right_y = top_left.y + dimensions.height;
 
         let size = texture.texture().size();
-        assert!(size.width <= bottom_right_x);
-        assert!(size.height <= bottom_right_y);
-        assert!(size.depth_or_array_layers <= top_left.z + dimensions.depth_or_array_layers);
+        assert!(bottom_right_x <= size.width);
+        assert!(bottom_right_y <= size.height);
+        assert!(top_left.z + dimensions.depth_or_array_layers <= size.depth_or_array_layers);
 
         use zerocopy::IntoBytes;
 
@@ -281,9 +281,9 @@ impl ColorBlitter {
         let bottom_right_y = top_left.y + dimensions.height;
 
         let size = texture.texture().size();
-        assert!(size.width <= bottom_right_x);
-        assert!(size.height <= bottom_right_y);
-        assert!(size.depth_or_array_layers <= top_left.z + dimensions.depth_or_array_layers);
+        assert!(bottom_right_x <= size.width);
+        assert!(bottom_right_y <= size.height);
+        assert!(top_left.z + dimensions.depth_or_array_layers <= size.depth_or_array_layers);
 
         use zerocopy::IntoBytes;
 
@@ -456,5 +456,89 @@ impl DepthBlitter {
             pipeline,
             sampler,
         }
+    }
+
+    pub fn blit_to_target(
+        &self,
+        device: &wgpu::Device,
+        texture: &wgpu::TextureView,
+        top_left: wgpu::Origin3d,
+        dimensions: wgpu::Extent3d,
+        pass: &mut wgpu::RenderPass<'_>,
+    ) {
+        let bottom_right_x = top_left.x + dimensions.width;
+        let bottom_right_y = top_left.y + dimensions.height;
+
+        let size = texture.texture().size();
+        assert!(bottom_right_x <= size.width);
+        assert!(bottom_right_y <= size.height);
+        assert!(top_left.z + dimensions.depth_or_array_layers <= size.depth_or_array_layers);
+
+        use zerocopy::IntoBytes;
+
+        let uvs = Vec4::new(
+            top_left.x as f32 / size.width as f32,
+            top_left.y as f32 / size.height as f32,
+            bottom_right_x as f32 / size.width as f32,
+            bottom_right_y as f32 / size.height as f32,
+        );
+        let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("depth blit uvs"),
+            usage: wgpu::BufferUsages::UNIFORM,
+            contents: uvs.as_bytes(),
+        });
+
+        let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: None,
+            layout: &self.group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(texture),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&self.sampler),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                        buffer: &buffer,
+                        offset: 0,
+                        size: None,
+                    }),
+                },
+            ],
+        });
+
+        pass.set_pipeline(&self.pipeline);
+        pass.set_bind_group(0, &group, &[]);
+        pass.draw(0..4, 0..1);
+    }
+
+    pub fn blit_to_texture(
+        &self,
+        device: &wgpu::Device,
+        source: &wgpu::TextureView,
+        top_left: wgpu::Origin3d,
+        dimensions: wgpu::Extent3d,
+        target: &wgpu::TextureView,
+        encoder: &mut wgpu::CommandEncoder,
+    ) {
+        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("depth blit to texture"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: target,
+                depth_slice: None,
+                resolve_target: None,
+                ops: wgpu::Operations::default(),
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
+
+        self.blit_to_target(device, source, top_left, dimensions, &mut pass);
+        std::mem::drop(pass);
     }
 }
