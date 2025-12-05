@@ -94,6 +94,9 @@ impl Renderer {
 
         let external = framebuffer.external().create_view(&Default::default());
         let color = framebuffer.color().create_view(&Default::default());
+        let multisampled_color = framebuffer
+            .multisampled_color()
+            .create_view(&Default::default());
         let depth = framebuffer.depth().create_view(&Default::default());
 
         let shared = Arc::new(Shared {
@@ -106,9 +109,9 @@ impl Renderer {
             .begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("hemisphere render pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &color,
+                    view: &multisampled_color,
                     depth_slice: None,
-                    resolve_target: None,
+                    resolve_target: Some(&color),
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
                         store: wgpu::StoreOp::Store,
@@ -637,6 +640,10 @@ impl Renderer {
 
         let external = self.framebuffer.external().create_view(&Default::default());
         let color = self.framebuffer.color().create_view(&Default::default());
+        let multisampled_color = self
+            .framebuffer
+            .multisampled_color()
+            .create_view(&Default::default());
         let depth = self.framebuffer.depth().create_view(&Default::default());
 
         let color_op = if clear && self.pipeline.settings.blend.color_write {
@@ -669,11 +676,11 @@ impl Renderer {
         let mut encoder = self.device.create_command_encoder(&Default::default());
         let pass = encoder
             .begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("hemisphere render pass"),
+                label: Some("main render pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &color,
+                    view: &multisampled_color,
                     depth_slice: None,
-                    resolve_target: None,
+                    resolve_target: Some(&color),
                     ops: wgpu::Operations {
                         load: color_op,
                         store: wgpu::StoreOp::Store,

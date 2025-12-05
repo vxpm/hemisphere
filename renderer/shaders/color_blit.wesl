@@ -23,8 +23,8 @@ fn vs_main(
 
     let uvs = array<vec2f, 4>(
         top_left,
-        vec2f(bottom_right.x, top_left.y),
         vec2f(top_left.x, bottom_right.y),
+        vec2f(bottom_right.x, top_left.y),
         bottom_right
     );
 

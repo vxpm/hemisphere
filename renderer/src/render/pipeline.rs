@@ -163,7 +163,11 @@ impl Pipeline {
                     write_mask,
                 })],
             }),
-            multisample: Default::default(),
+            multisample: wgpu::MultisampleState {
+                count: 4,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
             depth_stencil: Some(depth_stencil),
             multiview: None,
             cache: None,
