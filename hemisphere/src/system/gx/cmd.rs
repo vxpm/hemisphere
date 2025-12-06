@@ -19,6 +19,8 @@ use zerocopy::IntoBytes;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, FromRepr)]
 #[repr(u8)]
 pub enum Reg {
+    Unknown00 = 0x00,
+    Unknown10 = 0x10,
     Unknown20 = 0x20,
 
     MatIndexLow = 0x30,
