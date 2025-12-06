@@ -237,7 +237,7 @@ impl Renderer {
                 response,
             } => {
                 // println!("color copy requested: ({x}, {y}) [{width}x{height}] (mip: {half})");
-                self.current_pass.insert_debug_marker(&format!(
+                self.debug(format!(
                     "color copy requested: ({x}, {y}) [{width}x{height}] (mip: {half})"
                 ));
 
@@ -254,7 +254,7 @@ impl Renderer {
                 clear,
                 response,
             } => {
-                self.current_pass.insert_debug_marker(&format!(
+                self.debug(format!(
                     "depth copy requested: ({x}, {y}) [{width}x{height}] (mip: {half})"
                 ));
 
@@ -263,7 +263,7 @@ impl Renderer {
                 response.send(data).unwrap();
             }
             Action::XfbCopy { clear } => {
-                self.current_pass.insert_debug_marker("XFB copy requested");
+                self.debug("XFB copy requested");
                 self.next_pass(clear, true);
             }
         }
@@ -271,7 +271,15 @@ impl Renderer {
         self.actions += 1;
     }
 
-    pub fn insert_vertex(&mut self, vertex: data::Vertex) -> u32 {
+    fn debug(&mut self, s: impl AsRef<str>) {
+        let string = s.as_ref();
+        let lines = string.lines();
+        for line in lines {
+            self.current_pass.insert_debug_marker(line);
+        }
+    }
+
+    fn insert_vertex(&mut self, vertex: data::Vertex) -> u32 {
         let idx = self.vertices.len();
         self.vertices.push(vertex);
 
@@ -303,10 +311,12 @@ impl Renderer {
     }
 
     pub fn set_framebuffer_format(&mut self, format: pix::BufferFormat) {
+        self.debug(format!("set framebuffer format to {format:?}"));
+        self.flush("framebuffer format");
+
         match format {
             pix::BufferFormat::RGB8Z24 | pix::BufferFormat::RGB565Z16 => {
-                self.flush("changed framebuffer format");
-                self.pipeline.settings.has_alpha = false;
+                self.pipeline.settings.has_alpha = false
             }
             pix::BufferFormat::RGBA6Z24 => self.pipeline.settings.has_alpha = true,
             _ => (),
@@ -314,7 +324,7 @@ impl Renderer {
     }
 
     pub fn set_viewport(&mut self, viewport: Viewport) {
-        self.current_pass.insert_debug_marker("changed viewport");
+        self.debug(format!("set viewport to {viewport:?}"));
         self.current_pass.set_viewport(
             viewport.top_left_x,
             viewport.top_left_y,
@@ -328,6 +338,7 @@ impl Renderer {
     }
 
     pub fn set_clear_color(&mut self, rgba: Rgba) {
+        self.debug(format!("set clear color to {rgba:?}"));
         self.clear_color = wgpu::Color {
             r: rgba.r as f64,
             g: rgba.g as f64,
@@ -374,6 +385,7 @@ impl Renderer {
             alpha_write: mode.alpha_mask(),
         };
 
+        self.debug(format!("set blend settings to {blend:?}"));
         self.flush("changed blend settings");
         self.pipeline.settings.blend = blend;
     }
@@ -396,13 +408,14 @@ impl Renderer {
             compare,
         };
 
-        if self.pipeline.settings.depth != depth {
-            self.flush("depth settings changed");
-            self.pipeline.settings.depth = depth;
-        }
+        self.debug(format!("set depth settings to {depth:?}"));
+        self.flush("depth settings changed");
+        self.pipeline.settings.depth = depth;
     }
 
     pub fn set_alpha_function(&mut self, func: AlphaFunction) {
+        self.debug(format!("set alpha function to {func:?}"));
+        self.flush("alpha function changed");
         self.pipeline.settings.texenv.alpha_function.comparison = func.comparison();
         self.pipeline.settings.texenv.alpha_function.logic = func.logic();
         self.current_config.alpha_refs = func.refs().map(|x| x as u32);
@@ -410,6 +423,7 @@ impl Renderer {
     }
 
     pub fn set_constant_alpha_mode(&mut self, mode: ConstantAlpha) {
+        self.debug(format!("set constant alpha mode to {mode:?}"));
         self.current_config.constant_alpha = if mode.enabled() {
             mode.value() as u32
         } else {
@@ -424,12 +438,16 @@ impl Renderer {
     }
 
     pub fn set_texenv_config(&mut self, config: TexEnvConfig) {
+        self.debug("changed texenv");
+        self.flush("texenv changed");
         self.pipeline.settings.texenv.stages = config.stages;
         self.current_config.consts = config.constants;
         self.current_config_dirty = true;
     }
 
     pub fn set_texgen_config(&mut self, config: TexGenConfig) {
+        self.debug("changed texgen");
+        self.flush("texgen changed");
         self.pipeline.settings.texgen.stages = config
             .stages
             .iter()
@@ -473,6 +491,7 @@ impl Renderer {
 
     fn flush_config(&mut self) {
         if std::mem::take(&mut self.current_config_dirty) {
+            self.debug("flushing config");
             self.configs.push(self.current_config.clone());
         }
     }
@@ -483,6 +502,10 @@ impl Renderer {
         }
         self.flush_config();
 
+        self.debug(format!(
+            "drawing quad list with {} vertices",
+            vertices.len()
+        ));
         for vertices in vertices.iter().array_chunks::<4>() {
             let [v0, v1, v2, v3] = vertices.map(|a| self.insert_attributes(a));
             self.indices.extend_from_slice(&[v0, v1, v2]);
@@ -496,6 +519,10 @@ impl Renderer {
         }
         self.flush_config();
 
+        self.debug(format!(
+            "drawing triangle list with {} vertices",
+            vertices.len()
+        ));
         for vertices in vertices.iter().array_chunks::<3>() {
             let vertices = vertices.map(|a| self.insert_attributes(a));
             self.indices.extend_from_slice(&vertices);
@@ -510,6 +537,10 @@ impl Renderer {
 
         let mut iter = vertices.iter();
 
+        self.debug(format!(
+            "drawing triangle strip with {} vertices",
+            vertices.len()
+        ));
         let mut v0 = self.insert_attributes(iter.next().unwrap());
         let mut v1 = self.insert_attributes(iter.next().unwrap());
         for v2 in iter {
@@ -529,6 +560,10 @@ impl Renderer {
 
         let mut iter = vertices.iter();
 
+        self.debug(format!(
+            "drawing triangle fan with {} vertices",
+            vertices.len()
+        ));
         let v0 = self.insert_attributes(iter.next().unwrap());
         let mut v1 = self.insert_attributes(iter.next().unwrap());
         for v2 in iter {
@@ -551,8 +586,7 @@ impl Renderer {
             return;
         }
 
-        self.current_pass
-            .insert_debug_marker(&format!("[FLUSH]: {reason}"));
+        self.debug(format!("[FLUSH]: {reason}"));
         self.pipeline.update(&self.device);
 
         let index_buf =

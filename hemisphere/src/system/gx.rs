@@ -285,7 +285,8 @@ impl Reg {
     pub fn is_tev(&self) -> bool {
         matches!(
             self,
-            Self::TevColor0
+            Self::GenMode
+                | Self::TevColor0
                 | Self::TevAlpha0
                 | Self::TevColor1
                 | Self::TevAlpha1

@@ -31,7 +31,7 @@ impl Default for BlendSettings {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DepthSettings {
     pub enabled: bool,
     pub compare: wgpu::CompareFunction,
