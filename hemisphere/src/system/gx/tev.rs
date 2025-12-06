@@ -360,7 +360,7 @@ impl std::fmt::Debug for StageColor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let pattern = self
             .pattern()
-            .map(|p| format!("[{p:?}] "))
+            .map(|p| format!(" [{p:?}]"))
             .unwrap_or(String::new());
 
         if self.is_comparative() {
@@ -374,21 +374,33 @@ impl std::fmt::Debug for StageColor {
 
             write!(
                 f,
-                "{output:?}.C = {pattern}({a}.{target:?} {op} {b}.{target:?}) ? {c} : {d}"
+                "{output:?}.C = ({a}.{target:?} {op} {b}.{target:?}) ? {c} : {d}{pattern}"
             )
         } else {
             let a = self.input_a();
             let b = self.input_b();
             let c = self.input_c();
             let d = self.input_d();
-            let sign = if self.negate() { "-" } else { "+" };
-            let bias = self.bias().value();
+            let sign = if self.negate() { "-" } else { "" };
+            let bias = self.bias();
             let scale = self.scale().value();
             let output = self.output();
 
+            let d = if d != ColorInputSrc::Zero {
+                format!(" + {d}")
+            } else {
+                String::new()
+            };
+
+            let bias = if bias != Bias::Zero {
+                format!(" + {}", bias.value())
+            } else {
+                String::new()
+            };
+
             write!(
                 f,
-                "{output:?}.C = {pattern}{scale} * ({sign}mix({a}, {b}, {c}) + {d} + {bias})"
+                "{output:?}.C = {scale} * ({sign}mix({a}, {b}, {c}){d}{bias}){pattern}"
             )
         }
     }
@@ -445,14 +457,26 @@ impl std::fmt::Debug for StageAlpha {
             let b = self.input_b();
             let c = self.input_c();
             let d = self.input_d();
-            let sign = if self.negate() { "-" } else { "+" };
-            let bias = self.bias().value();
+            let sign = if self.negate() { "-" } else { "" };
+            let bias = self.bias();
             let scale = self.scale().value();
             let output = self.output();
 
+            let d = if d != AlphaInputSrc::Zero {
+                format!(" + {d}")
+            } else {
+                String::new()
+            };
+
+            let bias = if bias != Bias::Zero {
+                format!(" + {}", bias.value())
+            } else {
+                String::new()
+            };
+
             write!(
                 f,
-                "{output:?}.A = {scale} * ({sign}mix({a}, {b}, {c}) + {d} + {bias})"
+                "{output:?}.A = {scale} * ({sign}mix({a}, {b}, {c}){d}{bias})"
             )
         }
     }
