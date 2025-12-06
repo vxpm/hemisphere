@@ -285,12 +285,27 @@ pub fn encode_color_texture(
         ($fmt:ty) => {
             encode!($fmt => ())
         };
+        ($fmt:ty, dithered) => {
+            encode!($fmt => (), dithered)
+        };
         ($fmt:ty => $settings:expr) => {
             gxtex::encode::<$fmt>(
                 &$settings,
                 stride as usize,
                 width as usize,
                 height as usize,
+                false,
+                &pixels,
+                output,
+            )
+        };
+        ($fmt:ty => $settings:expr, dithered) => {
+            gxtex::encode::<$fmt>(
+                &$settings,
+                stride as usize,
+                width as usize,
+                height as usize,
+                true,
                 &pixels,
                 output,
             )
@@ -298,12 +313,14 @@ pub fn encode_color_texture(
     }
 
     match format {
-        ColorCopyFormat::R4 => encode!(gxtex::I4 => IntensitySource::R),
+        ColorCopyFormat::R4 => encode!(gxtex::I4 => IntensitySource::R, dithered),
         ColorCopyFormat::Y8 => encode!(gxtex::I8 => IntensitySource::Y),
-        ColorCopyFormat::RA4 => encode!(gxtex::IA4 => (IntensitySource::R, AlphaSource::A)),
+        ColorCopyFormat::RA4 => {
+            encode!(gxtex::IA4 => (IntensitySource::R, AlphaSource::A), dithered)
+        }
         ColorCopyFormat::RA8 => encode!(gxtex::IA8 => (IntensitySource::R, AlphaSource::A)),
-        ColorCopyFormat::RGB565 => encode!(gxtex::Rgb565),
-        ColorCopyFormat::RGB5A3 => encode!(gxtex::Rgb5A3),
+        ColorCopyFormat::RGB565 => encode!(gxtex::Rgb565, dithered),
+        ColorCopyFormat::RGB5A3 => encode!(gxtex::Rgb5A3, dithered),
         ColorCopyFormat::RGBA8 => encode!(gxtex::Rgba8),
         ColorCopyFormat::A8 => encode!(gxtex::I8 => IntensitySource::A),
         ColorCopyFormat::R8 => encode!(gxtex::I8 => IntensitySource::R),
@@ -344,6 +361,7 @@ pub fn encode_depth_texture(
                 stride as usize,
                 width as usize,
                 height as usize,
+                false,
                 &depth,
                 output,
             )
