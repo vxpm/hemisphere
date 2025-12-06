@@ -60,7 +60,6 @@ pub struct Renderer {
     viewport: Viewport,
     clear_color: wgpu::Color,
     clear_depth: f32,
-    current_projection_mat: Mat4,
     current_config: data::Config,
     current_config_dirty: bool,
 
@@ -153,7 +152,6 @@ impl Renderer {
             viewport: Default::default(),
             clear_color: wgpu::Color::BLACK,
             clear_depth: 1.0,
-            current_projection_mat: Default::default(),
             current_config: Default::default(),
             current_config_dirty: true,
 
@@ -288,7 +286,6 @@ impl Renderer {
 
             _pad0: 0,
 
-            projection_mat: self.current_projection_mat,
             position_mat: attributes.position_matrix,
             normal_mat: Mat4::from_mat3(attributes.normal_matrix),
 
@@ -422,7 +419,8 @@ impl Renderer {
     }
 
     pub fn set_projection_mat(&mut self, mat: Mat4) {
-        self.current_projection_mat = mat;
+        self.current_config.projection_mat = mat;
+        self.current_config_dirty = true;
     }
 
     pub fn set_texenv_config(&mut self, config: TexEnvConfig) {
@@ -545,8 +543,6 @@ impl Renderer {
         self.vertices.clear();
         self.indices.clear();
         self.configs.clear();
-
-        self.set_projection_mat(self.current_projection_mat);
         self.current_config_dirty = true;
     }
 

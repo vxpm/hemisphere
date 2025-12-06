@@ -45,6 +45,7 @@ fn base_module() -> wesl::syntax::TranslationUnit {
             color_channels: array<Channel, 2>,
             alpha_channels: array<Channel, 2>,
             consts: array<vec4f, 4>,
+            projection_mat: mat4x4f,
             post_transform_mat: array<mat4x4f, 8>,
             constant_alpha: u32,
             alpha_refs: array<u32, 2>,
@@ -58,7 +59,6 @@ fn base_module() -> wesl::syntax::TranslationUnit {
             normal: vec3f,
             _pad0: u32,
 
-            projection_mat: mat4x4f,
             position_mat: mat4x4f,
             normal_mat: mat4x4f,
 
@@ -372,7 +372,7 @@ fn vertex_stage(texgen: &TexGenSettings) -> wesl::syntax::GlobalDeclaration {
 
             let vertex_local_pos = vec4f(vertex.position, 1.0);
             let vertex_world_pos = vertex.position_mat * vertex_local_pos;
-            var vertex_view_pos = vertex.projection_mat * vertex_world_pos;
+            var vertex_view_pos = config.projection_mat * vertex_world_pos;
 
             let vertex_local_norm = vec4f(vertex.normal, 0.0);
             let vertex_world_norm = normalize((vertex.normal_mat * vertex_local_norm).xyz);
