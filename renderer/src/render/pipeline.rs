@@ -1,5 +1,5 @@
-mod compiler;
 mod settings;
+mod shader;
 
 use std::{
     borrow::Cow,
@@ -120,7 +120,7 @@ impl Pipeline {
         }
 
         let label = format!("shader {}", id);
-        let shader = compiler::compile(&settings.texenv, &settings.texgen);
+        let shader = shader::compile(&settings.texenv, &settings.texgen);
         let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some(&label),
             source: wgpu::ShaderSource::Wgsl(Cow::Owned(shader)),
