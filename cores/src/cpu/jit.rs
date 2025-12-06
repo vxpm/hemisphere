@@ -91,50 +91,6 @@ impl BlockMapping {
         }
     }
 
-    /// Invalidates all block mappings that contain `addr`.
-    #[inline(always)]
-    pub fn invalidate(&mut self, addr: Address) {
-        // check LUT first
-        let page = addr.value() >> PAGE_SHIFT;
-
-        #[expect(clippy::redundant_else, reason = "makes it clearer")]
-        if self.overlap_lut[page as usize] == 0 {
-            return;
-        } else {
-            std::hint::cold_path();
-        }
-
-        self.to_remove.clear();
-        for (&candidate, mapping) in self.tree_map.iter() {
-            let length = mapping.length;
-            let range = candidate..candidate + length;
-
-            if range.contains(&addr) {
-                self.to_remove.push(candidate);
-            }
-        }
-
-        for candidate in self.to_remove.drain(..) {
-            let mapping = self.tree_map.swap_remove(&candidate).unwrap();
-
-            // update LUT
-            let start_page = candidate.value() >> PAGE_SHIFT;
-            let end_page = (candidate + mapping.length).value() >> PAGE_SHIFT;
-            for index in start_page..=end_page {
-                self.overlap_lut[index as usize] -= 1;
-            }
-        }
-
-        if self
-            .last_query
-            .get()
-            .is_some_and(|(queried, _)| queried == addr)
-        {
-            self.last_query.set(None);
-        }
-    }
-
-    /// Invalidates all mappings.
     pub fn clear(&mut self) {
         self.tree_map.clear();
         self.overlap_lut.fill(0);
@@ -142,16 +98,15 @@ impl BlockMapping {
     }
 }
 
-/// A structure which keeps tracks of compiled [`Block`]s.
-pub struct Blocks {
-    pub storage: SlotMap<BlockId, Block>,
-    pub mapping: BlockMapping,
+pub struct StoredBlock {
+    pub block: Block,
+    pub links: Vec<*mut LinkData>,
 }
 
-impl Blocks {
-    pub fn get(&mut self, addr: Address) -> Option<&Block> {
-        self.storage.get(self.mapping.get(addr)?)
-    }
+/// A structure which keeps tracks of compiled [`Block`]s.
+pub struct Blocks {
+    pub storage: SlotMap<BlockId, StoredBlock>,
+    pub mapping: BlockMapping,
 }
 
 impl Default for Blocks {
@@ -169,16 +124,73 @@ impl Blocks {
         let end = addr + block.meta().seq.len() as u32 * 4;
         let range = addr..end;
 
-        let id = self.storage.insert(block);
+        let id = self.storage.insert(StoredBlock {
+            block,
+            links: Vec::new(),
+        });
         self.mapping.insert(range, id);
 
         id
     }
 
     #[inline(always)]
+    pub fn get(&mut self, addr: Address) -> Option<&StoredBlock> {
+        self.storage.get(self.mapping.get(addr)?)
+    }
+
+    #[inline(always)]
     pub fn clear(&mut self) {
         self.storage.clear();
         self.mapping.clear();
+    }
+
+    /// Invalidates all blocks that contain `addr`.
+    #[inline(always)]
+    pub fn invalidate(&mut self, addr: Address) {
+        // check LUT first
+        let page = addr.value() >> PAGE_SHIFT;
+
+        #[expect(clippy::redundant_else, reason = "makes it clearer")]
+        if self.mapping.overlap_lut[page as usize] == 0 {
+            return;
+        } else {
+            std::hint::cold_path();
+        }
+
+        self.mapping.to_remove.clear();
+        for (&candidate, mapping) in self.mapping.tree_map.iter() {
+            let length = mapping.length;
+            let range = candidate..candidate + length;
+
+            if range.contains(&addr) {
+                self.mapping.to_remove.push(candidate);
+            }
+        }
+
+        for candidate in self.mapping.to_remove.drain(..) {
+            let mapping = self.mapping.tree_map.swap_remove(&candidate).unwrap();
+            let block = self.storage.get_mut(mapping.id).unwrap();
+            for link in block.links.drain(..) {
+                let link = unsafe { link.as_mut().unwrap() };
+                link.link = std::ptr::null();
+            }
+
+            // update LUT
+            let start_page = candidate.value() >> PAGE_SHIFT;
+            let end_page = (candidate + mapping.length).value() >> PAGE_SHIFT;
+            for index in start_page..=end_page {
+                self.mapping.overlap_lut[index as usize] -= 1;
+            }
+        }
+
+        if self
+            .mapping
+            .last_query
+            .get()
+            .is_some_and(|(queried, _)| queried == addr)
+        {
+            self.mapping.last_query.set(None);
+        }
     }
 }
 
@@ -245,9 +257,10 @@ static CTX_HOOKS: Hooks = {
     extern "sysv64-unwind" fn try_link(ctx: &mut Context, addr: Address, link_data: &mut LinkData) {
         debug_assert!(link_data.link.is_null());
         if let Some(id) = ctx.blocks.mapping.get(addr) {
-            let block = ctx.blocks.storage.get(id).unwrap();
-            link_data.link = block.as_ptr();
-            link_data.pattern = block.meta().pattern;
+            let stored = ctx.blocks.storage.get_mut(id).unwrap();
+            link_data.link = stored.block.as_ptr();
+            link_data.pattern = stored.block.meta().pattern;
+            stored.links.push(&raw mut *link_data);
         }
     }
 
@@ -604,16 +617,16 @@ impl JitCore {
         target_cycles: u32,
         max_instructions: u32,
     ) -> Executed {
-        let block = self
+        let stored = self
             .blocks
             .mapping
             .get(sys.cpu.pc)
             .and_then(|id| self.blocks.storage.get(id))
-            .filter(|b| b.meta().seq.len() <= max_instructions as usize);
+            .filter(|b| b.block.meta().seq.len() <= max_instructions as usize);
 
         let compiled: ppcjit::Block;
-        let block = match block {
-            Some(block) => block.as_ptr(),
+        let block = match stored {
+            Some(stored) => stored.block.as_ptr(),
             None => {
                 std::hint::cold_path();
 
@@ -652,7 +665,7 @@ impl JitCore {
         if !self.to_invalidate.is_empty() {
             std::hint::cold_path();
             for addr in self.to_invalidate.drain(..) {
-                self.blocks.mapping.invalidate(addr);
+                self.blocks.invalidate(addr);
             }
         }
 
@@ -674,7 +687,7 @@ impl JitCore {
             .mapping
             .get(sys.cpu.pc)
             .and_then(|id| self.blocks.storage.get(id))
-            .filter(|b| b.meta().seq.len() <= max_instructions as usize);
+            .filter(|b| b.block.meta().seq.len() <= max_instructions as usize);
 
         if block.is_none() {
             // avoid trying to compile unimplemented instructions in debug mode
@@ -700,14 +713,14 @@ impl JitCore {
         let mut executed = Executed::default();
         while executed.cycles < cycles {
             // detect mailbox idle loop
-            if let Some(block) = self.blocks.get(sys.cpu.pc)
-                && block.meta().pattern == Pattern::Call
-                && let Some(dest) = block.meta().seq.is_call(sys.cpu.pc)
+            if let Some(stored) = self.blocks.get(sys.cpu.pc)
+                && stored.block.meta().pattern == Pattern::Call
+                && let Some(dest) = stored.block.meta().seq.is_call(sys.cpu.pc)
             {
                 std::hint::cold_path();
 
                 if let Some(func_block) = self.blocks.get(dest)
-                    && func_block.meta().pattern == Pattern::GetMailboxStatusFunc
+                    && func_block.block.meta().pattern == Pattern::GetMailboxStatusFunc
                     && sys.dsp.cpu_mailbox.status()
                 {
                     std::hint::cold_path();
