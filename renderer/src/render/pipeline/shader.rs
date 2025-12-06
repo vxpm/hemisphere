@@ -558,13 +558,13 @@ pub fn compile(texenv: &TexEnvSettings, texgen: &TexGenSettings) -> String {
         }
     };
 
-    if texenv
-        .stages
-        .iter()
-        .any(|s| s.ops.color.is_comparative() || s.ops.alpha.is_comparative())
-    {
-        println!("{texenv:#?}");
-    }
+    // if texenv
+    //     .stages
+    //     .iter()
+    //     .any(|s| s.ops.color.is_comparative() || s.ops.alpha.is_comparative())
+    // {
+    //     println!("{texenv:#?}");
+    // }
 
     compiled.syntax.to_string()
 }

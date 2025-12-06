@@ -426,6 +426,42 @@ impl Default for Gpu {
     }
 }
 
+pub fn update_tevs(sys: &mut System) {
+    let stages = sys
+        .gpu
+        .environment
+        .stage_ops
+        .iter()
+        .take(sys.gpu.environment.active_stages as usize)
+        .cloned()
+        .enumerate()
+        .map(|(i, ops)| {
+            let ref_pair = &sys.gpu.environment.stage_refs[i / 2];
+            let const_pair = &sys.gpu.environment.stage_consts[i / 2];
+
+            let (refs, color_const, alpha_const) = if i % 2 == 0 {
+                (ref_pair.a(), const_pair.color_a(), const_pair.alpha_a())
+            } else {
+                (ref_pair.b(), const_pair.color_b(), const_pair.alpha_b())
+            };
+
+            TexEnvStage {
+                ops,
+                refs,
+                color_const,
+                alpha_const,
+            }
+        })
+        .collect::<Vec<_>>();
+
+    let config = TexEnvConfig {
+        stages,
+        constants: sys.gpu.environment.constants,
+    };
+
+    sys.config.renderer.exec(Action::SetTexEnvConfig(config));
+}
+
 pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
     let mask = std::mem::replace(&mut sys.gpu.write_mask, 0x00FF_FFFF);
     let masked = value & mask;
@@ -911,40 +947,12 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
         }
     }
 
+    if reg == Reg::GenMode {
+        xf::update_texgens(sys);
+    }
+
     if reg.is_tev() {
-        let stages = sys
-            .gpu
-            .environment
-            .stage_ops
-            .iter()
-            .take(sys.gpu.environment.active_stages as usize)
-            .cloned()
-            .enumerate()
-            .map(|(i, ops)| {
-                let ref_pair = &sys.gpu.environment.stage_refs[i / 2];
-                let const_pair = &sys.gpu.environment.stage_consts[i / 2];
-
-                let (refs, color_const, alpha_const) = if i % 2 == 0 {
-                    (ref_pair.a(), const_pair.color_a(), const_pair.alpha_a())
-                } else {
-                    (ref_pair.b(), const_pair.color_b(), const_pair.alpha_b())
-                };
-
-                TexEnvStage {
-                    ops,
-                    refs,
-                    color_const,
-                    alpha_const,
-                }
-            })
-            .collect::<Vec<_>>();
-
-        let config = TexEnvConfig {
-            stages,
-            constants: sys.gpu.environment.constants,
-        };
-
-        sys.config.renderer.exec(Action::SetTexEnvConfig(config));
+        self::update_tevs(sys);
     }
 
     if reg.is_pixel_clear() {
