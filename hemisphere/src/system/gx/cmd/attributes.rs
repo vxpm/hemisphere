@@ -127,8 +127,8 @@ pub enum NormalKind {
 #[bitos(3)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum NormalFormat {
-    Reserved0 = 0b000,
     #[default]
+    U8 = 0b000,
     I8 = 0b001,
     Reserved1 = 0b010,
     I16 = 0b011,
@@ -141,10 +141,11 @@ pub enum NormalFormat {
 impl NormalFormat {
     pub fn size(self) -> u32 {
         match self {
+            Self::U8 => 1,
             Self::I8 => 1,
             Self::I16 => 2,
             Self::F32 => 4,
-            _ => panic!("reserved format"),
+            _ => panic!("reserved format: {self:?}"),
         }
     }
 }
@@ -171,6 +172,7 @@ impl AttributeDescriptor for NormalDescriptor {
     fn read(&self, reader: &mut BinReader) -> Option<Vec3> {
         let mut component = || {
             Some(match self.format() {
+                NormalFormat::U8 => reader.read_be::<u8>()? as f32,
                 NormalFormat::I8 => reader.read_be::<i8>()? as f32,
                 NormalFormat::I16 => reader.read_be::<i16>()? as f32,
                 NormalFormat::F32 => f32::from_bits(reader.read_be::<u32>()?),
