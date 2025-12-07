@@ -40,5 +40,4 @@ addr2line = { version = "0.25", features = [
     "loader",
 ], default-features = false }
 mapfile_parser = "2.12"
-tikv-jemallocator = "0.6"
 renderdoc = "0.12"

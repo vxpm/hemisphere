@@ -38,9 +38,6 @@ use std::{
 use cores::dsp::interpreter as dspcore;
 use cores::{cpu::jit as jitcore, input};
 
-#[global_allocator]
-static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
-
 struct Ctx<'a> {
     step: bool,
     running: bool,
