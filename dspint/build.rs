@@ -5,7 +5,7 @@ use std::io::Write;
 use std::path::PathBuf;
 
 fn main() {
-    let lut: [String; 1 << 16] = std::array::from_fn(|i| {
+    let lut: Vec<String> = Vec::from_iter((0..(1 << 16)).map(|i| {
         let base = i as u16;
         let opcode = Opcode::find_match(base);
         let extension = opcode
@@ -22,7 +22,7 @@ fn main() {
             },
             opcode.needs_extra(),
         )
-    });
+    }));
 
     let lut = lut.join(", ");
     let code = format!("static DECODING_LUT: [Decoded; 1 << 16] = [{lut}];");
