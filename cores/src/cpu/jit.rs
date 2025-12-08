@@ -22,6 +22,8 @@ use std::{cell::Cell, ops::Range};
 
 pub use ppcjit;
 
+type FxIndexMap<K, V> = IndexMap<K, V, FxBuildHasher>;
+
 const PAGE_SHIFT: usize = 12;
 const PAGE_COUNT: usize = 1 << (32 - PAGE_SHIFT);
 
@@ -38,7 +40,7 @@ struct Mapping {
 
 /// Mapping of addresses to JIT blocks.
 pub struct BlockMapping {
-    tree_map: IndexMap<Address, Mapping, FxBuildHasher>,
+    tree_map: FxIndexMap<Address, Mapping>,
     overlap_lut: Box<[u16; PAGE_COUNT]>,
 
     // caching stuff
@@ -167,17 +169,19 @@ impl Blocks {
             }
         }
 
-        for candidate in self.mapping.to_remove.drain(..) {
-            let mapping = self.mapping.tree_map.swap_remove(&candidate).unwrap();
+        for target in self.mapping.to_remove.drain(..) {
+            let mapping = self.mapping.tree_map.swap_remove(&target).unwrap();
             let block = self.storage.get_mut(mapping.id).unwrap();
+
+            // invalidate links
             for link in block.links.drain(..) {
                 let link = unsafe { link.as_mut().unwrap() };
                 link.link = std::ptr::null();
             }
 
             // update LUT
-            let start_page = candidate.value() >> PAGE_SHIFT;
-            let end_page = (candidate + mapping.length).value() >> PAGE_SHIFT;
+            let start_page = target.value() >> PAGE_SHIFT;
+            let end_page = (target + mapping.length).value() >> PAGE_SHIFT;
             for index in start_page..=end_page {
                 self.mapping.overlap_lut[index as usize] -= 1;
             }
@@ -197,13 +201,13 @@ impl Blocks {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ExitReason {
     None,
-    Idle,
+    IdleLooping,
 }
 
 /// Context to be passed in for execution of JIT blocks.
 struct Context<'a> {
     /// The system state, so that the JIT block can operate on it.
-    system: &'a mut System,
+    sys: &'a mut System,
     /// The block mapping, so that write operations can invalidate blocks.
     blocks: &'a mut Blocks,
     /// List of addresses that need to be invalidated.
@@ -213,16 +217,14 @@ struct Context<'a> {
     /// Maximum instructions we should execute.
     max_instructions: u32,
     /// Last followed link.
-    last_link: BlockFn,
-    /// Pattern of the last followed link.
-    last_pattern: Pattern,
+    last_followed_link: BlockFn,
     /// Reason for exit.
     exit_reason: ExitReason,
 }
 
 static CTX_HOOKS: Hooks = {
     extern "sysv64-unwind" fn get_registers<'a>(ctx: &'a mut Context) -> &'a mut Cpu {
-        &mut ctx.system.cpu
+        &mut ctx.sys.cpu
     }
 
     extern "sysv64-unwind" fn follow_link(
@@ -230,17 +232,17 @@ static CTX_HOOKS: Hooks = {
         ctx: &mut Context,
         link_data: &mut LinkData,
     ) -> bool {
+        // if we have reached cycle or instruction limit, don't follow links, just exit.
         if info.cycles >= ctx.target_cycles || info.instructions >= ctx.max_instructions {
-            ctx.last_link = link_data.link;
-            ctx.last_pattern = link_data.pattern;
+            ctx.last_followed_link = link_data.link;
             return false;
         }
 
+        // otherwise, detect whether we are idle looping and exit too
         let follow = match link_data.pattern {
-            Pattern::None => true,
             Pattern::IdleBasic | Pattern::IdleVolatileRead => {
-                if ctx.last_link == link_data.link {
-                    ctx.exit_reason = ExitReason::Idle;
+                if ctx.last_followed_link == link_data.link {
+                    ctx.exit_reason = ExitReason::IdleLooping;
                     false
                 } else {
                     true
@@ -249,8 +251,8 @@ static CTX_HOOKS: Hooks = {
             _ => true,
         };
 
-        ctx.last_link = link_data.link;
-        ctx.last_pattern = link_data.pattern;
+        // if not idle looping, then sure, follow link
+        ctx.last_followed_link = link_data.link;
         follow
     }
 
@@ -269,8 +271,8 @@ static CTX_HOOKS: Hooks = {
         addr: Address,
         value: &mut P,
     ) -> bool {
-        if let Some(physical) = ctx.system.translate_data_addr(addr) {
-            *value = ctx.system.read(physical);
+        if let Some(physical) = ctx.sys.translate_data_addr(addr) {
+            *value = ctx.sys.read(physical);
             // tracing::debug!(
             //     "reading from logical {addr}, physical {physical}: 0x{:X?}",
             //     value
@@ -278,7 +280,7 @@ static CTX_HOOKS: Hooks = {
             true
         } else {
             std::hint::cold_path();
-            tracing::error!(pc = ?ctx.system.cpu.pc, "failed to translate address {addr}");
+            tracing::error!(pc = ?ctx.sys.cpu.pc, "failed to translate address {addr}");
             false
         }
     }
@@ -288,9 +290,9 @@ static CTX_HOOKS: Hooks = {
         addr: Address,
         value: P,
     ) -> bool {
-        let Some(physical) = ctx.system.translate_data_addr(addr) else {
+        let Some(physical) = ctx.sys.translate_data_addr(addr) else {
             std::hint::cold_path();
-            tracing::error!(pc = ?ctx.system.cpu.pc, "failed to translate address {addr}");
+            tracing::error!(pc = ?ctx.sys.cpu.pc, "failed to translate address {addr}");
             return false;
         };
 
@@ -299,7 +301,7 @@ static CTX_HOOKS: Hooks = {
         //     value
         // );
 
-        ctx.system.write(physical, value);
+        ctx.sys.write(physical, value);
         ctx.to_invalidate.push(addr);
 
         seq! {
@@ -319,13 +321,13 @@ static CTX_HOOKS: Hooks = {
         gqr: u8,
         value: &mut f64,
     ) -> u8 {
-        let Some(physical) = ctx.system.translate_data_addr(addr) else {
+        let Some(physical) = ctx.sys.translate_data_addr(addr) else {
             std::hint::cold_path();
             tracing::error!("failed to translate address {addr}");
             return 0;
         };
 
-        let gqr = ctx.system.cpu.supervisor.gq[gqr as usize].clone();
+        let gqr = ctx.sys.cpu.supervisor.gq[gqr as usize].clone();
         let scale = if gqr.load_type() != QuantizedType::Float {
             gqr.load_scale().value()
         } else {
@@ -333,11 +335,11 @@ static CTX_HOOKS: Hooks = {
         };
 
         let read = match gqr.load_type() {
-            QuantizedType::U8 => ctx.system.read::<u8>(physical) as f64,
-            QuantizedType::U16 => ctx.system.read::<u16>(physical) as f64,
-            QuantizedType::I8 => ctx.system.read::<i8>(physical) as f64,
-            QuantizedType::I16 => ctx.system.read::<i16>(physical) as f64,
-            _ => f32::from_bits(ctx.system.read::<u32>(physical)) as f64,
+            QuantizedType::U8 => ctx.sys.read::<u8>(physical) as f64,
+            QuantizedType::U16 => ctx.sys.read::<u16>(physical) as f64,
+            QuantizedType::I8 => ctx.sys.read::<i8>(physical) as f64,
+            QuantizedType::I16 => ctx.sys.read::<i16>(physical) as f64,
+            _ => f32::from_bits(ctx.sys.read::<u32>(physical)) as f64,
         };
 
         let scaled = read * 2.0f64.powi(-scale as i32);
@@ -352,13 +354,13 @@ static CTX_HOOKS: Hooks = {
         gqr: u8,
         value: f64,
     ) -> u8 {
-        let Some(physical) = ctx.system.translate_data_addr(addr) else {
+        let Some(physical) = ctx.sys.translate_data_addr(addr) else {
             std::hint::cold_path();
             tracing::error!("failed to translate address {addr}");
             return 0;
         };
 
-        let gqr = ctx.system.cpu.supervisor.gq[gqr as usize].clone();
+        let gqr = ctx.sys.cpu.supervisor.gq[gqr as usize].clone();
         let scale = if gqr.store_type() != QuantizedType::Float {
             gqr.store_scale().value()
         } else {
@@ -367,23 +369,23 @@ static CTX_HOOKS: Hooks = {
         let scaled = value * 2.0f64.powi(-scale as i32);
 
         match gqr.store_type() {
-            QuantizedType::U8 => ctx.system.write(physical, scaled as u8),
-            QuantizedType::U16 => ctx.system.write(physical, scaled as u16),
-            QuantizedType::I8 => ctx.system.write(physical, scaled as i8),
-            QuantizedType::I16 => ctx.system.write(physical, scaled as i16),
-            _ => ctx.system.write(physical, (scaled as f32).to_bits()),
+            QuantizedType::U8 => ctx.sys.write(physical, scaled as u8),
+            QuantizedType::U16 => ctx.sys.write(physical, scaled as u16),
+            QuantizedType::I8 => ctx.sys.write(physical, scaled as i8),
+            QuantizedType::I16 => ctx.sys.write(physical, scaled as i16),
+            _ => ctx.sys.write(physical, (scaled as f32).to_bits()),
         }
 
         gqr.store_type().size()
     }
 
     extern "sysv64-unwind" fn cache_dma(ctx: &mut Context) {
-        let dma = ctx.system.cpu.supervisor.config.dma.clone();
+        let dma = ctx.sys.cpu.supervisor.config.dma.clone();
 
         if dma.lower.trigger() {
-            let ram = &mut ctx.system.mem.ram[dma.mem_address().value() as usize..]
-                [..dma.length() as usize];
-            let l2c = &mut ctx.system.mem.l2c[dma.cache_address().value() as usize - 0xE000_0000..]
+            let ram =
+                &mut ctx.sys.mem.ram[dma.mem_address().value() as usize..][..dma.length() as usize];
+            let l2c = &mut ctx.sys.mem.l2c[dma.cache_address().value() as usize - 0xE000_0000..]
                 [..dma.length() as usize];
 
             match dma.lower.direction() {
@@ -396,7 +398,7 @@ static CTX_HOOKS: Hooks = {
             }
         }
 
-        ctx.system
+        ctx.sys
             .cpu
             .supervisor
             .config
@@ -407,49 +409,47 @@ static CTX_HOOKS: Hooks = {
     }
 
     extern "sysv64-unwind" fn msr_changed(ctx: &mut Context) {
-        ctx.system
-            .scheduler
-            .schedule_now(system::pi::check_interrupts);
+        ctx.sys.scheduler.schedule_now(system::pi::check_interrupts);
     }
 
     extern "sysv64-unwind" fn ibat_changed(ctx: &mut Context) {
         tracing::info!("ibats changed - clearing blocks mapping and rebuilding ibat lut");
         ctx.blocks.mapping.clear();
-        ctx.system
+        ctx.sys
             .mmu
-            .build_instr_bat_lut(&ctx.system.cpu.supervisor.memory.ibat);
+            .build_instr_bat_lut(&ctx.sys.cpu.supervisor.memory.ibat);
     }
 
     extern "sysv64-unwind" fn dbat_changed(ctx: &mut Context) {
         tracing::info!("dbats changed - rebuilding dbat lut");
-        ctx.system
+        ctx.sys
             .mmu
-            .build_data_bat_lut(&ctx.system.cpu.supervisor.memory.dbat);
+            .build_data_bat_lut(&ctx.sys.cpu.supervisor.memory.dbat);
     }
 
     extern "sysv64-unwind" fn dec_read(ctx: &mut Context) {
-        ctx.system.update_decrementer();
+        ctx.sys.update_decrementer();
     }
 
     extern "sysv64-unwind" fn dec_changed(ctx: &mut Context) {
-        ctx.system.lazy.last_updated_dec = ctx.system.scheduler.elapsed_time_base();
-        ctx.system.scheduler.cancel(System::decrementer_overflow);
+        ctx.sys.lazy.last_updated_dec = ctx.sys.scheduler.elapsed_time_base();
+        ctx.sys.scheduler.cancel(System::decrementer_overflow);
 
-        let dec = ctx.system.cpu.supervisor.misc.dec;
+        let dec = ctx.sys.cpu.supervisor.misc.dec;
         tracing::trace!("decrementer changed to {dec}");
 
-        ctx.system
+        ctx.sys
             .scheduler
             .schedule(dec as u64, System::decrementer_overflow);
     }
 
     extern "sysv64-unwind" fn tb_read(ctx: &mut Context) {
-        ctx.system.update_time_base();
+        ctx.sys.update_time_base();
     }
 
     extern "sysv64-unwind" fn tb_changed(ctx: &mut Context) {
-        ctx.system.lazy.last_updated_tb = ctx.system.scheduler.elapsed_time_base();
-        tracing::info!("time base changed to {}", ctx.system.cpu.supervisor.misc.tb);
+        ctx.sys.lazy.last_updated_tb = ctx.sys.scheduler.elapsed_time_base();
+        tracing::info!("time base changed to {}", ctx.sys.cpu.supervisor.misc.tb);
     }
 
     #[expect(
@@ -636,14 +636,13 @@ impl JitCore {
         };
 
         let mut ctx = Context {
-            system: sys,
+            sys,
             blocks: &mut self.blocks,
             to_invalidate: &mut self.to_invalidate,
             target_cycles,
             max_instructions,
 
-            last_link: std::ptr::null(),
-            last_pattern: Pattern::None,
+            last_followed_link: std::ptr::null(),
             exit_reason: ExitReason::None,
         };
 
@@ -655,7 +654,7 @@ impl JitCore {
             )
         };
 
-        let cycles = if ctx.exit_reason == ExitReason::Idle {
+        let cycles = if ctx.exit_reason == ExitReason::IdleLooping {
             std::hint::cold_path();
             Cycles(target_cycles as u64)
         } else {

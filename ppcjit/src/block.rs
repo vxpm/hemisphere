@@ -2,6 +2,7 @@ use crate::Sequence;
 use cranelift::{codegen::ir, prelude::isa};
 use gekko::{Address, Cpu};
 
+#[derive(Debug)]
 #[repr(C)]
 pub struct LinkData {
     /// Linked block
@@ -187,7 +188,7 @@ pub struct Executed {
 }
 
 /// A block pattern.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum Pattern {
     /// No known pattern.

@@ -58,7 +58,7 @@ impl BlockBuilder<'_> {
                 link_data_symbol,
                 &cranelift::module::DataDescription {
                     init: cranelift::module::Init::Zeros {
-                        size: size_of::<usize>() + 1,
+                        size: 2 * size_of::<usize>(),
                     },
                     ..cranelift::module::DataDescription::new()
                 },
@@ -112,7 +112,7 @@ impl BlockBuilder<'_> {
         self.bd.seal_block(exit);
         self.bd.set_cold_block(exit);
 
-        // => exit
+        // => dont follow link, exit
         self.bd.switch_to_block(exit);
         self.set(Reg::PC, destination);
         self.flush();
@@ -120,7 +120,6 @@ impl BlockBuilder<'_> {
 
         // => follow link
         self.bd.switch_to_block(follow_link);
-
         self.set(Reg::PC, destination);
         self.flush();
 

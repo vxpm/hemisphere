@@ -4,11 +4,11 @@ list:
 
 # Builds the ipl-hle binary, copies it to the resources folder and converts it to a .dol
 build:
-    @echo -e "=> Building ipl-hle.elf ..."
+    @echo "=> Building ipl-hle.elf ..."
     @cargo build --release
-    @echo -e "=> Copying ipl-hle.elf to local resources folder ..."
+    @echo "=> Copying ipl-hle.elf to local resources folder ..."
     @cp ../target/powerpc-nintendo-gamecube-eabi/release/ipl-hle.elf ../local/ipl-hle.elf
-    @echo -e "=> Converting ipl-hle.elf to ipl-hle.dol ..."
+    @echo "=> Converting ipl-hle.elf to ipl-hle.dol ..."
     @cd .. && cargo run -q -p cubetool convert -i local/ipl-hle.elf -o local/ipl-hle.dol
-    @echo -e "=> Done!"
+    @echo "=> Done!"
     @cd .. && cargo run -q -p cubetool inspect -i local/ipl-hle.dol
