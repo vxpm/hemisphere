@@ -16,7 +16,7 @@ struct Region {
 }
 
 impl Region {
-    pub fn new(addr_hint: Option<NonZeroUsize>, len: usize) -> Self {
+    fn new(addr_hint: Option<NonZeroUsize>, len: usize) -> Self {
         let len = len.max(REGION_MIN_LEN);
         let region = unsafe {
             mman::mmap_anonymous(
@@ -31,6 +31,24 @@ impl Region {
         Self {
             ptr: region.cast(),
             len,
+        }
+    }
+
+    unsafe fn protect(&self, length: usize, protection: Protection) {
+        unsafe {
+            match protection {
+                Protection::ReadExec => mman::mprotect(
+                    self.ptr.cast(),
+                    length,
+                    ProtFlags::PROT_READ | ProtFlags::PROT_EXEC,
+                ),
+                Protection::ReadWrite => mman::mprotect(
+                    self.ptr.cast(),
+                    length,
+                    ProtFlags::PROT_READ | ProtFlags::PROT_WRITE,
+                ),
+            }
+            .unwrap()
         }
     }
 }
@@ -67,22 +85,24 @@ impl DerefMut for Allocation<ReadWrite> {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Protection {
+    ReadExec,
+    ReadWrite,
+}
+
 pub trait AllocKind {
-    fn flags() -> ProtFlags;
+    const PROTECTION: Protection;
 }
 
 pub struct Exec;
 impl AllocKind for Exec {
-    fn flags() -> ProtFlags {
-        ProtFlags::PROT_READ | ProtFlags::PROT_EXEC
-    }
+    const PROTECTION: Protection = Protection::ReadExec;
 }
 
 pub struct ReadWrite;
 impl AllocKind for ReadWrite {
-    fn flags() -> ProtFlags {
-        ProtFlags::PROT_READ | ProtFlags::PROT_WRITE
-    }
+    const PROTECTION: Protection = Protection::ReadWrite;
 }
 
 pub struct Allocator<K> {
@@ -146,10 +166,7 @@ where
 
     pub fn allocate_uninit(&mut self, alignment: usize, length: usize) -> Allocation<K> {
         let (region, alloc) = self.allocate_inner(alignment, length);
-
-        unsafe {
-            mman::mprotect(region.ptr.cast(), self.offset, K::flags()).unwrap();
-        }
+        unsafe { region.protect(self.offset, K::PROTECTION) };
 
         alloc
     }
@@ -158,9 +175,11 @@ where
         let (region, alloc) = self.allocate_inner(alignment, data.len());
 
         unsafe {
-            mman::mprotect(region.ptr.cast(), self.offset, ProtFlags::PROT_WRITE).unwrap();
+            region.protect(self.offset, Protection::ReadWrite);
             std::ptr::copy_nonoverlapping(data.as_ptr(), alloc.0.as_ptr().cast(), data.len());
-            mman::mprotect(region.ptr.cast(), self.offset, K::flags()).unwrap();
+            if K::PROTECTION != Protection::ReadWrite {
+                region.protect(self.offset, K::PROTECTION);
+            }
         }
 
         alloc

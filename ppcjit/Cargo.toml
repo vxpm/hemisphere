@@ -17,5 +17,10 @@ rustc-hash.workspace = true
 zerocopy.workspace = true
 tracing.workspace = true
 
-nix = { version = "0.30", features = ["mman"] }
 cranelift = { version = "0.126", features = ["frontend", "native"] }
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = ">=0.59", features = ["Win32_System_Memory"] }
+
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.30", features = ["mman"] }
