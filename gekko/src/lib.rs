@@ -935,7 +935,12 @@ impl DmaConfig {
     }
 
     pub fn length(&self) -> u32 {
-        (self.upper.length_upper().value() << 2 | self.lower.length_lower().value()) as u32 * 32
+        let base = 0
+            .with_bits(0, 2, self.lower.length_lower().value() as u32)
+            .with_bits(2, 7, self.upper.length_upper().value() as u32)
+            << 5;
+
+        if base == 0 { 4096 } else { base }
     }
 }
 

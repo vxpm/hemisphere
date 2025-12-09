@@ -388,6 +388,8 @@ static CTX_HOOKS: Hooks = {
             let l2c = &mut ctx.sys.mem.l2c[dma.cache_address().value() as usize - 0xE000_0000..]
                 [..dma.length() as usize];
 
+            debug_assert!(dma.length() <= 4096);
+
             match dma.lower.direction() {
                 gekko::DmaDirection::FromCacheToRam => {
                     ram.copy_from_slice(l2c);
