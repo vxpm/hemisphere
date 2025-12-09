@@ -1,10 +1,15 @@
-use nix::sys::mman::{self, MapFlags, ProtFlags};
 use std::{
     marker::PhantomData,
     num::NonZeroUsize,
     ops::{Deref, DerefMut},
     ptr::NonNull,
 };
+
+#[cfg(target_family = "unix")]
+use nix::sys::mman::{self, MapFlags, ProtFlags};
+
+#[cfg(target_family = "windows")]
+use windows::Win32::System::Memory;
 
 const REGION_MIN_LEN: usize = 1 << 16;
 
@@ -18,6 +23,8 @@ struct Region {
 impl Region {
     fn new(addr_hint: Option<NonZeroUsize>, len: usize) -> Self {
         let len = len.max(REGION_MIN_LEN);
+
+        #[cfg(target_family = "unix")]
         let region = unsafe {
             mman::mmap_anonymous(
                 addr_hint,
@@ -28,6 +35,29 @@ impl Region {
         }
         .unwrap();
 
+        #[cfg(target_family = "windows")]
+        let region = unsafe {
+            let addr_hint_ptr = addr_hint.map(|p| std::ptr::with_exposed_provenance(p.get()));
+            let result = Memory::VirtualAlloc(
+                addr_hint_ptr,
+                len,
+                Memory::MEM_RESERVE | Memory::MEM_COMMIT,
+                Memory::PAGE_NOACCESS,
+            );
+
+            if let Some(region) = NonNull::new(result) {
+                region
+            } else {
+                NonNull::new(Memory::VirtualAlloc(
+                    None,
+                    len,
+                    Memory::MEM_RESERVE | Memory::MEM_COMMIT,
+                    Memory::PAGE_NOACCESS,
+                ))
+                .unwrap()
+            }
+        };
+
         Self {
             ptr: region.cast(),
             len,
@@ -35,6 +65,7 @@ impl Region {
     }
 
     unsafe fn protect(&self, length: usize, protection: Protection) {
+        #[cfg(target_family = "unix")]
         unsafe {
             match protection {
                 Protection::ReadExec => mman::mprotect(
@@ -46,6 +77,26 @@ impl Region {
                     self.ptr.cast(),
                     length,
                     ProtFlags::PROT_READ | ProtFlags::PROT_WRITE,
+                ),
+            }
+            .unwrap()
+        }
+
+        #[cfg(target_family = "windows")]
+        unsafe {
+            let mut previous = Memory::PAGE_PROTECTION_FLAGS(0);
+            match protection {
+                Protection::ReadExec => Memory::VirtualProtect(
+                    self.ptr.as_ptr().cast(),
+                    length,
+                    Memory::PAGE_EXECUTE_READ,
+                    &raw mut previous,
+                ),
+                Protection::ReadWrite => Memory::VirtualProtect(
+                    self.ptr.as_ptr().cast(),
+                    length,
+                    Memory::PAGE_READWRITE,
+                    &raw mut previous,
                 ),
             }
             .unwrap()

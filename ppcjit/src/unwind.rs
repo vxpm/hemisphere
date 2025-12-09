@@ -64,7 +64,7 @@ mod dummy {
     pub struct UnwindHandle;
 
     impl UnwindHandle {
-        pub fn new(isa: &dyn TargetIsa, addr: usize, info: &UnwindInfo) -> Option<Self> {
+        pub unsafe fn new(_: &dyn TargetIsa, _: usize, _: &UnwindInfo) -> Option<Self> {
             None
         }
     }
