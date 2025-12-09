@@ -6,7 +6,7 @@ use wesl::{VirtualResolver, Wesl};
 
 fn base_module() -> wesl::syntax::TranslationUnit {
     use wesl::syntax::*;
-    wesl::quote_module! {
+    wesl_quote::quote_module! {
         alias MatIdx = u32;
 
         const PLACEHOLDER_RGB: vec3f = vec3f(1.0, 0.0, 0.8627);
@@ -125,7 +125,7 @@ fn base_module() -> wesl::syntax::TranslationUnit {
 
 fn compute_channels() -> [wesl::syntax::GlobalDeclaration; 2] {
     use wesl::syntax::*;
-    let color = wesl::quote_declaration! {
+    let color = wesl_quote::quote_declaration! {
         fn compute_color_channel(vertex_pos: vec3f, vertex_normal: vec3f, vertex_color: vec3f, index: u32, config: base::Config) -> vec3f {
             let channel = config.color_channels[index];
 
@@ -212,7 +212,7 @@ fn compute_channels() -> [wesl::syntax::GlobalDeclaration; 2] {
         }
     };
 
-    let alpha = wesl::quote_declaration! {
+    let alpha = wesl_quote::quote_declaration! {
         fn compute_alpha_channel(vertex_pos: vec3f, vertex_normal: vec3f, vertex_alpha: f32, index: u32, config: base::Config) -> f32 {
             let channel = config.alpha_channels[index];
 
@@ -314,7 +314,7 @@ fn vertex_stage(texgen: &TexGenSettings) -> wesl::syntax::GlobalDeclaration {
         let normalized = texgen::normalize(stage.normalize, output);
         let result = texgen::post_transform(index as u32, normalized);
 
-        stages.push(wesl::quote_statement! {
+        stages.push(wesl_quote::quote_statement! {
             {
                 let matrix = vertex.tex_coord_mat[#index];
                 tex_coords[#index] = #result;
@@ -322,7 +322,7 @@ fn vertex_stage(texgen: &TexGenSettings) -> wesl::syntax::GlobalDeclaration {
         });
     }
 
-    stages.resize(16, wesl::quote_statement!({}));
+    stages.resize(16, wesl_quote::quote_statement!({}));
     let [
         s0,
         s1,
@@ -342,7 +342,7 @@ fn vertex_stage(texgen: &TexGenSettings) -> wesl::syntax::GlobalDeclaration {
         s15,
     ] = stages.try_into().unwrap();
 
-    let compute_stages = wesl::quote_statement!({
+    let compute_stages = wesl_quote::quote_statement!({
         @#s0 {}
         @#s1 {}
         @#s2 {}
@@ -361,7 +361,7 @@ fn vertex_stage(texgen: &TexGenSettings) -> wesl::syntax::GlobalDeclaration {
         @#s15 {}
     });
 
-    wesl::quote_declaration! {
+    wesl_quote::quote_declaration! {
         @vertex
         fn vs_main(@builtin(vertex_index) index: u32) -> base::VertexOutput {
             var out: base::VertexOutput;
@@ -415,7 +415,7 @@ fn fragment_stage(texenv: &TexEnvSettings) -> wesl::syntax::GlobalDeclaration {
         let color_compute = texenv::color_stage(stage);
         let alpha_compute = texenv::alpha_stage(stage);
 
-        stages.push(wesl::quote_statement! {
+        stages.push(wesl_quote::quote_statement! {
             {
                 @#color_compute {}
                 @#alpha_compute {}
@@ -423,7 +423,7 @@ fn fragment_stage(texenv: &TexEnvSettings) -> wesl::syntax::GlobalDeclaration {
         });
     }
 
-    stages.resize(16, wesl::quote_statement!({}));
+    stages.resize(16, wesl_quote::quote_statement!({}));
     let [
         s0,
         s1,
@@ -443,7 +443,7 @@ fn fragment_stage(texenv: &TexEnvSettings) -> wesl::syntax::GlobalDeclaration {
         s15,
     ] = stages.try_into().unwrap();
 
-    let compute_stages = wesl::quote_statement!({
+    let compute_stages = wesl_quote::quote_statement!({
         @#s0 {}
         @#s1 {}
         @#s2 {}
@@ -464,7 +464,7 @@ fn fragment_stage(texenv: &TexEnvSettings) -> wesl::syntax::GlobalDeclaration {
 
     let alpha_comparison = texenv::get_alpha_comparison(&texenv.alpha_function);
 
-    wesl::quote_declaration! {
+    wesl_quote::quote_declaration! {
         @fragment
         fn fs_main(in: base::VertexOutput) -> base::FragmentOutput {
             const R0: u32 = 1;
@@ -512,12 +512,12 @@ fn fragment_stage(texenv: &TexEnvSettings) -> wesl::syntax::GlobalDeclaration {
 fn main_module(texenv: &TexEnvSettings, texgen: &TexGenSettings) -> wesl::syntax::TranslationUnit {
     use wesl::syntax::*;
 
-    let extensions = wesl::quote_directive!(enable dual_source_blending;);
+    let extensions = wesl_quote::quote_directive!(enable dual_source_blending;);
     let [color_chan, alpha_chan] = compute_channels();
     let vertex = vertex_stage(texgen);
     let fragment = fragment_stage(texenv);
 
-    let mut module = wesl::quote_module! {
+    let mut module = wesl_quote::quote_module! {
         import package::base;
 
         const #color_chan = 0;

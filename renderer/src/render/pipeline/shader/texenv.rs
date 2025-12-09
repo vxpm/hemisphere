@@ -5,7 +5,7 @@ use hemisphere::{
         CompareTarget, Constant,
     },
 };
-use wesl::quote_expression;
+use wesl_quote::quote_expression;
 
 use crate::render::pipeline::AlphaFunctionSettings;
 
@@ -167,7 +167,7 @@ fn comparative_color_stage(stage: &TexEnvStage) -> wesl::syntax::Statement {
         quote_expression! { clamp(color_compare, vec3f(0f), vec3f(1f)) }
     };
 
-    wesl::quote_statement! {
+    wesl_quote::quote_statement! {
         {
             let input_a = #input_a;
             let input_a_uint = base::vec4f_to_vec4u(#input_a);
@@ -206,7 +206,7 @@ fn regular_color_stage(stage: &TexEnvStage) -> wesl::syntax::Statement {
         quote_expression! { clamp(color_add_mul, vec3f(0f), vec3f(1f)) }
     };
 
-    wesl::quote_statement! {
+    wesl_quote::quote_statement! {
         {
             let input_a = #input_a.rgb;
             let input_b = #input_b.rgb;
@@ -328,7 +328,7 @@ fn comparative_alpha_stage(stage: &TexEnvStage) -> wesl::syntax::Statement {
         quote_expression! { clamp(alpha_compare, 0f, 1f) }
     };
 
-    wesl::quote_statement! {
+    wesl_quote::quote_statement! {
         {
             let input_a = #input_a;
             let input_a_uint = base::vec4f_to_vec4u(#input_a);
@@ -367,7 +367,7 @@ fn regular_alpha_stage(stage: &TexEnvStage) -> wesl::syntax::Statement {
         quote_expression! { clamp(alpha_add_mul, 0f, 1f) }
     };
 
-    wesl::quote_statement! {
+    wesl_quote::quote_statement! {
         {
             let input_a = #input_a.a;
             let input_b = #input_b.a;

@@ -144,10 +144,10 @@ wgpu = { version = "27.0", features = [
     "wgsl",
 ], default-features = false }
 zerocopy = { version = "0.8", features = ["derive"] }
-wesl = { git = "https://github.com/wgsl-tooling-wg/wesl-rs", features = [
+wesl = { git = "https://github.com/wgsl-tooling-wg/wesl-rs", default-features = false, features = [
     "eval",
-    "quote",
-], default-features = false }
+] }
+wesl-quote = { git = "https://github.com/wgsl-tooling-wg/wesl-rs" }
 eyre-pretty = { git = "https://github.com/vxpm/eyre-pretty" }
 nanorand = "0.8"
 ordered-float = "5"
