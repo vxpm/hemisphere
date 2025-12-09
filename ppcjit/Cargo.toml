@@ -12,7 +12,6 @@ gekko.workspace = true
 
 bitos.workspace = true
 easyerr.workspace = true
-memmap2.workspace = true
 rustc-hash.workspace = true
 zerocopy.workspace = true
 tracing.workspace = true
