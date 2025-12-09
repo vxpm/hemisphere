@@ -9,7 +9,9 @@ use std::{
 use nix::sys::mman::{self, MapFlags, ProtFlags};
 
 #[cfg(target_family = "windows")]
-use windows::Win32::System::Memory;
+use windows::Win32::System::{
+    Diagnostics::Debug::FlushInstructionCache, Memory, Threading::GetCurrentProcess,
+};
 
 const REGION_MIN_LEN: usize = 1 << 16;
 
@@ -230,6 +232,12 @@ where
             std::ptr::copy_nonoverlapping(data.as_ptr(), alloc.0.as_ptr().cast(), data.len());
             if K::PROTECTION != Protection::ReadWrite {
                 region.protect(self.offset, K::PROTECTION);
+            }
+
+            #[cfg(target_family = "windows")]
+            {
+                let process = GetCurrentProcess();
+                FlushInstructionCache(process, Some(alloc.0.as_ptr().cast()), data.len()).unwrap();
             }
         }
 
