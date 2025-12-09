@@ -552,7 +552,7 @@ impl Default for Config {
 
 pub struct JitCore {
     pub config: Config,
-    pub compiler: ppcjit::Compiler,
+    pub compiler: ppcjit::JIT,
     pub trampoline: Trampoline,
     pub blocks: Blocks,
 
@@ -561,7 +561,7 @@ pub struct JitCore {
 
 impl JitCore {
     pub fn new(config: Config) -> Self {
-        let mut compiler = ppcjit::Compiler::new(config.jit_settings.clone());
+        let mut compiler = ppcjit::JIT::new(config.jit_settings.clone());
         let trampoline = compiler.trampoline();
 
         Self {

@@ -9,15 +9,13 @@ mod others;
 mod util;
 
 use crate::{
-    Sequence, Settings,
+    Compiler, Sequence,
     block::{Hooks, Info},
     builder::util::IntoIrValue,
 };
 use cranelift::{
     codegen::ir::{self, SigRef},
     frontend,
-    jit::JITModule,
-    module::Module,
     prelude::InstBuilder,
 };
 use easyerr::Error;
@@ -105,8 +103,7 @@ struct CachedValue {
 
 /// Structure to build JIT blocks.
 pub struct BlockBuilder<'ctx> {
-    settings: Settings,
-    module: &'ctx mut JITModule,
+    compiler: &'ctx mut Compiler,
     bd: frontend::FunctionBuilder<'ctx>,
     cache: FxHashMap<Reg, CachedValue>,
     ps_cache: FxHashMap<FPR, CachedValue>,
@@ -125,19 +122,13 @@ pub struct BlockBuilder<'ctx> {
 }
 
 impl<'ctx> BlockBuilder<'ctx> {
-    pub fn new(
-        settings: &'ctx Settings,
-        func: &'ctx mut ir::Function,
-        module: &'ctx mut JITModule,
-        ctx: &'ctx mut frontend::FunctionBuilderContext,
-    ) -> Self {
-        let mut builder = frontend::FunctionBuilder::new(func, ctx);
+    pub fn new(compiler: &'ctx mut Compiler, mut builder: frontend::FunctionBuilder<'ctx>) -> Self {
         let entry_bb = builder.create_block();
         builder.append_block_params_for_function_params(entry_bb);
         builder.switch_to_block(entry_bb);
         builder.seal_block(entry_bb);
 
-        let ptr_type = module.isa().pointer_type();
+        let ptr_type = compiler.isa.pointer_type();
         let params = builder.block_params(entry_bb);
         let info_ptr = params[0];
         let ctx_ptr = params[1];
@@ -171,8 +162,7 @@ impl<'ctx> BlockBuilder<'ctx> {
         };
 
         Self {
-            settings: settings.clone(),
-            module,
+            compiler,
             bd: builder,
             cache: FxHashMap::default(),
             ps_cache: FxHashMap::default(),
@@ -675,14 +665,14 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Xori => self.xori(ins),
             Opcode::Xoris => self.xoris(ins),
             Opcode::Illegal => {
-                if self.settings.ignore_unimplemented {
+                if self.compiler.settings.ignore_unimplemented {
                     self.stub(ins)
                 } else {
                     return Err(BuilderError::Illegal(ins));
                 }
             }
             _ => {
-                if self.settings.ignore_unimplemented {
+                if self.compiler.settings.ignore_unimplemented {
                     self.stub(ins)
                 } else {
                     todo!("unimplemented instruction {ins:?}")

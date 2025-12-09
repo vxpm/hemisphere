@@ -1,23 +1,25 @@
 #![feature(debug_closure_helpers)]
 
+mod allocator;
 mod builder;
+mod module;
 mod sequence;
 mod unwind;
 
 pub mod block;
 
+use std::sync::Arc;
+
 use crate::{
     block::{Meta, Trampoline},
     builder::BlockBuilder,
+    module::Module,
     unwind::UnwindHandle,
 };
 use cranelift::{
     codegen::{self, ir},
-    frontend,
-    jit::{ArenaMemoryProvider, JITBuilder, JITModule},
-    module::{Linkage, Module},
-    native,
-    prelude::{Configurable, InstBuilder},
+    frontend, native,
+    prelude::{Configurable, InstBuilder, isa::TargetIsa},
 };
 use easyerr::{Error, ResultExt};
 use gekko::disasm::Ins;
@@ -45,12 +47,10 @@ impl Default for Settings {
     }
 }
 
-/// A JIT compiler, producing [`Block`]s.
-pub struct Compiler {
+struct Compiler {
     settings: Settings,
-    module: JITModule,
-    func_ctx: frontend::FunctionBuilderContext,
-    count: u64,
+    isa: Arc<dyn TargetIsa>,
+    module: Module,
 }
 
 impl Default for Compiler {
@@ -80,18 +80,29 @@ impl Default for Compiler {
             .finish(codegen::settings::Flags::new(settings))
             .unwrap();
 
-        let mut builder = JITBuilder::with_isa(isa, cranelift::module::default_libcall_names());
-        builder.memory_provider(Box::new(
-            ArenaMemoryProvider::new_with_size(512 * 1024 * 1024).unwrap(),
-        ));
-
-        let module = JITModule::new(builder);
-
-        Self {
-            module,
+        Compiler {
+            isa,
             settings: Default::default(),
+            module: Module::new(),
+        }
+    }
+}
+
+/// A JIT compiler, producing [`Block`]s.
+pub struct JIT {
+    compiler: Compiler,
+    code_ctx: codegen::Context,
+    func_ctx: frontend::FunctionBuilderContext,
+    compiled_count: u64,
+}
+
+impl Default for JIT {
+    fn default() -> Self {
+        Self {
+            compiler: Compiler::default(),
+            code_ctx: codegen::Context::new(),
             func_ctx: frontend::FunctionBuilderContext::new(),
-            count: 0,
+            compiled_count: 0,
         }
     }
 }
@@ -106,16 +117,19 @@ pub enum BuildError {
     Codegen { source: codegen::CodegenError },
 }
 
-impl Compiler {
+impl JIT {
     pub fn new(settings: Settings) -> Self {
         Self {
-            settings,
+            compiler: Compiler {
+                settings,
+                ..Default::default()
+            },
             ..Default::default()
         }
     }
 
     fn block_signature(&self) -> ir::Signature {
-        let ptr = self.module.isa().pointer_type();
+        let ptr = self.compiler.isa.pointer_type();
         ir::Signature {
             params: vec![ir::AbiParam::new(ptr); 3],
             returns: vec![],
@@ -124,7 +138,7 @@ impl Compiler {
     }
 
     fn trampoline_signature(&self) -> ir::Signature {
-        let ptr = self.module.isa().pointer_type();
+        let ptr = self.compiler.isa.pointer_type();
         ir::Signature {
             params: vec![ir::AbiParam::new(ptr); 4],
             returns: vec![],
@@ -160,19 +174,16 @@ impl Compiler {
         builder.ins().return_(&[]);
         builder.finalize();
 
-        let mut ctx = self.module.make_context();
-        ctx.func = func;
-
-        let id = self
-            .module
-            .declare_anonymous_function(&ctx.func.signature)
+        self.code_ctx.clear();
+        self.code_ctx.func = func;
+        self.code_ctx
+            .compile(&*self.compiler.isa, &mut Default::default())
             .unwrap();
 
-        self.module.define_function(id, &mut ctx).unwrap();
-        self.module.finalize_definitions().unwrap();
+        let compiled = self.code_ctx.take_compiled_code().unwrap();
+        let alloc = self.compiler.module.allocate_code(compiled.code_buffer());
 
-        let ptr = self.module.get_finalized_function(id);
-        Trampoline(ptr)
+        Trampoline(alloc)
     }
 
     /// Compiles a block with the given instructions (up until a terminal instruction or the end of
@@ -184,12 +195,9 @@ impl Compiler {
         let mut func = ir::Function::new();
         func.signature = self.block_signature();
 
-        let builder = BlockBuilder::new(
-            &self.settings,
-            &mut func,
-            &mut self.module,
-            &mut self.func_ctx,
-        );
+        let func_builder = frontend::FunctionBuilder::new(&mut func, &mut self.func_ctx);
+        let builder = BlockBuilder::new(&mut self.compiler, func_builder);
+
         let (sequence, cycles) = builder.build(instructions).context(BuildCtx::Builder)?;
         if sequence.is_empty() {
             return Err(BuildError::EmptyBlock);
@@ -206,36 +214,28 @@ impl Compiler {
             seq: sequence,
         };
 
-        let mut ctx = self.module.make_context();
-        ctx.func = func;
-
-        let id = self
-            .module
-            .declare_function(
-                &format!("block_{}", self.count),
-                Linkage::Export,
-                &ctx.func.signature,
-            )
+        self.code_ctx.clear();
+        self.code_ctx.func = func;
+        self.code_ctx
+            .compile(&*self.compiler.isa, &mut Default::default())
             .unwrap();
 
-        self.module.define_function(id, &mut ctx).unwrap();
-        self.module.finalize_definitions().unwrap();
+        let compiled = self.code_ctx.compiled_code().unwrap();
+        let alloc = self.compiler.module.allocate_code(compiled.code_buffer());
 
-        let ptr = self.module.get_finalized_function(id);
-        let code = ctx.compiled_code().unwrap();
-
-        let unwind_handle =
-            if let Ok(Some(unwind_info)) = code.create_unwind_info(self.module.isa()) {
-                unsafe { UnwindHandle::new(self.module.isa(), ptr.addr(), &unwind_info) }
-            } else {
-                None
-            };
+        let unwind_handle = if let Ok(Some(unwind_info)) =
+            compiled.create_unwind_info(&*self.compiler.isa)
+        {
+            unsafe { UnwindHandle::new(&*self.compiler.isa, alloc.as_ptr().addr(), &unwind_info) }
+        } else {
+            None
+        };
 
         // TODO: remove this and deal with handles
         std::mem::forget(unwind_handle);
 
-        let block = Block::new(ptr, meta);
-        self.count += 1;
+        let block = Block::new(alloc, meta);
+        self.compiled_count += 1;
 
         Ok(block)
     }

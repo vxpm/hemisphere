@@ -1,4 +1,7 @@
-use crate::Sequence;
+use crate::{
+    Sequence,
+    allocator::{Allocation, Exec},
+};
 use cranelift::{codegen::ir, prelude::isa};
 use gekko::{Address, Cpu};
 
@@ -220,16 +223,15 @@ pub struct Meta {
 /// memory behind the block.
 ///
 /// In order to call a block, you need a trampoline.
-#[derive(Clone)]
 pub struct Block {
-    code: *const u8,
+    code: Allocation<Exec>,
     meta: Meta,
 }
 
 pub type BlockFn = *const std::ffi::c_void;
 
 impl Block {
-    pub(crate) fn new(code: *const u8, meta: Meta) -> Self {
+    pub(crate) fn new(code: Allocation<Exec>, meta: Meta) -> Self {
         // let _unwind = if let Ok(Some(unwind_info)) = code.create_unwind_info(isa) {
         //     unsafe { UnwindHandle::new(isa, ptr.addr(), &unwind_info) }
         // } else {
@@ -246,11 +248,11 @@ impl Block {
 
     /// Returns a pointer to the function of this block.
     pub fn as_ptr(&self) -> BlockFn {
-        self.code.cast()
+        self.code.as_ptr().cast()
     }
 }
 
-pub struct Trampoline(pub(super) *const u8);
+pub struct Trampoline(pub(super) Allocation<Exec>);
 
 type TrampolineFn = extern "sysv64-unwind" fn(*mut Info, *mut Context, *const Hooks, BlockFn);
 
@@ -262,7 +264,7 @@ impl Trampoline {
             cycles: 0,
         };
 
-        let trampoline: TrampolineFn = unsafe { std::mem::transmute(self.0) };
+        let trampoline: TrampolineFn = unsafe { std::mem::transmute(self.0.as_ptr()) };
         trampoline(&raw mut info, ctx, hooks, block);
 
         info

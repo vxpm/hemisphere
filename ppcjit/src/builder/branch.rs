@@ -6,7 +6,7 @@ use crate::{
     builder::{Action, InstructionInfo, util::IntoIrValue},
 };
 use bitos::{bitos, integer::u5};
-use cranelift::{codegen::ir, module::Module, prelude::InstBuilder};
+use cranelift::{codegen::ir, prelude::InstBuilder};
 use gekko::{Reg, SPR, disasm::Ins};
 
 const UNCONDITIONAL_BRANCH_INFO: InstructionInfo = InstructionInfo {
@@ -51,23 +51,11 @@ impl BranchOptions {
 
 impl BlockBuilder<'_> {
     fn jump_with_block_link(&mut self, destination: ir::Value) {
-        // define storage for the link data
-        let link_data_symbol = self.module.declare_anonymous_data(true, false).unwrap();
-        self.module
-            .define_data(
-                link_data_symbol,
-                &cranelift::module::DataDescription {
-                    init: cranelift::module::Init::Zeros {
-                        size: 2 * size_of::<usize>(),
-                    },
-                    ..cranelift::module::DataDescription::new()
-                },
-            )
-            .unwrap();
-
-        let link_data_global = self
+        // allocate some storage for the link data
+        let link_data = self
+            .compiler
             .module
-            .declare_data_in_func(link_data_symbol, &mut self.bd.func);
+            .allocate_data(align_of::<usize>(), 2 * size_of::<usize>());
 
         self.update_info();
         self.flush();
@@ -76,7 +64,7 @@ impl BlockBuilder<'_> {
         let link_data_ptr = self
             .bd
             .ins()
-            .global_value(self.consts.ptr_type, link_data_global);
+            .iconst(self.consts.ptr_type, link_data.as_ptr().addr() as i64);
 
         let follow_link_hook = self.bd.ins().load(
             self.consts.ptr_type,

@@ -17,9 +17,5 @@ rustc-hash.workspace = true
 zerocopy.workspace = true
 tracing.workspace = true
 
-cranelift = { version = "0.126", features = [
-    "frontend",
-    "native",
-    "module",
-    "jit",
-] }
+nix = { version = "0.30", features = ["mman"] }
+cranelift = { version = "0.126", features = ["frontend", "native"] }

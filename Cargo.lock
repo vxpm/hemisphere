@@ -778,7 +778,6 @@ checksum = "68971376deb1edf5e9c0ac77ef00479d740ce7a60e6181adb0648afe1dc7b8f4"
 dependencies = [
  "cranelift-codegen",
  "cranelift-frontend",
- "cranelift-jit",
  "cranelift-module",
  "cranelift-native",
 ]
@@ -895,26 +894,6 @@ name = "cranelift-isle"
 version = "0.126.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "acd811b25e18f14810d09c504e06098acc1d9dbfa24879bf0d6b6fb44415fc66"
-
-[[package]]
-name = "cranelift-jit"
-version = "0.126.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "01527663ba63c10509d7c87fd1f8495d21170ba35bf714f57271495689d8fde5"
-dependencies = [
- "anyhow",
- "cranelift-codegen",
- "cranelift-control",
- "cranelift-entity",
- "cranelift-module",
- "cranelift-native",
- "libc",
- "log",
- "region",
- "target-lexicon",
- "wasmtime-internal-jit-icache-coherence",
- "windows-sys 0.60.2",
-]
 
 [[package]]
 name = "cranelift-module"
@@ -3260,6 +3239,7 @@ dependencies = [
  "easyerr",
  "gekko",
  "memmap2",
+ "nix",
  "rustc-hash 2.1.1",
  "tracing",
  "zerocopy",
@@ -3449,18 +3429,6 @@ name = "regex-syntax"
 version = "0.8.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a2d987857b319362043e95f5353c0535c1f58eec5336fdfcf626430af7def58"
-
-[[package]]
-name = "region"
-version = "3.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e6b6ebd13bc009aef9cd476c1310d49ac354d36e240cf1bd753290f3dc7199a7"
-dependencies = [
- "bitflags 1.3.2",
- "libc",
- "mach2",
- "windows-sys 0.52.0",
-]
 
 [[package]]
 name = "renderdoc"
@@ -4371,18 +4339,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cbc538057e648b67f72a982e708d485b2efa771e1ac05fec311f9f63e5800db4"
 dependencies = [
  "unicode-ident",
-]
-
-[[package]]
-name = "wasmtime-internal-jit-icache-coherence"
-version = "39.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b97ccd36e25390258ce6720add639ffe5a7d81a5c904350aa08f5bbc60433d22"
-dependencies = [
- "anyhow",
- "cfg-if",
- "libc",
- "windows-sys 0.60.2",
 ]
 
 [[package]]
