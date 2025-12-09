@@ -1,13 +1,29 @@
+# use Powershell on Windows
+set windows-shell := ["pwsh.exe", "-NoLogo", "-Command"]
+
 # Lists all recipes
 list:
     @just --list
 
 # Builds the ipl-hle binary, copies it to the resources folder and converts it to a .dol
+[unix]
 build:
     @echo "=> Building ipl-hle.elf ..."
     @cargo build --release
     @echo "=> Copying ipl-hle.elf to local resources folder ..."
     @cp ../target/powerpc-nintendo-gamecube-eabi/release/ipl-hle.elf ../local/ipl-hle.elf
+    @echo "=> Converting ipl-hle.elf to ipl-hle.dol ..."
+    @cd .. && cargo run -q -p cubetool convert -i local/ipl-hle.elf -o local/ipl-hle.dol
+    @echo "=> Done!"
+    @cd .. && cargo run -q -p cubetool inspect -i local/ipl-hle.dol
+    
+# Builds the ipl-hle binary, copies it to the resources folder and converts it to a .dol
+[windows]
+build:
+    @echo "=> Building ipl-hle.elf ..."
+    @cargo build --release
+    @echo "=> Copying ipl-hle.elf to local resources folder ..."
+    @Copy-Item ../target/powerpc-nintendo-gamecube-eabi/release/ipl-hle.elf ../local/ipl-hle.elf
     @echo "=> Converting ipl-hle.elf to ipl-hle.dol ..."
     @cd .. && cargo run -q -p cubetool convert -i local/ipl-hle.elf -o local/ipl-hle.dol
     @echo "=> Done!"
