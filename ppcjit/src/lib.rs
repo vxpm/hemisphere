@@ -123,7 +123,7 @@ impl JIT {
     fn block_signature(&self) -> ir::Signature {
         let ptr = self.compiler.isa.pointer_type();
         ir::Signature {
-            params: vec![ir::AbiParam::new(ptr); 2],
+            params: vec![ir::AbiParam::new(ptr); 3],
             returns: vec![],
             call_conv: codegen::isa::CallConv::Tail,
         }
@@ -156,10 +156,22 @@ impl JIT {
         let ctx_ptr = params[1];
         let block_ptr = params[2];
 
+        // extract regs ptr
+        let ptr_type = self.compiler.isa.pointer_type();
+        let get_regs_sig = builder.import_signature(Hooks::get_registers_sig(ptr_type));
+        let get_registers = builder
+            .ins()
+            .iconst(ptr_type, self.compiler.hooks.get_registers as usize as i64);
+        let inst = builder
+            .ins()
+            .call_indirect(get_regs_sig, get_registers, &[ctx_ptr]);
+        let regs_ptr = builder.inst_results(inst)[0];
+
+        // call the block
         let block_sig = builder.import_signature(block_sig);
         builder
             .ins()
-            .call_indirect(block_sig, block_ptr, &[info_ptr, ctx_ptr]);
+            .call_indirect(block_sig, block_ptr, &[info_ptr, ctx_ptr, regs_ptr]);
 
         builder.ins().return_(&[]);
         builder.finalize();

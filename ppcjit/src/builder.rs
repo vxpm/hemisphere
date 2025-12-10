@@ -150,18 +150,7 @@ impl<'ctx> BlockBuilder<'ctx> {
         let params = builder.block_params(entry_bb);
         let info_ptr = params[0];
         let ctx_ptr = params[1];
-
-        // extract regs ptr
-        let get_regs_sig = builder.import_signature(Hooks::get_registers_sig(ptr_type));
-        let get_registers = builder
-            .ins()
-            .iconst(ptr_type, compiler.hooks.get_registers as usize as i64);
-
-        let inst = builder
-            .ins()
-            .call_indirect(get_regs_sig, get_registers, &[ctx_ptr]);
-
-        let regs_ptr = builder.inst_results(inst)[0];
+        let regs_ptr = params[2];
 
         let signatures = Signatures {
             block: builder.import_signature(builder.func.signature.clone()),

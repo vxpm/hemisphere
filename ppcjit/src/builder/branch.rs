@@ -119,7 +119,11 @@ impl BlockBuilder<'_> {
         self.bd.ins().return_call_indirect(
             self.consts.signatures.block,
             stored_link,
-            &[self.consts.info_ptr, self.consts.ctx_ptr],
+            &[
+                self.consts.info_ptr,
+                self.consts.ctx_ptr,
+                self.consts.regs_ptr,
+            ],
         );
 
         // => follow link => need to link
@@ -161,7 +165,11 @@ impl BlockBuilder<'_> {
         self.bd.ins().return_call_indirect(
             self.consts.signatures.block,
             stored_link,
-            &[self.consts.info_ptr, self.consts.ctx_ptr],
+            &[
+                self.consts.info_ptr,
+                self.consts.ctx_ptr,
+                self.consts.regs_ptr,
+            ],
         );
 
         // => follow link => need to link => failure
