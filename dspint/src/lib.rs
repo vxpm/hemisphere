@@ -346,9 +346,50 @@ impl Registers {
     }
 }
 
+#[bitos(2)]
+#[derive(Debug, Clone, Copy, Default)]
+pub enum SampleSize {
+    #[default]
+    Nibble = 0b00,
+    Byte = 0b01,
+    Word = 0b10,
+    Reserved = 0b11,
+}
+
+#[bitos(2)]
+#[derive(Debug, Clone, Copy, Default)]
+pub enum SampleDecoding {
+    #[default]
+    AramAdpcm = 0b00,
+    AcinPcm = 0b01,
+    AramPcm = 0b10,
+    AcinPcmInc = 0b11,
+}
+
+#[bitos(2)]
+#[derive(Debug, Clone, Copy, Default)]
+pub enum PcmScale {
+    #[default]
+    OneBy2048 = 0b00,
+    One = 0b01,
+    OneBy65536 = 0b10,
+    Reserved = 0b11,
+}
+
+#[bitos(16)]
+#[derive(Debug, Clone, Copy, Default)]
+pub struct AcceleratorFormat {
+    #[bits(0..2)]
+    pub size: SampleSize,
+    #[bits(2..4)]
+    pub decoding: SampleDecoding,
+    #[bits(4..6)]
+    pub scale: PcmScale,
+}
+
 #[derive(Default)]
 pub struct Accelerator {
-    pub format: u16,
+    pub format: AcceleratorFormat,
     pub gain: u16,
     pub pred_scale: u16,
     pub aram_start: u32,
@@ -733,6 +774,10 @@ impl Interpreter {
                 );
 
                 self.accel.aram_curr += 1;
+                if self.accel.aram_curr >= self.accel.aram_end {
+                    todo!("should wrap");
+                }
+
                 value
             }
             0xD4 => self.accel.aram_start.bits(16, 32) as u16,
@@ -794,7 +839,10 @@ impl Interpreter {
             }
 
             // Accelerator
-            0xD1 => self.accel.format = value,
+            0xD1 => {
+                self.accel.format = AcceleratorFormat::from_bits(value);
+                dbg!(self.accel.format);
+            }
             0xD3 => {
                 tracing::debug!(
                     "accelerator writing 0x{value:04X} to ARAM 0x{:08X} (wraps at 0x{:08X})",
@@ -806,7 +854,11 @@ impl Interpreter {
                     sys.mem.aram[self.accel.aram_curr.with_bit(31, false) as usize..]
                         .as_mut_bytes(),
                 );
+
                 self.accel.aram_curr += 1;
+                if self.accel.aram_curr >= self.accel.aram_end {
+                    todo!("should wrap");
+                }
             }
             0xD4 => self.accel.aram_start = self.accel.aram_start.with_bits(16, 32, value as u32),
             0xD5 => self.accel.aram_start = self.accel.aram_start.with_bits(0, 16, value as u32),
@@ -1017,8 +1069,6 @@ impl Interpreter {
             std::hint::cold_path();
             self.fetch_decode_and_cache()
         };
-
-        // let ins = self.fetch_decode_and_cache();
 
         // execute
         let regs_previous = if ins.extension.is_some() {
