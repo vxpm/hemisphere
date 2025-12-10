@@ -1,12 +1,8 @@
 use super::BlockBuilder;
-use crate::{
-    block::Hooks,
-    builder::{Action, InstructionInfo},
-};
+use crate::builder::{Action, InstructionInfo};
 use bitos::BitUtils;
 use cranelift::{codegen::ir, prelude::InstBuilder};
 use gekko::{InsExt, Reg, SPR, disasm::Ins};
-use std::mem::offset_of;
 
 const SPR_INFO: InstructionInfo = InstructionInfo {
     cycles: 1,
@@ -59,8 +55,8 @@ impl BlockBuilder<'_> {
     pub fn mfspr(&mut self, ins: Ins) -> InstructionInfo {
         let spr = ins.spr();
         match spr {
-            SPR::DEC => self.call_generic_hook(offset_of!(Hooks, dec_read)),
-            SPR::TBL | SPR::TBU => self.call_generic_hook(offset_of!(Hooks, tb_read)),
+            SPR::DEC => self.call_generic_hook(self.compiler.hooks.dec_read),
+            SPR::TBL | SPR::TBU => self.call_generic_hook(self.compiler.hooks.tb_read),
             SPR::WPAR => tracing::warn!("read from WPAR"),
             _ => (),
         }
@@ -77,9 +73,9 @@ impl BlockBuilder<'_> {
         self.set(spr, value);
 
         match spr {
-            SPR::DEC => self.call_generic_hook(offset_of!(Hooks, dec_changed)),
-            SPR::TBL | SPR::TBU => self.call_generic_hook(offset_of!(Hooks, tb_changed)),
-            SPR::DMAL | SPR::DMAU => self.call_generic_hook(offset_of!(Hooks, cache_dma)),
+            SPR::DEC => self.call_generic_hook(self.compiler.hooks.dec_changed),
+            SPR::TBL | SPR::TBU => self.call_generic_hook(self.compiler.hooks.tb_changed),
+            SPR::DMAL | SPR::DMAU => self.call_generic_hook(self.compiler.hooks.cache_dma),
             SPR::WPAR => tracing::warn!("write to WPAR"),
             spr if spr.is_data_bat() => self.dbat_changed = true,
             spr if spr.is_instr_bat() => self.ibat_changed = true,
@@ -110,7 +106,7 @@ impl BlockBuilder<'_> {
         let value = self.get(ins.gpr_s());
         self.set(Reg::MSR, value);
 
-        self.call_generic_hook(offset_of!(Hooks, msr_changed));
+        self.call_generic_hook(self.compiler.hooks.msr_changed);
 
         MSR_INFO
     }
@@ -158,7 +154,7 @@ impl BlockBuilder<'_> {
     }
 
     pub fn mftb(&mut self, ins: Ins) -> InstructionInfo {
-        self.call_generic_hook(offset_of!(Hooks, tb_read));
+        self.call_generic_hook(self.compiler.hooks.tb_read);
 
         let tb = match ins.field_tbr() {
             268 => SPR::TBL,

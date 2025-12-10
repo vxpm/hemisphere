@@ -10,8 +10,9 @@ mod util;
 
 use crate::{
     Compiler, Sequence,
-    block::{Hooks, Info},
+    block::Info,
     builder::util::IntoIrValue,
+    hooks::{GenericHook, Hooks},
 };
 use cranelift::{
     codegen::ir::{self, SigRef},
@@ -81,18 +82,36 @@ pub(crate) struct InstructionInfo {
     action: Action,
 }
 
+struct Signatures {
+    block: SigRef,
+
+    get_registers_hook: SigRef,
+    follow_link_hook: SigRef,
+    try_link_hook: SigRef,
+    read_i8_hook: SigRef,
+    read_i16_hook: SigRef,
+    read_i32_hook: SigRef,
+    read_i64_hook: SigRef,
+    write_i8_hook: SigRef,
+    write_i16_hook: SigRef,
+    write_i32_hook: SigRef,
+    write_i64_hook: SigRef,
+    read_quant_hook: SigRef,
+    write_quant_hook: SigRef,
+    generic_hook: SigRef,
+
+    raise_exception: SigRef,
+}
+
 /// Constants used through block building.
 struct Consts {
     ptr_type: ir::Type,
 
     info_ptr: ir::Value,
     ctx_ptr: ir::Value,
-    hooks_ptr: ir::Value,
     regs_ptr: ir::Value,
 
-    block_sig: SigRef,
-    hooks_sig: FxHashMap<i32, SigRef>,
-    raise_exception_sig: Option<SigRef>,
+    signatures: Signatures,
 }
 
 /// A cached value.
@@ -132,16 +151,12 @@ impl<'ctx> BlockBuilder<'ctx> {
         let params = builder.block_params(entry_bb);
         let info_ptr = params[0];
         let ctx_ptr = params[1];
-        let hooks_ptr = params[2];
 
         // extract regs ptr
         let get_regs_sig = builder.import_signature(Hooks::get_registers_sig(ptr_type));
-        let get_registers = builder.ins().load(
-            ptr_type,
-            ir::MemFlags::trusted(),
-            hooks_ptr,
-            offset_of!(Hooks, get_registers) as i32,
-        );
+        let get_registers = builder
+            .ins()
+            .iconst(ptr_type, compiler.hooks.get_registers as usize as i64);
 
         let inst = builder
             .ins()
@@ -149,16 +164,33 @@ impl<'ctx> BlockBuilder<'ctx> {
 
         let regs_ptr = builder.inst_results(inst)[0];
 
-        let block_sig = builder.import_signature(builder.func.signature.clone());
+        let signatures = Signatures {
+            block: builder.import_signature(builder.func.signature.clone()),
+
+            get_registers_hook: builder.import_signature(Hooks::get_registers_sig(ptr_type)),
+            follow_link_hook: builder.import_signature(Hooks::follow_link_sig(ptr_type)),
+            try_link_hook: builder.import_signature(Hooks::try_link_sig(ptr_type)),
+            read_i8_hook: builder.import_signature(Hooks::read_sig(ptr_type, ir::types::I8)),
+            read_i16_hook: builder.import_signature(Hooks::read_sig(ptr_type, ir::types::I16)),
+            read_i32_hook: builder.import_signature(Hooks::read_sig(ptr_type, ir::types::I32)),
+            read_i64_hook: builder.import_signature(Hooks::read_sig(ptr_type, ir::types::I64)),
+            write_i8_hook: builder.import_signature(Hooks::write_sig(ptr_type, ir::types::I8)),
+            write_i16_hook: builder.import_signature(Hooks::write_sig(ptr_type, ir::types::I16)),
+            write_i32_hook: builder.import_signature(Hooks::write_sig(ptr_type, ir::types::I32)),
+            write_i64_hook: builder.import_signature(Hooks::write_sig(ptr_type, ir::types::I64)),
+            read_quant_hook: builder.import_signature(Hooks::read_quantized_sig(ptr_type)),
+            write_quant_hook: builder.import_signature(Hooks::write_quantized_sig(ptr_type)),
+            generic_hook: builder.import_signature(Hooks::generic_hook_sig(ptr_type)),
+
+            raise_exception: builder.import_signature(exception::raise_exception_sig(ptr_type)),
+        };
+
         let consts = Consts {
             ptr_type,
             info_ptr,
             ctx_ptr,
-            hooks_ptr,
             regs_ptr,
-            block_sig,
-            hooks_sig: FxHashMap::default(),
-            raise_exception_sig: None,
+            signatures,
         };
 
         Self {
@@ -335,23 +367,17 @@ impl<'ctx> BlockBuilder<'ctx> {
     }
 
     /// Calls a generic context hook.
-    fn call_generic_hook(&mut self, offset: usize) {
-        let offset = offset as i32;
-        let hook = self.bd.ins().load(
-            self.consts.ptr_type,
-            ir::MemFlags::trusted(),
-            self.consts.hooks_ptr,
-            offset,
-        );
-
-        let sig = *self.consts.hooks_sig.entry(offset).or_insert_with(|| {
-            self.bd
-                .import_signature(Hooks::generic_hook_sig(self.consts.ptr_type))
-        });
-
-        self.bd
+    fn call_generic_hook(&mut self, hook: GenericHook) {
+        let hook = self
+            .bd
             .ins()
-            .call_indirect(sig, hook, &[self.consts.ctx_ptr]);
+            .iconst(self.consts.ptr_type, hook as usize as i64);
+
+        self.bd.ins().call_indirect(
+            self.consts.signatures.generic_hook,
+            hook,
+            &[self.consts.ctx_ptr],
+        );
     }
 
     /// Flushes the register cache to the registers struct.
@@ -443,11 +469,11 @@ impl<'ctx> BlockBuilder<'ctx> {
         self.update_info();
 
         if self.dbat_changed {
-            self.call_generic_hook(offset_of!(Hooks, dbat_changed));
+            self.call_generic_hook(self.compiler.hooks.dbat_changed);
         }
 
         if self.ibat_changed {
-            self.call_generic_hook(offset_of!(Hooks, ibat_changed));
+            self.call_generic_hook(self.compiler.hooks.ibat_changed);
         }
 
         self.bd.ins().return_(&[]);

@@ -1,9 +1,8 @@
 use crate::{
     Sequence,
     allocator::{Allocation, Exec},
+    hooks::Context,
 };
-use cranelift::{codegen::ir, prelude::isa};
-use gekko::{Address, Cpu};
 
 #[derive(Debug)]
 #[repr(C)]
@@ -14,19 +13,6 @@ pub struct LinkData {
     pub pattern: Pattern,
 }
 
-pub type Context = std::ffi::c_void;
-
-pub type GetRegistersHook = fn(*mut Context) -> *mut Cpu;
-pub type FollowLinkHook = fn(*const Info, *mut Context, *mut LinkData) -> bool;
-pub type TryLinkHook = fn(*mut Context, Address, *mut LinkData);
-
-pub type ReadHook<T> = fn(*mut Context, Address, *mut T) -> bool;
-pub type WriteHook<T> = fn(*mut Context, Address, T) -> bool;
-pub type ReadQuantizedHook = fn(*mut Context, Address, u8, *mut f64) -> u8;
-pub type WriteQuantizedHook = fn(*mut Context, Address, u8, f64) -> u8;
-
-pub type GenericHook = fn(*mut Context);
-
 /// Information about block execution.
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
@@ -35,149 +21,6 @@ pub struct Info {
     pub instructions: u32,
     /// How many cycles have been executed already. Updated on block exits only.
     pub cycles: u32,
-}
-
-/// External functions that JITed code calls.
-pub struct Hooks {
-    /// Hook that returns a pointer to the CPU state struct given the context.
-    pub get_registers: GetRegistersHook,
-    /// Hook that checks whether a linked block should be followed or the execution should return.
-    pub follow_link: FollowLinkHook,
-    /// Tries to link this block to another one given the current context, the destination address
-    /// and a pointer to where the linked block function pointer should be stored.
-    pub try_link: TryLinkHook,
-
-    // memory
-    pub read_i8: ReadHook<i8>,
-    pub write_i8: WriteHook<i8>,
-    pub read_i16: ReadHook<i16>,
-    pub write_i16: WriteHook<i16>,
-    pub read_i32: ReadHook<i32>,
-    pub write_i32: WriteHook<i32>,
-    pub read_i64: ReadHook<i64>,
-    pub write_i64: WriteHook<i64>,
-    pub read_quantized: ReadQuantizedHook,
-    pub write_quantized: WriteQuantizedHook,
-    pub cache_dma: GenericHook,
-
-    // msr
-    pub msr_changed: GenericHook,
-
-    // bats
-    pub ibat_changed: GenericHook,
-    pub dbat_changed: GenericHook,
-
-    // time base
-    pub tb_read: GenericHook,
-    pub tb_changed: GenericHook,
-
-    // decrementer
-    pub dec_read: GenericHook,
-    pub dec_changed: GenericHook,
-}
-
-impl Hooks {
-    /// Returns the function signature for the `get_registers` hook.
-    pub(crate) fn get_registers_sig(ptr_type: ir::Type) -> ir::Signature {
-        ir::Signature {
-            params: vec![
-                ir::AbiParam::new(ptr_type), // registers
-            ],
-            returns: vec![ir::AbiParam::new(ptr_type)],
-            call_conv: isa::CallConv::SystemV,
-        }
-    }
-
-    /// Returns the function signature for the `follow_link` hook.
-    pub(crate) fn follow_link_sig(ptr_type: ir::Type) -> ir::Signature {
-        ir::Signature {
-            params: vec![
-                ir::AbiParam::new(ptr_type), // info
-                ir::AbiParam::new(ptr_type), // ctx
-                ir::AbiParam::new(ptr_type), // lnk data
-            ],
-            returns: vec![ir::AbiParam::new(ir::types::I8)], // follow?
-            call_conv: isa::CallConv::SystemV,
-        }
-    }
-
-    /// Returns the function signature for the `try_link` hook.
-    pub(crate) fn try_link_sig(ptr_type: ir::Type) -> ir::Signature {
-        ir::Signature {
-            params: vec![
-                ir::AbiParam::new(ptr_type),       // ctx
-                ir::AbiParam::new(ir::types::I32), // address to link to
-                ir::AbiParam::new(ptr_type),       // link ptr storage
-            ],
-            returns: vec![],
-            call_conv: isa::CallConv::SystemV,
-        }
-    }
-
-    /// Returns the function signature for a memory read hook.
-    pub(crate) fn read_sig(ptr_type: ir::Type, _read_type: ir::Type) -> ir::Signature {
-        ir::Signature {
-            params: vec![
-                ir::AbiParam::new(ptr_type),       // ctx
-                ir::AbiParam::new(ir::types::I32), // address
-                ir::AbiParam::new(ptr_type),       // value ptr
-            ],
-            returns: vec![ir::AbiParam::new(ir::types::I8)], // success
-            call_conv: isa::CallConv::SystemV,
-        }
-    }
-
-    /// Returns the function signature for a memory write hook.
-    pub(crate) fn write_sig(ptr_type: ir::Type, write_type: ir::Type) -> ir::Signature {
-        ir::Signature {
-            params: vec![
-                ir::AbiParam::new(ptr_type),       // ctx
-                ir::AbiParam::new(ir::types::I32), // address
-                ir::AbiParam::new(write_type),     // value
-            ],
-            returns: vec![ir::AbiParam::new(ir::types::I8)], // success
-            call_conv: isa::CallConv::SystemV,
-        }
-    }
-
-    /// Returns the function signature for a quantized memory read hook.
-    pub(crate) fn read_quantized_sig(ptr_type: ir::Type) -> ir::Signature {
-        ir::Signature {
-            params: vec![
-                ir::AbiParam::new(ptr_type),       // ctx
-                ir::AbiParam::new(ir::types::I32), // address
-                ir::AbiParam::new(ir::types::I8),  // gqr
-                ir::AbiParam::new(ptr_type),       // value ptr
-            ],
-            returns: vec![ir::AbiParam::new(ir::types::I8)], // size
-            call_conv: isa::CallConv::SystemV,
-        }
-    }
-
-    /// Returns the function signature for a quantized memory read hook.
-    pub(crate) fn write_quantized_sig(ptr_type: ir::Type) -> ir::Signature {
-        ir::Signature {
-            params: vec![
-                ir::AbiParam::new(ptr_type),       // ctx
-                ir::AbiParam::new(ir::types::I32), // address
-                ir::AbiParam::new(ir::types::I8),  // gqr
-                ir::AbiParam::new(ir::types::F64), // value
-            ],
-            returns: vec![ir::AbiParam::new(ir::types::I8)], // size
-            call_conv: isa::CallConv::SystemV,
-        }
-    }
-
-    /// Returns the function signature for a generic hook.
-    pub(crate) fn generic_hook_sig(ptr_type: ir::Type) -> ir::Signature {
-        ir::Signature {
-            params: vec![
-                ir::AbiParam::new(ptr_type), // ctx
-            ],
-            returns: vec![],
-            call_conv: isa::CallConv::SystemV,
-        }
-    }
 }
 
 /// Information regarding a block's execution.
@@ -254,18 +97,18 @@ impl Block {
 
 pub struct Trampoline(pub(super) Allocation<Exec>);
 
-type TrampolineFn = extern "sysv64-unwind" fn(*mut Info, *mut Context, *const Hooks, BlockFn);
+type TrampolineFn = extern "sysv64-unwind" fn(*mut Info, *mut Context, BlockFn);
 
 impl Trampoline {
     /// Calls the given block using this trampoline.
-    pub unsafe fn call(&self, ctx: *mut Context, hooks: *const Hooks, block: BlockFn) -> Info {
+    pub unsafe fn call(&self, ctx: *mut Context, block: BlockFn) -> Info {
         let mut info = Info {
             instructions: 0,
             cycles: 0,
         };
 
         let trampoline: TrampolineFn = unsafe { std::mem::transmute(self.0.as_ptr()) };
-        trampoline(&raw mut info, ctx, hooks, block);
+        trampoline(&raw mut info, ctx, block);
 
         info
     }

@@ -1,10 +1,5 @@
-use std::mem::offset_of;
-
 use super::BlockBuilder;
-use crate::{
-    block::Hooks,
-    builder::{Action, InstructionInfo, util::IntoIrValue},
-};
+use crate::builder::{Action, InstructionInfo, util::IntoIrValue};
 use bitos::{bitos, integer::u5};
 use cranelift::{codegen::ir, prelude::InstBuilder};
 use gekko::{Reg, SPR, disasm::Ins};
@@ -66,24 +61,13 @@ impl BlockBuilder<'_> {
             .ins()
             .iconst(self.consts.ptr_type, link_data.as_ptr().addr() as i64);
 
-        let follow_link_hook = self.bd.ins().load(
+        let follow_link_hook = self.bd.ins().iconst(
             self.consts.ptr_type,
-            ir::MemFlags::trusted(),
-            self.consts.hooks_ptr,
-            offset_of!(Hooks, follow_link) as i32,
+            self.compiler.hooks.follow_link as usize as i64,
         );
 
-        let follow_link_sig = *self
-            .consts
-            .hooks_sig
-            .entry(offset_of!(Hooks, follow_link) as i32)
-            .or_insert_with(|| {
-                self.bd
-                    .import_signature(Hooks::follow_link_sig(self.consts.ptr_type))
-            });
-
         let inst = self.bd.ins().call_indirect(
-            follow_link_sig,
+            self.consts.signatures.follow_link_hook,
             follow_link_hook,
             &[self.consts.info_ptr, self.consts.ctx_ptr, link_data_ptr],
         );
@@ -133,37 +117,22 @@ impl BlockBuilder<'_> {
         // => follow link => is linked
         self.bd.switch_to_block(is_linked);
         self.bd.ins().return_call_indirect(
-            self.consts.block_sig,
+            self.consts.signatures.block,
             stored_link,
-            &[
-                self.consts.info_ptr,
-                self.consts.ctx_ptr,
-                self.consts.hooks_ptr,
-            ],
+            &[self.consts.info_ptr, self.consts.ctx_ptr],
         );
 
         // => follow link => need to link
         self.bd.switch_to_block(need_to_link);
 
         // call try link hook
-        let try_link_hook = self.bd.ins().load(
+        let try_link_hook = self.bd.ins().iconst(
             self.consts.ptr_type,
-            ir::MemFlags::trusted(),
-            self.consts.hooks_ptr,
-            offset_of!(Hooks, try_link) as i32,
+            self.compiler.hooks.try_link as usize as i64,
         );
 
-        let try_link_sig = *self
-            .consts
-            .hooks_sig
-            .entry(offset_of!(Hooks, try_link) as i32)
-            .or_insert_with(|| {
-                self.bd
-                    .import_signature(Hooks::try_link_sig(self.consts.ptr_type))
-            });
-
         self.bd.ins().call_indirect(
-            try_link_sig,
+            self.consts.signatures.try_link_hook,
             try_link_hook,
             &[self.consts.ctx_ptr, destination, link_data_ptr],
         );
@@ -190,13 +159,9 @@ impl BlockBuilder<'_> {
         // => follow link => need to link => success
         self.bd.switch_to_block(link_success);
         self.bd.ins().return_call_indirect(
-            self.consts.block_sig,
+            self.consts.signatures.block,
             stored_link,
-            &[
-                self.consts.info_ptr,
-                self.consts.ctx_ptr,
-                self.consts.hooks_ptr,
-            ],
+            &[self.consts.info_ptr, self.consts.ctx_ptr],
         );
 
         // => follow link => need to link => failure

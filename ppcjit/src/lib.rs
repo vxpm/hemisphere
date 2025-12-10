@@ -7,12 +7,14 @@ mod sequence;
 mod unwind;
 
 pub mod block;
+pub mod hooks;
 
 use std::sync::Arc;
 
 use crate::{
     block::{Meta, Trampoline},
     builder::BlockBuilder,
+    hooks::Hooks,
     module::Module,
     unwind::UnwindHandle,
 };
@@ -49,12 +51,13 @@ impl Default for Settings {
 
 struct Compiler {
     settings: Settings,
+    hooks: Hooks,
     isa: Arc<dyn TargetIsa>,
     module: Module,
 }
 
-impl Default for Compiler {
-    fn default() -> Self {
+impl Compiler {
+    fn new(settings: Settings, hooks: Hooks) -> Self {
         let opt_level = "speed_and_size";
         let verifier = if cfg!(debug_assertions) {
             "true"
@@ -62,27 +65,28 @@ impl Default for Compiler {
             "false"
         };
 
-        let mut settings = codegen::settings::builder();
-        settings.set("preserve_frame_pointers", "true").unwrap();
-        settings.set("use_colocated_libcalls", "false").unwrap();
-        settings.set("is_pic", "false").unwrap();
-        settings.set("stack_switch_model", "basic").unwrap();
-        settings.set("unwind_info", "true").unwrap();
-        settings.set("opt_level", opt_level).unwrap();
-        settings.set("enable_verifier", verifier).unwrap();
-        settings.enable("enable_alias_analysis").unwrap();
+        let mut codegen = codegen::settings::builder();
+        codegen.set("preserve_frame_pointers", "true").unwrap();
+        codegen.set("use_colocated_libcalls", "false").unwrap();
+        codegen.set("is_pic", "false").unwrap();
+        codegen.set("stack_switch_model", "basic").unwrap();
+        codegen.set("unwind_info", "true").unwrap();
+        codegen.set("opt_level", opt_level).unwrap();
+        codegen.set("enable_verifier", verifier).unwrap();
+        codegen.enable("enable_alias_analysis").unwrap();
 
         let isa_builder = native::builder().unwrap_or_else(|msg| {
             panic!("host machine is not supported: {}", msg);
         });
 
         let isa = isa_builder
-            .finish(codegen::settings::Flags::new(settings))
+            .finish(codegen::settings::Flags::new(codegen))
             .unwrap();
 
         Compiler {
+            settings,
+            hooks,
             isa,
-            settings: Default::default(),
             module: Module::new(),
         }
     }
@@ -96,17 +100,6 @@ pub struct JIT {
     compiled_count: u64,
 }
 
-impl Default for JIT {
-    fn default() -> Self {
-        Self {
-            compiler: Compiler::default(),
-            code_ctx: codegen::Context::new(),
-            func_ctx: frontend::FunctionBuilderContext::new(),
-            compiled_count: 0,
-        }
-    }
-}
-
 #[derive(Debug, Error)]
 pub enum BuildError {
     #[error("block contains no instructions")]
@@ -118,20 +111,19 @@ pub enum BuildError {
 }
 
 impl JIT {
-    pub fn new(settings: Settings) -> Self {
+    pub fn new(settings: Settings, hooks: Hooks) -> Self {
         Self {
-            compiler: Compiler {
-                settings,
-                ..Default::default()
-            },
-            ..Default::default()
+            compiler: Compiler::new(settings, hooks),
+            code_ctx: codegen::Context::new(),
+            func_ctx: frontend::FunctionBuilderContext::new(),
+            compiled_count: 0,
         }
     }
 
     fn block_signature(&self) -> ir::Signature {
         let ptr = self.compiler.isa.pointer_type();
         ir::Signature {
-            params: vec![ir::AbiParam::new(ptr); 3],
+            params: vec![ir::AbiParam::new(ptr); 2],
             returns: vec![],
             call_conv: codegen::isa::CallConv::Tail,
         }
@@ -140,7 +132,7 @@ impl JIT {
     fn trampoline_signature(&self) -> ir::Signature {
         let ptr = self.compiler.isa.pointer_type();
         ir::Signature {
-            params: vec![ir::AbiParam::new(ptr); 4],
+            params: vec![ir::AbiParam::new(ptr); 3],
             returns: vec![],
             call_conv: codegen::isa::CallConv::SystemV,
         }
@@ -162,14 +154,12 @@ impl JIT {
         let params = builder.block_params(entry_bb);
         let info_ptr = params[0];
         let ctx_ptr = params[1];
-        let hooks_ptr = params[2];
-        let block_ptr = params[3];
+        let block_ptr = params[2];
 
         let block_sig = builder.import_signature(block_sig);
-
         builder
             .ins()
-            .call_indirect(block_sig, block_ptr, &[info_ptr, ctx_ptr, hooks_ptr]);
+            .call_indirect(block_sig, block_ptr, &[info_ptr, ctx_ptr]);
 
         builder.ins().return_(&[]);
         builder.finalize();

@@ -10,10 +10,8 @@ use hemisphere::{
 use indexmap::IndexMap;
 use ppcjit::{
     Block,
-    block::{
-        BlockFn, FollowLinkHook, GenericHook, GetRegistersHook, Hooks, Info, LinkData, Pattern,
-        ReadHook, ReadQuantizedHook, Trampoline, TryLinkHook, WriteHook, WriteQuantizedHook,
-    },
+    block::{BlockFn, Info, LinkData, Pattern, Trampoline},
+    hooks::*,
 };
 use rustc_hash::FxBuildHasher;
 use seq_macro::seq;
@@ -222,7 +220,7 @@ struct Context<'a> {
     exit_reason: ExitReason,
 }
 
-static CTX_HOOKS: Hooks = {
+const CTX_HOOKS: Hooks = {
     extern "sysv64-unwind" fn get_registers<'a>(ctx: &'a mut Context) -> &'a mut Cpu {
         &mut ctx.sys.cpu
     }
@@ -563,7 +561,7 @@ pub struct JitCore {
 
 impl JitCore {
     pub fn new(config: Config) -> Self {
-        let mut compiler = ppcjit::JIT::new(config.jit_settings.clone());
+        let mut compiler = ppcjit::JIT::new(config.jit_settings.clone(), CTX_HOOKS);
         let trampoline = compiler.trampoline();
 
         Self {
@@ -649,11 +647,8 @@ impl JitCore {
         };
 
         let info = unsafe {
-            self.trampoline.call(
-                &raw mut ctx as *mut ppcjit::block::Context,
-                &raw const CTX_HOOKS,
-                block,
-            )
+            self.trampoline
+                .call(&raw mut ctx as *mut ppcjit::hooks::Context, block)
         };
 
         let cycles = if ctx.exit_reason == ExitReason::IdleLooping {

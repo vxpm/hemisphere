@@ -1,60 +1,97 @@
 use super::BlockBuilder;
 use crate::{
-    block::Hooks,
     builder::{Action, InstructionInfo},
+    hooks::{ReadHook, WriteHook},
 };
 use cranelift::{codegen::ir, prelude::InstBuilder};
 use gekko::{Exception, GPR, InsExt, Reg, disasm::Ins};
-use std::mem::offset_of;
 
 pub trait ReadWriteAble {
     const IR_TYPE: ir::Type;
-    const READ_OFFSET: i32;
-    const WRITE_OFFSET: i32;
+    fn read_hook(builder: &BlockBuilder) -> (ir::SigRef, ReadHook<Self>);
+    fn write_hook(builder: &BlockBuilder) -> (ir::SigRef, WriteHook<Self>);
 }
 
 impl ReadWriteAble for i8 {
     const IR_TYPE: ir::Type = ir::types::I8;
-    const READ_OFFSET: i32 = offset_of!(Hooks, read_i8) as i32;
-    const WRITE_OFFSET: i32 = offset_of!(Hooks, write_i8) as i32;
+
+    fn read_hook(builder: &BlockBuilder) -> (ir::SigRef, ReadHook<Self>) {
+        (
+            builder.consts.signatures.read_i8_hook,
+            builder.compiler.hooks.read_i8,
+        )
+    }
+
+    fn write_hook(builder: &BlockBuilder) -> (ir::SigRef, WriteHook<Self>) {
+        (
+            builder.consts.signatures.write_i8_hook,
+            builder.compiler.hooks.write_i8,
+        )
+    }
 }
 
 impl ReadWriteAble for i16 {
     const IR_TYPE: ir::Type = ir::types::I16;
-    const READ_OFFSET: i32 = offset_of!(Hooks, read_i16) as i32;
-    const WRITE_OFFSET: i32 = offset_of!(Hooks, write_i16) as i32;
+
+    fn read_hook(builder: &BlockBuilder) -> (ir::SigRef, ReadHook<Self>) {
+        (
+            builder.consts.signatures.read_i16_hook,
+            builder.compiler.hooks.read_i16,
+        )
+    }
+
+    fn write_hook(builder: &BlockBuilder) -> (ir::SigRef, WriteHook<Self>) {
+        (
+            builder.consts.signatures.write_i16_hook,
+            builder.compiler.hooks.write_i16,
+        )
+    }
 }
 
 impl ReadWriteAble for i32 {
     const IR_TYPE: ir::Type = ir::types::I32;
-    const READ_OFFSET: i32 = offset_of!(Hooks, read_i32) as i32;
-    const WRITE_OFFSET: i32 = offset_of!(Hooks, write_i32) as i32;
+
+    fn read_hook(builder: &BlockBuilder) -> (ir::SigRef, ReadHook<Self>) {
+        (
+            builder.consts.signatures.read_i32_hook,
+            builder.compiler.hooks.read_i32,
+        )
+    }
+
+    fn write_hook(builder: &BlockBuilder) -> (ir::SigRef, WriteHook<Self>) {
+        (
+            builder.consts.signatures.write_i32_hook,
+            builder.compiler.hooks.write_i32,
+        )
+    }
 }
 
 impl ReadWriteAble for i64 {
     const IR_TYPE: ir::Type = ir::types::I64;
-    const READ_OFFSET: i32 = offset_of!(Hooks, read_i64) as i32;
-    const WRITE_OFFSET: i32 = offset_of!(Hooks, write_i64) as i32;
+
+    fn read_hook(builder: &BlockBuilder) -> (ir::SigRef, ReadHook<Self>) {
+        (
+            builder.consts.signatures.read_i64_hook,
+            builder.compiler.hooks.read_i64,
+        )
+    }
+
+    fn write_hook(builder: &BlockBuilder) -> (ir::SigRef, WriteHook<Self>) {
+        (
+            builder.consts.signatures.write_i64_hook,
+            builder.compiler.hooks.write_i64,
+        )
+    }
 }
 
 /// Helpers
 impl BlockBuilder<'_> {
     pub fn mem_read<P: ReadWriteAble>(&mut self, addr: ir::Value) -> ir::Value {
-        let read_fn = self.bd.ins().load(
-            self.consts.ptr_type,
-            ir::MemFlags::trusted(),
-            self.consts.hooks_ptr,
-            P::READ_OFFSET,
-        );
-
-        let sig = *self
-            .consts
-            .hooks_sig
-            .entry(P::READ_OFFSET)
-            .or_insert_with(|| {
-                self.bd
-                    .import_signature(Hooks::read_sig(self.consts.ptr_type, P::IR_TYPE))
-            });
+        let (sig, func) = P::read_hook(self);
+        let read_fn = self
+            .bd
+            .ins()
+            .iconst(self.consts.ptr_type, func as usize as i64);
 
         let stack_slot = self.bd.create_sized_stack_slot(ir::StackSlotData::new(
             ir::StackSlotKind::ExplicitSlot,
@@ -94,21 +131,11 @@ impl BlockBuilder<'_> {
     }
 
     pub fn mem_write<P: ReadWriteAble>(&mut self, addr: ir::Value, value: ir::Value) {
-        let write_fn = self.bd.ins().load(
-            self.consts.ptr_type,
-            ir::MemFlags::trusted(),
-            self.consts.hooks_ptr,
-            P::WRITE_OFFSET,
-        );
-
-        let sig = *self
-            .consts
-            .hooks_sig
-            .entry(P::WRITE_OFFSET)
-            .or_insert_with(|| {
-                self.bd
-                    .import_signature(Hooks::write_sig(self.consts.ptr_type, P::IR_TYPE))
-            });
+        let (sig, func) = P::write_hook(self);
+        let write_fn = self
+            .bd
+            .ins()
+            .iconst(self.consts.ptr_type, func as usize as i64);
 
         self.bd
             .ins()
@@ -117,22 +144,10 @@ impl BlockBuilder<'_> {
 
     /// Reads a quantized value. Returns the value and the type size.
     fn read_quantized(&mut self, addr: ir::Value, gqr: ir::Value) -> (ir::Value, ir::Value) {
-        let read_quantized_offset = offset_of!(Hooks, read_quantized) as i32;
-        let read_fn = self.bd.ins().load(
+        let read_fn = self.bd.ins().iconst(
             self.consts.ptr_type,
-            ir::MemFlags::trusted(),
-            self.consts.hooks_ptr,
-            read_quantized_offset,
+            self.compiler.hooks.read_quantized as usize as i64,
         );
-
-        let sig = *self
-            .consts
-            .hooks_sig
-            .entry(read_quantized_offset)
-            .or_insert_with(|| {
-                self.bd
-                    .import_signature(Hooks::read_quantized_sig(self.consts.ptr_type))
-            });
 
         let stack_slot = self.bd.create_sized_stack_slot(ir::StackSlotData::new(
             ir::StackSlotKind::ExplicitSlot,
@@ -147,7 +162,7 @@ impl BlockBuilder<'_> {
 
         // NOTE: maybe flush to ensure GQRs are up to date?
         let inst = self.bd.ins().call_indirect(
-            sig,
+            self.consts.signatures.read_quant_hook,
             read_fn,
             &[self.consts.ctx_ptr, addr, gqr, stack_slot_addr],
         );
@@ -177,28 +192,17 @@ impl BlockBuilder<'_> {
 
     /// Writes a quantized value. Returns the type size.
     fn write_quantized(&mut self, addr: ir::Value, gqr: ir::Value, value: ir::Value) -> ir::Value {
-        let write_quantized_offset = offset_of!(Hooks, write_quantized) as i32;
-        let write_fn = self.bd.ins().load(
+        let write_fn = self.bd.ins().iconst(
             self.consts.ptr_type,
-            ir::MemFlags::trusted(),
-            self.consts.hooks_ptr,
-            write_quantized_offset,
+            self.compiler.hooks.write_quantized as usize as i64,
         );
 
-        let sig = *self
-            .consts
-            .hooks_sig
-            .entry(write_quantized_offset)
-            .or_insert_with(|| {
-                self.bd
-                    .import_signature(Hooks::write_quantized_sig(self.consts.ptr_type))
-            });
-
         // NOTE: maybe flush to ensure GQRs are up to date?
-        let inst =
-            self.bd
-                .ins()
-                .call_indirect(sig, write_fn, &[self.consts.ctx_ptr, addr, gqr, value]);
+        let inst = self.bd.ins().call_indirect(
+            self.consts.signatures.write_quant_hook,
+            write_fn,
+            &[self.consts.ctx_ptr, addr, gqr, value],
+        );
 
         let size = self.bd.inst_results(inst)[0];
         let exit_block = self.bd.create_block();

@@ -1,10 +1,5 @@
-use std::mem::offset_of;
-
 use super::BlockBuilder;
-use crate::{
-    block::Hooks,
-    builder::{Action, InstructionInfo},
-};
+use crate::builder::{Action, InstructionInfo};
 use cranelift::{
     codegen::ir,
     prelude::{InstBuilder, isa},
@@ -23,7 +18,7 @@ const EXCEPTION_INFO: InstructionInfo = InstructionInfo {
     action: Action::Prologue,
 };
 
-fn raise_exception_sig(ptr_type: ir::Type) -> ir::Signature {
+pub fn raise_exception_sig(ptr_type: ir::Type) -> ir::Signature {
     ir::Signature {
         params: vec![
             ir::AbiParam::new(ptr_type),       // registers
@@ -46,11 +41,7 @@ impl BlockBuilder<'_> {
         let ptr = self
             .bd
             .ins()
-            .iconst(self.consts.ptr_type, func as usize as u64 as i64);
-        let sig = *self.consts.raise_exception_sig.get_or_insert_with(|| {
-            self.bd
-                .import_signature(raise_exception_sig(self.consts.ptr_type))
-        });
+            .iconst(self.consts.ptr_type, func as usize as i64);
 
         let exception = self
             .bd
@@ -59,9 +50,11 @@ impl BlockBuilder<'_> {
 
         self.flush();
 
-        self.bd
-            .ins()
-            .call_indirect(sig, ptr, &[self.consts.regs_ptr, exception]);
+        self.bd.ins().call_indirect(
+            self.consts.signatures.raise_exception,
+            ptr,
+            &[self.consts.regs_ptr, exception],
+        );
     }
 
     /// Checks whether floating point operations are enabled in MSR and raises an exception if not.
@@ -122,7 +115,7 @@ impl BlockBuilder<'_> {
         self.set(Reg::PC, new_pc);
         self.set(Reg::MSR, new_msr);
 
-        self.call_generic_hook(offset_of!(Hooks, msr_changed));
+        self.call_generic_hook(self.compiler.hooks.msr_changed);
 
         RFI_INFO
     }
