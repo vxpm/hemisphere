@@ -85,7 +85,6 @@ pub(crate) struct InstructionInfo {
 struct Signatures {
     block: SigRef,
 
-    get_registers_hook: SigRef,
     follow_link_hook: SigRef,
     try_link_hook: SigRef,
     read_i8_hook: SigRef,
@@ -167,7 +166,6 @@ impl<'ctx> BlockBuilder<'ctx> {
         let signatures = Signatures {
             block: builder.import_signature(builder.func.signature.clone()),
 
-            get_registers_hook: builder.import_signature(Hooks::get_registers_sig(ptr_type)),
             follow_link_hook: builder.import_signature(Hooks::follow_link_sig(ptr_type)),
             try_link_hook: builder.import_signature(Hooks::try_link_sig(ptr_type)),
             read_i8_hook: builder.import_signature(Hooks::read_sig(ptr_type, ir::types::I8)),
