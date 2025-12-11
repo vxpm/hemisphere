@@ -222,11 +222,7 @@ impl System {
             Mmio::ExiChannel2Immediate => ne!(self.external.channel2.immediate.as_bytes()),
 
             // === Audio Interface ===
-            Mmio::AudioSampleCounter => {
-                ai::update_sample_counter(self);
-                let sample = self.audio.sample_counter.floor() as u32;
-                ne!(sample.as_bytes())
-            }
+            Mmio::AudioSampleCounter => ne!(self.audio.sample_counter.as_bytes()),
             Mmio::AudioControl => ne!(self.audio.control.as_bytes()),
 
             _ => {
@@ -476,9 +472,9 @@ impl System {
                 ne!(self.audio.dma_control.as_mut_bytes());
 
                 if !ongoing && self.audio.dma_control.transfer_ongoing() {
-                    self.scheduler.schedule(1620000, ai::do_dma);
+                    ai::start_playing(self);
                 } else if !self.audio.dma_control.transfer_ongoing() {
-                    self.scheduler.cancel(ai::do_dma)
+                    ai::stop_playing(self);
                 }
             }
 

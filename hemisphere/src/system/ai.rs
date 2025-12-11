@@ -43,8 +43,8 @@ pub struct Interface {
     pub control: Control,
     pub dma_base: Address,
     pub dma_control: DmaControl,
-    pub last_updated_counter: u64,
-    pub sample_counter: f64,
+    pub current_sample: u32,
+    pub sample_counter: u32,
 }
 
 impl Interface {
@@ -57,28 +57,49 @@ impl Interface {
         self.control.set_interrupt_valid(value.interrupt_valid());
 
         if value.sample_counter_reset() {
-            self.sample_counter = 0.0;
+            self.sample_counter = 0;
         }
 
         self.control.set_dsp_sample_rate(value.dsp_sample_rate());
     }
 }
 
-pub fn update_sample_counter(sys: &mut System) {
-    if sys.audio.control.playing() {
-        let elapsed = sys.scheduler.elapsed() - sys.audio.last_updated_counter;
-        sys.audio.sample_counter += elapsed as f64 / 10125.0;
+// pub fn do_dma(sys: &mut System) {
+//     tracing::debug!("AI DMA finished");
+//     sys.dsp.control.set_ai_interrupt(true);
+//     pi::check_interrupts(sys);
+//
+//     if sys.audio.dma_control.transfer_ongoing() {
+//         sys.scheduler.schedule(1620000, do_dma);
+//     }
+// }
+
+const SAMPLE_RATE: u32 = 32_000;
+const CYCLES_PER_SAMPLE: u64 = gekko::FREQUENCY / SAMPLE_RATE as u64;
+
+fn push_sample(sys: &mut System) {
+    let addr = sys.audio.dma_base + 4 * sys.audio.current_sample;
+    let sample = sys.read::<u32>(addr);
+
+    dbg!(sample);
+
+    sys.audio.current_sample += 1;
+    sys.audio.sample_counter += 1;
+
+    let total_samples = sys.audio.dma_control.length().value() as u32 / 4;
+    if sys.audio.current_sample >= total_samples {
+        sys.dsp.control.set_ai_interrupt(true);
+        pi::check_interrupts(sys);
+        sys.audio.current_sample = 0;
     }
 
-    sys.audio.last_updated_counter = sys.scheduler.elapsed();
+    sys.scheduler.schedule(CYCLES_PER_SAMPLE, self::push_sample);
 }
 
-pub fn do_dma(sys: &mut System) {
-    tracing::debug!("AI DMA finished");
-    sys.dsp.control.set_ai_interrupt(true);
-    pi::check_interrupts(sys);
+pub fn start_playing(sys: &mut System) {
+    sys.scheduler.schedule(CYCLES_PER_SAMPLE, self::push_sample);
+}
 
-    if sys.audio.dma_control.transfer_ongoing() {
-        sys.scheduler.schedule(1620000, do_dma);
-    }
+pub fn stop_playing(sys: &mut System) {
+    sys.scheduler.cancel(self::push_sample);
 }
