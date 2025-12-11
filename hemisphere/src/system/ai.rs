@@ -104,19 +104,18 @@ pub fn stop_streaming(sys: &mut System) {
     sys.scheduler.cancel(self::push_streaming_sample);
 }
 
-#[bitos(32)]
 #[derive(Debug, Clone, Copy)]
 pub struct Sample {
-    #[bits(0..16)]
     pub left: u16,
-    #[bits(16..32)]
     pub right: u16,
 }
 
 fn push_data_dma_block(sys: &mut System) {
     let addr = sys.audio.dma_base + 32 * sys.audio.current_dma_block;
-    let samples: [Sample; 8] =
-        std::array::from_fn(|i| Sample::from_bits(sys.read::<u32>(addr + 4 * i as u32)));
+    let samples: [Sample; 8] = std::array::from_fn(|i| Sample {
+        left: sys.read::<u16>(addr + 4 * i as u32),
+        right: sys.read::<u16>(addr + 4 * i as u32 + 2),
+    });
 
     for sample in samples {
         sys.config.audio_sink.send(sample).unwrap();
