@@ -18,7 +18,7 @@ pub struct Control {
     #[bits(1)]
     pub aux_sample_rate: SampleRate,
     #[bits(2)]
-    pub interrupt_mask: bool,
+    pub interrupt_enabled: bool,
     #[bits(3)]
     pub interrupt: bool,
     #[bits(4)]
@@ -33,7 +33,7 @@ pub struct Control {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct DmaControl {
     #[bits(0..15)]
-    pub length: u15,
+    pub length_by_32: u15,
     #[bits(15)]
     pub transfer_ongoing: bool,
 }
@@ -43,15 +43,17 @@ pub struct Interface {
     pub control: Control,
     pub dma_base: Address,
     pub dma_control: DmaControl,
-    pub current_sample: u32,
+    pub current_dma_sample: u32,
     pub sample_counter: u32,
+    pub interrupt_sample: u32,
 }
 
 impl Interface {
     pub fn write_control(&mut self, value: Control) {
         self.control.set_playing(value.playing());
         self.control.set_aux_sample_rate(value.aux_sample_rate());
-        self.control.set_interrupt_mask(value.interrupt_mask());
+        self.control
+            .set_interrupt_enabled(value.interrupt_enabled());
         self.control
             .set_interrupt(self.control.interrupt() & !value.interrupt());
         self.control.set_interrupt_valid(value.interrupt_valid());
@@ -74,30 +76,44 @@ impl Interface {
 //     }
 // }
 
-const SAMPLE_RATE: u32 = 32_000;
+const SAMPLE_RATE: u32 = 48_000;
 const CYCLES_PER_SAMPLE: u64 = gekko::FREQUENCY / SAMPLE_RATE as u64;
 
 fn push_sample(sys: &mut System) {
-    let addr = sys.audio.dma_base + 4 * sys.audio.current_sample;
-    let sample = sys.read::<u32>(addr);
+    if sys.audio.dma_control.transfer_ongoing() {
+        let addr = sys.audio.dma_base + 4 * sys.audio.current_dma_sample;
+        let sample = sys.read::<u32>(addr);
 
-    dbg!(sample);
+        dbg!(sample);
 
-    sys.audio.current_sample += 1;
+        sys.audio.current_dma_sample += 1;
+
+        let total_samples = sys.audio.dma_control.length_by_32().value() as u32 / 4;
+        if sys.audio.current_dma_sample >= total_samples {
+            println!("raising dma int");
+            sys.dsp.control.set_ai_interrupt(true);
+            sys.audio.current_dma_sample = 0;
+            pi::check_interrupts(sys);
+        }
+    }
+
+    println!("pushing sample {}", sys.audio.sample_counter);
     sys.audio.sample_counter += 1;
 
-    let total_samples = sys.audio.dma_control.length().value() as u32 / 4;
-    if sys.audio.current_sample >= total_samples {
-        sys.dsp.control.set_ai_interrupt(true);
+    if sys.audio.control.interrupt_valid() && sys.audio.sample_counter == sys.audio.interrupt_sample
+    {
+        println!("raising sample counter int");
+        sys.audio.control.set_interrupt(true);
         pi::check_interrupts(sys);
-        sys.audio.current_sample = 0;
     }
 
     sys.scheduler.schedule(CYCLES_PER_SAMPLE, self::push_sample);
 }
 
 pub fn start_playing(sys: &mut System) {
-    sys.scheduler.schedule(CYCLES_PER_SAMPLE, self::push_sample);
+    if !sys.scheduler.contains(self::push_sample) {
+        sys.scheduler.schedule(CYCLES_PER_SAMPLE, self::push_sample);
+    }
 }
 
 pub fn stop_playing(sys: &mut System) {

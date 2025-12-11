@@ -1,9 +1,11 @@
 use crate::system::System;
 use std::collections::VecDeque;
 
+pub type Handler = fn(&mut System);
+
 pub struct ScheduledEvent {
     pub cycle: u64,
-    pub handler: fn(&mut System),
+    pub handler: Handler,
 }
 
 pub struct Scheduler {
@@ -31,7 +33,7 @@ impl Default for Scheduler {
 
 impl Scheduler {
     #[inline(always)]
-    pub fn schedule(&mut self, after: u64, handler: fn(&mut System)) {
+    pub fn schedule(&mut self, after: u64, handler: Handler) {
         let cycle = self.elapsed + after;
         let index = self.scheduled.partition_point(|e| e.cycle <= cycle);
         self.scheduled
@@ -39,12 +41,12 @@ impl Scheduler {
     }
 
     #[inline(always)]
-    pub fn schedule_now(&mut self, handler: fn(&mut System)) {
+    pub fn schedule_now(&mut self, handler: Handler) {
         self.schedule(0, handler)
     }
 
     #[inline(always)]
-    pub fn cancel(&mut self, handler: fn(&mut System)) {
+    pub fn cancel(&mut self, handler: Handler) {
         self.scheduled
             .retain(|x| !std::ptr::fn_addr_eq(x.handler, handler));
     }
@@ -72,10 +74,17 @@ impl Scheduler {
     }
 
     #[inline(always)]
-    pub fn pop(&mut self) -> Option<fn(&mut System)> {
+    pub fn pop(&mut self) -> Option<Handler> {
         self.scheduled
             .pop_front_if(|e| e.cycle <= self.elapsed)
             .map(|e| e.handler)
+    }
+
+    #[inline(always)]
+    pub fn contains(&self, handler: Handler) -> bool {
+        self.scheduled
+            .iter()
+            .any(|e| std::ptr::fn_addr_eq(e.handler, handler))
     }
 
     /// How many CPU cycles have elapsed.

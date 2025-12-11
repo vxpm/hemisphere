@@ -139,7 +139,9 @@ pub fn get_active_interrupts(sys: &System) -> InterruptSources {
     sources.set_pe_finish(sys.gpu.pixel.interrupt.finish());
 
     // AI
-    sources.set_audio_interface(sys.audio.control.interrupt());
+    sources.set_audio_interface(
+        sys.audio.control.interrupt() && sys.audio.control.interrupt_enabled(),
+    );
 
     // DSP
     sources.set_dsp_interface(sys.dsp.control.any_interrupt());

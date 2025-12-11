@@ -187,6 +187,7 @@ mmio! {
     0x6C00, 4, AudioControl;
     0x6C04, 4, AudioVolume;
     0x6C08, 4, AudioSampleCounter;
+    0x6C0C, 4, AudioInterruptSample;
 
     // === Fake STDOUT ===
     0x7000, 1, FakeStdout;

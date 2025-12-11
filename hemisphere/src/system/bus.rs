@@ -222,8 +222,9 @@ impl System {
             Mmio::ExiChannel2Immediate => ne!(self.external.channel2.immediate.as_bytes()),
 
             // === Audio Interface ===
-            Mmio::AudioSampleCounter => ne!(self.audio.sample_counter.as_bytes()),
             Mmio::AudioControl => ne!(self.audio.control.as_bytes()),
+            Mmio::AudioSampleCounter => ne!(self.audio.sample_counter.as_bytes()),
+            Mmio::AudioInterruptSample => ne!(self.audio.interrupt_sample.as_bytes()),
 
             _ => {
                 tracing::warn!(pc = ?self.cpu.pc, "unimplemented read from known mmio register ({reg:?})");
@@ -468,13 +469,9 @@ impl System {
             }
             Mmio::AudioDmaBase => ne!(self.audio.dma_base.as_mut_bytes()),
             Mmio::AudioDmaControl => {
-                let ongoing = self.audio.dma_control.transfer_ongoing();
                 ne!(self.audio.dma_control.as_mut_bytes());
-
-                if !ongoing && self.audio.dma_control.transfer_ongoing() {
+                if self.audio.dma_control.transfer_ongoing() {
                     ai::start_playing(self);
-                } else if !self.audio.dma_control.transfer_ongoing() {
-                    ai::stop_playing(self);
                 }
             }
 
@@ -587,10 +584,18 @@ impl System {
 
             // === Audio Interface ===
             Mmio::AudioControl => {
+                let already_playing = self.audio.control.playing();
                 let mut written = self.audio.control;
                 ne!(written.as_mut_bytes());
                 self.audio.write_control(written);
+
+                if !already_playing && self.audio.control.playing() {
+                    ai::start_playing(self);
+                } else if !self.audio.control.playing() {
+                    ai::stop_playing(self);
+                }
             }
+            Mmio::AudioInterruptSample => ne!(self.audio.interrupt_sample.as_mut_bytes()),
 
             // === Fake STDOUT ===
             Mmio::FakeStdout => {
