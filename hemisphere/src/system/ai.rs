@@ -35,7 +35,7 @@ pub struct DmaControl {
     #[bits(0..15)]
     pub length_by_32: u15,
     #[bits(15)]
-    pub transfer_ongoing: bool,
+    pub playing: bool,
 }
 
 #[derive(Default)]
@@ -43,7 +43,7 @@ pub struct Interface {
     pub control: Control,
     pub dma_base: Address,
     pub dma_control: DmaControl,
-    pub current_dma_sample: u32,
+    pub current_dma_block: u32,
     pub sample_counter: u32,
     pub interrupt_sample: u32,
 }
@@ -78,28 +78,10 @@ impl Interface {
 
 const SAMPLE_RATE: u32 = 48_000;
 const CYCLES_PER_SAMPLE: u64 = gekko::FREQUENCY / SAMPLE_RATE as u64;
+const CYCLES_PER_BLOCK: u64 = 8 * CYCLES_PER_SAMPLE;
 
-fn push_sample(sys: &mut System) {
-    if sys.audio.dma_control.transfer_ongoing() {
-        let addr = sys.audio.dma_base + 4 * sys.audio.current_dma_sample;
-        let sample = sys.read::<u32>(addr);
-
-        dbg!(sample);
-
-        sys.audio.current_dma_sample += 1;
-
-        let total_samples = sys.audio.dma_control.length_by_32().value() as u32 / 4;
-        if sys.audio.current_dma_sample >= total_samples {
-            println!("raising dma int");
-            sys.dsp.control.set_ai_interrupt(true);
-            sys.audio.current_dma_sample = 0;
-            pi::check_interrupts(sys);
-        }
-    }
-
-    println!("pushing sample {}", sys.audio.sample_counter);
+fn push_streaming_sample(sys: &mut System) {
     sys.audio.sample_counter += 1;
-
     if sys.audio.control.interrupt_valid() && sys.audio.sample_counter == sys.audio.interrupt_sample
     {
         println!("raising sample counter int");
@@ -107,15 +89,58 @@ fn push_sample(sys: &mut System) {
         pi::check_interrupts(sys);
     }
 
-    sys.scheduler.schedule(CYCLES_PER_SAMPLE, self::push_sample);
+    sys.scheduler
+        .schedule(CYCLES_PER_SAMPLE, self::push_streaming_sample);
 }
 
-pub fn start_playing(sys: &mut System) {
-    if !sys.scheduler.contains(self::push_sample) {
-        sys.scheduler.schedule(CYCLES_PER_SAMPLE, self::push_sample);
+pub fn start_streaming(sys: &mut System) {
+    if !sys.scheduler.contains(self::push_streaming_sample) {
+        sys.scheduler
+            .schedule(CYCLES_PER_SAMPLE, self::push_streaming_sample);
     }
 }
 
-pub fn stop_playing(sys: &mut System) {
-    sys.scheduler.cancel(self::push_sample);
+pub fn stop_streaming(sys: &mut System) {
+    sys.scheduler.cancel(self::push_streaming_sample);
+}
+
+#[bitos(32)]
+#[derive(Debug, Clone, Copy)]
+struct SamplePcm16 {
+    #[bits(0..16)]
+    pub left: u16,
+    #[bits(16..32)]
+    pub right: u16,
+}
+
+fn push_data_dma_block(sys: &mut System) {
+    let addr = sys.audio.dma_base + 32 * sys.audio.current_dma_block;
+    let samples: [SamplePcm16; 8] =
+        std::array::from_fn(|i| SamplePcm16::from_bits(sys.read::<u32>(addr + 4 * i as u32)));
+
+    dbg!(samples);
+
+    sys.audio.current_dma_block += 1;
+
+    let total_blocks = sys.audio.dma_control.length_by_32().value() as u32 * 32;
+    if sys.audio.current_dma_block >= total_blocks {
+        println!("raising dma int");
+        sys.dsp.control.set_ai_interrupt(true);
+        sys.audio.current_dma_block = 0;
+        pi::check_interrupts(sys);
+    }
+
+    if sys.audio.dma_control.playing() {
+        sys.scheduler
+            .schedule(CYCLES_PER_BLOCK, self::push_data_dma_block);
+    }
+}
+
+pub fn start_data_dma(sys: &mut System) {
+    sys.scheduler
+        .schedule(CYCLES_PER_BLOCK, self::push_data_dma_block);
+}
+
+pub fn stop_data_dma(sys: &mut System) {
+    sys.scheduler.cancel(self::push_data_dma_block);
 }

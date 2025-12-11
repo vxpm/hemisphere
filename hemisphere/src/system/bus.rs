@@ -469,9 +469,12 @@ impl System {
             }
             Mmio::AudioDmaBase => ne!(self.audio.dma_base.as_mut_bytes()),
             Mmio::AudioDmaControl => {
+                let ongoing = self.audio.dma_control.playing();
                 ne!(self.audio.dma_control.as_mut_bytes());
-                if self.audio.dma_control.transfer_ongoing() {
-                    ai::start_playing(self);
+                if !ongoing && self.audio.dma_control.playing() {
+                    ai::start_data_dma(self);
+                } else if !self.audio.dma_control.playing() {
+                    ai::stop_data_dma(self);
                 }
             }
 
@@ -590,9 +593,9 @@ impl System {
                 self.audio.write_control(written);
 
                 if !already_playing && self.audio.control.playing() {
-                    ai::start_playing(self);
+                    ai::start_streaming(self);
                 } else if !self.audio.control.playing() {
-                    ai::stop_playing(self);
+                    ai::stop_streaming(self);
                 }
             }
             Mmio::AudioInterruptSample => ne!(self.audio.interrupt_sample.as_mut_bytes()),
