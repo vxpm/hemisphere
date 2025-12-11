@@ -29,12 +29,22 @@ fn sub_overflowed(lhs: i64, rhs: i64, new: i64) -> bool {
     add_overflowed(lhs, -rhs, new)
 }
 
+fn x40_to_float(value: i64) -> f64 {
+    (value >> 16) as f64 + ((value & 0xFFFF) as f64 / (1 << 16) as f64)
+}
+
+/// Rounds a fixed point 24.16 number with ties to even.
 #[inline(always)]
-fn round_40(value: i64) -> i64 {
+fn round_40_ties_to_even(value: i64) -> i64 {
+    let half = 0x8000;
+
+    // is the value odd?
     if value.bit(16) {
-        (value + 0x8000) & !0xFFFF
+        // yes - add half, because fract 0.5 should round up
+        (value + half) & !0xFFFF
     } else {
-        (value + 0x7FFF) & !0xFFFF
+        // no - add (half - 1), because fract 0.5 should round down
+        (value + half - 1) & !0xFFFF
     }
 }
 
@@ -230,7 +240,7 @@ impl Interpreter {
         let s = ins.base.bit(9) as usize;
 
         let (carry, overflow, lhs) = self.regs.product.get();
-        let lhs = round_40(lhs);
+        let lhs = round_40_ties_to_even(lhs);
 
         let rhs = self.regs.acc32[s] as i64;
         let new = self.regs.acc40[d].set((lhs + rhs) & !0xFFFF);
@@ -446,7 +456,7 @@ impl Interpreter {
         let r = ins.base.bit(8) as usize;
 
         let old = self.regs.acc40[r].get();
-        let new = self.regs.acc40[r].set(round_40(old));
+        let new = self.regs.acc40[r].set(round_40_ties_to_even(old));
 
         self.regs.status.set_carry(false);
         self.regs.status.set_overflow(false);
@@ -852,7 +862,7 @@ impl Interpreter {
         let d = ins.base.bit(8) as usize;
 
         let (carry, overflow, prod) = self.regs.product.get();
-        let new = self.regs.acc40[d].set(round_40(prod));
+        let new = self.regs.acc40[d].set(round_40_ties_to_even(prod));
 
         self.regs.status.set_carry(carry);
         self.regs.status.set_overflow(overflow);
@@ -1073,7 +1083,7 @@ impl Interpreter {
         };
 
         self.regs.product.set(result);
-        let new = self.regs.acc40[r].set(round_40(prod));
+        let new = self.regs.acc40[r].set(round_40_ties_to_even(prod));
 
         self.regs.status.set_overflow(false);
         self.base_flags(new);
@@ -1108,7 +1118,7 @@ impl Interpreter {
         let s = ins.base.bit(11) as usize;
 
         let (_, _, prod) = self.regs.product.get();
-        let new = self.regs.acc40[r].set(round_40(prod));
+        let new = self.regs.acc40[r].set(round_40_ties_to_even(prod));
 
         let low = ((self.regs.acc32[s] << 16) >> 16) as i64;
         let high = (self.regs.acc32[s] >> 16) as i64;
@@ -1242,7 +1252,7 @@ impl Interpreter {
         let s = ins.base.bit(12);
 
         let (_, _, prod) = self.regs.product.get();
-        self.regs.acc40[r].set(round_40(prod));
+        self.regs.acc40[r].set(round_40_ties_to_even(prod));
 
         let lhs = if s {
             (self.regs.acc32[0] >> 16) as u16

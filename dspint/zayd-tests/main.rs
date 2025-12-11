@@ -8,7 +8,7 @@ use hemisphere::{
     system::{self, System},
 };
 use libtest_mimic::{Arguments, Failed, Trial};
-use std::fmt::Write;
+use std::{fmt::Write, sync::mpsc};
 
 fn parse_code(mut words: &[u16]) -> Vec<dspint::Ins> {
     let mut ins = vec![];
@@ -88,10 +88,12 @@ fn run_test(file: file::TestFile, quiet: bool) -> Result<(), Failed> {
     let total = file.cases.len();
     let mut failures = vec![];
 
+    let (audio_sink, _receiver) = mpsc::channel();
     let mut system = System::new(system::Config {
         renderer: Box::new(NopRenderer),
         ipl: None,
         iso: None,
+        audio_sink,
         sideload: None,
         debug_info: None,
     });
