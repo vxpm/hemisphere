@@ -106,7 +106,7 @@ pub fn stop_streaming(sys: &mut System) {
 
 #[bitos(32)]
 #[derive(Debug, Clone, Copy)]
-struct SamplePcm16 {
+pub struct Sample {
     #[bits(0..16)]
     pub left: u16,
     #[bits(16..32)]
@@ -115,16 +115,17 @@ struct SamplePcm16 {
 
 fn push_data_dma_block(sys: &mut System) {
     let addr = sys.audio.dma_base + 32 * sys.audio.current_dma_block;
-    let samples: [SamplePcm16; 8] =
-        std::array::from_fn(|i| SamplePcm16::from_bits(sys.read::<u32>(addr + 4 * i as u32)));
+    let samples: [Sample; 8] =
+        std::array::from_fn(|i| Sample::from_bits(sys.read::<u32>(addr + 4 * i as u32)));
 
-    dbg!(samples);
+    for sample in samples {
+        sys.config.audio_sink.send(sample).unwrap();
+    }
 
     sys.audio.current_dma_block += 1;
 
-    let total_blocks = sys.audio.dma_control.length_by_32().value() as u32 * 32;
+    let total_blocks = sys.audio.dma_control.length_by_32().value() as u32;
     if sys.audio.current_dma_block >= total_blocks {
-        println!("raising dma int");
         sys.dsp.control.set_ai_interrupt(true);
         sys.audio.current_dma_block = 0;
         pi::check_interrupts(sys);

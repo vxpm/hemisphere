@@ -1,5 +1,6 @@
 #![feature(trim_prefix_suffix)]
 
+mod audio_wip;
 mod cli;
 mod control;
 mod debug;
@@ -31,7 +32,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::VecDeque,
     io::BufReader,
-    sync::Arc,
+    sync::{Arc, mpsc},
     time::{Duration, Instant},
 };
 
@@ -142,12 +143,16 @@ impl App {
             input: Box::new(input::GilrsCore::new()),
         };
 
+        let (audio_sink, receiver) = mpsc::channel();
+        std::thread::spawn(move || audio_wip::worker(receiver));
+
         let hemisphere = Hemisphere::new(
             cores,
             system::Config {
                 renderer: Box::new(renderer.clone()),
                 ipl,
                 iso,
+                audio_sink,
                 sideload: executable,
                 debug_info,
             },
