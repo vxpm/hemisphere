@@ -38,8 +38,8 @@ pub fn worker(sender: Receiver<Sample>) {
                         continue;
                     };
 
-                    data[0] = pair.left.to_sample::<f32>().mul_amp(0.1);
-                    data[1] = pair.right.to_sample::<f32>().mul_amp(0.1);
+                    data[0] = pair.left.to_sample::<f32>();
+                    data[1] = pair.right.to_sample::<f32>();
                 }
             },
             move |_| panic!("errored :("),

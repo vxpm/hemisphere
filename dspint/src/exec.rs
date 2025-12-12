@@ -29,10 +29,6 @@ fn sub_overflowed(lhs: i64, rhs: i64, new: i64) -> bool {
     add_overflowed(lhs, -rhs, new)
 }
 
-fn x40_to_float(value: i64) -> f64 {
-    value as f64 / ((1 << 16) as f64)
-}
-
 /// Rounds a fixed point 24.16 number with ties to even.
 #[inline(always)]
 fn round_40_ties_to_even(value: i64) -> i64 {

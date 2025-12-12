@@ -1034,8 +1034,6 @@ impl Interpreter {
             1
         };
 
-        // tracing::debug!("decoded {:?} at 0x{:04X}", ins, self.regs.pc);
-
         let main = OPCODE_EXEC_LUT[decoded.opcode as usize];
         let extension = decoded
             .extension
