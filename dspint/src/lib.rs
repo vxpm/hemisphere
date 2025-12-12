@@ -356,6 +356,17 @@ pub enum SampleSize {
     Reserved = 0b11,
 }
 
+impl SampleSize {
+    pub fn size(self) -> u32 {
+        match self {
+            Self::Nibble => 1,
+            Self::Byte => 2,
+            Self::Word => 4,
+            _ => panic!("reserved size"),
+        }
+    }
+}
+
 #[bitos(2)]
 #[derive(Debug, Clone, Copy, Default)]
 pub enum SampleDecoding {
@@ -368,30 +379,41 @@ pub enum SampleDecoding {
 
 #[bitos(2)]
 #[derive(Debug, Clone, Copy, Default)]
-pub enum PcmScale {
+pub enum PcmDivisor {
     #[default]
-    OneBy2048 = 0b00,
-    One = 0b01,
-    OneBy65536 = 0b10,
+    D2048 = 0b00,
+    D1 = 0b01,
+    D65536 = 0b10,
     Reserved = 0b11,
+}
+
+impl PcmDivisor {
+    pub fn value(self) -> u32 {
+        match self {
+            Self::D2048 => 2048,
+            Self::D1 => 1,
+            Self::D65536 => 65536,
+            _ => panic!("reserved divisor"),
+        }
+    }
 }
 
 #[bitos(16)]
 #[derive(Debug, Clone, Copy, Default)]
 pub struct AcceleratorFormat {
     #[bits(0..2)]
-    pub size: SampleSize,
+    pub sample: SampleSize,
     #[bits(2..4)]
     pub decoding: SampleDecoding,
     #[bits(4..6)]
-    pub scale: PcmScale,
+    pub divisor: PcmDivisor,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AcceleratorWrap {
     RawRead,
     RawWrite,
-    ProcessedRead,
+    SampleRead,
 }
 
 impl AcceleratorWrap {
@@ -399,7 +421,7 @@ impl AcceleratorWrap {
         match self {
             Self::RawRead => Exception::AccelRawReadOverflow,
             Self::RawWrite => Exception::AccelRawWriteOverflow,
-            Self::ProcessedRead => Exception::AccelSampleReadOverflow,
+            Self::SampleRead => Exception::AccelSampleReadOverflow,
         }
     }
 }
@@ -611,7 +633,6 @@ static EXTENSION_EXEC_LUT: [ExtensionFn; 1 << 8] = {
 
 impl Interpreter {
     fn raise_exception(&mut self, exception: Exception) {
-        println!("raised except {exception:?}");
         self.regs.call_stack.push(self.regs.pc);
         self.regs.data_stack.push(self.regs.status.to_bits());
         self.regs.pc = exception as u16 * 2;
@@ -779,6 +800,45 @@ impl Interpreter {
         }
     }
 
+    fn read_accelerator_sample(&mut self, sys: &mut System) -> u16 {
+        let format = self.accel.format;
+        let current = self.accel.aram_curr.with_bit(31, false);
+        let value = match format.decoding() {
+            SampleDecoding::AramAdpcm => 0,
+            SampleDecoding::AcinPcm => 0,
+            SampleDecoding::AramPcm => {
+                let value = match format.sample() {
+                    SampleSize::Nibble => {
+                        let address = current / 2;
+                        let byte = u8::read_be_bytes(&sys.mem.aram[address as usize..]) as u16;
+                        if current % 2 == 0 {
+                            byte & 0xF
+                        } else {
+                            byte >> 4
+                        }
+                    }
+                    SampleSize::Byte => u8::read_be_bytes(&sys.mem.aram[current as usize..]) as u16,
+                    SampleSize::Word => {
+                        let address = current * 2;
+                        u16::read_be_bytes(&sys.mem.aram[address as usize..])
+                    }
+                    _ => panic!("reserved format"),
+                };
+
+                self.accel.aram_curr += 1;
+                if self.accel.aram_curr > self.accel.aram_end {
+                    self.accel.aram_curr = self.accel.aram_start;
+                    self.accel.wrapped = Some(AcceleratorWrap::SampleRead);
+                }
+
+                (value as u32 * self.accel.gain as u32 / format.divisor().value()) as u16
+            }
+            SampleDecoding::AcinPcmInc => 0,
+        };
+
+        value
+    }
+
     pub fn read_mmio(&mut self, sys: &mut System, offset: u8) -> u16 {
         match offset {
             // DMA
@@ -816,30 +876,7 @@ impl Interpreter {
             0xDA => self.accel.pred_scale,
             0xDB => 0,
             0xDC => 0,
-            0xDD => {
-                let value = match self.accel.format.decoding() {
-                    SampleDecoding::AramAdpcm => todo!(),
-                    SampleDecoding::AcinPcm => todo!(),
-                    SampleDecoding::AramPcm => {
-                        let value = u16::read_be_bytes(
-                            sys.mem.aram[self.accel.aram_curr.with_bit(31, false) as usize * 2..]
-                                .as_bytes(),
-                        );
-
-                        self.accel.aram_curr += 1;
-                        if self.accel.aram_curr > self.accel.aram_end {
-                            self.accel.aram_curr = self.accel.aram_start;
-                            self.accel.wrapped = Some(AcceleratorWrap::ProcessedRead);
-                        }
-
-                        dbg!(value);
-                        (value as u32 * self.accel.gain as u32 / 2048) as u16
-                    }
-                    SampleDecoding::AcinPcmInc => todo!(),
-                };
-
-                value
-            }
+            0xDD => self.read_accelerator_sample(sys),
             0xDE => self.accel.gain,
 
             // Mailboxes
