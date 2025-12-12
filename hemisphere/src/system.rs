@@ -18,7 +18,7 @@ pub mod si;
 pub mod vi;
 
 use crate::{
-    render::Renderer,
+    modules::render::Renderer,
     system::{
         dspi::Dsp,
         executable::{DebugInfo, Executable},

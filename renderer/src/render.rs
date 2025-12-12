@@ -15,7 +15,7 @@ use crate::{
 };
 use glam::Mat4;
 use hemisphere::{
-    render::{Action, TexEnvConfig, TexGenConfig, Viewport, oneshot},
+    modules::render::{Action, TexEnvConfig, TexGenConfig, Viewport, oneshot},
     system::gx::{
         DEPTH_24_BIT_MAX, Topology, VertexAttributes,
         colors::{Rgba, Rgba8},

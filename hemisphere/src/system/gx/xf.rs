@@ -1,7 +1,7 @@
 //! Transform unit (XF).
 use crate::{
     Primitive,
-    render::{self, Action},
+    modules::render,
     system::{
         System,
         gx::{DEPTH_24_BIT_MAX, cmd::ArrayDescriptor, colors::Abgr8},
@@ -396,7 +396,9 @@ pub fn update_texgens(sys: &mut System) {
     }
 
     let config = render::TexGenConfig { stages };
-    sys.config.renderer.exec(Action::SetTexGenConfig(config));
+    sys.config
+        .renderer
+        .exec(render::Action::SetTexGenConfig(config));
 }
 
 /// Sets the value of an internal transform unit register.
@@ -412,49 +414,49 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
             xf.ambient[0] = Abgr8::from_u32(value);
             sys.config
                 .renderer
-                .exec(Action::SetAmbient(0, xf.ambient[0]));
+                .exec(render::Action::SetAmbient(0, xf.ambient[0]));
         }
         Reg::Ambient1 => {
             xf.ambient[1] = Abgr8::from_u32(value);
             sys.config
                 .renderer
-                .exec(Action::SetAmbient(1, xf.ambient[1]));
+                .exec(render::Action::SetAmbient(1, xf.ambient[1]));
         }
         Reg::Material0 => {
             xf.material[0] = Abgr8::from_u32(value);
             sys.config
                 .renderer
-                .exec(Action::SetMaterial(0, xf.material[0]));
+                .exec(render::Action::SetMaterial(0, xf.material[0]));
         }
         Reg::Material1 => {
             xf.material[1] = Abgr8::from_u32(value);
             sys.config
                 .renderer
-                .exec(Action::SetMaterial(1, xf.material[1]));
+                .exec(render::Action::SetMaterial(1, xf.material[1]));
         }
         Reg::ColorControl0 => {
             xf.color_control[0] = ChannelControl::from_bits(value);
             sys.config
                 .renderer
-                .exec(Action::SetColorChannel(0, xf.color_control[0]));
+                .exec(render::Action::SetColorChannel(0, xf.color_control[0]));
         }
         Reg::ColorControl1 => {
             xf.color_control[1] = ChannelControl::from_bits(value);
             sys.config
                 .renderer
-                .exec(Action::SetColorChannel(1, xf.color_control[1]));
+                .exec(render::Action::SetColorChannel(1, xf.color_control[1]));
         }
         Reg::AlphaControl0 => {
             xf.alpha_control[0] = ChannelControl::from_bits(value);
             sys.config
                 .renderer
-                .exec(Action::SetAlphaChannel(0, xf.alpha_control[0]));
+                .exec(render::Action::SetAlphaChannel(0, xf.alpha_control[0]));
         }
         Reg::AlphaControl1 => {
             xf.alpha_control[1] = ChannelControl::from_bits(value);
             sys.config
                 .renderer
-                .exec(Action::SetAlphaChannel(1, xf.alpha_control[1]));
+                .exec(render::Action::SetAlphaChannel(1, xf.alpha_control[1]));
         }
 
         Reg::ViewportScaleX => xf.viewport.width = f32::from_bits(value) * 2.0,
@@ -504,9 +506,11 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
     }
 
     if reg.is_projection_param() {
-        sys.config.renderer.exec(Action::SetProjectionMatrix(
-            sys.gpu.transform.projection_matrix(),
-        ));
+        sys.config
+            .renderer
+            .exec(render::Action::SetProjectionMatrix(
+                sys.gpu.transform.projection_matrix(),
+            ));
     }
 }
 
@@ -532,7 +536,7 @@ pub fn write(sys: &mut System, addr: u16, value: u32) {
             if let Some(light_offset) = addr.checked_sub(0x0600) {
                 let index = light_offset / 0x10;
                 if index < 7 {
-                    sys.config.renderer.exec(Action::SetLight(
+                    sys.config.renderer.exec(render::Action::SetLight(
                         index as u8,
                         *sys.gpu.transform.light(index as u8),
                     ));

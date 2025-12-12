@@ -5,7 +5,7 @@ mod util;
 
 use crate::{render::Renderer, util::blit::XfbBlitter};
 use flume::{Receiver, Sender};
-use hemisphere::render::{Action, Renderer as RendererInterface};
+use hemisphere::modules::render::{Action, Renderer as RendererInterface};
 use std::sync::{Arc, atomic::Ordering};
 
 #[expect(clippy::needless_pass_by_value, reason = "makes it clearer")]

@@ -4,8 +4,9 @@ mod primitive;
 mod stream;
 
 pub mod cores;
+pub mod modules;
+
 pub mod panic;
-pub mod render;
 pub mod system;
 
 use crate::{cores::Cores, system::System};

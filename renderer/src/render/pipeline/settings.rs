@@ -1,5 +1,5 @@
 use hemisphere::{
-    render::TexEnvStage,
+    modules::render::TexEnvStage,
     system::gx::{
         tev::{AlphaCompare, AlphaLogic},
         xf::BaseTexGen,
