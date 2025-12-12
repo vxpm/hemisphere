@@ -44,7 +44,7 @@ impl Default for Memory {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Exception {
+pub enum Interrupt {
     Reset = 0,
     StackOverflow = 1,
     Unknown0 = 2,
@@ -52,7 +52,7 @@ pub enum Exception {
     AccelRawWriteOverflow = 4,
     AccelSampleReadOverflow = 5,
     Unknown1 = 6,
-    Interrupt = 7,
+    External = 7,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -417,11 +417,11 @@ pub enum AcceleratorWrap {
 }
 
 impl AcceleratorWrap {
-    pub fn exception(self) -> Exception {
+    pub fn interrupt(self) -> Interrupt {
         match self {
-            Self::RawRead => Exception::AccelRawReadOverflow,
-            Self::RawWrite => Exception::AccelRawWriteOverflow,
-            Self::SampleRead => Exception::AccelSampleReadOverflow,
+            Self::RawRead => Interrupt::AccelRawReadOverflow,
+            Self::RawWrite => Interrupt::AccelRawWriteOverflow,
+            Self::SampleRead => Interrupt::AccelSampleReadOverflow,
         }
     }
 }
@@ -633,30 +633,37 @@ static EXTENSION_EXEC_LUT: [ExtensionFn; 1 << 8] = {
 };
 
 impl Interpreter {
-    fn raise_exception(&mut self, exception: Exception) {
+    fn raise_interrupt(&mut self, interrupt: Interrupt) {
+        tracing::debug!("raising interrupt {interrupt:?}");
         self.regs.call_stack.push(self.regs.pc);
         self.regs.data_stack.push(self.regs.status.to_bits());
-        self.regs.pc = exception as u16 * 2;
+        self.regs.pc = interrupt as u16 * 2;
+
+        match interrupt {
+            Interrupt::External => self.regs.status.set_external_interrupt_enable(false),
+            _ => self.regs.status.set_interrupt_enable(false),
+        };
     }
 
-    pub fn check_exceptions(&mut self, sys: &mut System) {
+    pub fn check_interrupts(&mut self, sys: &mut System) {
         if self.loop_counter.is_some() {
             return;
+        }
+
+        let wrap = self.accel.wrapped.take();
+        if self.regs.status.interrupt_enable() {
+            if let Some(wrap) = wrap {
+                self.raise_interrupt(wrap.interrupt());
+                return;
+            }
         }
 
         // external interrupt does not care about status interrupt enable
         if sys.dsp.control.interrupt() && self.regs.status.external_interrupt_enable() {
             tracing::warn!("DSP external interrupt raised");
-
             sys.dsp.control.set_interrupt(false);
-            self.raise_exception(Exception::Interrupt);
+            self.raise_interrupt(Interrupt::External);
             return;
-        }
-
-        if let Some(wrap) = self.accel.wrapped.take()
-            && self.regs.status.interrupt_enable()
-        {
-            self.raise_exception(wrap.exception());
         }
     }
 
@@ -748,7 +755,7 @@ impl Interpreter {
 
             match (target, direction) {
                 (DspDmaTarget::Dmem, DspDmaDirection::FromRamToDsp) => {
-                    tracing::trace!(
+                    tracing::debug!(
                         "DSP DMA {length:04X} bytes from RAM {ram_base:08X} to DMEM {dsp_base:04X}",
                     );
 
@@ -761,7 +768,7 @@ impl Interpreter {
                     }
                 }
                 (DspDmaTarget::Dmem, DspDmaDirection::FromDspToRam) => {
-                    tracing::trace!(
+                    tracing::debug!(
                         "DSP DMA {length:04X} bytes from DMEM {dsp_base:04X} to RAM {ram_base:08X}"
                     );
 
@@ -790,9 +797,7 @@ impl Interpreter {
                     // clear cache
                     self.cached.fill(None);
                 }
-                (DspDmaTarget::Imem, DspDmaDirection::FromDspToRam) => {
-                    todo!()
-                }
+                (DspDmaTarget::Imem, DspDmaDirection::FromDspToRam) => unimplemented!(),
             };
 
             sys.dsp.dsp_dma.length = 0;
@@ -1149,7 +1154,7 @@ impl Interpreter {
         }
 
         self.check_stacks();
-        self.check_exceptions(sys);
+        self.check_interrupts(sys);
 
         // have we cached this instruction already?
         let ins = if let Some(cached) = self.cached[self.regs.pc as usize] {
