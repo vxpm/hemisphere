@@ -6,8 +6,16 @@ use hemisphere::system::ai::Sample;
 use std::{sync::mpsc::Receiver, time::Duration};
 
 pub fn worker(sender: Receiver<Sample>) {
-    let host = cpal::default_host();
+    let spec = hound::WavSpec {
+        channels: 2,
+        sample_rate: 48_042,
+        bits_per_sample: 16,
+        sample_format: hound::SampleFormat::Int,
+    };
 
+    let mut writer = hound::WavWriter::create("audio.wav", spec).unwrap();
+
+    let host = cpal::default_host();
     let device = host
         .default_output_device()
         .expect("no output device available");
@@ -38,6 +46,9 @@ pub fn worker(sender: Receiver<Sample>) {
                         continue;
                     };
 
+                    writer.write_sample(pair.left).unwrap();
+                    writer.write_sample(pair.right).unwrap();
+
                     data[0] = pair.left.to_sample::<f32>();
                     data[1] = pair.right.to_sample::<f32>();
                 }
@@ -49,5 +60,5 @@ pub fn worker(sender: Receiver<Sample>) {
 
     stream.play().unwrap();
 
-    std::thread::sleep(Duration::from_secs(999));
+    std::thread::sleep(Duration::from_secs(9999));
 }

@@ -42,3 +42,4 @@ addr2line = { version = "0.25", features = [
 mapfile_parser = "2.12"
 renderdoc = "0.12"
 cpal = "0.16"
+hound = "3.5"

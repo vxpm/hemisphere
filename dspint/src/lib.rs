@@ -7,6 +7,7 @@ pub mod ins;
 use std::mem::MaybeUninit;
 
 use crate::ins::{ExtensionOpcode, Opcode};
+use bitos::integer::{u3, u4};
 use bitos::{BitUtils, bitos, integer::u15};
 use hemisphere::Primitive;
 use hemisphere::system::{
@@ -400,7 +401,7 @@ impl PcmDivisor {
 
 #[bitos(16)]
 #[derive(Debug, Clone, Copy, Default)]
-pub struct AcceleratorFormat {
+pub struct AccelFormat {
     #[bits(0..2)]
     pub sample: SampleSize,
     #[bits(2..4)]
@@ -410,13 +411,13 @@ pub struct AcceleratorFormat {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AcceleratorWrap {
+pub enum AccelWrap {
     RawRead,
     RawWrite,
     SampleRead,
 }
 
-impl AcceleratorWrap {
+impl AccelWrap {
     pub fn interrupt(self) -> Interrupt {
         match self {
             Self::RawRead => Interrupt::AccelRawReadOverflow,
@@ -426,16 +427,33 @@ impl AcceleratorWrap {
     }
 }
 
+#[bitos(16)]
+#[derive(Debug, Clone, Copy, Default)]
+pub struct AccelPredictor {
+    #[bits(0..4)]
+    pub scale_log2: u4,
+    #[bits(4..7)]
+    pub coefficients: u3,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct AccelCoefficients {
+    pub a: i16,
+    pub b: i16,
+}
+
 #[derive(Default)]
 pub struct Accelerator {
-    pub format: AcceleratorFormat,
-    pub gain: u16,
-    pub pred_scale: u16,
+    pub coefficients: [AccelCoefficients; 8],
+    pub format: AccelFormat,
+    pub predictor: AccelPredictor,
     pub aram_start: u32,
     pub aram_end: u32,
     pub aram_curr: u32,
-    pub input: u16,
-    pub wrapped: Option<AcceleratorWrap>,
+    pub gain: i16,
+    pub input: i16,
+    pub wrapped: Option<AccelWrap>,
+    pub previous_samples: [i16; 2],
 }
 
 #[derive(Clone, Copy)]
@@ -806,7 +824,7 @@ impl Interpreter {
         }
     }
 
-    fn read_aram_raw(&mut self, sys: &mut System, wrap: AcceleratorWrap) -> u16 {
+    fn read_aram_raw(&mut self, sys: &mut System, wrap: AccelWrap) -> u16 {
         let format = self.accel.format;
         let current = self.accel.aram_curr.with_bit(31, false);
         let value = match format.sample() {
@@ -843,28 +861,54 @@ impl Interpreter {
     }
 
     fn read_accelerator_raw(&mut self, sys: &mut System) -> u16 {
-        self.read_aram_raw(sys, AcceleratorWrap::RawRead)
+        self.read_aram_raw(sys, AccelWrap::RawRead)
     }
 
-    fn read_accelerator_sample(&mut self, sys: &mut System) -> u16 {
+    fn pcm_gain(&self, value: i32) -> i16 {
+        (value * self.accel.gain as i32 / self.accel.format.divisor().value() as i32) as i16
+    }
+
+    fn pcm_decode(&self, value: i32, coeffs: AccelCoefficients) -> i16 {
+        self.pcm_gain(value)
+            + self.pcm_gain(coeffs.a as i32 * self.accel.previous_samples[0] as i32)
+            + self.pcm_gain(coeffs.b as i32 * self.accel.previous_samples[1] as i32)
+    }
+
+    fn read_accelerator_sample(&mut self, sys: &mut System) -> i16 {
         let format = self.accel.format;
+        let predictor = self.accel.predictor;
+
+        let coeff_idx = predictor.coefficients().value();
+        let coeffs = self.accel.coefficients[coeff_idx as usize];
+
         let value = match format.decoding() {
             SampleDecoding::AramAdpcm => 0,
-            SampleDecoding::AcinPcm => {
-                (self.accel.input as u32 * self.accel.gain as u32 / format.divisor().value()) as u16
-            }
+            SampleDecoding::AcinPcm => self.pcm_decode(self.accel.input as i32, coeffs),
             SampleDecoding::AramPcm => {
-                let value = self.read_aram_raw(sys, AcceleratorWrap::SampleRead);
-                (value as u32 * self.accel.gain as u32 / format.divisor().value()) as u16
+                let value = self.read_aram_raw(sys, AccelWrap::SampleRead) as i16;
+                self.pcm_decode(value as i32, coeffs)
             }
             SampleDecoding::AcinPcmInc => 0,
         };
+
+        self.accel.previous_samples[1] = self.accel.previous_samples[0];
+        self.accel.previous_samples[0] = value;
 
         value
     }
 
     pub fn read_mmio(&mut self, sys: &mut System, offset: u8) -> u16 {
         match offset {
+            // Coefficients
+            0xA0..=0xAF => {
+                let index = (offset as usize - 0xA0) / 2;
+                if offset % 2 == 0 {
+                    self.accel.coefficients[index].a as u16
+                } else {
+                    self.accel.coefficients[index].b as u16
+                }
+            }
+
             // DMA
             0xC9 => sys.dsp.dsp_dma.control.to_bits(),
             0xCB => sys.dsp.dsp_dma.length,
@@ -880,12 +924,12 @@ impl Interpreter {
             0xD7 => self.accel.aram_end.bits(0, 16) as u16,
             0xD8 => self.accel.aram_curr.bits(16, 32) as u16,
             0xD9 => self.accel.aram_curr.bits(0, 16) as u16,
-            0xDA => self.accel.pred_scale,
-            0xDB => 0,
-            0xDC => 0,
-            0xDD => self.read_accelerator_sample(sys),
-            0xDE => self.accel.gain,
-            0xDF => self.accel.input,
+            0xDA => self.accel.predictor.to_bits(),
+            0xDB => self.accel.previous_samples[0] as u16,
+            0xDC => self.accel.previous_samples[1] as u16,
+            0xDD => self.read_accelerator_sample(sys) as u16,
+            0xDE => self.accel.gain as u16,
+            0xDF => self.accel.input as u16,
 
             // Mailboxes
             0xFC => sys.dsp.dsp_mailbox.high_and_status(),
@@ -909,7 +953,14 @@ impl Interpreter {
     pub fn write_mmio(&mut self, sys: &mut System, offset: u8, value: u16) {
         match offset {
             // Coefficients
-            0xA0..=0xAF => (),
+            0xA0..=0xAF => {
+                let index = (offset as usize - 0xA0) / 2;
+                if offset % 2 == 0 {
+                    self.accel.coefficients[index].a = value as i16
+                } else {
+                    self.accel.coefficients[index].b = value as i16
+                }
+            }
 
             // DMA
             0xC9 => sys.dsp.dsp_dma.control = DspDmaControl::from_bits(value),
@@ -935,7 +986,7 @@ impl Interpreter {
 
             // Accelerator
             0xD1 => {
-                self.accel.format = AcceleratorFormat::from_bits(value);
+                self.accel.format = AccelFormat::from_bits(value);
                 dbg!(self.accel.format);
             }
             0xD3 => {
@@ -961,11 +1012,11 @@ impl Interpreter {
             0xD7 => self.accel.aram_end = self.accel.aram_end.with_bits(0, 16, value as u32),
             0xD8 => self.accel.aram_curr = self.accel.aram_curr.with_bits(16, 32, value as u32),
             0xD9 => self.accel.aram_curr = self.accel.aram_curr.with_bits(0, 16, value as u32),
-            0xDA => self.accel.pred_scale = value,
-            0xDB => (),
-            0xDC => (),
-            0xDE => self.accel.gain = value,
-            0xDF => self.accel.input = value,
+            0xDA => self.accel.predictor = AccelPredictor::from_bits(value),
+            0xDB => self.accel.previous_samples[0] = value as i16,
+            0xDC => self.accel.previous_samples[1] = value as i16,
+            0xDE => self.accel.gain = value as i16,
+            0xDF => self.accel.input = value as i16,
 
             // Mailboxes
             0xFC => {
