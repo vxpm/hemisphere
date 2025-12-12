@@ -1,6 +1,6 @@
 //! Audio interface (AI).
 use crate::system::{System, pi};
-use bitos::{bitos, integer::u15};
+use bitos::{BitUtils, bitos, integer::u15};
 use gekko::Address;
 
 #[bitos(1)]
@@ -111,7 +111,7 @@ pub struct Sample {
 }
 
 fn push_data_dma_block(sys: &mut System) {
-    let addr = sys.audio.dma_base + 32 * sys.audio.current_dma_block;
+    let addr = Address(sys.audio.dma_base.0.with_bit(31, false)) + 32 * sys.audio.current_dma_block;
     let samples: [Sample; 8] = std::array::from_fn(|i| Sample {
         left: sys.read::<i16>(addr + 4 * i as u32),
         right: sys.read::<i16>(addr + 4 * i as u32 + 2),
