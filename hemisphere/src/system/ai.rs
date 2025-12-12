@@ -76,7 +76,7 @@ impl Interface {
 //     }
 // }
 
-const SAMPLE_RATE: u32 = 48_000;
+const SAMPLE_RATE: u32 = 48_042;
 const CYCLES_PER_SAMPLE: u64 = gekko::FREQUENCY / SAMPLE_RATE as u64;
 const CYCLES_PER_BLOCK: u64 = 8 * CYCLES_PER_SAMPLE;
 

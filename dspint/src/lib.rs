@@ -434,6 +434,7 @@ pub struct Accelerator {
     pub aram_start: u32,
     pub aram_end: u32,
     pub aram_curr: u32,
+    pub input: u16,
     pub wrapped: Option<AcceleratorWrap>,
 }
 
@@ -800,37 +801,55 @@ impl Interpreter {
         }
     }
 
-    fn read_accelerator_sample(&mut self, sys: &mut System) -> u16 {
+    fn read_aram_raw(&mut self, sys: &mut System, wrap: AcceleratorWrap) -> u16 {
         let format = self.accel.format;
         let current = self.accel.aram_curr.with_bit(31, false);
+        let value = match format.sample() {
+            SampleSize::Nibble => {
+                let address = current / 2;
+                let byte = u8::read_be_bytes(&sys.mem.aram[address as usize..]) as u16;
+                if current % 2 == 0 {
+                    byte & 0xF
+                } else {
+                    byte >> 4
+                }
+            }
+            SampleSize::Byte => u8::read_be_bytes(&sys.mem.aram[current as usize..]) as u16,
+            SampleSize::Word => {
+                let address = current * 2;
+                u16::read_be_bytes(&sys.mem.aram[address as usize..])
+            }
+            _ => panic!("reserved format"),
+        };
+
+        tracing::debug!(
+            "accelerator reading 0x{value:04X} from ARAM 0x{:08X} (wraps at 0x{:08X})",
+            self.accel.aram_curr,
+            self.accel.aram_end
+        );
+
+        self.accel.aram_curr += 1;
+        if self.accel.aram_curr > self.accel.aram_end {
+            self.accel.aram_curr = self.accel.aram_start;
+            self.accel.wrapped = Some(wrap);
+        }
+
+        value
+    }
+
+    fn read_accelerator_raw(&mut self, sys: &mut System) -> u16 {
+        self.read_aram_raw(sys, AcceleratorWrap::RawRead)
+    }
+
+    fn read_accelerator_sample(&mut self, sys: &mut System) -> u16 {
+        let format = self.accel.format;
         let value = match format.decoding() {
             SampleDecoding::AramAdpcm => 0,
-            SampleDecoding::AcinPcm => 0,
+            SampleDecoding::AcinPcm => {
+                (self.accel.input as u32 * self.accel.gain as u32 / format.divisor().value()) as u16
+            }
             SampleDecoding::AramPcm => {
-                let value = match format.sample() {
-                    SampleSize::Nibble => {
-                        let address = current / 2;
-                        let byte = u8::read_be_bytes(&sys.mem.aram[address as usize..]) as u16;
-                        if current % 2 == 0 {
-                            byte & 0xF
-                        } else {
-                            byte >> 4
-                        }
-                    }
-                    SampleSize::Byte => u8::read_be_bytes(&sys.mem.aram[current as usize..]) as u16,
-                    SampleSize::Word => {
-                        let address = current * 2;
-                        u16::read_be_bytes(&sys.mem.aram[address as usize..])
-                    }
-                    _ => panic!("reserved format"),
-                };
-
-                self.accel.aram_curr += 1;
-                if self.accel.aram_curr > self.accel.aram_end {
-                    self.accel.aram_curr = self.accel.aram_start;
-                    self.accel.wrapped = Some(AcceleratorWrap::SampleRead);
-                }
-
+                let value = self.read_aram_raw(sys, AcceleratorWrap::SampleRead);
                 (value as u32 * self.accel.gain as u32 / format.divisor().value()) as u16
             }
             SampleDecoding::AcinPcmInc => 0,
@@ -849,24 +868,7 @@ impl Interpreter {
             0xCF => sys.dsp.dsp_dma.ram_base as u16,
 
             // Accelerator
-            0xD3 => {
-                let value = u16::read_be_bytes(
-                    sys.mem.aram[self.accel.aram_curr.with_bit(31, false) as usize..].as_bytes(),
-                );
-
-                tracing::debug!(
-                    "accelerator reading 0x{value:04X} from ARAM 0x{:08X} (wraps at 0x{:08X})",
-                    self.accel.aram_curr,
-                    self.accel.aram_end
-                );
-
-                self.accel.aram_curr += 1;
-                if self.accel.aram_curr >= self.accel.aram_end {
-                    todo!("should wrap");
-                }
-
-                value
-            }
+            0xD3 => self.read_accelerator_raw(sys),
             0xD4 => self.accel.aram_start.bits(16, 32) as u16,
             0xD5 => self.accel.aram_start.bits(0, 16) as u16,
             0xD6 => self.accel.aram_end.bits(16, 32) as u16,
@@ -878,6 +880,7 @@ impl Interpreter {
             0xDC => 0,
             0xDD => self.read_accelerator_sample(sys),
             0xDE => self.accel.gain,
+            0xDF => self.accel.input,
 
             // Mailboxes
             0xFC => sys.dsp.dsp_mailbox.high_and_status(),
@@ -943,7 +946,7 @@ impl Interpreter {
                 );
 
                 self.accel.aram_curr += 1;
-                if self.accel.aram_curr >= self.accel.aram_end {
+                if self.accel.aram_curr > self.accel.aram_end {
                     todo!("should wrap");
                 }
             }
@@ -957,6 +960,7 @@ impl Interpreter {
             0xDB => (),
             0xDC => (),
             0xDE => self.accel.gain = value,
+            0xDF => self.accel.input = value,
 
             // Mailboxes
             0xFC => {

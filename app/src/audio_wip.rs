@@ -16,7 +16,7 @@ pub fn worker(sender: Receiver<Sample>) {
         .supported_output_configs()
         .expect("error while querying configs");
 
-    let sample_rate = cpal::SampleRate(48_000);
+    let sample_rate = cpal::SampleRate(48_042);
     let supported_config = supported_configs_range
         .find(|c| {
             c.sample_format() == cpal::SampleFormat::F32
