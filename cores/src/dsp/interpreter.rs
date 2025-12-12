@@ -26,7 +26,7 @@ impl DspCore for InterpreterCore {
             || sys.dsp.dsp_mailbox.status() && self.interpreter.is_waiting_for_dsp_mail()
         {
             std::hint::cold_path();
-            self.interpreter.check_external_interrupt(sys);
+            self.interpreter.check_exceptions(sys);
         } else {
             let mut i = 0;
             while i < instructions {

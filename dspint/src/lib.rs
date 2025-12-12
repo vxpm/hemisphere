@@ -387,6 +387,23 @@ pub struct AcceleratorFormat {
     pub scale: PcmScale,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AcceleratorWrap {
+    RawRead,
+    RawWrite,
+    ProcessedRead,
+}
+
+impl AcceleratorWrap {
+    pub fn exception(self) -> Exception {
+        match self {
+            Self::RawRead => Exception::AccelRawReadOverflow,
+            Self::RawWrite => Exception::AccelRawWriteOverflow,
+            Self::ProcessedRead => Exception::AccelSampleReadOverflow,
+        }
+    }
+}
+
 #[derive(Default)]
 pub struct Accelerator {
     pub format: AcceleratorFormat,
@@ -395,6 +412,7 @@ pub struct Accelerator {
     pub aram_start: u32,
     pub aram_end: u32,
     pub aram_curr: u32,
+    pub wrapped: Option<AcceleratorWrap>,
 }
 
 #[derive(Clone, Copy)]
@@ -593,21 +611,30 @@ static EXTENSION_EXEC_LUT: [ExtensionFn; 1 << 8] = {
 
 impl Interpreter {
     fn raise_exception(&mut self, exception: Exception) {
+        println!("raised except {exception:?}");
         self.regs.call_stack.push(self.regs.pc);
         self.regs.data_stack.push(self.regs.status.to_bits());
         self.regs.pc = exception as u16 * 2;
     }
 
-    pub fn check_external_interrupt(&mut self, sys: &mut System) {
+    pub fn check_exceptions(&mut self, sys: &mut System) {
         if self.loop_counter.is_some() {
             return;
         }
 
+        // external interrupt does not care about status interrupt enable
         if sys.dsp.control.interrupt() && self.regs.status.external_interrupt_enable() {
             tracing::warn!("DSP external interrupt raised");
 
             sys.dsp.control.set_interrupt(false);
             self.raise_exception(Exception::Interrupt);
+            return;
+        }
+
+        if let Some(wrap) = self.accel.wrapped.take()
+            && self.regs.status.interrupt_enable()
+        {
+            self.raise_exception(wrap.exception());
         }
     }
 
@@ -789,7 +816,30 @@ impl Interpreter {
             0xDA => self.accel.pred_scale,
             0xDB => 0,
             0xDC => 0,
-            0xDD => 0,
+            0xDD => {
+                let value = match self.accel.format.decoding() {
+                    SampleDecoding::AramAdpcm => todo!(),
+                    SampleDecoding::AcinPcm => todo!(),
+                    SampleDecoding::AramPcm => {
+                        let value = u16::read_be_bytes(
+                            sys.mem.aram[self.accel.aram_curr.with_bit(31, false) as usize * 2..]
+                                .as_bytes(),
+                        );
+
+                        self.accel.aram_curr += 1;
+                        if self.accel.aram_curr > self.accel.aram_end {
+                            self.accel.aram_curr = self.accel.aram_start;
+                            self.accel.wrapped = Some(AcceleratorWrap::ProcessedRead);
+                        }
+
+                        dbg!(value);
+                        (value as u32 * self.accel.gain as u32 / 2048) as u16
+                    }
+                    SampleDecoding::AcinPcmInc => todo!(),
+                };
+
+                value
+            }
             0xDE => self.accel.gain,
 
             // Mailboxes
@@ -1058,7 +1108,7 @@ impl Interpreter {
         }
 
         self.check_stacks();
-        self.check_external_interrupt(sys);
+        self.check_exceptions(sys);
 
         // have we cached this instruction already?
         let ins = if let Some(cached) = self.cached[self.regs.pc as usize] {
