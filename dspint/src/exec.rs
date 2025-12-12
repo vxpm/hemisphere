@@ -30,7 +30,7 @@ fn sub_overflowed(lhs: i64, rhs: i64, new: i64) -> bool {
 }
 
 fn x40_to_float(value: i64) -> f64 {
-    (value >> 16) as f64 + ((value & 0xFFFF) as f64 / (1 << 16) as f64)
+    value as f64 / ((1 << 16) as f64)
 }
 
 /// Rounds a fixed point 24.16 number with ties to even.
@@ -40,10 +40,10 @@ fn round_40_ties_to_even(value: i64) -> i64 {
 
     // is the value odd?
     if value.bit(16) {
-        // yes - add half, because fract 0.5 should round up
+        // yes - add half, because fract 0.5 should round up (to even)
         (value + half) & !0xFFFF
     } else {
-        // no - add (half - 1), because fract 0.5 should round down
+        // no - add (half - 1), because fract 0.5 should round down (to even)
         (value + half - 1) & !0xFFFF
     }
 }
