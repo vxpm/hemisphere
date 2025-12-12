@@ -3,13 +3,13 @@
 mod render;
 mod util;
 
-use crate::{render::Renderer, util::blit::XfbBlitter};
+use crate::{render::Renderer as RendererInner, util::blit::XfbBlitter};
 use flume::{Receiver, Sender};
-use hemisphere::modules::render::{Action, Renderer as RendererInterface};
+use hemisphere::modules::render::{Action, RendererModule};
 use std::sync::{Arc, atomic::Ordering};
 
 #[expect(clippy::needless_pass_by_value, reason = "makes it clearer")]
-fn worker(mut renderer: Renderer, receiver: Receiver<Action>) {
+fn worker(mut renderer: RendererInner, receiver: Receiver<Action>) {
     while let Ok(action) = receiver.recv() {
         renderer.exec(action);
     }
@@ -25,15 +25,15 @@ struct Inner {
 ///
 /// This type is reference counted and therefore cheaply clonable.
 #[derive(Clone)]
-pub struct WgpuRenderer {
+pub struct Renderer {
     inner: Arc<Inner>,
     sender: Sender<Action>,
 }
 
-impl WgpuRenderer {
+impl Renderer {
     pub fn new(device: wgpu::Device, queue: wgpu::Queue, format: wgpu::TextureFormat) -> Self {
         let blitter = XfbBlitter::new(&device, format);
-        let (renderer, shared) = Renderer::new(device.clone(), queue);
+        let (renderer, shared) = RendererInner::new(device.clone(), queue);
         let (sender, receiver) = flume::bounded(4096);
 
         std::thread::Builder::new()
@@ -74,7 +74,7 @@ impl WgpuRenderer {
     }
 }
 
-impl RendererInterface for WgpuRenderer {
+impl RendererModule for Renderer {
     fn exec(&mut self, action: Action) {
         self.sender.send(action).expect("rendering thread is alive");
     }

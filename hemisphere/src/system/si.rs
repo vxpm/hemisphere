@@ -1,8 +1,5 @@
 //! Serial interface (SI).
-use crate::{
-    cores::ControllerState,
-    system::{System, pi},
-};
+use crate::system::{System, pi};
 use bitos::{
     BitUtils, bitos,
     integer::{u2, u7, u10},
@@ -134,7 +131,6 @@ pub struct ChannelInput {
 }
 
 pub struct Interface {
-    pub controllers: [Option<ControllerState>; 4],
     pub channel_output: [ChannelOutput; 4],
     pub channel_input: [ChannelInput; 4],
     pub poll: Poll,
@@ -156,7 +152,6 @@ impl Interface {
 impl Default for Interface {
     fn default() -> Self {
         Self {
-            controllers: [None; 4],
             channel_output: [Default::default(); 4],
             channel_input: [Default::default(); 4],
             poll: Default::default(),
@@ -213,7 +208,7 @@ pub fn poll_controller(sys: &mut System, channel: usize) {
         return;
     }
 
-    let Some(controller) = sys.serial.controllers[channel] else {
+    let Some(controller) = sys.modules.input.controller(channel) else {
         return;
     };
 

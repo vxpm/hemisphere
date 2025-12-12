@@ -27,45 +27,8 @@ pub trait DspCore {
     fn exec(&mut self, sys: &mut System, instructions: u32) -> u32;
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct ControllerState {
-    // Analog
-    pub analog_x: u8,
-    pub analog_y: u8,
-    pub analog_sub_x: u8,
-    pub analog_sub_y: u8,
-
-    // Analog Triggers
-    pub analog_trigger_left: u8,
-    pub analog_trigger_right: u8,
-
-    // Digital Triggers
-    pub trigger_z: bool,
-    pub trigger_right: bool,
-    pub trigger_left: bool,
-
-    // Pad
-    pub pad_left: bool,
-    pub pad_right: bool,
-    pub pad_down: bool,
-    pub pad_up: bool,
-
-    // Buttons
-    pub button_a: bool,
-    pub button_b: bool,
-    pub button_x: bool,
-    pub button_y: bool,
-    pub button_start: bool,
-}
-
-/// Trait for input cores.
-pub trait InputCore {
-    fn controller(&mut self, index: usize) -> Option<ControllerState>;
-}
-
 /// Cores that emulate system components.
 pub struct Cores {
     pub cpu: Box<dyn CpuCore>,
     pub dsp: Box<dyn DspCore>,
-    pub input: Box<dyn InputCore>,
 }

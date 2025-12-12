@@ -18,7 +18,7 @@ pub mod si;
 pub mod vi;
 
 use crate::{
-    modules::render::Renderer,
+    modules::{input::InputModule, render::RendererModule},
     system::{
         dspi::Dsp,
         executable::{DebugInfo, Executable},
@@ -42,7 +42,6 @@ impl<T> ReadAndSeek for T where T: Read + Seek + Send + 'static {}
 
 /// System configuration.
 pub struct Config {
-    pub renderer: Box<dyn Renderer>,
     pub ipl: Option<Vec<u8>>,
     pub iso: Option<Iso<Box<dyn ReadAndSeek>>>,
     pub audio_sink: Sender<ai::Sample>,
@@ -50,10 +49,20 @@ pub struct Config {
     pub debug_info: Option<Box<dyn DebugInfo>>,
 }
 
+/// System modules.
+pub struct Modules {
+    pub renderer: Box<dyn RendererModule>,
+    pub input: Box<dyn InputModule>,
+    // pub audio: Box<dyn AudioModule>,
+    // pub disk: Box<dyn DiskModule>,
+}
+
 /// System state.
 pub struct System {
     /// System configuration.
     pub config: Config,
+    /// System modules.
+    pub modules: Modules,
     /// Scheduler for events.
     pub scheduler: Scheduler,
     /// The CPU state.
@@ -198,7 +207,7 @@ impl System {
         self.cpu.pc = Address(0xFFF0_0100);
     }
 
-    pub fn new(mut config: Config) -> Self {
+    pub fn new(mut config: Config, modules: Modules) -> Self {
         let mut scheduler = Scheduler::default();
         scheduler.schedule(1 << 16, gx::cmd::process);
 
@@ -223,6 +232,7 @@ impl System {
             serial: si::Interface::default(),
 
             config,
+            modules,
         };
 
         if system.config.sideload.is_some() {

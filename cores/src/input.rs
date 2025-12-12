@@ -1,18 +1,18 @@
 use gilrs::{Axis, Button, GamepadId, Gilrs};
-use hemisphere::cores::{ControllerState, InputCore};
+use hemisphere::modules::input::{ControllerState, InputModule};
 
-pub struct GilrsCore {
+pub struct GilrsInput {
     gilrs: Gilrs,
     active_gamepad: Option<GamepadId>,
 }
 
-impl Default for GilrsCore {
+impl Default for GilrsInput {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl GilrsCore {
+impl GilrsInput {
     pub fn new() -> Self {
         let gilrs = Gilrs::new().unwrap();
         Self {
@@ -30,7 +30,7 @@ impl GilrsCore {
     }
 }
 
-impl InputCore for GilrsCore {
+impl InputModule for GilrsInput {
     fn controller(&mut self, index: usize) -> Option<ControllerState> {
         self.process_events();
 

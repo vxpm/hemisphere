@@ -9,7 +9,10 @@ pub mod modules;
 pub mod panic;
 pub mod system;
 
-use crate::{cores::Cores, system::System};
+use crate::{
+    cores::Cores,
+    system::{Modules, System},
+};
 
 pub use dol;
 pub use gekko::{self, Address, Cycles};
@@ -27,17 +30,14 @@ pub struct Hemisphere {
     cores: Cores,
     /// How many DSP cycles are pending.
     dsp_pending: f64,
-    /// How many cycles have elapsed since last input update.
-    since_last_input: Cycles,
 }
 
 impl Hemisphere {
-    pub fn new(cores: Cores, config: system::Config) -> Self {
+    pub fn new(cores: Cores, modules: Modules, config: system::Config) -> Self {
         Self {
-            system: System::new(config),
+            system: System::new(config, modules),
             cores,
             dsp_pending: 0.0,
-            since_last_input: Cycles(0),
         }
     }
 
@@ -66,16 +66,6 @@ impl Hemisphere {
             while self.dsp_pending >= DSP_STEP as f64 {
                 self.cores.dsp.exec(&mut self.system, DSP_STEP);
                 self.dsp_pending -= DSP_STEP as f64;
-            }
-
-            // update inputs
-            self.since_last_input += e.cycles;
-            if self.since_last_input >= Cycles::from_secs_f64(1.0 / 120.0) {
-                self.since_last_input = Cycles(0);
-                for index in 0..4 {
-                    let controller = self.cores.input.controller(index);
-                    self.system.serial.controllers[index] = controller;
-                }
             }
 
             self.system.scheduler.advance(e.cycles.0);

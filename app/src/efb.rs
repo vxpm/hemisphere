@@ -3,11 +3,11 @@ use eframe::{
     egui::{self, Vec2},
     egui_wgpu::{self, CallbackTrait},
 };
-use renderer::WgpuRenderer;
+use renderer::Renderer;
 use serde::{Deserialize, Serialize};
 
 pub struct RendererCallback {
-    renderer: WgpuRenderer,
+    renderer: Renderer,
 }
 
 impl CallbackTrait for RendererCallback {

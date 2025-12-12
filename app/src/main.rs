@@ -24,10 +24,10 @@ use hemisphere::{
     Address, Cycles, Hemisphere,
     cores::Cores,
     iso,
-    system::{self, executable::Executable},
+    system::{self, Modules, executable::Executable},
 };
 use nanorand::Rng;
-use renderer::WgpuRenderer;
+use renderer::Renderer;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::VecDeque,
@@ -42,7 +42,7 @@ use cores::{cpu::jit as jitcore, input};
 struct Ctx<'a> {
     step: bool,
     running: bool,
-    renderer: &'a mut WgpuRenderer,
+    renderer: &'a mut Renderer,
 }
 
 struct State {
@@ -72,7 +72,7 @@ struct AppWindowState {
 
 struct App {
     last_update: Instant,
-    renderer: WgpuRenderer,
+    renderer: Renderer,
     state: State,
     windows: Vec<AppWindowState>,
     cycles_per_second: VecDeque<f64>,
@@ -124,7 +124,7 @@ impl App {
         let wgpu_state = cc.wgpu_render_state.as_ref().unwrap();
         tracing::info!("wgpu device limits: {:?}", wgpu_state.device.limits());
 
-        let renderer = WgpuRenderer::new(
+        let renderer = Renderer::new(
             wgpu_state.device.clone(),
             wgpu_state.queue.clone(),
             wgpu_state.target_format,
@@ -140,16 +140,20 @@ impl App {
                 },
             })),
             dsp: Box::new(dspcore::InterpreterCore::default()),
-            input: Box::new(input::GilrsCore::new()),
         };
 
         let (audio_sink, receiver) = mpsc::channel();
         std::thread::spawn(move || audio_wip::worker(receiver));
 
+        let modules = Modules {
+            renderer: Box::new(renderer.clone()),
+            input: Box::new(input::GilrsInput::new()),
+        };
+
         let hemisphere = Hemisphere::new(
             cores,
+            modules,
             system::Config {
-                renderer: Box::new(renderer.clone()),
                 ipl,
                 iso,
                 audio_sink,
