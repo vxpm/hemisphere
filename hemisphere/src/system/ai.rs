@@ -17,6 +17,14 @@ impl SampleRate {
             Self::KHz32 => 32_000,
         }
     }
+
+    pub fn cycles_per_sample(self) -> u64 {
+        gekko::FREQUENCY / self.value() as u64
+    }
+
+    pub fn cycles_per_block(self) -> u64 {
+        8 * self.cycles_per_sample()
+    }
 }
 
 #[bitos(32)]
@@ -36,16 +44,6 @@ pub struct Control {
     pub sample_counter_reset: bool,
     #[bits(6)]
     pub dsp_sample_rate: SampleRate,
-}
-
-impl Control {
-    pub fn dsp_cycles_per_sample(self) -> u64 {
-        gekko::FREQUENCY / self.dsp_sample_rate().value() as u64
-    }
-
-    pub fn dsp_cycles_per_block(self) -> u64 {
-        8 * self.dsp_cycles_per_sample()
-    }
 }
 
 #[bitos(16)]
@@ -85,9 +83,6 @@ impl Interface {
     }
 }
 
-const STREAMING_SAMPLE_RATE: u32 = 48_042;
-const STREAMING_CYCLES_PER_SAMPLE: u64 = gekko::FREQUENCY / STREAMING_SAMPLE_RATE as u64;
-
 fn push_streaming_sample(sys: &mut System) {
     sys.audio.sample_counter += 1;
     if sys.audio.control.interrupt_valid() && sys.audio.sample_counter == sys.audio.interrupt_sample
@@ -97,14 +92,18 @@ fn push_streaming_sample(sys: &mut System) {
         pi::check_interrupts(sys);
     }
 
-    sys.scheduler
-        .schedule(STREAMING_CYCLES_PER_SAMPLE, self::push_streaming_sample);
+    sys.scheduler.schedule(
+        sys.audio.control.aux_sample_rate().cycles_per_sample(),
+        self::push_streaming_sample,
+    );
 }
 
 pub fn start_streaming(sys: &mut System) {
     if !sys.scheduler.contains(self::push_streaming_sample) {
-        sys.scheduler
-            .schedule(STREAMING_CYCLES_PER_SAMPLE, self::push_streaming_sample);
+        sys.scheduler.schedule(
+            sys.audio.control.aux_sample_rate().cycles_per_sample(),
+            self::push_streaming_sample,
+        );
     }
 }
 
@@ -140,7 +139,7 @@ fn push_data_dma_block(sys: &mut System) {
 
     if sys.audio.dma_control.playing() {
         sys.scheduler.schedule(
-            sys.audio.control.dsp_cycles_per_block(),
+            sys.audio.control.dsp_sample_rate().cycles_per_block(),
             self::push_data_dma_block,
         );
     }
@@ -152,7 +151,7 @@ pub fn start_data_dma(sys: &mut System) {
         .set_sample_rate(sys.audio.control.dsp_sample_rate());
 
     sys.scheduler.schedule(
-        sys.audio.control.dsp_cycles_per_block(),
+        sys.audio.control.dsp_sample_rate().cycles_per_block(),
         self::push_data_dma_block,
     );
 }
