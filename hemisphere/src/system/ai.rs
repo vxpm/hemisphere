@@ -2,6 +2,7 @@
 use crate::system::{System, pi};
 use bitos::{BitUtils, bitos, integer::u15};
 use gekko::Address;
+use zerocopy::{FromBytes, Immutable, IntoBytes};
 
 #[bitos(1)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -111,7 +112,8 @@ pub fn stop_streaming(sys: &mut System) {
     sys.scheduler.cancel(self::push_streaming_sample);
 }
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, IntoBytes, FromBytes, Immutable)]
+#[repr(C)]
 pub struct Sample {
     pub left: i16,
     pub right: i16,
@@ -120,8 +122,8 @@ pub struct Sample {
 fn push_data_dma_block(sys: &mut System) {
     let addr = Address(sys.audio.dma_base.0.with_bit(31, false)) + 32 * sys.audio.current_dma_block;
     let samples: [Sample; 8] = std::array::from_fn(|i| Sample {
-        left: sys.read::<i16>(addr + 4 * i as u32),
-        right: sys.read::<i16>(addr + 4 * i as u32 + 2),
+        left: sys.read::<i16>(addr + 4 * i as u32 + 2),
+        right: sys.read::<i16>(addr + 4 * i as u32),
     });
 
     for sample in samples {

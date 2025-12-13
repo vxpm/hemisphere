@@ -234,7 +234,9 @@ dependencies = [
  "cpal",
  "gilrs",
  "hemisphere",
+ "resampler",
  "tracing",
+ "zerocopy",
 ]
 
 [[package]]
@@ -3599,6 +3601,12 @@ dependencies = [
  "wgpu",
  "zerocopy",
 ]
+
+[[package]]
+name = "resampler"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3b30109dce6405f545442493099ca90f158b1f5a99c314ce11c6bf50b595f183"
 
 [[package]]
 name = "ron"

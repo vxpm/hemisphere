@@ -1,49 +1,91 @@
 use cpal::{
-    Sample as _, Stream,
+    Stream,
     traits::{DeviceTrait, HostTrait, StreamTrait},
 };
 use hemisphere::{
     modules::audio::AudioModule,
     system::ai::{Sample, SampleRate},
 };
+use resampler::ResamplerFir;
 use std::{
     collections::VecDeque,
     sync::{Arc, Mutex},
 };
+use zerocopy::{FromBytes, Immutable, IntoBytes};
+
+#[derive(Debug, Clone, Copy, Default, FromBytes, IntoBytes, Immutable)]
+struct SampleF32 {
+    left: f32,
+    right: f32,
+}
+
+impl From<Sample> for SampleF32 {
+    fn from(value: Sample) -> Self {
+        Self {
+            left: value.left as f32 / 32_768.0,
+            right: value.right as f32 / 32_768.0,
+        }
+    }
+}
 
 struct State {
     sample_rate: SampleRate,
-    samples: VecDeque<Sample>,
+    resampler: ResamplerFir,
+    resampled: Vec<f32>,
+    samples: VecDeque<SampleF32>,
+    last: SampleF32,
 }
 
 fn fill_buffer(state: &Arc<Mutex<State>>, out: &mut [f32]) {
     let mut state = state.lock().unwrap();
+    let state = &mut *state;
+
     match state.sample_rate {
         SampleRate::KHz48 => {
-            let mut last = Sample::default();
+            let mut last = state.last;
             for out in out.chunks_exact_mut(2) {
                 let sample = state.samples.pop_front().unwrap_or(last);
-                out[0] = sample.left.to_sample();
-                out[1] = sample.left.to_sample();
+                out[0] = sample.left;
+                out[1] = sample.right;
                 last = sample;
             }
+
+            state.last = last;
         }
         SampleRate::KHz32 => {
-            let mut index = 0f32;
-            let mut last = Sample::default();
-            for out in out.chunks_exact_mut(2) {
-                let sample = if index > 1.0 {
-                    index = index.fract();
-                    state.samples.pop_front().unwrap_or(last)
-                } else {
-                    last
-                };
-                out[0] = sample.left.to_sample();
-                out[1] = sample.left.to_sample();
-                last = sample;
+            let slices = state.samples.as_slices();
+            let samples = match (slices.0.is_empty(), slices.1.is_empty()) {
+                (true, true) => slices.0,
+                (false, true) => slices.0,
+                (true, false) => slices.1,
+                (false, false) => state.samples.make_contiguous(),
+            };
 
-                index += 32.0 / 48.0;
+            let (consumed, produced) = state
+                .resampler
+                .resample(zerocopy::transmute_ref!(samples), &mut state.resampled)
+                .unwrap();
+
+            state.samples.drain(..consumed / 2);
+
+            let mut produced = state
+                .resampled
+                .chunks_exact(2)
+                .map(|s| SampleF32 {
+                    left: s[0],
+                    right: s[1],
+                })
+                .take(produced / 2);
+
+            let mut last = state.last;
+            for out in out.chunks_exact_mut(2) {
+                let sample = produced.next().unwrap_or(last);
+                out[0] = sample.left;
+                out[1] = sample.right;
+                last = sample;
             }
+
+            state.last = last;
         }
     }
 }
@@ -64,7 +106,7 @@ impl CpalAudio {
             .supported_output_configs()
             .expect("error while querying configs");
 
-        let sample_rate = cpal::SampleRate(48_042);
+        let sample_rate = cpal::SampleRate(48_000);
         let config = supported_configs
             .find(|c| {
                 c.sample_format() == cpal::SampleFormat::F32
@@ -75,9 +117,20 @@ impl CpalAudio {
             .expect("no supported audio config")
             .with_sample_rate(sample_rate);
 
+        let resampler = ResamplerFir::new(
+            2,
+            resampler::SampleRate::Hz32000,
+            resampler::SampleRate::Hz48000,
+            resampler::Latency::Sample32,
+            resampler::Attenuation::Db90,
+        );
+
         let state = State {
             sample_rate: SampleRate::KHz48,
+            resampled: vec![0.0; resampler.buffer_size_output()],
+            resampler,
             samples: VecDeque::with_capacity(8192),
+            last: SampleF32::default(),
         };
 
         let state = Arc::new(Mutex::new(state));
@@ -110,6 +163,6 @@ impl AudioModule for CpalAudio {
     }
 
     fn play(&mut self, sample: Sample) {
-        self.state.lock().unwrap().samples.push_back(sample);
+        self.state.lock().unwrap().samples.push_back(sample.into());
     }
 }
