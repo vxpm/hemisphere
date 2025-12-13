@@ -114,14 +114,14 @@ pub fn stop_streaming(sys: &mut System) {
 
 #[derive(Debug, Clone, Copy, Default, IntoBytes, FromBytes, Immutable)]
 #[repr(C)]
-pub struct Sample {
+pub struct Frame {
     pub left: i16,
     pub right: i16,
 }
 
 fn push_data_dma_block(sys: &mut System) {
     let addr = Address(sys.audio.dma_base.0.with_bit(31, false)) + 32 * sys.audio.current_dma_block;
-    let samples: [Sample; 8] = std::array::from_fn(|i| Sample {
+    let samples: [Frame; 8] = std::array::from_fn(|i| Frame {
         left: sys.read::<i16>(addr + 4 * i as u32 + 2),
         right: sys.read::<i16>(addr + 4 * i as u32),
     });

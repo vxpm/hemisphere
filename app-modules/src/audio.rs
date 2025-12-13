@@ -4,7 +4,7 @@ use cpal::{
 };
 use hemisphere::{
     modules::audio::AudioModule,
-    system::ai::{Sample, SampleRate},
+    system::ai::{Frame, SampleRate},
 };
 use resampler::ResamplerFir;
 use std::{
@@ -14,13 +14,13 @@ use std::{
 use zerocopy::{FromBytes, Immutable, IntoBytes};
 
 #[derive(Debug, Clone, Copy, Default, FromBytes, IntoBytes, Immutable)]
-struct SampleF32 {
+struct FrameF32 {
     left: f32,
     right: f32,
 }
 
-impl From<Sample> for SampleF32 {
-    fn from(value: Sample) -> Self {
+impl From<Frame> for FrameF32 {
+    fn from(value: Frame) -> Self {
         Self {
             left: value.left as f32 / 32_768.0,
             right: value.right as f32 / 32_768.0,
@@ -32,8 +32,8 @@ struct State {
     sample_rate: SampleRate,
     resampler: ResamplerFir,
     resampled: Vec<f32>,
-    samples: VecDeque<SampleF32>,
-    last: SampleF32,
+    frames: VecDeque<FrameF32>,
+    last: FrameF32,
 }
 
 fn fill_buffer(state: &Arc<Mutex<State>>, out: &mut [f32]) {
@@ -44,7 +44,7 @@ fn fill_buffer(state: &Arc<Mutex<State>>, out: &mut [f32]) {
         SampleRate::KHz48 => {
             let mut last = state.last;
             for out in out.chunks_exact_mut(2) {
-                let sample = state.samples.pop_front().unwrap_or(last);
+                let sample = state.frames.pop_front().unwrap_or(last);
                 out[0] = sample.left;
                 out[1] = sample.right;
                 last = sample;
@@ -53,25 +53,33 @@ fn fill_buffer(state: &Arc<Mutex<State>>, out: &mut [f32]) {
             state.last = last;
         }
         SampleRate::KHz32 => {
-            let slices = state.samples.as_slices();
-            let samples = match (slices.0.is_empty(), slices.1.is_empty()) {
+            let slices = state.frames.as_slices();
+            let frames = match (slices.0.is_empty(), slices.1.is_empty()) {
                 (true, true) => slices.0,
                 (false, true) => slices.0,
                 (true, false) => slices.1,
-                (false, false) => state.samples.make_contiguous(),
+                (false, false) => state.frames.make_contiguous(),
             };
+
+            let samples: &[f32] = zerocopy::transmute_ref!(frames);
+            let samples_needed = (2 * out.len()) / 3;
 
             let (consumed, produced) = state
                 .resampler
-                .resample(zerocopy::transmute_ref!(samples), &mut state.resampled)
+                .resample(
+                    &samples[..samples_needed.min(samples.len())],
+                    &mut state.resampled,
+                )
                 .unwrap();
 
-            state.samples.drain(..consumed / 2);
+            dbg!(samples.len(), samples_needed, consumed);
+
+            state.frames.drain(..consumed / 2);
 
             let mut produced = state
                 .resampled
                 .chunks_exact(2)
-                .map(|s| SampleF32 {
+                .map(|s| FrameF32 {
                     left: s[0],
                     right: s[1],
                 })
@@ -129,8 +137,8 @@ impl CpalAudio {
             sample_rate: SampleRate::KHz48,
             resampled: vec![0.0; resampler.buffer_size_output()],
             resampler,
-            samples: VecDeque::with_capacity(8192),
-            last: SampleF32::default(),
+            frames: VecDeque::with_capacity(8192),
+            last: FrameF32::default(),
         };
 
         let state = Arc::new(Mutex::new(state));
@@ -162,7 +170,7 @@ impl AudioModule for CpalAudio {
         self.state.lock().unwrap().sample_rate = sample_rate;
     }
 
-    fn play(&mut self, sample: Sample) {
-        self.state.lock().unwrap().samples.push_back(sample.into());
+    fn play(&mut self, sample: Frame) {
+        self.state.lock().unwrap().frames.push_back(sample.into());
     }
 }

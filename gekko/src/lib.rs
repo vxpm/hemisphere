@@ -207,7 +207,7 @@ impl Cycles {
 
     #[inline(always)]
     pub fn to_dsp_cycles(&self) -> f64 {
-        self.0 as f64 / 7.0
+        self.0 as f64 / 6.0
     }
 }
 

@@ -1,9 +1,9 @@
-use crate::system::ai::{Sample, SampleRate};
+use crate::system::ai::{Frame, SampleRate};
 
 /// Trait for audio modules.
 pub trait AudioModule {
     fn set_sample_rate(&mut self, sample_rate: SampleRate);
-    fn play(&mut self, sample: Sample);
+    fn play(&mut self, sample: Frame);
 }
 
 /// An implementation of [`AudioModule`] which does nothing.
@@ -12,5 +12,5 @@ pub struct NopAudioModule;
 
 impl AudioModule for NopAudioModule {
     fn set_sample_rate(&mut self, _: SampleRate) {}
-    fn play(&mut self, _: Sample) {}
+    fn play(&mut self, _: Frame) {}
 }
