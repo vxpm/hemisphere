@@ -131,7 +131,7 @@ impl CpalAudio {
             2,
             resampler::SampleRate::Hz32000,
             resampler::SampleRate::Hz48000,
-            resampler::Latency::Sample32,
+            resampler::Latency::Sample64,
             resampler::Attenuation::Db90,
         );
 

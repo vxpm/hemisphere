@@ -834,6 +834,14 @@ impl Interpreter {
         }
     }
 
+    fn increment_aram_curr(&mut self, wrap: AccelWrap) {
+        self.accel.aram_curr += 1;
+        if self.accel.aram_curr > self.accel.aram_end {
+            self.accel.aram_curr = self.accel.aram_start;
+            self.accel.wrapped = Some(wrap);
+        }
+    }
+
     fn read_aram_raw(&mut self, sys: &mut System, wrap: AccelWrap) -> u16 {
         let format = self.accel.format;
         let current = self.accel.aram_curr.with_bit(31, false);
@@ -861,12 +869,7 @@ impl Interpreter {
             self.accel.aram_end
         );
 
-        self.accel.aram_curr += 1;
-        if self.accel.aram_curr > self.accel.aram_end {
-            self.accel.aram_curr = self.accel.aram_start;
-            self.accel.wrapped = Some(wrap);
-        }
-
+        self.increment_aram_curr(AccelWrap::RawRead);
         value
     }
 
@@ -878,7 +881,11 @@ impl Interpreter {
         value * self.accel.gain as i32
     }
 
-    fn pcm_decode(&self, value: i32, coeffs: AccelCoefficients) -> i16 {
+    fn pcm_decode(&self, value: i32) -> i16 {
+        let predictor = self.accel.predictor;
+        let coeff_idx = predictor.coefficients().value();
+        let coeffs = self.accel.coefficients[coeff_idx as usize];
+
         let acc = self.pcm_gain(value)
             + self.pcm_gain(coeffs.a as i32 * self.accel.previous_samples[0] as i32)
             + self.pcm_gain(coeffs.b as i32 * self.accel.previous_samples[1] as i32);
@@ -886,21 +893,22 @@ impl Interpreter {
         self.accel.format.divisor().apply(acc) as i16
     }
 
+    fn adpcm_decode(&self) -> i16 {
+        todo!()
+    }
+
     fn read_accelerator_sample(&mut self, sys: &mut System) -> i16 {
-        let format = self.accel.format;
-        let predictor = self.accel.predictor;
-
-        let coeff_idx = predictor.coefficients().value();
-        let coeffs = self.accel.coefficients[coeff_idx as usize];
-
-        let value = match format.decoding() {
-            SampleDecoding::AramAdpcm => 0,
-            SampleDecoding::AcinPcm => self.pcm_decode(self.accel.input as i32, coeffs),
+        let value = match self.accel.format.decoding() {
+            SampleDecoding::AramAdpcm => self.adpcm_decode(),
+            SampleDecoding::AcinPcm => self.pcm_decode(self.accel.input as i32),
             SampleDecoding::AramPcm => {
                 let value = self.read_aram_raw(sys, AccelWrap::SampleRead) as i16;
-                self.pcm_decode(value as i32, coeffs)
+                self.pcm_decode(value as i32)
             }
-            SampleDecoding::AcinPcmInc => 0,
+            SampleDecoding::AcinPcmInc => {
+                self.increment_aram_curr(AccelWrap::SampleRead);
+                self.pcm_decode(self.accel.input as i32)
+            }
         };
 
         self.accel.previous_samples[1] = self.accel.previous_samples[0];
