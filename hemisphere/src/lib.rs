@@ -20,7 +20,7 @@ pub use iso;
 pub use primitive::Primitive;
 
 /// How many DSP cycles to execute per step.
-const DSP_STEP: u32 = 256;
+const DSP_STEP: u32 = 512;
 
 /// The Hemisphere emulator.
 pub struct Hemisphere {
