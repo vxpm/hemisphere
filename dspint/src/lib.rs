@@ -985,10 +985,7 @@ impl Interpreter {
             }
 
             // Accelerator
-            0xD1 => {
-                self.accel.format = AccelFormat::from_bits(value);
-                dbg!(self.accel.format);
-            }
+            0xD1 => self.accel.format = AccelFormat::from_bits(value),
             0xD3 => {
                 tracing::debug!(
                     "accelerator writing 0x{value:04X} to ARAM 0x{:08X} (wraps at 0x{:08X})",
