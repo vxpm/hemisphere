@@ -42,12 +42,14 @@ fn fill_buffer(state: &Arc<Mutex<State>>, out: &mut [f32]) {
 
     match state.sample_rate {
         SampleRate::KHz48 => {
+            dbg!(state.frames.len(), out.len());
+
             let mut last = state.last;
             for out in out.chunks_exact_mut(2) {
-                let sample = state.frames.pop_front().unwrap_or(last);
-                out[0] = sample.left;
-                out[1] = sample.right;
-                last = sample;
+                let frame = state.frames.pop_front().unwrap_or(last);
+                out[0] = frame.left;
+                out[1] = frame.right;
+                last = frame;
             }
 
             state.last = last;
@@ -87,10 +89,10 @@ fn fill_buffer(state: &Arc<Mutex<State>>, out: &mut [f32]) {
 
             let mut last = state.last;
             for out in out.chunks_exact_mut(2) {
-                let sample = produced.next().unwrap_or(last);
-                out[0] = sample.left;
-                out[1] = sample.right;
-                last = sample;
+                let frame = produced.next().unwrap_or(last);
+                out[0] = frame.left;
+                out[1] = frame.right;
+                last = frame;
             }
 
             state.last = last;
