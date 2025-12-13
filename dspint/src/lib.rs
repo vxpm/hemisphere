@@ -397,6 +397,16 @@ impl PcmDivisor {
             _ => panic!("reserved divisor"),
         }
     }
+
+    /// Applies rounding division.
+    pub fn apply(self, value: i32) -> i32 {
+        match self {
+            Self::D2048 => (value + (1 << 10)) >> 11,
+            Self::D1 => value,
+            Self::D65536 => (value + (1 << 15)) >> 16,
+            _ => panic!("reserved divisor"),
+        }
+    }
 }
 
 #[bitos(16)]
@@ -864,14 +874,16 @@ impl Interpreter {
         self.read_aram_raw(sys, AccelWrap::RawRead)
     }
 
-    fn pcm_gain(&self, value: i32) -> i16 {
-        (value * self.accel.gain as i32 / self.accel.format.divisor().value() as i32) as i16
+    fn pcm_gain(&self, value: i32) -> i32 {
+        value * self.accel.gain as i32
     }
 
     fn pcm_decode(&self, value: i32, coeffs: AccelCoefficients) -> i16 {
-        self.pcm_gain(value)
+        let acc = self.pcm_gain(value)
             + self.pcm_gain(coeffs.a as i32 * self.accel.previous_samples[0] as i32)
-            + self.pcm_gain(coeffs.b as i32 * self.accel.previous_samples[1] as i32)
+            + self.pcm_gain(coeffs.b as i32 * self.accel.previous_samples[1] as i32);
+
+        self.accel.format.divisor().apply(acc) as i16
     }
 
     fn read_accelerator_sample(&mut self, sys: &mut System) -> i16 {
