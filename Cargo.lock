@@ -205,6 +205,7 @@ name = "app"
 version = "0.1.0"
 dependencies = [
  "addr2line",
+ "app-modules",
  "clap",
  "cores",
  "cpal",
@@ -224,6 +225,16 @@ dependencies = [
  "tracing-subscriber",
  "typetag",
  "wgpu",
+]
+
+[[package]]
+name = "app-modules"
+version = "0.1.0"
+dependencies = [
+ "cpal",
+ "gilrs",
+ "hemisphere",
+ "tracing",
 ]
 
 [[package]]
@@ -779,7 +790,6 @@ name = "cores"
 version = "0.1.0"
 dependencies = [
  "dspint",
- "gilrs",
  "hemisphere",
  "indexmap",
  "ppcjit",

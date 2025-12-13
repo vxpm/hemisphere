@@ -12,6 +12,7 @@ members = [
     "hemisphere",
     "cores",
     "renderer",
+    "app-modules",
 
     # binaries
     "ipl-hle",
@@ -30,6 +31,7 @@ default-members = [
     "hemisphere",
     "cores",
     "renderer",
+    "app-modules",
 
     # binaries
     "app",
@@ -121,6 +123,7 @@ dspint = { path = "./dspint" }
 cores = { path = "./cores" }
 hemisphere = { path = "./hemisphere" }
 renderer = { path = "./renderer" }
+app-modules = { path = "./app-modules" }
 
 # actual dependencies
 binrw = { version = "0.15", features = ["std"], default-features = false }

@@ -1,6 +1,5 @@
 #![feature(trim_prefix_suffix)]
 
-mod audio_wip;
 mod cli;
 mod control;
 mod debug;
@@ -32,12 +31,13 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::VecDeque,
     io::BufReader,
-    sync::{Arc, mpsc},
+    sync::Arc,
     time::{Duration, Instant},
 };
 
+use app_modules::{audio::CpalAudio, input::GilrsInput};
+use cores::cpu::jit as jitcore;
 use cores::dsp::interpreter as dspcore;
-use cores::{cpu::jit as jitcore, input};
 
 struct Ctx<'a> {
     step: bool,
@@ -142,12 +142,10 @@ impl App {
             dsp: Box::new(dspcore::InterpreterCore::default()),
         };
 
-        let (audio_sink, receiver) = mpsc::channel();
-        std::thread::spawn(move || audio_wip::worker(receiver));
-
         let modules = Modules {
             renderer: Box::new(renderer.clone()),
-            input: Box::new(input::GilrsInput::new()),
+            input: Box::new(GilrsInput::new()),
+            audio: Box::new(CpalAudio::new()),
         };
 
         let hemisphere = Hemisphere::new(
@@ -156,7 +154,6 @@ impl App {
             system::Config {
                 ipl,
                 iso,
-                audio_sink,
                 sideload: executable,
                 debug_info,
             },

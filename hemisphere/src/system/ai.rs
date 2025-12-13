@@ -104,7 +104,7 @@ pub fn stop_streaming(sys: &mut System) {
     sys.scheduler.cancel(self::push_streaming_sample);
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct Sample {
     pub left: i16,
     pub right: i16,
@@ -118,7 +118,7 @@ fn push_data_dma_block(sys: &mut System) {
     });
 
     for sample in samples {
-        sys.config.audio_sink.send(sample).unwrap();
+        sys.modules.audio.play(sample);
     }
 
     sys.audio.current_dma_block += 1;
@@ -137,6 +137,10 @@ fn push_data_dma_block(sys: &mut System) {
 }
 
 pub fn start_data_dma(sys: &mut System) {
+    sys.modules
+        .audio
+        .set_sample_rate(sys.audio.control.dsp_sample_rate());
+
     sys.scheduler
         .schedule(CYCLES_PER_BLOCK, self::push_data_dma_block);
 }

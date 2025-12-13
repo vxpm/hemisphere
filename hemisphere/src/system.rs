@@ -32,10 +32,7 @@ use crate::{
 use dol::binrw::BinRead;
 use gekko::{Address, Cpu};
 use iso::Iso;
-use std::{
-    io::{Cursor, Read, Seek},
-    sync::mpsc::Sender,
-};
+use std::io::{Cursor, Read, Seek};
 
 pub trait ReadAndSeek: Read + Seek + Send + 'static {}
 impl<T> ReadAndSeek for T where T: Read + Seek + Send + 'static {}
@@ -44,7 +41,6 @@ impl<T> ReadAndSeek for T where T: Read + Seek + Send + 'static {}
 pub struct Config {
     pub ipl: Option<Vec<u8>>,
     pub iso: Option<Iso<Box<dyn ReadAndSeek>>>,
-    pub audio_sink: Sender<ai::Sample>,
     pub sideload: Option<Executable>,
     pub debug_info: Option<Box<dyn DebugInfo>>,
 }
