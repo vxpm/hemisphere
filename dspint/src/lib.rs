@@ -1201,8 +1201,8 @@ impl Interpreter {
             return;
         }
 
-        self.check_stacks();
         self.check_interrupts(sys);
+        self.check_stacks();
 
         // have we cached this instruction already?
         let ins = if let Some(cached) = self.cached[self.regs.pc as usize] {
