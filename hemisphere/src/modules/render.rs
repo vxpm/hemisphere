@@ -145,12 +145,14 @@ pub enum Action {
     },
 }
 
-pub trait RendererModule: Send + Sync {
+pub trait RenderModule: Send + Sync {
     fn exec(&mut self, action: Action);
 }
 
-pub struct NopRendererModule;
+/// An implementation of [`RenderModule`] that does nothing.
+#[derive(Debug, Clone, Copy)]
+pub struct NopRenderModule;
 
-impl RendererModule for NopRendererModule {
+impl RenderModule for NopRenderModule {
     fn exec(&mut self, _: Action) {}
 }

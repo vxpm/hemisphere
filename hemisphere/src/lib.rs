@@ -35,7 +35,7 @@ pub struct Hemisphere {
 impl Hemisphere {
     pub fn new(cores: Cores, modules: Modules, config: system::Config) -> Self {
         Self {
-            system: System::new(config, modules),
+            system: System::new(modules, config),
             cores,
             dsp_pending: 0.0,
         }

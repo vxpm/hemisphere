@@ -18,7 +18,7 @@ pub mod si;
 pub mod vi;
 
 use crate::{
-    modules::{input::InputModule, render::RendererModule},
+    modules::{audio::AudioModule, input::InputModule, render::RenderModule},
     system::{
         dspi::Dsp,
         executable::{DebugInfo, Executable},
@@ -51,9 +51,9 @@ pub struct Config {
 
 /// System modules.
 pub struct Modules {
-    pub renderer: Box<dyn RendererModule>,
+    pub renderer: Box<dyn RenderModule>,
     pub input: Box<dyn InputModule>,
-    // pub audio: Box<dyn AudioModule>,
+    pub audio: Box<dyn AudioModule>,
     // pub disk: Box<dyn DiskModule>,
 }
 
@@ -207,7 +207,7 @@ impl System {
         self.cpu.pc = Address(0xFFF0_0100);
     }
 
-    pub fn new(mut config: Config, modules: Modules) -> Self {
+    pub fn new(modules: Modules, mut config: Config) -> Self {
         let mut scheduler = Scheduler::default();
         scheduler.schedule(1 << 16, gx::cmd::process);
 

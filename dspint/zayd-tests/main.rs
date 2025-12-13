@@ -4,8 +4,8 @@ mod file;
 
 use dspint::{Interpreter, Registers};
 use hemisphere::{
-    render::NopRenderer,
-    system::{self, System},
+    modules::{input::NopInputModule, render::NopRenderModule},
+    system::{self, Modules, System},
 };
 use libtest_mimic::{Arguments, Failed, Trial};
 use std::{fmt::Write, sync::mpsc};
@@ -89,14 +89,22 @@ fn run_test(file: file::TestFile, quiet: bool) -> Result<(), Failed> {
     let mut failures = vec![];
 
     let (audio_sink, _receiver) = mpsc::channel();
-    let mut system = System::new(system::Config {
-        renderer: Box::new(NopRenderer),
-        ipl: None,
-        iso: None,
-        audio_sink,
-        sideload: None,
-        debug_info: None,
-    });
+
+    let modules = Modules {
+        renderer: Box::new(NopRenderModule),
+        input: Box::new(NopInputModule),
+    };
+
+    let mut system = System::new(
+        modules,
+        system::Config {
+            ipl: None,
+            iso: None,
+            audio_sink,
+            sideload: None,
+            debug_info: None,
+        },
+    );
 
     for (i, case) in file.cases.into_iter().enumerate() {
         let Err(failure) = run_case(&mut system, case) else {
