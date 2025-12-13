@@ -26,11 +26,11 @@ use crate::{
         lazy::Lazy,
         mem::Memory,
         mmu::Mmu,
-        scheduler::Scheduler,
+        scheduler::{HandlerCtx, Scheduler},
     },
 };
 use dol::binrw::BinRead;
-use gekko::{Address, Cpu};
+use gekko::{Address, Cpu, Cycles};
 use iso::Iso;
 use std::io::{Cursor, Read, Seek};
 
@@ -264,7 +264,12 @@ impl System {
     #[inline(always)]
     pub fn process_events(&mut self) {
         while let Some(event) = self.scheduler.pop() {
-            event(self);
+            let cycles_late = self.scheduler.elapsed() - event.cycle;
+            let ctx = HandlerCtx {
+                cycles_late: Cycles(cycles_late),
+            };
+
+            event.handler.call(self, ctx);
         }
     }
 }

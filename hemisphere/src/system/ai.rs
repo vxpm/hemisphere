@@ -1,5 +1,5 @@
 //! Audio interface (AI).
-use crate::system::{System, pi};
+use crate::system::{System, pi, scheduler::HandlerCtx};
 use bitos::{BitUtils, bitos, integer::u15};
 use gekko::Address;
 use zerocopy::{FromBytes, Immutable, IntoBytes};
@@ -84,7 +84,7 @@ impl Interface {
     }
 }
 
-fn push_streaming_sample(sys: &mut System) {
+fn push_streaming_sample(sys: &mut System, ctx: HandlerCtx) {
     sys.audio.sample_counter += 1;
     if sys.audio.control.interrupt_valid() && sys.audio.sample_counter == sys.audio.interrupt_sample
     {
@@ -93,15 +93,15 @@ fn push_streaming_sample(sys: &mut System) {
         pi::check_interrupts(sys);
     }
 
-    sys.scheduler.schedule(
-        sys.audio.control.aux_sample_rate().cycles_per_sample(),
+    sys.scheduler.schedule_full(
+        sys.audio.control.aux_sample_rate().cycles_per_sample() - ctx.cycles_late.value(),
         self::push_streaming_sample,
     );
 }
 
 pub fn start_streaming(sys: &mut System) {
-    if !sys.scheduler.contains(self::push_streaming_sample) {
-        sys.scheduler.schedule(
+    if !sys.scheduler.contains_full(self::push_streaming_sample) {
+        sys.scheduler.schedule_full(
             sys.audio.control.aux_sample_rate().cycles_per_sample(),
             self::push_streaming_sample,
         );
@@ -109,7 +109,7 @@ pub fn start_streaming(sys: &mut System) {
 }
 
 pub fn stop_streaming(sys: &mut System) {
-    sys.scheduler.cancel(self::push_streaming_sample);
+    sys.scheduler.cancel_full(self::push_streaming_sample);
 }
 
 #[derive(Debug, Clone, Copy, Default, IntoBytes, FromBytes, Immutable)]
@@ -119,7 +119,7 @@ pub struct Frame {
     pub right: i16,
 }
 
-fn push_data_dma_block(sys: &mut System) {
+fn push_data_dma_block(sys: &mut System, ctx: HandlerCtx) {
     let addr = Address(sys.audio.dma_base.0.with_bit(31, false)) + 32 * sys.audio.current_dma_block;
     let samples: [Frame; 8] = std::array::from_fn(|i| Frame {
         left: sys.read::<i16>(addr + 4 * i as u32 + 2),
@@ -140,8 +140,8 @@ fn push_data_dma_block(sys: &mut System) {
     }
 
     if sys.audio.dma_control.playing() {
-        sys.scheduler.schedule(
-            sys.audio.control.dsp_sample_rate().cycles_per_block(),
+        sys.scheduler.schedule_full(
+            sys.audio.control.dsp_sample_rate().cycles_per_block() - ctx.cycles_late.value(),
             self::push_data_dma_block,
         );
     }
@@ -152,12 +152,14 @@ pub fn start_data_dma(sys: &mut System) {
         .audio
         .set_sample_rate(sys.audio.control.dsp_sample_rate());
 
-    sys.scheduler.schedule(
-        sys.audio.control.dsp_sample_rate().cycles_per_block(),
-        self::push_data_dma_block,
-    );
+    if !sys.scheduler.contains_full(self::push_data_dma_block) {
+        sys.scheduler.schedule_full(
+            sys.audio.control.dsp_sample_rate().cycles_per_block(),
+            self::push_data_dma_block,
+        );
+    }
 }
 
 pub fn stop_data_dma(sys: &mut System) {
-    sys.scheduler.cancel(self::push_data_dma_block);
+    sys.scheduler.cancel_full(self::push_data_dma_block);
 }

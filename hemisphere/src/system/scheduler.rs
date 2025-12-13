@@ -1,7 +1,42 @@
 use crate::system::System;
+use gekko::Cycles;
 use std::collections::VecDeque;
 
-pub type Handler = fn(&mut System);
+pub struct HandlerCtx {
+    pub cycles_late: Cycles,
+}
+
+pub type BasicHandler = fn(&mut System);
+pub type FullHandler = fn(&mut System, HandlerCtx);
+
+#[derive(Clone, Copy)]
+pub enum Handler {
+    Basic(BasicHandler),
+    Full(FullHandler),
+}
+
+impl PartialEq for Handler {
+    #[inline(always)]
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Basic(f), Self::Basic(g)) => std::ptr::fn_addr_eq(*f, *g),
+            (Self::Full(f), Self::Full(g)) => std::ptr::fn_addr_eq(*f, *g),
+            _ => false,
+        }
+    }
+}
+
+impl Eq for Handler {}
+
+impl Handler {
+    #[inline(always)]
+    pub fn call(&self, sys: &mut System, ctx: HandlerCtx) {
+        match self {
+            Self::Basic(f) => f(sys),
+            Self::Full(f) => f(sys, ctx),
+        }
+    }
+}
 
 pub struct ScheduledEvent {
     pub cycle: u64,
@@ -33,22 +68,46 @@ impl Default for Scheduler {
 
 impl Scheduler {
     #[inline(always)]
-    pub fn schedule(&mut self, after: u64, handler: Handler) {
+    pub fn schedule(&mut self, after: u64, handler: BasicHandler) {
         let cycle = self.elapsed + after;
         let index = self.scheduled.partition_point(|e| e.cycle <= cycle);
-        self.scheduled
-            .insert(index, ScheduledEvent { cycle, handler });
+        self.scheduled.insert(
+            index,
+            ScheduledEvent {
+                cycle,
+                handler: Handler::Basic(handler),
+            },
+        );
     }
 
     #[inline(always)]
-    pub fn schedule_now(&mut self, handler: Handler) {
+    pub fn schedule_now(&mut self, handler: BasicHandler) {
         self.schedule(0, handler)
     }
 
     #[inline(always)]
-    pub fn cancel(&mut self, handler: Handler) {
-        self.scheduled
-            .retain(|x| !std::ptr::fn_addr_eq(x.handler, handler));
+    pub fn schedule_full(&mut self, after: u64, handler: FullHandler) {
+        let cycle = self.elapsed + after;
+        let index = self.scheduled.partition_point(|e| e.cycle <= cycle);
+        self.scheduled.insert(
+            index,
+            ScheduledEvent {
+                cycle,
+                handler: Handler::Full(handler),
+            },
+        );
+    }
+
+    #[inline(always)]
+    pub fn cancel(&mut self, handler: BasicHandler) {
+        let handler = Handler::Basic(handler);
+        self.scheduled.retain(|e| e.handler != handler);
+    }
+
+    #[inline(always)]
+    pub fn cancel_full(&mut self, handler: FullHandler) {
+        let handler = Handler::Full(handler);
+        self.scheduled.retain(|e| e.handler != handler);
     }
 
     #[inline(always)]
@@ -74,17 +133,20 @@ impl Scheduler {
     }
 
     #[inline(always)]
-    pub fn pop(&mut self) -> Option<Handler> {
-        self.scheduled
-            .pop_front_if(|e| e.cycle <= self.elapsed)
-            .map(|e| e.handler)
+    pub fn pop(&mut self) -> Option<ScheduledEvent> {
+        self.scheduled.pop_front_if(|e| e.cycle <= self.elapsed)
     }
 
     #[inline(always)]
-    pub fn contains(&self, handler: Handler) -> bool {
-        self.scheduled
-            .iter()
-            .any(|e| std::ptr::fn_addr_eq(e.handler, handler))
+    pub fn contains(&self, handler: BasicHandler) -> bool {
+        let handler = Handler::Basic(handler);
+        self.scheduled.iter().any(|e| e.handler == handler)
+    }
+
+    #[inline(always)]
+    pub fn contains_full(&self, handler: FullHandler) -> bool {
+        let handler = Handler::Full(handler);
+        self.scheduled.iter().any(|e| e.handler == handler)
     }
 
     /// How many CPU cycles have elapsed.
