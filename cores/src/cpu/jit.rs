@@ -91,6 +91,20 @@ impl BlockMapping {
         }
     }
 
+    /// Returns the block starting at `addr`.
+    #[inline(always)]
+    pub fn get_uncached(&self, addr: Address) -> Option<BlockId> {
+        if let Some((last_addr, id)) = self.last_query.get()
+            && last_addr == addr
+        {
+            std::hint::cold_path();
+            Some(id)
+        } else {
+            let id = self.tree_map.get(&addr)?.id;
+            Some(id)
+        }
+    }
+
     pub fn clear(&mut self) {
         self.tree_map.clear();
         self.overlap_lut.fill(0);
@@ -136,6 +150,11 @@ impl Blocks {
     #[inline(always)]
     pub fn get(&mut self, addr: Address) -> Option<&StoredBlock> {
         self.storage.get(self.mapping.get(addr)?)
+    }
+
+    #[inline(always)]
+    pub fn get_uncached(&mut self, addr: Address) -> Option<&StoredBlock> {
+        self.storage.get(self.mapping.get_uncached(addr)?)
     }
 
     #[inline(always)]
@@ -715,7 +734,7 @@ impl JitCore {
             {
                 std::hint::cold_path();
 
-                if let Some(func_block) = self.blocks.get(dest)
+                if let Some(func_block) = self.blocks.get_uncached(dest)
                     && func_block.block.meta().pattern == Pattern::GetMailboxStatusFunc
                     && sys.dsp.cpu_mailbox.status()
                 {
