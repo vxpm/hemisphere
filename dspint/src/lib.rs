@@ -834,15 +834,15 @@ impl Interpreter {
         }
     }
 
-    fn increment_aram_curr(&mut self, wrap: AccelWrap) {
+    fn increment_aram_curr(&mut self, wrap: Option<AccelWrap>) {
         self.accel.aram_curr += 1;
         if self.accel.aram_curr > self.accel.aram_end {
             self.accel.aram_curr = self.accel.aram_start;
-            self.accel.wrapped = Some(wrap);
+            self.accel.wrapped = wrap;
         }
     }
 
-    fn read_aram_raw(&mut self, sys: &mut System, wrap: AccelWrap) -> u16 {
+    fn read_aram_raw(&mut self, sys: &mut System, wrap: Option<AccelWrap>) -> u16 {
         let format = self.accel.format;
         let current = self.accel.aram_curr.with_bit(31, false);
         let value = match format.sample() {
@@ -850,9 +850,9 @@ impl Interpreter {
                 let address = current / 2;
                 let byte = u8::read_be_bytes(&sys.mem.aram[address as usize..]) as u16;
                 if current % 2 == 0 {
-                    byte & 0xF
-                } else {
                     byte >> 4
+                } else {
+                    byte & 0xF
                 }
             }
             SampleSize::Byte => u8::read_be_bytes(&sys.mem.aram[current as usize..]) as u16,
@@ -869,12 +869,12 @@ impl Interpreter {
             self.accel.aram_end
         );
 
-        self.increment_aram_curr(AccelWrap::RawRead);
+        self.increment_aram_curr(wrap);
         value
     }
 
     fn read_accelerator_raw(&mut self, sys: &mut System) -> u16 {
-        self.read_aram_raw(sys, AccelWrap::RawRead)
+        self.read_aram_raw(sys, Some(AccelWrap::RawRead))
     }
 
     fn pcm_gain(&self, value: i32) -> i32 {
@@ -893,20 +893,42 @@ impl Interpreter {
         self.accel.format.divisor().apply(acc) as i16
     }
 
-    fn adpcm_decode(&self) -> i16 {
-        todo!()
+    fn adpcm_decode(&mut self, sys: &mut System) -> i16 {
+        if self.accel.aram_curr % 16 == 0 {
+            let coeff_idx = self.read_aram_raw(sys, None) as u8;
+            let scale = self.read_aram_raw(sys, None) as u8;
+            self.accel.predictor.set_scale_log2(u4::new(scale));
+            self.accel.predictor.set_coefficients(u3::new(coeff_idx));
+        }
+
+        let predictor = self.accel.predictor;
+        let coeff_idx = predictor.coefficients().value();
+
+        let coeffs = self.accel.coefficients[coeff_idx as usize];
+        let scale = (1 << predictor.scale_log2().value()) as i32;
+
+        let data = ((self.read_aram_raw(sys, None) as i8) << 4) >> 4;
+        let value = scale * data as i32;
+
+        let prediction = coeffs.a as i32 * self.accel.previous_samples[0] as i32
+            + coeffs.b as i32 * self.accel.previous_samples[1] as i32;
+
+        // dbg!(coeffs, scale, data, value, result);
+
+        let result = value + PcmDivisor::D2048.apply(prediction);
+        result as i16
     }
 
     fn read_accelerator_sample(&mut self, sys: &mut System) -> i16 {
         let value = match self.accel.format.decoding() {
-            SampleDecoding::AramAdpcm => self.adpcm_decode(),
+            SampleDecoding::AramAdpcm => self.adpcm_decode(sys),
             SampleDecoding::AcinPcm => self.pcm_decode(self.accel.input as i32),
             SampleDecoding::AramPcm => {
-                let value = self.read_aram_raw(sys, AccelWrap::SampleRead) as i16;
+                let value = self.read_aram_raw(sys, Some(AccelWrap::SampleRead)) as i16;
                 self.pcm_decode(value as i32)
             }
             SampleDecoding::AcinPcmInc => {
-                self.increment_aram_curr(AccelWrap::SampleRead);
+                self.increment_aram_curr(Some(AccelWrap::SampleRead));
                 self.pcm_decode(self.accel.input as i32)
             }
         };

@@ -34,6 +34,7 @@ struct State {
     resampled: Vec<f32>,
     frames: VecDeque<FrameF32>,
     last: FrameF32,
+    writer: hound::WavWriter<std::io::BufWriter<std::fs::File>>,
 }
 
 fn fill_buffer(state: &Arc<Mutex<State>>, out: &mut [f32]) {
@@ -50,6 +51,9 @@ fn fill_buffer(state: &Arc<Mutex<State>>, out: &mut [f32]) {
                 out[0] = frame.left;
                 out[1] = frame.right;
                 last = frame;
+
+                state.writer.write_sample(frame.left).unwrap();
+                state.writer.write_sample(frame.right).unwrap();
             }
 
             state.last = last;
@@ -93,6 +97,9 @@ fn fill_buffer(state: &Arc<Mutex<State>>, out: &mut [f32]) {
                 out[0] = frame.left;
                 out[1] = frame.right;
                 last = frame;
+
+                state.writer.write_sample(frame.left).unwrap();
+                state.writer.write_sample(frame.right).unwrap();
             }
 
             state.last = last;
@@ -135,12 +142,21 @@ impl CpalAudio {
             resampler::Attenuation::Db90,
         );
 
+        let spec = hound::WavSpec {
+            channels: 2,
+            sample_rate: 48000,
+            bits_per_sample: 32,
+            sample_format: hound::SampleFormat::Float,
+        };
+        let writer = hound::WavWriter::create("audio.wav", spec).unwrap();
+
         let state = State {
             sample_rate: SampleRate::KHz48,
             resampled: vec![0.0; resampler.buffer_size_output()],
             resampler,
             frames: VecDeque::with_capacity(8192),
             last: FrameF32::default(),
+            writer,
         };
 
         let state = Arc::new(Mutex::new(state));
