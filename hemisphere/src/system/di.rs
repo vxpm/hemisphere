@@ -108,6 +108,7 @@ pub struct Interface {
     pub dma_length: u32,
     pub cover: Cover,
     pub config: u32,
+    pub immediate: u32,
 }
 
 impl Interface {
@@ -206,7 +207,7 @@ pub fn write_control(sys: &mut System, value: Control) {
                 let length = sys.disk.dma_length;
                 assert_eq!(length, 32);
 
-                sys.mem.ram[target.value() as usize..][..length as usize].copy_from_slice(&[
+                sys.mem.ram[target.value() as usize..][..12 as usize].copy_from_slice(&[
                     0x00, 0x00, 0x00, 0x00, // zeros
                     0x20, 0x02, 0x04, 0x02, // date
                     0x61, 0x00, 0x00, 0x00, // version
@@ -242,13 +243,29 @@ pub fn write_control(sys: &mut System, value: Control) {
 
                 sys.scheduler.schedule(10000, complete_transfer);
             }
-            Command::Seek { offset } => {
+            Command::Seek { .. } => {
                 tracing::warn!("doing disk seek! current implementation is half assed");
                 sys.scheduler.schedule(5000, complete_seek);
             }
             Command::StopMotor => {
                 sys.disk.status.set_transfer_interrupt(true);
                 sys.disk.control.set_transfer_ongoing(false);
+                sys.disk.immediate = 0;
+            }
+            Command::StartAudioStream { .. } => {
+                sys.disk.status.set_transfer_interrupt(true);
+                sys.disk.control.set_transfer_ongoing(false);
+                sys.disk.immediate = 0;
+            }
+            Command::StopAudioStream { .. } => {
+                sys.disk.status.set_transfer_interrupt(true);
+                sys.disk.control.set_transfer_ongoing(false);
+                sys.disk.immediate = 0;
+            }
+            Command::AudioStreamStatus { .. } => {
+                sys.disk.status.set_transfer_interrupt(true);
+                sys.disk.control.set_transfer_ongoing(false);
+                sys.disk.immediate = 0x0000_0000;
             }
             _ => panic!("unimplemented disk command: {:?}", command),
         }

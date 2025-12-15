@@ -180,6 +180,7 @@ impl System {
             Mmio::DiskDmaBase => ne!(self.disk.dma_base.as_bytes()),
             Mmio::DiskDmaLength => ne!(self.disk.dma_length.as_bytes()),
             Mmio::DiskControl => ne!(self.disk.control.as_bytes()),
+            Mmio::DiskImmediateData => ne!(self.disk.immediate.as_bytes()),
             Mmio::DiskConfiguration => ne!(self.disk.config.as_bytes()),
 
             // === Serial Interface ===
