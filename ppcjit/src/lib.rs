@@ -58,7 +58,7 @@ struct Compiler {
 
 impl Compiler {
     fn new(settings: Settings, hooks: Hooks) -> Self {
-        let opt_level = "speed_and_size";
+        let opt_level = "speed";
         let verifier = if cfg!(debug_assertions) {
             "true"
         } else {

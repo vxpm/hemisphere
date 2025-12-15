@@ -1,16 +1,16 @@
 use bitut::BitUtils;
 use zerocopy::{FromBytes, Immutable, IntoBytes};
 
-const DITHER: [[i8; 8]; 8] = [
-    [0, 32, 8, 40, 2, 34, 10, 42],
-    [48, 16, 56, 24, 50, 18, 58, 26],
-    [12, 44, 4, 36, 14, 46, 6, 38],
-    [60, 28, 52, 20, 62, 30, 54, 22],
-    [3, 35, 11, 43, 1, 33, 9, 41],
-    [51, 19, 59, 27, 49, 17, 57, 25],
-    [15, 47, 7, 39, 13, 45, 5, 37],
-    [63, 31, 55, 23, 61, 29, 53, 21],
-];
+// const DITHER: [[i8; 8]; 8] = [
+//     [0, 32, 8, 40, 2, 34, 10, 42],
+//     [48, 16, 56, 24, 50, 18, 58, 26],
+//     [12, 44, 4, 36, 14, 46, 6, 38],
+//     [60, 28, 52, 20, 62, 30, 54, 22],
+//     [3, 35, 11, 43, 1, 33, 9, 41],
+//     [51, 19, 59, 27, 49, 17, 57, 25],
+//     [15, 47, 7, 39, 13, 45, 5, 37],
+//     [63, 31, 55, 23, 61, 29, 53, 21],
+// ];
 
 /// Converts a value in range `0..=OLD_MAX` to a value in the range `0..=NEW_MAX`.
 #[inline(always)]
@@ -115,17 +115,6 @@ impl Pixel {
         let (r, g, b) = (self.r as f32, self.g as f32, self.b as f32);
         (0.257 * r + 0.504 * g + 0.098 * b + 16.0) as u8
     }
-
-    #[inline(always)]
-    pub fn dither(self, x: usize, y: usize) -> Self {
-        let offset = (DITHER[x % 8][y % 8] - 32) / 16;
-        Self {
-            r: self.r.saturating_add_signed(offset),
-            g: self.g.saturating_add_signed(offset),
-            b: self.b.saturating_add_signed(offset),
-            a: self.a,
-        }
-    }
 }
 
 pub trait Format {
@@ -157,7 +146,6 @@ pub fn encode<F: Format>(
     stride: usize,
     width: usize,
     height: usize,
-    dither: bool,
     data: &[Pixel],
     buffer: &mut [u8],
 ) {
@@ -166,7 +154,6 @@ pub fn encode<F: Format>(
     let cache_lines_per_tile = F::BYTES_PER_TILE / 32;
     let width_in_tiles = width.div_ceil(F::TILE_WIDTH);
     let height_in_tiles = height.div_ceil(F::TILE_HEIGHT);
-    // assert!(stride >= width_in_tiles);
 
     for tile_y in 0..height_in_tiles {
         for tile_x in 0..width_in_tiles {
@@ -185,7 +172,7 @@ pub fn encode<F: Format>(
                 let y = base_y + y;
                 let image_index = y * width + x;
                 let pixel = data.get(image_index).copied().unwrap_or_default();
-                if dither { pixel.dither(x, y) } else { pixel }
+                pixel
             });
         }
     }
@@ -666,7 +653,6 @@ mod test {
             required_width / F::TILE_WIDTH,
             img.width() as usize,
             img.height() as usize,
-            false,
             &pixels,
             &mut encoded,
         );
@@ -736,7 +722,6 @@ mod test {
             stride_cache,
             width / 2,
             height / 2,
-            false,
             &pixels,
             &mut encoded[0..],
         );
@@ -746,7 +731,6 @@ mod test {
             stride_cache,
             width / 2,
             height / 2,
-            false,
             &pixels,
             &mut encoded[stride_bytes / 2..],
         );
@@ -756,7 +740,6 @@ mod test {
             stride_cache,
             width / 2,
             height / 2,
-            false,
             &pixels,
             &mut encoded[(height / Rgba8::TILE_HEIGHT / 2) * stride_bytes..],
         );
@@ -766,7 +749,6 @@ mod test {
             stride_cache,
             width / 2,
             height / 2,
-            false,
             &pixels,
             &mut encoded[(height / Rgba8::TILE_HEIGHT / 2) * stride_bytes + stride_bytes / 2..],
         );
