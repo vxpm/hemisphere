@@ -340,11 +340,27 @@ impl BlockBuilder<'_> {
         CR_INFO
     }
 
+    pub fn mtfsb0(&mut self, ins: Ins) -> InstructionInfo {
+        let bit = 31 - ins.field_crbd();
+        let fpscr = self.get(Reg::FPSCR);
+
+        let value = self.set_bit(fpscr, bit, false);
+        self.set(Reg::FPSCR, value);
+
+        self.update_fpscr();
+
+        if ins.field_rc() {
+            self.update_cr1_float();
+        }
+
+        CR_INFO
+    }
+
     pub fn mtfsb1(&mut self, ins: Ins) -> InstructionInfo {
         let bit = 31 - ins.field_crbd();
         let fpscr = self.get(Reg::FPSCR);
 
-        let value = self.set_bit(fpscr, bit, 1);
+        let value = self.set_bit(fpscr, bit, true);
         self.set(Reg::FPSCR, value);
 
         self.update_fpscr();
