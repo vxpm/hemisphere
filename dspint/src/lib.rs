@@ -348,7 +348,7 @@ impl Registers {
 }
 
 #[bitos(2)]
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum SampleSize {
     #[default]
     Nibble = 0b00,
@@ -844,20 +844,20 @@ impl Interpreter {
 
     fn read_aram_raw(&mut self, sys: &mut System, wrap: Option<AccelWrap>) -> u16 {
         let format = self.accel.format;
-        let current = self.accel.aram_curr.with_bit(31, false);
+        let index = self.accel.aram_curr.with_bit(31, false);
         let value = match format.sample() {
             SampleSize::Nibble => {
-                let address = current / 2;
+                let address = index / 2;
                 let byte = u8::read_be_bytes(&sys.mem.aram[address as usize..]) as u16;
-                if current % 2 == 0 {
+                if index % 2 == 0 {
                     byte >> 4
                 } else {
                     byte & 0xF
                 }
             }
-            SampleSize::Byte => u8::read_be_bytes(&sys.mem.aram[current as usize..]) as u16,
+            SampleSize::Byte => u8::read_be_bytes(&sys.mem.aram[index as usize..]) as u16,
             SampleSize::Word => {
-                let address = current * 2;
+                let address = index * 2;
                 u16::read_be_bytes(&sys.mem.aram[address as usize..])
             }
             _ => panic!("reserved format"),
@@ -894,6 +894,8 @@ impl Interpreter {
     }
 
     fn adpcm_decode(&mut self, sys: &mut System) -> i16 {
+        assert_eq!(self.accel.format.sample(), SampleSize::Nibble);
+
         if self.accel.aram_curr % 16 == 0 {
             let coeff_idx = self.read_aram_raw(sys, None) as u8;
             let scale = self.read_aram_raw(sys, None) as u8;
@@ -913,9 +915,7 @@ impl Interpreter {
         let prediction = coeffs.a as i32 * self.accel.previous_samples[0] as i32
             + coeffs.b as i32 * self.accel.previous_samples[1] as i32;
 
-        // dbg!(coeffs, scale, data, value, result);
-
-        let result = value + PcmDivisor::D2048.apply(prediction);
+        let result = PcmDivisor::D2048.apply(prediction) + value;
         result as i16
     }
 

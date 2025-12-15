@@ -34,7 +34,13 @@ struct State {
     resampled: Vec<f32>,
     frames: VecDeque<FrameF32>,
     last: FrameF32,
-    writer: hound::WavWriter<std::io::BufWriter<std::fs::File>>,
+    writer: Option<hound::WavWriter<std::io::BufWriter<std::fs::File>>>,
+}
+
+impl Drop for State {
+    fn drop(&mut self) {
+        self.writer.take().unwrap().finalize().unwrap();
+    }
 }
 
 fn fill_buffer(state: &Arc<Mutex<State>>, out: &mut [f32]) {
@@ -47,13 +53,28 @@ fn fill_buffer(state: &Arc<Mutex<State>>, out: &mut [f32]) {
 
             let mut last = state.last;
             for out in out.chunks_exact_mut(2) {
-                let frame = state.frames.pop_front().unwrap_or(last);
+                let frame = if let Some(frame) = state.frames.pop_front() {
+                    state
+                        .writer
+                        .as_mut()
+                        .unwrap()
+                        .write_sample(frame.left)
+                        .unwrap();
+                    state
+                        .writer
+                        .as_mut()
+                        .unwrap()
+                        .write_sample(frame.right)
+                        .unwrap();
+
+                    frame
+                } else {
+                    last
+                };
+
                 out[0] = frame.left;
                 out[1] = frame.right;
                 last = frame;
-
-                state.writer.write_sample(frame.left).unwrap();
-                state.writer.write_sample(frame.right).unwrap();
             }
 
             state.last = last;
@@ -93,13 +114,28 @@ fn fill_buffer(state: &Arc<Mutex<State>>, out: &mut [f32]) {
 
             let mut last = state.last;
             for out in out.chunks_exact_mut(2) {
-                let frame = produced.next().unwrap_or(last);
+                let frame = if let Some(frame) = produced.next() {
+                    state
+                        .writer
+                        .as_mut()
+                        .unwrap()
+                        .write_sample(frame.left)
+                        .unwrap();
+                    state
+                        .writer
+                        .as_mut()
+                        .unwrap()
+                        .write_sample(frame.right)
+                        .unwrap();
+
+                    frame
+                } else {
+                    last
+                };
+
                 out[0] = frame.left;
                 out[1] = frame.right;
                 last = frame;
-
-                state.writer.write_sample(frame.left).unwrap();
-                state.writer.write_sample(frame.right).unwrap();
             }
 
             state.last = last;
@@ -156,7 +192,7 @@ impl CpalAudio {
             resampler,
             frames: VecDeque::with_capacity(8192),
             last: FrameF32::default(),
-            writer,
+            writer: Some(writer),
         };
 
         let state = Arc::new(Mutex::new(state));
