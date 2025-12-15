@@ -143,7 +143,7 @@ impl App {
         };
 
         let modules = Modules {
-            renderer: Box::new(renderer.clone()),
+            render: Box::new(renderer.clone()),
             input: Box::new(GilrsInput::new()),
             audio: Box::new(CpalAudio::new()),
         };

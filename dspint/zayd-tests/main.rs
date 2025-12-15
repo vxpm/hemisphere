@@ -4,11 +4,11 @@ mod file;
 
 use dspint::{Interpreter, Registers};
 use hemisphere::{
-    modules::{input::NopInputModule, render::NopRenderModule},
+    modules::{audio::NopAudioModule, input::NopInputModule, render::NopRenderModule},
     system::{self, Modules, System},
 };
 use libtest_mimic::{Arguments, Failed, Trial};
-use std::{fmt::Write, sync::mpsc};
+use std::fmt::Write;
 
 fn parse_code(mut words: &[u16]) -> Vec<dspint::Ins> {
     let mut ins = vec![];
@@ -88,10 +88,9 @@ fn run_test(file: file::TestFile, quiet: bool) -> Result<(), Failed> {
     let total = file.cases.len();
     let mut failures = vec![];
 
-    let (audio_sink, _receiver) = mpsc::channel();
-
     let modules = Modules {
-        renderer: Box::new(NopRenderModule),
+        render: Box::new(NopRenderModule),
+        audio: Box::new(NopAudioModule),
         input: Box::new(NopInputModule),
     };
 
@@ -100,7 +99,6 @@ fn run_test(file: file::TestFile, quiet: bool) -> Result<(), Failed> {
         system::Config {
             ipl: None,
             iso: None,
-            audio_sink,
             sideload: None,
             debug_info: None,
         },

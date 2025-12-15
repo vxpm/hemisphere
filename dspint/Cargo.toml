@@ -31,5 +31,4 @@ bitos.workspace = true
 tracing.workspace = true
 zerocopy.workspace = true
 strum.workspace = true
-
-tinyvec = "1.10"
+tinyvec.workspace = true

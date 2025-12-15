@@ -31,6 +31,7 @@ use gekko::Address;
 use glam::{Mat3, Mat4, Vec2, Vec3};
 use seq_macro::seq;
 use strum::FromRepr;
+use tinyvec::TinyVec;
 use zerocopy::IntoBytes;
 
 /// Maximum value for the 24-bit depth.
@@ -452,7 +453,7 @@ pub fn update_tevs(sys: &mut System) {
                 alpha_const,
             }
         })
-        .collect::<Vec<_>>();
+        .collect::<TinyVec<_>>();
 
     let config = render::TexEnvConfig {
         stages,
@@ -460,7 +461,7 @@ pub fn update_tevs(sys: &mut System) {
     };
 
     sys.modules
-        .renderer
+        .render
         .exec(render::Action::SetTexEnvConfig(config));
 }
 
@@ -514,25 +515,25 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
         Reg::PixelZMode => {
             write_masked!(sys.gpu.pixel.depth_mode);
             sys.modules
-                .renderer
+                .render
                 .exec(render::Action::SetDepthMode(sys.gpu.pixel.depth_mode));
         }
         Reg::PixelBlendMode => {
             write_masked!(sys.gpu.pixel.blend_mode);
             sys.modules
-                .renderer
+                .render
                 .exec(render::Action::SetBlendMode(sys.gpu.pixel.blend_mode));
         }
         Reg::PixelConstantAlpha => {
             write_masked!(sys.gpu.pixel.constant_alpha);
-            sys.modules.renderer.exec(render::Action::SetConstantAlpha(
+            sys.modules.render.exec(render::Action::SetConstantAlpha(
                 sys.gpu.pixel.constant_alpha,
             ));
         }
         Reg::PixelControl => {
             write_masked!(sys.gpu.pixel.control);
             sys.modules
-                .renderer
+                .render
                 .exec(render::Action::SetFramebufferFormat(
                     sys.gpu.pixel.control.format(),
                 ));
@@ -572,7 +573,7 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
         }
         Reg::PixelCopyClearZ => {
             write_masked!(sys.gpu.pixel.clear_depth);
-            sys.modules.renderer.exec(render::Action::SetClearDepth(
+            sys.modules.render.exec(render::Action::SetClearDepth(
                 sys.gpu.pixel.clear_depth as f32 / DEPTH_24_BIT_MAX as f32,
             ));
         }
@@ -915,7 +916,7 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
         }
         Reg::TevAlphaFunc => {
             write_masked!(sys.gpu.environment.alpha_function);
-            sys.modules.renderer.exec(render::Action::SetAlphaFunction(
+            sys.modules.render.exec(render::Action::SetAlphaFunction(
                 sys.gpu.environment.alpha_function.clone(),
             ));
         }
@@ -960,7 +961,7 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
     }
 
     if reg.is_pixel_clear() {
-        sys.modules.renderer.exec(render::Action::SetClearColor(
+        sys.modules.render.exec(render::Action::SetClearColor(
             sys.gpu.pixel.clear_color.into(),
         ));
     }
@@ -1090,7 +1091,7 @@ fn update_texture(sys: &mut System, index: usize) {
     if !sys.gpu.texture.insert_cache(map.address, slice) {
         // println!("READING TEXTURE FROM {}", map.address);
         let data = tex::decode_texture(slice, map.format);
-        sys.modules.renderer.exec(render::Action::LoadTexture {
+        sys.modules.render.exec(render::Action::LoadTexture {
             id: map.address.value(),
             width: map.format.width(),
             height: map.format.height(),
@@ -1098,7 +1099,7 @@ fn update_texture(sys: &mut System, index: usize) {
         });
     }
 
-    sys.modules.renderer.exec(render::Action::SetTexture {
+    sys.modules.render.exec(render::Action::SetTexture {
         index,
         id: map.address.value(),
     });
@@ -1114,7 +1115,7 @@ fn call(sys: &mut System, address: Address, length: u32) {
 fn draw(sys: &mut System, topology: Topology, stream: &VertexAttributeStream) {
     if std::mem::take(&mut sys.gpu.transform.internal.viewport_dirty) {
         sys.modules
-            .renderer
+            .render
             .exec(render::Action::SetViewport(render::Viewport {
                 width: sys.gpu.transform.internal.viewport.width,
                 height: sys.gpu.transform.internal.viewport.height,
@@ -1139,14 +1140,14 @@ fn draw(sys: &mut System, topology: Topology, stream: &VertexAttributeStream) {
 
     let attributes = extract_attributes(sys, stream);
     sys.modules
-        .renderer
+        .render
         .exec(render::Action::Draw(topology, attributes));
 }
 
 fn do_efb_copy(sys: &mut System, cmd: pix::CopyCmd) {
     if cmd.to_xfb() {
         sys.modules
-            .renderer
+            .render
             .exec(render::Action::XfbCopy { clear: cmd.clear() });
         return;
     }
@@ -1155,7 +1156,7 @@ fn do_efb_copy(sys: &mut System, cmd: pix::CopyCmd) {
         let (sender, receiver) = oneshot::channel();
         let width = sys.gpu.pixel.copy_dimensions.width();
         let height = sys.gpu.pixel.copy_dimensions.height();
-        sys.modules.renderer.exec(render::Action::DepthCopy {
+        sys.modules.render.exec(render::Action::DepthCopy {
             x: sys.gpu.pixel.copy_src.x().value(),
             y: sys.gpu.pixel.copy_src.y().value(),
             width,
@@ -1178,7 +1179,7 @@ fn do_efb_copy(sys: &mut System, cmd: pix::CopyCmd) {
         let height = sys.gpu.pixel.copy_dimensions.height();
 
         // println!("COPYING COLOR TO {}", sys.gpu.pixel.copy_dst);
-        sys.modules.renderer.exec(render::Action::ColorCopy {
+        sys.modules.render.exec(render::Action::ColorCopy {
             x: sys.gpu.pixel.copy_src.x().value(),
             y: sys.gpu.pixel.copy_src.y().value(),
             width,

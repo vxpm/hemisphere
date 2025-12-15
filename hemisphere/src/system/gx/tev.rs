@@ -42,8 +42,9 @@ pub struct StageRefsPair {
 }
 
 #[bitos(5)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum Constant {
+    #[default]
     One = 0x00,
     SevenEights = 0x01,
     SixEights = 0x02,

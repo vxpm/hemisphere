@@ -13,6 +13,7 @@ use bitos::{
 };
 use glam::{Mat3, Mat4, Vec3};
 use strum::FromRepr;
+use tinyvec::TinyVec;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, TryFromBytes};
 
 /// A transform unit register.
@@ -373,7 +374,7 @@ impl Interface {
 }
 
 pub fn update_texgens(sys: &mut System) {
-    let mut stages = Vec::new();
+    let mut stages = TinyVec::new();
     for texgen in sys
         .gpu
         .transform
@@ -396,7 +397,8 @@ pub fn update_texgens(sys: &mut System) {
     }
 
     let config = render::TexGenConfig { stages };
-    sys.modules.renderer
+    sys.modules
+        .render
         .exec(render::Action::SetTexGenConfig(config));
 }
 
@@ -411,42 +413,50 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
 
         Reg::Ambient0 => {
             xf.ambient[0] = Abgr8::from_u32(value);
-            sys.modules.renderer
+            sys.modules
+                .render
                 .exec(render::Action::SetAmbient(0, xf.ambient[0]));
         }
         Reg::Ambient1 => {
             xf.ambient[1] = Abgr8::from_u32(value);
-            sys.modules.renderer
+            sys.modules
+                .render
                 .exec(render::Action::SetAmbient(1, xf.ambient[1]));
         }
         Reg::Material0 => {
             xf.material[0] = Abgr8::from_u32(value);
-            sys.modules.renderer
+            sys.modules
+                .render
                 .exec(render::Action::SetMaterial(0, xf.material[0]));
         }
         Reg::Material1 => {
             xf.material[1] = Abgr8::from_u32(value);
-            sys.modules.renderer
+            sys.modules
+                .render
                 .exec(render::Action::SetMaterial(1, xf.material[1]));
         }
         Reg::ColorControl0 => {
             xf.color_control[0] = ChannelControl::from_bits(value);
-            sys.modules.renderer
+            sys.modules
+                .render
                 .exec(render::Action::SetColorChannel(0, xf.color_control[0]));
         }
         Reg::ColorControl1 => {
             xf.color_control[1] = ChannelControl::from_bits(value);
-            sys.modules.renderer
+            sys.modules
+                .render
                 .exec(render::Action::SetColorChannel(1, xf.color_control[1]));
         }
         Reg::AlphaControl0 => {
             xf.alpha_control[0] = ChannelControl::from_bits(value);
-            sys.modules.renderer
+            sys.modules
+                .render
                 .exec(render::Action::SetAlphaChannel(0, xf.alpha_control[0]));
         }
         Reg::AlphaControl1 => {
             xf.alpha_control[1] = ChannelControl::from_bits(value);
-            sys.modules.renderer
+            sys.modules
+                .render
                 .exec(render::Action::SetAlphaChannel(1, xf.alpha_control[1]));
         }
 
@@ -497,10 +507,9 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
     }
 
     if reg.is_projection_param() {
-        sys.modules.renderer
-            .exec(render::Action::SetProjectionMatrix(
-                sys.gpu.transform.projection_matrix(),
-            ));
+        sys.modules.render.exec(render::Action::SetProjectionMatrix(
+            sys.gpu.transform.projection_matrix(),
+        ));
     }
 }
 
@@ -526,7 +535,7 @@ pub fn write(sys: &mut System, addr: u16, value: u32) {
             if let Some(light_offset) = addr.checked_sub(0x0600) {
                 let index = light_offset / 0x10;
                 if index < 7 {
-                    sys.modules.renderer.exec(render::Action::SetLight(
+                    sys.modules.render.exec(render::Action::SetLight(
                         index as u8,
                         *sys.gpu.transform.light(index as u8),
                     ));

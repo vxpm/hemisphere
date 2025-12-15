@@ -47,7 +47,7 @@ pub struct Config {
 
 /// System modules.
 pub struct Modules {
-    pub renderer: Box<dyn RenderModule>,
+    pub render: Box<dyn RenderModule>,
     pub input: Box<dyn InputModule>,
     pub audio: Box<dyn AudioModule>,
     // pub disk: Box<dyn DiskModule>,

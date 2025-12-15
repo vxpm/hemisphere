@@ -10,6 +10,7 @@ use crate::system::gx::{
 use glam::Mat4;
 use oneshot::Sender;
 use ordered_float::OrderedFloat;
+use tinyvec::TinyVec;
 
 pub use oneshot;
 
@@ -50,7 +51,7 @@ impl Default for Viewport {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct TexEnvStage {
     pub ops: StageOps,
     pub refs: StageRefs,
@@ -60,11 +61,11 @@ pub struct TexEnvStage {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct TexEnvConfig {
-    pub stages: Vec<TexEnvStage>,
+    pub stages: TinyVec<[TexEnvStage; 4]>,
     pub constants: [Rgba; 4],
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct TexGenStage {
     pub base: BaseTexGen,
     pub normalize: bool,
@@ -91,7 +92,7 @@ impl std::hash::Hash for TexGenStage {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct TexGenConfig {
-    pub stages: Vec<TexGenStage>,
+    pub stages: TinyVec<[TexGenStage; 4]>,
 }
 
 pub enum Action {

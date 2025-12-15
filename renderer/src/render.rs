@@ -440,7 +440,7 @@ impl Renderer {
     pub fn set_texenv_config(&mut self, config: TexEnvConfig) {
         self.debug("changed texenv");
         self.flush("texenv changed");
-        self.pipeline.settings.texenv.stages = config.stages;
+        self.pipeline.settings.texenv.stages = config.stages.to_vec();
         self.current_config.consts = config.constants;
         self.current_config_dirty = true;
     }

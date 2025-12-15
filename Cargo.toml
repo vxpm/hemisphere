@@ -95,6 +95,9 @@ opt-level = 2
 [profile.dev.package."cores"]
 opt-level = 2
 
+[profile.dev.package."app-modules"]
+opt-level = 2
+
 [profile.dev.package."hemisphere"]
 opt-level = 2
 
@@ -156,6 +159,7 @@ nanorand = "0.8"
 ordered-float = "5"
 seq-macro = "0.3"
 oneshot = { version = "0.1", default-features = false, features = ["std"] }
+tinyvec = { version = "1.10", features = ["alloc"] }
 
 # lints
 [workspace.lints.clippy]
