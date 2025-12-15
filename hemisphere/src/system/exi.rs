@@ -229,7 +229,7 @@ fn uart_transfer_write(sys: &mut System) {
 
         print!("{}", char::from_u32(byte as u32).unwrap());
         if byte == b'\r' {
-            print!("\n");
+            println!();
         }
     }
 

@@ -362,7 +362,7 @@ impl std::fmt::Debug for StageColor {
         let pattern = self
             .pattern()
             .map(|p| format!(" [{p:?}]"))
-            .unwrap_or(String::new());
+            .unwrap_or_default();
 
         if self.is_comparative() {
             let a = self.input_a();

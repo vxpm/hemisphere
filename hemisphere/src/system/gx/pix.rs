@@ -80,11 +80,11 @@ pub struct CopyDimensions {
 
 impl CopyDimensions {
     pub fn width(&self) -> u16 {
-        self.width_minus_one().value() as u16 + 1
+        self.width_minus_one().value() + 1
     }
 
     pub fn height(&self) -> u16 {
-        self.height_minus_one().value() as u16 + 1
+        self.height_minus_one().value() + 1
     }
 }
 

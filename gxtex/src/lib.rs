@@ -165,21 +165,21 @@ pub fn encode<F: Format>(
             // find pixels in this tile
             let base_x = tile_x * F::TILE_WIDTH;
             let base_y = tile_y * F::TILE_HEIGHT;
-            F::encode_tile(&settings, out, |x, y| {
+            F::encode_tile(settings, out, |x, y| {
                 assert!(x <= F::TILE_WIDTH);
                 assert!(y <= F::TILE_HEIGHT);
                 let x = base_x + x;
                 let y = base_y + y;
                 let image_index = y * width + x;
-                let pixel = data.get(image_index).copied().unwrap_or_default();
-                pixel
+                
+                data.get(image_index).copied().unwrap_or_default()
             });
         }
     }
 }
 
 pub fn decode<F: Format>(width: usize, height: usize, data: &[u8]) -> Vec<Pixel> {
-    let mut pixels = vec![Pixel::default(); width as usize * height as usize];
+    let mut pixels = vec![Pixel::default(); width * height];
 
     let width_in_tiles = width.div_ceil(F::TILE_WIDTH);
     let height_in_tiles = height.div_ceil(F::TILE_HEIGHT);
@@ -467,7 +467,7 @@ impl Format for Rgb565 {
 
     type EncodeSettings = ();
 
-    fn encode_tile(_: &Self::EncodeSettings, data: &mut [u8], get: impl Fn(usize, usize) -> Pixel) {
+    fn encode_tile((): &Self::EncodeSettings, data: &mut [u8], get: impl Fn(usize, usize) -> Pixel) {
         for y in 0..Self::TILE_HEIGHT {
             for x in 0..Self::TILE_WIDTH {
                 let pixel = get(x, y);
@@ -500,7 +500,7 @@ impl Format for Rgb5A3 {
 
     type EncodeSettings = ();
 
-    fn encode_tile(_: &Self::EncodeSettings, data: &mut [u8], get: impl Fn(usize, usize) -> Pixel) {
+    fn encode_tile((): &Self::EncodeSettings, data: &mut [u8], get: impl Fn(usize, usize) -> Pixel) {
         for y in 0..Self::TILE_HEIGHT {
             for x in 0..Self::TILE_WIDTH {
                 let pixel = get(x, y);
@@ -534,7 +534,7 @@ impl Format for Rgba8 {
 
     type EncodeSettings = ();
 
-    fn encode_tile(_: &Self::EncodeSettings, data: &mut [u8], get: impl Fn(usize, usize) -> Pixel) {
+    fn encode_tile((): &Self::EncodeSettings, data: &mut [u8], get: impl Fn(usize, usize) -> Pixel) {
         for y in 0..Self::TILE_HEIGHT {
             for x in 0..Self::TILE_WIDTH {
                 let pixel = get(x, y);
@@ -579,7 +579,7 @@ impl Format for Cmpr {
 
     type EncodeSettings = ();
 
-    fn encode_tile(_: &Self::EncodeSettings, _: &mut [u8], _: impl Fn(usize, usize) -> Pixel) {
+    fn encode_tile((): &Self::EncodeSettings, _: &mut [u8], _: impl Fn(usize, usize) -> Pixel) {
         unimplemented!("cmpr encoding not implemented")
     }
 

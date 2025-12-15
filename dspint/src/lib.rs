@@ -679,11 +679,11 @@ impl Interpreter {
         }
 
         let wrap = self.accel.wrapped.take();
-        if self.regs.status.interrupt_enable() {
-            if let Some(wrap) = wrap {
-                self.raise_interrupt(wrap.interrupt());
-                return;
-            }
+        if self.regs.status.interrupt_enable()
+            && let Some(wrap) = wrap
+        {
+            self.raise_interrupt(wrap.interrupt());
+            return;
         }
 
         // external interrupt does not care about status interrupt enable
@@ -691,7 +691,6 @@ impl Interpreter {
             tracing::warn!("DSP external interrupt raised");
             sys.dsp.control.set_interrupt(false);
             self.raise_interrupt(Interrupt::External);
-            return;
         }
     }
 
@@ -849,7 +848,7 @@ impl Interpreter {
             SampleSize::Nibble => {
                 let address = index / 2;
                 let byte = u8::read_be_bytes(&sys.mem.aram[address as usize..]) as u16;
-                if index % 2 == 0 {
+                if index.is_multiple_of(2) {
                     byte >> 4
                 } else {
                     byte & 0xF
@@ -896,7 +895,7 @@ impl Interpreter {
     fn adpcm_decode(&mut self, sys: &mut System) -> i16 {
         assert_eq!(self.accel.format.sample(), SampleSize::Nibble);
 
-        if self.accel.aram_curr % 16 == 0 {
+        if self.accel.aram_curr.is_multiple_of(16) {
             let coeff_idx = self.read_aram_raw(sys, None) as u8;
             let scale = self.read_aram_raw(sys, None) as u8;
             self.accel.predictor.set_scale_log2(u4::new(scale));
@@ -907,7 +906,7 @@ impl Interpreter {
         let coeff_idx = predictor.coefficients().value();
 
         let coeffs = self.accel.coefficients[coeff_idx as usize];
-        let scale = (1 << predictor.scale_log2().value()) as i32;
+        let scale = 1 << predictor.scale_log2().value();
 
         let data = ((self.read_aram_raw(sys, None) as i8) << 4) >> 4;
         let value = scale * data as i32;
@@ -944,7 +943,7 @@ impl Interpreter {
             // Coefficients
             0xA0..=0xAF => {
                 let index = (offset as usize - 0xA0) / 2;
-                if offset % 2 == 0 {
+                if offset.is_multiple_of(2) {
                     self.accel.coefficients[index].a as u16
                 } else {
                     self.accel.coefficients[index].b as u16
@@ -997,7 +996,7 @@ impl Interpreter {
             // Coefficients
             0xA0..=0xAF => {
                 let index = (offset as usize - 0xA0) / 2;
-                if offset % 2 == 0 {
+                if offset.is_multiple_of(2) {
                     self.accel.coefficients[index].a = value as i16
                 } else {
                     self.accel.coefficients[index].b = value as i16

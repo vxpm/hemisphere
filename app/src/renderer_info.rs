@@ -6,7 +6,7 @@ use std::cell::Cell;
 type RenderDoc = renderdoc::RenderDoc<renderdoc::V140>;
 
 thread_local! {
-    static COUNT: Cell<u32> = Cell::new(0);
+    static COUNT: Cell<u32> = const { Cell::new(0) };
 }
 
 #[derive(Serialize, Deserialize)]

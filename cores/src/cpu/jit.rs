@@ -748,9 +748,7 @@ impl JitCore {
             let max_instructions = if BREAKPOINTS {
                 // find closest breakpoint
                 let closest_breakpoint = closest_breakpoint(sys.cpu.pc, breakpoints);
-                let breakpoint_distance = (closest_breakpoint.value() - sys.cpu.pc.value()) / 4;
-
-                breakpoint_distance
+                (closest_breakpoint.value() - sys.cpu.pc.value()) / 4
             } else {
                 u32::MAX
             };

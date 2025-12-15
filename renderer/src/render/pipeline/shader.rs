@@ -315,7 +315,7 @@ fn vertex_stage(texgen: &TexGenSettings) -> wesl::syntax::GlobalDeclaration {
         let transformed = texgen::transform(stage.base.kind(), input);
         let output = texgen::get_output(stage.base.output_kind(), transformed);
         let normalized = texgen::normalize(stage.normalize, output);
-        let result = texgen::post_transform(index as u32, normalized);
+        let result = texgen::post_transform(index, normalized);
 
         stages.push(wesl_quote::quote_statement! {
             {

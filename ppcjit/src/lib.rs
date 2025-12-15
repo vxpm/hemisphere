@@ -30,6 +30,7 @@ pub use block::Block;
 pub use sequence::Sequence;
 
 #[derive(Debug, Clone)]
+#[derive(Default)]
 pub struct Settings {
     /// Whether to treat `sc` instructions as no-ops.
     pub nop_syscalls: bool,
@@ -39,15 +40,6 @@ pub struct Settings {
     pub ignore_unimplemented: bool,
 }
 
-impl Default for Settings {
-    fn default() -> Self {
-        Self {
-            nop_syscalls: false,
-            force_fpu: false,
-            ignore_unimplemented: false,
-        }
-    }
-}
 
 struct Compiler {
     settings: Settings,

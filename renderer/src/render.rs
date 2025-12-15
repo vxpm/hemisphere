@@ -776,7 +776,7 @@ impl Renderer {
         let target_width = width as u32 / divisor;
         let target_height = height as u32 / divisor;
 
-        let row_size = target_width as u32 * 4;
+        let row_size = target_width * 4;
         let row_stride = row_size.next_multiple_of(256);
 
         let size = row_stride as u64 * target_height as u64;
@@ -886,7 +886,7 @@ impl Renderer {
         let target_width = width as u32 / divisor;
         let target_height = height as u32 / divisor;
 
-        let row_size = target_width as u32 * 4;
+        let row_size = target_width * 4;
         let row_stride = row_size.next_multiple_of(256);
 
         let size = row_stride as u64 * target_height as u64;
