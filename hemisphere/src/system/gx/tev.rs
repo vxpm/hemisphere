@@ -299,10 +299,10 @@ impl StageColor {
             self.input_d(),
         );
         let positive = !self.negate();
-        let scale = self.scale().value();
-        let bias = self.bias().value();
+        let scale = self.scale();
+        let bias = self.bias();
 
-        let no_scale_no_bias = scale == 1.0 && bias == 0.0;
+        let no_scale_no_bias = scale == Scale::One && bias == Bias::Zero;
         let simple = positive && no_scale_no_bias;
 
         Some(match inputs {
@@ -325,12 +325,12 @@ impl StageColor {
                 Pattern::Modulate
             }
             (Input::Zero, Input::TexColor, Input::ChanColor, Input::Zero)
-                if positive && scale == 2.0 && bias == 0.0 =>
+                if positive && scale == Scale::Two && bias == Bias::Zero =>
             {
                 Pattern::ModulateDouble
             }
             (Input::Zero, Input::ChanColor, Input::TexColor, Input::Zero)
-                if positive && scale == 2.0 && bias == 0.0 =>
+                if positive && scale == Scale::Two && bias == Bias::Zero =>
             {
                 Pattern::ModulateDouble
             }

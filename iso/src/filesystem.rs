@@ -1,3 +1,5 @@
+#![allow(clippy::needless_raw_strings)]
+
 use binrw::{BinRead, BinWrite, binread};
 
 #[derive(Debug, BinRead, BinWrite)]

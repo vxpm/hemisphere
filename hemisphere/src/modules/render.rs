@@ -61,7 +61,7 @@ pub struct TexEnvStage {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct TexEnvConfig {
-    pub stages: TinyVec<[TexEnvStage; 4]>,
+    pub stages: TinyVec<[TexEnvStage; 2]>,
     pub constants: [Rgba; 4],
 }
 
@@ -92,7 +92,7 @@ impl std::hash::Hash for TexGenStage {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct TexGenConfig {
-    pub stages: TinyVec<[TexGenStage; 4]>,
+    pub stages: TinyVec<[TexGenStage; 1]>,
 }
 
 pub enum Action {

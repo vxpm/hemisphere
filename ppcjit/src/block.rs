@@ -101,6 +101,10 @@ type TrampolineFn = extern "sysv64-unwind" fn(*mut Info, *mut Context, BlockFn);
 
 impl Trampoline {
     /// Calls the given block using this trampoline.
+    ///
+    /// # Safety
+    /// The context pointer type must match the expected context of the hooks used by the compiler
+    /// that built the block.
     pub unsafe fn call(&self, ctx: *mut Context, block: BlockFn) -> Info {
         let mut info = Info {
             instructions: 0,

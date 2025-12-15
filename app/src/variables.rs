@@ -1,5 +1,5 @@
 use crate::{Ctx, State, windows::AppWindow};
-use eframe::egui::{self};
+use eframe::egui;
 use hemisphere::Address;
 use serde::{Deserialize, Serialize};
 

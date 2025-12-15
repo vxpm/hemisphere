@@ -375,7 +375,7 @@ impl Opcode {
         )
     }
 
-    pub const fn extension_mask(&self) -> u16 {
+    pub const fn extension_mask(self) -> u16 {
         use Opcode::*;
 
         match self {

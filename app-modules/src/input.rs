@@ -38,10 +38,7 @@ impl InputModule for GilrsInput {
             return None;
         }
 
-        let Some(gamepad_id) = self.active_gamepad else {
-            return None;
-        };
-
+        let gamepad_id = self.active_gamepad?;
         let Some(gamepad) = self.gilrs.connected_gamepad(gamepad_id) else {
             self.active_gamepad = None;
             return None;

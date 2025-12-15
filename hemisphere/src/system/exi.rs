@@ -318,7 +318,7 @@ pub fn channel2_transfer(sys: &mut System) {
     let op = sys.external.channel2.immediate;
     if op == 0 {
         tracing::warn!("checking AD16 ID");
-        sys.external.channel2.immediate = 0x04120000;
+        sys.external.channel2.immediate = 0x0412_0000;
     } else {
         tracing::warn!("unknown AD16 op");
     }
