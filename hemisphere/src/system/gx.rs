@@ -427,7 +427,7 @@ impl Default for Gpu {
     }
 }
 
-pub fn update_tevs(sys: &mut System) {
+pub fn update_texenv(sys: &mut System) {
     let stages = sys
         .gpu
         .environment
@@ -953,11 +953,11 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
     }
 
     if reg == Reg::GenMode {
-        xf::update_texgens(sys);
+        xf::update_texgen(sys);
     }
 
     if reg.is_tev() {
-        self::update_tevs(sys);
+        sys.gpu.environment.stages_dirty = true;
     }
 
     if reg.is_pixel_clear() {
@@ -1129,16 +1129,21 @@ fn draw(sys: &mut System, topology: Topology, stream: &VertexAttributeStream) {
             }));
     }
 
-    for map in 0..8 {
-        if !sys.gpu.texture.maps[map].dirty {
-            continue;
-        }
-
-        sys.gpu.texture.maps[map].dirty = false;
-        update_texture(sys, map);
+    if std::mem::take(&mut sys.gpu.transform.internal.stages_dirty) {
+        xf::update_texgen(sys);
     }
 
-    let attributes = extract_attributes(sys, stream);
+    if std::mem::take(&mut sys.gpu.environment.stages_dirty) {
+        self::update_texenv(sys);
+    }
+
+    for map in 0..8 {
+        if std::mem::take(&mut sys.gpu.texture.maps[map].dirty) {
+            self::update_texture(sys, map);
+        }
+    }
+
+    let attributes = self::extract_attributes(sys, stream);
     sys.modules
         .render
         .exec(render::Action::Draw(topology, attributes));

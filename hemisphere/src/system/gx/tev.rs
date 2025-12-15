@@ -539,4 +539,5 @@ pub struct Interface {
     pub stage_consts: [StageConstsPair; 8],
     pub constants: [Rgba; 4],
     pub alpha_function: AlphaFunction,
+    pub stages_dirty: bool,
 }

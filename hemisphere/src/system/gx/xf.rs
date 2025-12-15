@@ -278,6 +278,7 @@ pub struct Internal {
     pub texgen: [TexGen; 8],
     pub post_texgen: [PostTexGen; 8],
     pub active_texgens: u8,
+    pub stages_dirty: bool,
 }
 
 /// Transform unit
@@ -373,7 +374,7 @@ impl Interface {
     }
 }
 
-pub fn update_texgens(sys: &mut System) {
+pub fn update_texgen(sys: &mut System) {
     let mut stages = TinyVec::new();
     for texgen in sys
         .gpu
@@ -499,7 +500,7 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
     }
 
     if reg.is_texgen() {
-        self::update_texgens(sys);
+        sys.gpu.transform.internal.stages_dirty = true;
     }
 
     if reg.is_viewport() {
@@ -520,7 +521,7 @@ pub fn write(sys: &mut System, addr: u16, value: u32) {
         0x0400..0x0460 => sys.gpu.transform.ram[addr as usize] = value.with_bits(0, 12, 0),
         0x0500..0x0600 => {
             sys.gpu.transform.ram[addr as usize] = value;
-            self::update_texgens(sys);
+            sys.gpu.transform.internal.stages_dirty = true;
         }
         0x0600..0x0680 => {
             if matches!(
