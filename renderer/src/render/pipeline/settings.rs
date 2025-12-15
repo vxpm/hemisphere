@@ -57,7 +57,7 @@ pub struct AlphaFunctionSettings {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct TexEnvSettings {
     pub stages: Vec<TexEnvStage>,
-    pub alpha_function: AlphaFunctionSettings,
+    pub alpha_func: AlphaFunctionSettings,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]

@@ -416,8 +416,8 @@ impl Renderer {
     pub fn set_alpha_function(&mut self, func: AlphaFunction) {
         self.debug(format!("set alpha function to {func:?}"));
         self.flush("alpha function changed");
-        self.pipeline.settings.texenv.alpha_function.comparison = func.comparison();
-        self.pipeline.settings.texenv.alpha_function.logic = func.logic();
+        self.pipeline.settings.shader.texenv.alpha_func.comparison = func.comparison();
+        self.pipeline.settings.shader.texenv.alpha_func.logic = func.logic();
         self.current_config.alpha_refs = func.refs().map(|x| x as u32);
         self.current_config_dirty = true;
     }
@@ -440,7 +440,7 @@ impl Renderer {
     pub fn set_texenv_config(&mut self, config: TexEnvConfig) {
         self.debug("changed texenv");
         self.flush("texenv changed");
-        self.pipeline.settings.texenv.stages = config.stages.to_vec();
+        self.pipeline.settings.shader.texenv.stages = config.stages.to_vec();
         self.current_config.consts = config.constants;
         self.current_config_dirty = true;
     }
@@ -448,7 +448,7 @@ impl Renderer {
     pub fn set_texgen_config(&mut self, config: TexGenConfig) {
         self.debug("changed texgen");
         self.flush("texgen changed");
-        self.pipeline.settings.texgen.stages = config
+        self.pipeline.settings.shader.texgen.stages = config
             .stages
             .iter()
             .map(|s| TexGenStageSettings {

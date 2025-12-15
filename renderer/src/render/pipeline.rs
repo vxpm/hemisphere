@@ -1,20 +1,23 @@
 mod settings;
 mod shader;
 
-use std::{
-    borrow::Cow,
-    collections::{HashMap, hash_map::Entry},
-};
+use std::{borrow::Cow, collections::hash_map::Entry};
 
+use rustc_hash::FxHashMap;
 pub use settings::*;
+
+#[derive(Clone, PartialEq, Eq, Hash, Default)]
+pub struct ShaderSettings {
+    pub texenv: TexEnvSettings,
+    pub texgen: TexGenSettings,
+}
 
 #[derive(Clone, PartialEq, Eq, Hash, Default)]
 pub struct PipelineSettings {
     pub has_alpha: bool,
     pub blend: BlendSettings,
     pub depth: DepthSettings,
-    pub texenv: TexEnvSettings,
-    pub texgen: TexGenSettings,
+    pub shader: ShaderSettings,
 }
 
 pub struct Pipeline {
@@ -22,7 +25,8 @@ pub struct Pipeline {
     group0_layout: wgpu::BindGroupLayout,
     group1_layout: wgpu::BindGroupLayout,
     layout: wgpu::PipelineLayout,
-    cached: HashMap<PipelineSettings, wgpu::RenderPipeline>,
+    cached_pipelines: FxHashMap<PipelineSettings, wgpu::RenderPipeline>,
+    cached_shaders: FxHashMap<ShaderSettings, wgpu::ShaderModule>,
     pipeline: wgpu::RenderPipeline,
 }
 
@@ -52,6 +56,7 @@ fn remove_dst_alpha(factor: wgpu::BlendFactor) -> wgpu::BlendFactor {
 
 impl Pipeline {
     fn create_pipeline(
+        cached_shaders: &mut FxHashMap<ShaderSettings, wgpu::ShaderModule>,
         device: &wgpu::Device,
         layout: &wgpu::PipelineLayout,
         settings: &PipelineSettings,
@@ -120,11 +125,19 @@ impl Pipeline {
         }
 
         let label = format!("shader {}", id);
-        let shader = shader::compile(&settings.texenv, &settings.texgen);
-        let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some(&label),
-            source: wgpu::ShaderSource::Wgsl(Cow::Owned(shader)),
-        });
+
+        let shader = match cached_shaders.entry(settings.shader.clone()) {
+            Entry::Occupied(o) => o.into_mut(),
+            Entry::Vacant(v) => {
+                let shader = shader::compile(&settings.shader);
+                let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                    label: Some(&label),
+                    source: wgpu::ShaderSource::Wgsl(Cow::Owned(shader)),
+                });
+
+                v.insert(module)
+            }
+        };
 
         let label = format!("render pipeline {}", id);
         device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -140,13 +153,13 @@ impl Pipeline {
                 conservative: false,
             },
             vertex: wgpu::VertexState {
-                module: &module,
+                module: shader,
                 entry_point: Some("vs_main"),
                 compilation_options: Default::default(),
                 buffers: &[],
             },
             fragment: Some(wgpu::FragmentState {
-                module: &module,
+                module: shader,
                 entry_point: Some("fs_main"),
                 compilation_options: Default::default(),
                 targets: &[Some(wgpu::ColorTargetState {
@@ -232,16 +245,19 @@ impl Pipeline {
         });
 
         let settings = PipelineSettings::default();
-        let pipeline = Self::create_pipeline(device, &layout, &settings, 0);
-        let mut cached = HashMap::new();
-        cached.insert(settings.clone(), pipeline.clone());
+        let mut cached_pipelines = FxHashMap::default();
+        let mut cached_shaders = FxHashMap::default();
+
+        let pipeline = Self::create_pipeline(&mut cached_shaders, device, &layout, &settings, 0);
+        cached_pipelines.insert(settings.clone(), pipeline.clone());
 
         Self {
             settings,
             group0_layout,
             group1_layout,
             layout,
-            cached,
+            cached_pipelines,
+            cached_shaders,
             pipeline,
         }
     }
@@ -259,11 +275,12 @@ impl Pipeline {
     }
 
     pub fn update(&mut self, device: &wgpu::Device) {
-        let len = self.cached.len() as u32;
-        self.pipeline = match self.cached.entry(self.settings.clone()) {
+        let len = self.cached_pipelines.len() as u32;
+        self.pipeline = match self.cached_pipelines.entry(self.settings.clone()) {
             Entry::Occupied(o) => o.get().clone(),
             Entry::Vacant(v) => v
                 .insert(Self::create_pipeline(
+                    &mut self.cached_shaders,
                     device,
                     &self.layout,
                     &self.settings,

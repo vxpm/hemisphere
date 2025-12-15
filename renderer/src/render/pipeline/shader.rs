@@ -1,7 +1,10 @@
 mod texenv;
 mod texgen;
 
-use crate::render::pipeline::settings::{TexEnvSettings, TexGenSettings};
+use crate::render::pipeline::{
+    ShaderSettings,
+    settings::{TexEnvSettings, TexGenSettings},
+};
 use wesl::{VirtualResolver, Wesl};
 
 fn base_module() -> wesl::syntax::TranslationUnit {
@@ -462,7 +465,7 @@ fn fragment_stage(texenv: &TexEnvSettings) -> wesl::syntax::GlobalDeclaration {
         @#s15 {}
     });
 
-    let alpha_comparison = texenv::get_alpha_comparison(&texenv.alpha_function);
+    let alpha_comparison = texenv::get_alpha_comparison(&texenv.alpha_func);
 
     wesl_quote::quote_declaration! {
         @fragment
@@ -509,13 +512,13 @@ fn fragment_stage(texenv: &TexEnvSettings) -> wesl::syntax::GlobalDeclaration {
     }
 }
 
-fn main_module(texenv: &TexEnvSettings, texgen: &TexGenSettings) -> wesl::syntax::TranslationUnit {
+fn main_module(settings: &ShaderSettings) -> wesl::syntax::TranslationUnit {
     use wesl::syntax::*;
 
     let extensions = wesl_quote::quote_directive!(enable dual_source_blending;);
     let [color_chan, alpha_chan] = compute_channels();
-    let vertex = vertex_stage(texgen);
-    let fragment = fragment_stage(texenv);
+    let vertex = vertex_stage(&settings.texgen);
+    let fragment = fragment_stage(&settings.texenv);
 
     let mut module = wesl_quote::quote_module! {
         import package::base;
@@ -531,13 +534,10 @@ fn main_module(texenv: &TexEnvSettings, texgen: &TexGenSettings) -> wesl::syntax
     module
 }
 
-pub fn compile(texenv: &TexEnvSettings, texgen: &TexGenSettings) -> String {
+pub fn compile(settings: &ShaderSettings) -> String {
     let mut resolver = VirtualResolver::new();
     resolver.add_translation_unit("package::base".parse().unwrap(), base_module());
-    resolver.add_translation_unit(
-        "package::main".parse().unwrap(),
-        main_module(texenv, texgen),
-    );
+    resolver.add_translation_unit("package::main".parse().unwrap(), main_module(settings));
 
     let mut wesl = Wesl::new("shaders").set_custom_resolver(resolver);
     wesl.use_sourcemap(true);
@@ -557,14 +557,6 @@ pub fn compile(texenv: &TexEnvSettings, texgen: &TexGenSettings) -> String {
             panic!("{e}");
         }
     };
-
-    // if texenv
-    //     .stages
-    //     .iter()
-    //     .any(|s| s.ops.color.is_comparative() || s.ops.alpha.is_comparative())
-    // {
-    //     println!("{texenv:#?}");
-    // }
 
     compiled.syntax.to_string()
 }
