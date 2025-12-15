@@ -8,7 +8,7 @@ use core::{
     mem::MaybeUninit,
 };
 
-use numtoa::{NumToA, numtoa_u32};
+use numtoa::numtoa_u32;
 
 global_asm!(include_str!("init.s"));
 
@@ -29,7 +29,7 @@ type ApploaderCloseFn = extern "C" fn() -> AppEntryFn;
 #[unsafe(no_mangle)]
 #[inline(never)]
 pub extern "C" fn stdout_write(mut message: *const c_char) {
-    let stdout = 0xCC00_7000 as *mut u8;
+    let stdout = 0xCC00_7000 as *mut c_char;
     unsafe {
         loop {
             let data = *message;
