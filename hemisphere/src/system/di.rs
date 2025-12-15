@@ -3,6 +3,7 @@ use crate::system::{System, pi};
 use bitos::bitos;
 use gekko::Address;
 use std::io::SeekFrom;
+use strum::FromRepr;
 
 #[bitos(32)]
 #[derive(Debug, Clone, Copy, Default)]
@@ -61,11 +62,48 @@ pub struct Cover {
     pub interrupt: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, FromRepr)]
+#[repr(u8)]
+pub enum Opcode {
+    Identify = 0x12,
+    Read = 0xA8,
+    Seek = 0xAB,
+    Status = 0xE0,
+    AudioStream = 0xE1,
+    AudioStatus = 0xE2,
+    StopMotor = 0xE3,
+    AudioConfig = 0xE4,
+    Debug = 0xFE,
+    DebugEnable = 0xFF,
+}
+
+impl Opcode {
+    pub fn new(value: u8) -> Self {
+        Opcode::from_repr(value).expect("unknown disk command opcode")
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Command {
+    Identify,
+    Read { offset: u32, length: u32 },
+    Seek { offset: u32 },
+    Status,
+    StartAudioStream { offset: u32, length: u32 },
+    StopAudioStream,
+    AudioStreamStatus,
+    StopMotor,
+    DisableAudioStream,
+    EnableAudioStream,
+    Debug,
+    DebugEnable,
+}
+
 #[derive(Default)]
 pub struct Interface {
     pub status: Status,
     pub control: Control,
-    pub command: [u32; 3],
+    pub command_buffer: [u32; 3],
     pub dma_base: Address,
     pub dma_length: u32,
     pub cover: Cover,
@@ -96,6 +134,46 @@ impl Interface {
         self.cover
             .set_interrupt(self.cover.interrupt() & !value.interrupt());
     }
+
+    pub fn command(&self) -> Command {
+        let buf = self.command_buffer[0].to_be_bytes();
+        let opcode = Opcode::new(buf[0]);
+
+        match opcode {
+            Opcode::Identify => Command::Identify,
+            Opcode::Read => Command::Read {
+                offset: self.command_buffer[1] << 2,
+                length: self.command_buffer[2],
+            },
+            Opcode::Seek => Command::Seek {
+                offset: self.command_buffer[1] << 2,
+            },
+            Opcode::Status => Command::Status,
+            Opcode::AudioStream => match buf[1] {
+                0x00 => Command::StartAudioStream {
+                    offset: self.command_buffer[1] << 2,
+                    length: self.command_buffer[2],
+                },
+                0x01 => Command::StopAudioStream,
+                _ => panic!("unknown audio stream command: {:02X}", buf[1]),
+            },
+            Opcode::AudioStatus => match buf[1] {
+                0x00 => Command::AudioStreamStatus,
+                _ => panic!("unknown audio stream status command: {:02X}", buf[1]),
+            },
+            Opcode::StopMotor => Command::StopMotor,
+            Opcode::AudioConfig => match (buf[1], buf[3]) {
+                (0x00, 0x00) => Command::DisableAudioStream,
+                (0x01, 0x0A) => Command::EnableAudioStream,
+                _ => panic!(
+                    "unknown audio config command: {:02X}00{:02X}",
+                    buf[1], buf[3]
+                ),
+            },
+            Opcode::Debug => Command::Debug,
+            Opcode::DebugEnable => Command::DebugEnable,
+        }
+    }
 }
 
 pub fn complete_transfer(sys: &mut System) {
@@ -121,92 +199,58 @@ pub fn write_control(sys: &mut System, value: Control) {
         tracing::debug!("starting DI transfer");
         sys.disk.control.set_transfer_ongoing(true);
 
-        let command = sys.disk.command[0];
+        let command = sys.disk.command();
         match command {
-            0xA800_0000 => {
-                assert!(sys.disk.control.dma());
-
-                // load from disk!
-                let target = sys.disk.dma_base;
-                let offset = sys.disk.command[1] << 2;
-                let length = sys.disk.dma_length;
-
-                if length == 0 {
-                    tracing::warn!(
-                        "ignoring zero sized disk read from 0x{offset:08X} into {target}"
-                    );
-                    sys.disk.control.set_transfer_ongoing(false);
-                    return;
-                }
-
-                tracing::debug!(
-                    "reading 0x{length:08X} bytes from disk at 0x{offset:08X} into {target}"
-                );
-
-                let iso = sys.config.iso.as_mut().unwrap();
-                let reader = iso.reader();
-
-                let target = sys.mmu.translate_instr_addr(target).unwrap();
-                reader.seek(SeekFrom::Start(offset as u64)).unwrap();
-                reader
-                    .read_exact(&mut sys.mem.ram[target.value() as usize..][..length as usize])
-                    .unwrap();
-
-                sys.scheduler.schedule(10000, complete_transfer);
-            }
-            0xA800_0040 => {
-                assert!(sys.disk.control.dma());
-
-                // load from disk!
-                let target = sys.disk.dma_base;
-                let offset = 0;
-                let length = sys.disk.dma_length;
-
-                if length == 0 {
-                    tracing::warn!(
-                        "ignoring zero sized disk read from 0x{offset:08X} into {target}"
-                    );
-                    sys.disk.control.set_transfer_ongoing(false);
-                    return;
-                }
-
-                tracing::debug!(
-                    "reading 0x{length:08X} bytes from disk at 0x{offset:08X} into {target}"
-                );
-
-                let Some(iso) = sys.config.iso.as_mut() else {
-                    sys.scheduler.schedule(10000, complete_transfer);
-                    return;
-                };
-
-                let reader = iso.reader();
-
-                let target = sys.mmu.translate_instr_addr(target).unwrap();
-                reader.seek(SeekFrom::Start(offset as u64)).unwrap();
-                reader
-                    .read_exact(&mut sys.mem.ram[target.value() as usize..][..length as usize])
-                    .unwrap();
-
-                sys.scheduler.schedule(10000, complete_transfer);
-            }
-            0xAB00_0000 => {
-                tracing::warn!("doing disk seek! current implementation is half assed");
-                sys.scheduler.schedule(10000, complete_seek);
-            }
-            0xE100_0000 | 0xE101_0000 => {
-                tracing::warn!("DISK HACK");
-                sys.scheduler.schedule(10000, complete_seek);
-            }
-            // TODO: deal with this
-            0xE300_0000 => {}
-            0x1200_0000 => {
+            Command::Identify => {
                 let target = sys.mmu.translate_data_addr(sys.disk.dma_base).unwrap();
                 let length = sys.disk.dma_length;
-                sys.mem.ram[target.value() as usize..][..length as usize].fill(0);
+                assert_eq!(length, 32);
+
+                sys.mem.ram[target.value() as usize..][..length as usize].copy_from_slice(&[
+                    0x00, 0x00, 0x00, 0x00, // zeros
+                    0x20, 0x02, 0x04, 0x02, // date
+                    0x61, 0x00, 0x00, 0x00, // version
+                ]);
+                sys.scheduler.schedule(10000, complete_transfer);
+            }
+            Command::Read { offset, length } => {
+                assert!(sys.disk.control.dma());
+
+                // load from disk!
+                let target = sys.disk.dma_base;
+                if length == 0 {
+                    tracing::warn!(
+                        "ignoring zero sized disk read from 0x{offset:08X} into {target}"
+                    );
+                    sys.disk.control.set_transfer_ongoing(false);
+                    return;
+                }
+
+                tracing::debug!(
+                    "reading 0x{length:08X} bytes from disk at 0x{offset:08X} into {target}"
+                );
+
+                let target = sys.mmu.translate_instr_addr(target).unwrap();
+                let slice = &mut sys.mem.ram[target.value() as usize..][..length as usize];
+                if let Some(iso) = sys.config.iso.as_mut() {
+                    let reader = iso.reader();
+                    reader.seek(SeekFrom::Start(offset as u64)).unwrap();
+                    reader.read_exact(slice).unwrap();
+                } else {
+                    slice.fill(0);
+                }
 
                 sys.scheduler.schedule(10000, complete_transfer);
             }
-            _ => todo!("{:08X}", command),
+            Command::Seek { offset } => {
+                tracing::warn!("doing disk seek! current implementation is half assed");
+                sys.scheduler.schedule(5000, complete_seek);
+            }
+            Command::StopMotor => {
+                sys.disk.status.set_transfer_interrupt(true);
+                sys.disk.control.set_transfer_ongoing(false);
+            }
+            _ => panic!("unimplemented disk command: {:?}", command),
         }
     }
 }

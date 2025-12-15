@@ -494,9 +494,9 @@ impl System {
                 tracing::debug!(diskcover = ?self.disk.cover);
                 self.scheduler.schedule_now(pi::check_interrupts);
             }
-            Mmio::DiskCommand0 => ne!(self.disk.command[0].as_mut_bytes()),
-            Mmio::DiskCommand1 => ne!(self.disk.command[1].as_mut_bytes()),
-            Mmio::DiskCommand2 => ne!(self.disk.command[2].as_mut_bytes()),
+            Mmio::DiskCommand0 => ne!(self.disk.command_buffer[0].as_mut_bytes()),
+            Mmio::DiskCommand1 => ne!(self.disk.command_buffer[1].as_mut_bytes()),
+            Mmio::DiskCommand2 => ne!(self.disk.command_buffer[2].as_mut_bytes()),
             Mmio::DiskDmaBase => ne!(self.disk.dma_base.as_mut_bytes()),
             Mmio::DiskDmaLength => ne!(self.disk.dma_length.as_mut_bytes()),
             Mmio::DiskControl => {
