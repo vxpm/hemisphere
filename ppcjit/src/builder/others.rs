@@ -93,6 +93,14 @@ impl BlockBuilder<'_> {
         SR_INFO
     }
 
+    pub fn mfsr(&mut self, ins: Ins) -> InstructionInfo {
+        let sr = Reg::SR[ins.field_sr() as usize];
+        let value = self.get(sr);
+        self.set(ins.gpr_d(), value);
+
+        SR_INFO
+    }
+
     pub fn mfmsr(&mut self, ins: Ins) -> InstructionInfo {
         let value = self.get(Reg::MSR);
         self.set(ins.gpr_d(), value);

@@ -595,6 +595,7 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Mtmsr => self.mtmsr(ins),
             Opcode::Mtspr => self.mtspr(ins),
             Opcode::Mtsr => self.mtsr(ins),
+            Opcode::Mfsr => self.mfsr(ins),
             Opcode::Mulhw => self.mulhw(ins),
             Opcode::Mulhwu => self.mulhwu(ins),
             Opcode::Mulli => self.mulli(ins),
