@@ -551,6 +551,7 @@ impl System {
                 ne!(written.as_mut_bytes());
                 self.external.channel0.parameter.write(written);
 
+                // TODO: move this to exi
                 if self.external.channel0.parameter.device_select().value() == 0 {
                     self.external.channel0.ipl_state = exi::IplChipState::Idle;
                 }

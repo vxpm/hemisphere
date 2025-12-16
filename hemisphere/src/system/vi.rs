@@ -340,7 +340,17 @@ pub fn vertical_count(sys: &mut System) {
     sys.video.vertical_count += 1;
     if sys.video.vertical_count as u32 > sys.video.lines_per_frame() {
         sys.video.vertical_count = 1;
+    }
+
+    if sys
+        .video
+        .vertical_count
+        .is_multiple_of(sys.serial.poll.x_lines().value())
+    {
         si::poll_controller(sys, 0);
+        si::poll_controller(sys, 1);
+        si::poll_controller(sys, 2);
+        si::poll_controller(sys, 3);
     }
 
     let cycles_per_frame = (FREQUENCY as f64 / sys.video.refresh_rate()) as u32;

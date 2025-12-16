@@ -262,7 +262,7 @@ fn process_cmd(sys: &mut System, channel: usize) {
         }
         Command::Poll => {
             tracing::debug!("poll");
-            poll_controller(sys, channel);
+            self::poll_controller(sys, channel);
         }
         Command::GetOrigin => {
             tracing::debug!("get_origin");
