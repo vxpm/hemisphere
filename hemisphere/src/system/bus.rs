@@ -116,6 +116,7 @@ impl System {
             Mmio::VideoBottomBaseLeft => ne!(self.video.bottom_base_left.as_bytes()),
             Mmio::VideoBottomBaseRight => ne!(self.video.bottom_base_right.as_bytes()),
             Mmio::VideoVerticalCount => ne!(self.video.vertical_count.as_bytes()),
+            Mmio::VideoHorizontalCount => ne!(self.video.horizontal_count.as_bytes()),
 
             // Interrupts
             Mmio::VideoDisplayInterrupt0 => ne!(self.video.interrupts[0].as_bytes()),

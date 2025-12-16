@@ -255,7 +255,7 @@ impl Interface {
         self.halflines_per_odd_field() / 2
     }
 
-    /// How many halflines long a frame is.
+    /// How many lines long a frame is.
     pub fn lines_per_frame(&self) -> u32 {
         self.halflines_per_frame() / 2
     }
@@ -322,6 +322,7 @@ pub fn update_display_interrupts(sys: &mut System) {
         if interrupt.enable() && interrupt.vertical_count().value() == sys.video.vertical_count {
             raised = true;
             interrupt.set_status(true);
+            sys.video.horizontal_count = interrupt.horizontal_count().value();
             tracing::debug!("raised display interrupt {index} ({interrupt:?})");
         } else {
             interrupt.set_status(false);
@@ -343,6 +344,8 @@ pub fn vertical_count(sys: &mut System) {
     }
 
     let cycles_per_frame = (FREQUENCY as f64 / sys.video.refresh_rate()) as u32;
+
+    // TODO: this is actually cycles per half line for some reason????
     let cycles_per_line = cycles_per_frame
         .checked_div(sys.video.lines_per_frame())
         .unwrap_or(cycles_per_frame);

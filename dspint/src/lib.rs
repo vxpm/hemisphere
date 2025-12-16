@@ -663,7 +663,6 @@ static EXTENSION_EXEC_LUT: [ExtensionFn; 1 << 8] = {
 
 impl Interpreter {
     fn raise_interrupt(&mut self, interrupt: Interrupt) {
-        tracing::debug!("raising interrupt {interrupt:?}");
         self.regs.call_stack.push(self.regs.pc);
         self.regs.data_stack.push(self.regs.status.to_bits());
         self.regs.pc = interrupt as u16 * 2;
