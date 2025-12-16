@@ -2,7 +2,7 @@
 use crate::Primitive;
 use crate::system::System;
 use bitos::{
-    BitUtils, bitos,
+    bitos,
     integer::{u2, u3},
 };
 use gekko::Address;
