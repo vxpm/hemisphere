@@ -2,7 +2,7 @@
 use crate::Primitive;
 use crate::system::System;
 use bitos::{
-    bitos,
+    BitUtils, bitos,
     integer::{u2, u3},
 };
 use gekko::Address;
@@ -180,15 +180,27 @@ fn ipl_transfer(sys: &mut System) {
     sys.mem.ram[ram_base..][..length].copy_from_slice(&sys.mem.ipl[ipl_base..][..length]);
 }
 
+fn update_sram_checksum(sys: &mut System) {
+    let mut c1 = 0u16;
+    let mut c2 = 0u16;
+    sys.mem.sram[0x13] = 0x2C;
+
+    for i in 0..4 {
+        let word = u16::read_be_bytes(&sys.mem.sram[0xC + 2 * i..]);
+        c1 = c1.wrapping_add(word);
+        c2 = c2.wrapping_add(word ^ 0xFFFF);
+    }
+
+    c1.write_be_bytes(&mut sys.mem.sram[0..2]);
+    c2.write_be_bytes(&mut sys.mem.sram[2..4]);
+}
+
 fn sram_transfer_read(sys: &mut System) {
+    self::update_sram_checksum(sys);
+
     let sram_base =
         (((sys.external.channel0.immediate & !0xA000_0000) - 0x0000_0100) >> 6) as usize;
     tracing::debug!("SRAM TRANSFER {:?}", sys.external.channel0.control);
-
-    if !sys.external.channel0.control.dma() {
-        sys.external.channel0.immediate = u32::read_be_bytes(&sys.mem.sram[sram_base..]);
-        return;
-    }
 
     let ram_base = sys.external.channel0.dma_base.value() as usize;
     let length = sys.external.channel0.dma_length as usize;
@@ -199,7 +211,7 @@ fn sram_transfer_read(sys: &mut System) {
         ram_base
     );
 
-    sys.mem.ram[ram_base..][..length].copy_from_slice(&sys.mem.sram[sram_base..][..length]);
+    sys.mem.ram[ram_base..][..64].copy_from_slice(&sys.mem.sram[sram_base..][..64]);
 }
 
 fn sram_transfer_write(sys: &mut System, current: u8) {
@@ -286,7 +298,7 @@ fn ipl_rtc_sram_transfer(sys: &mut System) {
                     tracing::debug!("starting EXI UART write");
                     sys.external.channel0.ipl_state = IplChipState::UartWrite;
                 }
-                _ => todo!(),
+                _ => todo!("{:08X}", sys.external.channel0.immediate),
             }
         }
     }
