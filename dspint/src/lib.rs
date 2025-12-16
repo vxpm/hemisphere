@@ -464,6 +464,7 @@ pub struct Accelerator {
     pub input: i16,
     pub wrapped: Option<AccelWrap>,
     pub previous_samples: [i16; 2],
+    pub has_data: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -838,6 +839,7 @@ impl Interpreter {
         if self.accel.aram_curr > self.accel.aram_end {
             self.accel.aram_curr = self.accel.aram_start;
             self.accel.wrapped = wrap;
+            self.accel.has_data = false;
         }
     }
 
@@ -919,6 +921,10 @@ impl Interpreter {
     }
 
     fn read_accelerator_sample(&mut self, sys: &mut System) -> i16 {
+        if !self.accel.has_data {
+            return 0;
+        }
+
         let value = match self.accel.format.decoding() {
             SampleDecoding::AramAdpcm => self.adpcm_decode(sys),
             SampleDecoding::AcinPcm => self.pcm_decode(self.accel.input as i32),
@@ -1051,8 +1057,14 @@ impl Interpreter {
             0xD8 => self.accel.aram_curr = self.accel.aram_curr.with_bits(16, 32, value as u32),
             0xD9 => self.accel.aram_curr = self.accel.aram_curr.with_bits(0, 16, value as u32),
             0xDA => self.accel.predictor = AccelPredictor::from_bits(value),
-            0xDB => self.accel.previous_samples[0] = value as i16,
-            0xDC => self.accel.previous_samples[1] = value as i16,
+            0xDB => {
+                self.accel.previous_samples[0] = value as i16;
+                self.accel.has_data = true;
+            }
+            0xDC => {
+                self.accel.previous_samples[1] = value as i16;
+                self.accel.has_data = true;
+            }
             0xDE => self.accel.gain = value as i16,
             0xDF => self.accel.input = value as i16,
 
