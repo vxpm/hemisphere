@@ -900,8 +900,8 @@ impl Interpreter {
         if self.accel.aram_curr.is_multiple_of(16) {
             let coeff_idx = self.read_aram_raw(sys, None) as u8;
             let scale = self.read_aram_raw(sys, None) as u8;
-            self.accel.predictor.set_scale_log2(u4::new(scale));
             self.accel.predictor.set_coefficients(u3::new(coeff_idx));
+            self.accel.predictor.set_scale_log2(u4::new(scale));
         }
 
         let predictor = self.accel.predictor;
@@ -917,11 +917,13 @@ impl Interpreter {
             + coeffs.b as i32 * self.accel.previous_samples[1] as i32;
 
         let result = PcmDivisor::D2048.apply(prediction) + value;
-        result as i16
+        result.clamp(i16::MIN as i32, i16::MAX as i32) as i16
     }
 
     fn read_accelerator_sample(&mut self, sys: &mut System) -> i16 {
         if !self.accel.has_data {
+            self.accel.previous_samples[1] = self.accel.previous_samples[0];
+            self.accel.previous_samples[0] = 0;
             return 0;
         }
 
