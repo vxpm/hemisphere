@@ -4,7 +4,7 @@ use crate::{
     hooks::{ReadHook, WriteHook},
 };
 use cranelift::{codegen::ir, prelude::InstBuilder};
-use gekko::{Exception, GPR, InsExt, Reg, disasm::Ins};
+use gekko::{Exception, GPR, InsExt, Reg, SPR, disasm::Ins};
 
 pub trait ReadWriteAble {
     const IR_TYPE: ir::Type;
@@ -123,6 +123,7 @@ impl BlockBuilder<'_> {
         self.bd.seal_block(continue_block);
 
         self.switch_to_bb(exit_block);
+        self.set(SPR::DAR, addr);
         self.raise_exception(Exception::DSI);
         self.prologue_with(LOAD_INFO);
 
@@ -180,6 +181,7 @@ impl BlockBuilder<'_> {
         self.bd.seal_block(continue_block);
 
         self.switch_to_bb(exit_block);
+        self.set(SPR::DAR, addr);
         self.raise_exception(Exception::DSI);
         self.prologue_with(LOAD_INFO);
 
@@ -217,6 +219,7 @@ impl BlockBuilder<'_> {
         self.bd.seal_block(continue_block);
 
         self.switch_to_bb(exit_block);
+        self.set(SPR::DAR, addr);
         self.raise_exception(Exception::DSI);
         self.prologue_with(STORE_INFO);
 

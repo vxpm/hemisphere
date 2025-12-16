@@ -1066,9 +1066,6 @@ impl Cpu {
             self.supervisor.exception.srr[0] += 4;
         }
 
-        // and into DAR, fuck it
-        self.supervisor.exception.dar = self.pc.value();
-
         // save MSR into SRR1
         let mask = Exception::MSR_TO_SRR1_MASK;
         self.supervisor.exception.srr[1] &= !mask;
