@@ -922,8 +922,6 @@ impl Interpreter {
 
     fn read_accelerator_sample(&mut self, sys: &mut System) -> i16 {
         if !self.accel.has_data {
-            self.accel.previous_samples[1] = self.accel.previous_samples[0];
-            self.accel.previous_samples[0] = 0;
             return 0;
         }
 
@@ -1061,7 +1059,6 @@ impl Interpreter {
             0xDA => self.accel.predictor = AccelPredictor::from_bits(value),
             0xDB => {
                 self.accel.previous_samples[0] = value as i16;
-                self.accel.has_data = true;
             }
             0xDC => {
                 self.accel.previous_samples[1] = value as i16;
