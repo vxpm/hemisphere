@@ -189,9 +189,15 @@ impl System {
         self.write::<u32>(Address(0x34), 0x817F_E8C0); // Arena High
         self.write::<u32>(Address(0x38), 0x817F_E8C0); // FST address
         self.write::<u32>(Address(0x3C), 0x0000_0024); // FST max length
+        // TODO: deal with TV mode, games hang if it is wrong...
+        self.write::<u32>(Address(0xCC), 0x0000_0000); // TV Mode
         self.write::<u32>(Address(0xD0), 0x0100_0000); // ARAM size
         self.write::<u32>(Address(0xF8), 0x09A7_EC80); // Bus clock
         self.write::<u32>(Address(0xFC), 0x1CF7_C580); // CPU clock
+
+        self.video
+            .display_config
+            .set_video_format(vi::VideoFormat::Pal50);
 
         // setup MSR
         self.cpu.supervisor.config.msr.set_exception_prefix(false);
