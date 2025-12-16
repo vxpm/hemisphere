@@ -265,7 +265,17 @@ pub fn write_control(sys: &mut System, value: Control) {
             Command::AudioStreamStatus { .. } => {
                 sys.disk.status.set_transfer_interrupt(true);
                 sys.disk.control.set_transfer_ongoing(false);
-                sys.disk.immediate = 0x0000_0000;
+                sys.disk.immediate = 0;
+            }
+            Command::EnableAudioStream { .. } => {
+                sys.disk.status.set_transfer_interrupt(true);
+                sys.disk.control.set_transfer_ongoing(false);
+                sys.disk.immediate = 0;
+            }
+            Command::DisableAudioStream { .. } => {
+                sys.disk.status.set_transfer_interrupt(true);
+                sys.disk.control.set_transfer_ongoing(false);
+                sys.disk.immediate = 0;
             }
             _ => panic!("unimplemented disk command: {:?}", command),
         }

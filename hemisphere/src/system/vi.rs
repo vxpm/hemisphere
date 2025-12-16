@@ -338,6 +338,8 @@ pub fn vertical_count(sys: &mut System) {
     self::update_display_interrupts(sys);
 
     sys.video.vertical_count += 1;
+    sys.video.horizontal_count = 1;
+
     if sys.video.vertical_count as u32 > sys.video.lines_per_frame() {
         sys.video.vertical_count = 1;
     }

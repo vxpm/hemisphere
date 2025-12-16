@@ -39,6 +39,7 @@ impl<T> ReadAndSeek for T where T: Read + Seek + Send + 'static {}
 
 /// System configuration.
 pub struct Config {
+    pub force_ipl: bool,
     pub ipl: Option<Vec<u8>>,
     pub iso: Option<Iso<Box<dyn ReadAndSeek>>>,
     pub sideload: Option<Executable>,
@@ -154,7 +155,7 @@ impl System {
         tracing::debug!("finished loading executable");
     }
 
-    fn load_iso(&mut self) {
+    fn load_ipl_hle(&mut self) {
         self.cpu.supervisor.memory.setup_default_bats();
         self.mmu.build_bat_lut(&self.cpu.supervisor.memory);
 
@@ -231,10 +232,12 @@ impl System {
             modules,
         };
 
-        if system.config.sideload.is_some() {
+        if system.config.force_ipl {
+            system.load_ipl();
+        } else if system.config.sideload.is_some() {
             system.load_executable();
         } else if system.config.iso.is_some() {
-            system.load_iso();
+            system.load_ipl_hle();
         } else {
             system.load_ipl();
         }

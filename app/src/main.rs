@@ -152,6 +152,7 @@ impl App {
             cores,
             modules,
             system::Config {
+                force_ipl: args.force_ipl,
                 ipl,
                 iso,
                 sideload: executable,

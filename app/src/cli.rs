@@ -18,6 +18,9 @@ pub struct Args {
     /// Path to the IPL ROM.
     #[arg(long)]
     pub ipl: Option<PathBuf>,
+    /// Whether to load IPL instead of HLEing it for loading games.
+    #[arg(long, default_value_t = false)]
+    pub force_ipl: bool,
     /// Path to a file to use as a debug info provider.
     #[arg(long)]
     pub debug: Option<PathBuf>,
