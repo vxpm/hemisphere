@@ -202,6 +202,10 @@ fn sram_transfer_read(sys: &mut System) {
         (((sys.external.channel0.immediate & !0xA000_0000) - 0x0000_0100) >> 6) as usize;
     tracing::debug!("SRAM TRANSFER {:?}", sys.external.channel0.control);
 
+    if !sys.external.channel0.control.dma() {
+        return;
+    }
+
     let ram_base = sys.external.channel0.dma_base.value() as usize;
     let length = sys.external.channel0.dma_length as usize;
     tracing::debug!(
@@ -211,7 +215,7 @@ fn sram_transfer_read(sys: &mut System) {
         ram_base
     );
 
-    sys.mem.ram[ram_base..][..64].copy_from_slice(&sys.mem.sram[sram_base..][..64]);
+    sys.mem.ram[ram_base..][..length].copy_from_slice(&sys.mem.sram[sram_base..][..length]);
 }
 
 fn sram_transfer_write(sys: &mut System, current: u8) {
