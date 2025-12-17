@@ -17,7 +17,7 @@ use glam::Mat4;
 use hemisphere::{
     modules::render::{Action, TexEnvConfig, TexGenConfig, Viewport, oneshot},
     system::gx::{
-        DEPTH_24_BIT_MAX, Topology, VertexAttributes,
+        DEPTH_24_BIT_MAX, Topology, Vertex,
         colors::{Rgba, Rgba8},
         pix::{
             self, BlendMode, CompareMode, ConstantAlpha, DepthMode, DstBlendFactor, SrcBlendFactor,
@@ -286,7 +286,7 @@ impl Renderer {
         idx as u32
     }
 
-    fn attributes_to_vertex(&mut self, attributes: &VertexAttributes) -> data::Vertex {
+    fn attributes_to_vertex(&mut self, attributes: &Vertex) -> data::Vertex {
         data::Vertex {
             position: attributes.position,
             config_idx: self.configs.len() as u32 - 1,
@@ -305,7 +305,7 @@ impl Renderer {
         }
     }
 
-    pub fn insert_attributes(&mut self, attributes: &VertexAttributes) -> u32 {
+    pub fn insert_attributes(&mut self, attributes: &Vertex) -> u32 {
         let vertex = self.attributes_to_vertex(attributes);
         self.insert_vertex(vertex)
     }
@@ -496,7 +496,7 @@ impl Renderer {
         }
     }
 
-    pub fn draw_quad_list(&mut self, vertices: &[VertexAttributes]) {
+    pub fn draw_quad_list(&mut self, vertices: &[Vertex]) {
         if vertices.is_empty() {
             return;
         }
@@ -513,7 +513,7 @@ impl Renderer {
         }
     }
 
-    pub fn draw_triangle_list(&mut self, vertices: &[VertexAttributes]) {
+    pub fn draw_triangle_list(&mut self, vertices: &[Vertex]) {
         if vertices.is_empty() {
             return;
         }
@@ -529,7 +529,7 @@ impl Renderer {
         }
     }
 
-    pub fn draw_triangle_strip(&mut self, vertices: &[VertexAttributes]) {
+    pub fn draw_triangle_strip(&mut self, vertices: &[Vertex]) {
         if vertices.is_empty() {
             return;
         }
@@ -552,7 +552,7 @@ impl Renderer {
         }
     }
 
-    pub fn draw_triangle_fan(&mut self, vertices: &[VertexAttributes]) {
+    pub fn draw_triangle_fan(&mut self, vertices: &[Vertex]) {
         if vertices.is_empty() {
             return;
         }

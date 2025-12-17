@@ -29,7 +29,12 @@ use bitos::{
 };
 use gekko::Address;
 use glam::{Mat3, Mat4, Vec2, Vec3};
+use ring_arena::{Handle, RingArena};
 use seq_macro::seq;
+use std::{
+    ops::{Deref, DerefMut},
+    sync::{LazyLock, Mutex},
+};
 use strum::FromRepr;
 use tinyvec::TinyVec;
 use zerocopy::IntoBytes;
@@ -386,9 +391,9 @@ pub struct GenMode {
     pub z_freeze: bool,
 }
 
-/// Extracted vertex attributes.
+/// A vertex extracted from a [`VertexAttributeStream`].
 #[derive(Debug, Default)]
-pub struct VertexAttributes {
+pub struct Vertex {
     pub position: Vec3,
     pub position_matrix: Mat4,
 
@@ -400,6 +405,36 @@ pub struct VertexAttributes {
 
     pub tex_coords: [Vec2; 8],
     pub tex_coords_matrix: [Mat4; 8],
+}
+
+/// A sequence of [`Vertex`] elements.
+pub struct Vertices(Handle<Vertex>);
+
+impl Deref for Vertices {
+    type Target = [Vertex];
+
+    fn deref(&self) -> &Self::Target {
+        // SAFETY: this struct is only created inside `extract_vertices`, which mantains
+        // a static arena
+        unsafe { self.0.as_slice().assume_init_ref() }
+    }
+}
+
+impl DerefMut for Vertices {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        // SAFETY: this struct is only created inside `extract_vertices`, which mantains
+        // a static arena
+        unsafe { self.0.as_mut_slice().assume_init_mut() }
+    }
+}
+
+impl Drop for Vertices {
+    fn drop(&mut self) {
+        let slice = unsafe { self.0.as_mut_slice() };
+        for vertex in slice {
+            unsafe { vertex.assume_init_drop() };
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -1011,14 +1046,23 @@ fn read_attribute<A: Attribute>(
     }
 }
 
-fn extract_attributes(sys: &mut System, stream: &VertexAttributeStream) -> Vec<VertexAttributes> {
+fn alloc_vertices_handle(length: usize) -> Handle<Vertex> {
+    static ARENA: LazyLock<Mutex<RingArena<Vertex>>> =
+        LazyLock::new(|| Mutex::new(RingArena::new(4096)));
+
+    ARENA.lock().unwrap().allocate(length)
+}
+
+fn extract_vertices(sys: &mut System, stream: &VertexAttributeStream) -> Vertices {
     let vat = stream.table_index();
     let default_pos_matrix_idx = sys.gpu.transform.internal.mat_indices.view().value();
 
-    let mut vertices = Vec::with_capacity(stream.count() as usize);
+    let mut vertices = alloc_vertices_handle(stream.count() as usize);
+    let vertices_slice = unsafe { vertices.as_mut_slice() };
+
     let mut data = stream.data();
     let mut reader = data.reader();
-    for _ in 0..stream.count() {
+    for i in 0..stream.count() {
         let position_matrix_index =
             read_attribute::<attributes::PosMatrixIndex>(sys, vat, &mut reader)
                 .unwrap_or(default_pos_matrix_idx);
@@ -1067,7 +1111,7 @@ fn extract_attributes(sys: &mut System, stream: &VertexAttributeStream) -> Vec<V
             }
         }
 
-        vertices.push(VertexAttributes {
+        vertices_slice[i as usize].write(Vertex {
             position,
             position_matrix,
             normal,
@@ -1076,10 +1120,10 @@ fn extract_attributes(sys: &mut System, stream: &VertexAttributeStream) -> Vec<V
             specular,
             tex_coords,
             tex_coords_matrix,
-        })
+        });
     }
 
-    vertices
+    Vertices(vertices)
 }
 
 fn update_texture(sys: &mut System, index: usize) {
@@ -1143,7 +1187,7 @@ fn draw(sys: &mut System, topology: Topology, stream: &VertexAttributeStream) {
         }
     }
 
-    let attributes = self::extract_attributes(sys, stream);
+    let attributes = self::extract_vertices(sys, stream);
     sys.modules
         .render
         .exec(render::Action::Draw(topology, attributes));

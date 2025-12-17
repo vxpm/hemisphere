@@ -1,7 +1,7 @@
 //! Renderer module interface.
 
 use crate::system::gx::{
-    Topology, VertexAttributes,
+    Topology, Vertices,
     colors::{Abgr8, Rgba, Rgba8},
     pix::{BlendMode, BufferFormat, ConstantAlpha, DepthMode},
     tev::{AlphaFunction, Constant, StageOps, StageRefs},
@@ -122,7 +122,7 @@ pub enum Action {
         index: usize,
         id: u32,
     },
-    Draw(Topology, Vec<VertexAttributes>),
+    Draw(Topology, Vertices),
     ColorCopy {
         x: u16,
         y: u16,

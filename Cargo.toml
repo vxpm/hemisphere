@@ -160,6 +160,7 @@ ordered-float = "5"
 seq-macro = "0.3"
 oneshot = { version = "0.1", default-features = false, features = ["std"] }
 tinyvec = { version = "1.10", features = ["alloc"] }
+ring-arena = { git = "https://github.com/vxpm/ring-arena.git" }
 
 # lints
 [workspace.lints.clippy]
