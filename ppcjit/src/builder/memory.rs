@@ -138,9 +138,29 @@ impl BlockBuilder<'_> {
             .ins()
             .iconst(self.consts.ptr_type, func as usize as i64);
 
-        self.bd
+        let inst = self
+            .bd
             .ins()
             .call_indirect(sig, write_fn, &[self.consts.ctx_ptr, addr, value]);
+
+        let success = self.bd.inst_results(inst)[0];
+        let exit_block = self.bd.create_block();
+        let continue_block = self.bd.create_block();
+
+        self.bd.set_cold_block(exit_block);
+        self.bd
+            .ins()
+            .brif(success, continue_block, &[], exit_block, &[]);
+
+        self.bd.seal_block(exit_block);
+        self.bd.seal_block(continue_block);
+
+        self.switch_to_bb(exit_block);
+        self.set(SPR::DAR, addr);
+        self.raise_exception(Exception::DSI);
+        self.prologue_with(STORE_INFO);
+
+        self.switch_to_bb(continue_block);
     }
 
     /// Reads a quantized value. Returns the value and the type size.
