@@ -4,8 +4,6 @@ mod exec;
 
 pub mod ins;
 
-use std::mem::MaybeUninit;
-
 use crate::ins::{ExtensionOpcode, Opcode};
 use bitos::integer::{u3, u4};
 use bitos::{BitUtils, bitos, integer::u15};
@@ -678,16 +676,17 @@ impl Interpreter {
             return;
         }
 
-        let wrap = self.accel.wrapped.take();
         if self.regs.status.interrupt_enable()
-            && let Some(wrap) = wrap
+            && let Some(wrap) = self.accel.wrapped.take()
         {
+            std::hint::cold_path();
             self.raise_interrupt(wrap.interrupt());
             return;
         }
 
         // external interrupt does not care about status interrupt enable
         if sys.dsp.control.interrupt() && self.regs.status.external_interrupt_enable() {
+            std::hint::cold_path();
             tracing::warn!("DSP external interrupt raised");
             sys.dsp.control.set_interrupt(false);
             self.raise_interrupt(Interrupt::External);
@@ -1264,17 +1263,12 @@ impl Interpreter {
         };
 
         // execute
-        let regs_previous = if ins.extension.is_some() {
-            MaybeUninit::new(self.regs.clone())
-        } else {
-            MaybeUninit::uninit()
-        };
-
-        (ins.main)(self, sys, ins.ins);
-
         if let Some(extension) = ins.extension {
-            let regs_previous = unsafe { regs_previous.assume_init_ref() };
-            (extension)(self, sys, ins.ins, regs_previous);
+            let regs_previous = self.regs.clone();
+            (ins.main)(self, sys, ins.ins);
+            (extension)(self, sys, ins.ins, &regs_previous);
+        } else {
+            (ins.main)(self, sys, ins.ins);
         }
 
         if let Some(loop_counter) = &mut self.loop_counter {
