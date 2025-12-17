@@ -32,6 +32,7 @@ use glam::{Mat3, Mat4, Vec2, Vec3};
 use ring_arena::{Handle, RingArena};
 use seq_macro::seq;
 use std::{
+    num::NonZero,
     ops::{Deref, DerefMut},
     sync::{LazyLock, Mutex},
 };
@@ -1046,9 +1047,13 @@ fn read_attribute<A: Attribute>(
     }
 }
 
+#[inline]
 fn alloc_vertices_handle(length: usize) -> Handle<Vertex> {
+    const ARENA_SIZE: usize = 16 * bytesize::MIB as usize;
+    const ARENA_CAPACITY: NonZero<usize> = NonZero::new(ARENA_SIZE / size_of::<Vertex>()).unwrap();
+
     static ARENA: LazyLock<Mutex<RingArena<Vertex>>> =
-        LazyLock::new(|| Mutex::new(RingArena::new(4096)));
+        LazyLock::new(|| Mutex::new(RingArena::new(ARENA_CAPACITY)));
 
     ARENA.lock().unwrap().allocate(length)
 }

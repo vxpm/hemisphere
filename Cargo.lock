@@ -3621,7 +3621,10 @@ checksum = "3b30109dce6405f545442493099ca90f158b1f5a99c314ce11c6bf50b595f183"
 [[package]]
 name = "ring-arena"
 version = "0.1.0"
-source = "git+https://github.com/vxpm/ring-arena.git#639fa1acad2bab168554d20db083f9b1d40092b3"
+source = "git+https://github.com/vxpm/ring-arena.git#6412c64fc195f2a92a28d3db7f60fcdf31a273bf"
+dependencies = [
+ "flume",
+]
 
 [[package]]
 name = "ron"
