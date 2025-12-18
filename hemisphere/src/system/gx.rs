@@ -8,33 +8,33 @@ pub mod tex;
 pub mod xf;
 
 use crate::{
+    Primitive, System,
     modules::render,
     stream::{BinReader, BinaryStream},
     system::{
         gx::{
             cmd::{
-                attributes::{self, Attribute, AttributeDescriptor},
                 ArrayDescriptor, AttributeMode, VertexAttributeStream,
+                attributes::{self, Attribute, AttributeDescriptor},
             },
             colors::Rgba,
             tex::{encode_color_texture, encode_depth_texture},
         },
         pi,
     },
-    Primitive, System,
 };
 use bitos::{
-    bitos,
-    integer::{u3, u4, UnsignedInt},
-    BitUtils, TryBits,
+    BitUtils, TryBits, bitos,
+    integer::{UnsignedInt, u3, u4},
 };
 use gekko::Address;
-use glam::{Mat3, Mat4, Vec2, Vec3};
+use glam::{Mat4, Vec2, Vec3};
 use ring_arena::{Handle, RingArena};
+use rustc_hash::FxHashMap;
 use seq_macro::seq;
 use std::{
+    collections::hash_map::Entry,
     num::NonZero,
-    ops::{Deref, DerefMut},
     sync::{LazyLock, Mutex},
 };
 use strum::FromRepr;
@@ -393,49 +393,41 @@ pub struct GenMode {
     pub z_freeze: bool,
 }
 
+type MatrixId = u16;
+
 /// A vertex extracted from a [`VertexAttributeStream`].
 #[derive(Debug, Default)]
 pub struct Vertex {
     pub position: Vec3,
-    pub position_matrix: Mat4,
+    pub position_matrix: MatrixId,
 
     pub normal: Vec3,
-    pub normal_matrix: Mat3,
+    pub normal_matrix: MatrixId,
 
     pub diffuse: Rgba,
     pub specular: Rgba,
 
     pub tex_coords: [Vec2; 8],
-    pub tex_coords_matrix: [Mat4; 8],
+    pub tex_coords_matrix: [MatrixId; 8],
 }
 
-/// A sequence of [`Vertex`] elements.
-pub struct Vertices(Handle<Vertex>);
+/// A sequence of [`Vertex`] elements and their associated matrices.
+pub struct Vertices {
+    vertices: Handle<Vertex>,
+    matrices: Handle<Mat4>,
+}
 
-impl Deref for Vertices {
-    type Target = [Vertex];
-
-    fn deref(&self) -> &Self::Target {
+impl Vertices {
+    pub fn vertices(&self) -> &[Vertex] {
         // SAFETY: this struct is only created inside `extract_vertices`, which mantains
         // a static arena
-        unsafe { self.0.as_slice().assume_init_ref() }
+        unsafe { self.vertices.as_slice().assume_init_ref() }
     }
-}
 
-impl DerefMut for Vertices {
-    fn deref_mut(&mut self) -> &mut Self::Target {
+    pub fn matrices(&self) -> &[Mat4] {
         // SAFETY: this struct is only created inside `extract_vertices`, which mantains
         // a static arena
-        unsafe { self.0.as_mut_slice().assume_init_mut() }
-    }
-}
-
-impl Drop for Vertices {
-    fn drop(&mut self) {
-        let slice = unsafe { self.0.as_mut_slice() };
-        for vertex in slice {
-            unsafe { vertex.assume_init_drop() };
-        }
+        unsafe { self.matrices.as_slice().assume_init_ref() }
     }
 }
 
@@ -448,6 +440,7 @@ pub struct Gpu {
     pub texture: tex::Interface,
     pub pixel: pix::Interface,
     pub write_mask: u32,
+    matrix_map: FxHashMap<(u8, bool), MatrixId>,
 }
 
 impl Default for Gpu {
@@ -460,6 +453,7 @@ impl Default for Gpu {
             texture: Default::default(),
             pixel: Default::default(),
             write_mask: 0x00FF_FFFF,
+            matrix_map: FxHashMap::default(),
         }
     }
 }
@@ -1050,13 +1044,32 @@ fn read_attribute<A: Attribute>(
 
 #[inline]
 fn alloc_vertices_handle(length: usize) -> Handle<Vertex> {
-    const CHUNK_SIZE: usize = 2 * bytesize::MIB as usize;
+    const CHUNK_SIZE: usize = 1 * bytesize::MIB as usize;
     const CHUNK_CAPACITY: NonZero<usize> = NonZero::new(CHUNK_SIZE / size_of::<Vertex>()).unwrap();
 
     static ARENA: LazyLock<Mutex<RingArena<Vertex>>> =
         LazyLock::new(|| Mutex::new(RingArena::new(CHUNK_CAPACITY)));
 
     ARENA.lock().unwrap().allocate(length)
+}
+
+#[inline]
+fn alloc_matrices_handle(length: usize) -> Handle<Mat4> {
+    const CHUNK_SIZE: usize = 2 * bytesize::MIB as usize;
+    const CHUNK_CAPACITY: NonZero<usize> = NonZero::new(CHUNK_SIZE / size_of::<Mat4>()).unwrap();
+
+    static ARENA: LazyLock<Mutex<RingArena<Mat4>>> =
+        LazyLock::new(|| Mutex::new(RingArena::new(CHUNK_CAPACITY)));
+
+    ARENA.lock().unwrap().allocate(length)
+}
+
+fn get_matrix_id(sys: &mut System, index: u8, normal: bool) -> MatrixId {
+    let len = sys.gpu.matrix_map.len();
+    match sys.gpu.matrix_map.entry((index, normal)) {
+        Entry::Occupied(o) => *o.get(),
+        Entry::Vacant(v) => *v.insert(len as u16),
+    }
 }
 
 fn extract_vertices(sys: &mut System, stream: &VertexAttributeStream) -> Vertices {
@@ -1073,10 +1086,10 @@ fn extract_vertices(sys: &mut System, stream: &VertexAttributeStream) -> Vertice
             read_attribute::<attributes::PosMatrixIndex>(sys, vat, &mut reader)
                 .unwrap_or(default_pos_matrix_idx);
 
-        let position_matrix = sys.gpu.transform.matrix(position_matrix_index);
-        let normal_matrix = sys.gpu.transform.normal_matrix(position_matrix_index);
+        let position_matrix = self::get_matrix_id(sys, position_matrix_index, false);
+        let normal_matrix = self::get_matrix_id(sys, position_matrix_index, true);
 
-        let mut tex_coords_matrix = [Mat4::ZERO; 8];
+        let mut tex_coords_matrix = [0; 8];
         seq! {
             N in 0..8 {
                 let default = sys
@@ -1092,7 +1105,7 @@ fn extract_vertices(sys: &mut System, stream: &VertexAttributeStream) -> Vertice
                     read_attribute::<attributes::TexMatrixIndex<N>>(sys, vat, &mut reader)
                     .unwrap_or(default);
 
-                tex_coords_matrix[N] = sys.gpu.transform.matrix(tex_matrix_index);
+                tex_coords_matrix[N] = self::get_matrix_id(sys, tex_matrix_index, false);
             }
         }
 
@@ -1129,7 +1142,20 @@ fn extract_vertices(sys: &mut System, stream: &VertexAttributeStream) -> Vertice
         });
     }
 
-    Vertices(vertices)
+    let mut matrices = alloc_matrices_handle(sys.gpu.matrix_map.len());
+    let matrices_slice = unsafe { matrices.as_mut_slice() };
+
+    for ((matrix_index, is_normal), index) in sys.gpu.matrix_map.drain() {
+        let mat = if is_normal {
+            Mat4::from_mat3(sys.gpu.transform.normal_matrix(matrix_index))
+        } else {
+            sys.gpu.transform.matrix(matrix_index)
+        };
+
+        matrices_slice[index as usize].write(mat);
+    }
+
+    Vertices { vertices, matrices }
 }
 
 fn update_texture(sys: &mut System, index: usize) {

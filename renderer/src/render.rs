@@ -17,7 +17,7 @@ use glam::Mat4;
 use hemisphere::{
     modules::render::{Action, TexEnvConfig, TexGenConfig, Viewport, oneshot},
     system::gx::{
-        DEPTH_24_BIT_MAX, Topology, Vertex,
+        DEPTH_24_BIT_MAX, Topology, Vertex, Vertices,
         colors::{Rgba, Rgba8},
         pix::{
             self, BlendMode, CompareMode, ConstantAlpha, DepthMode, DstBlendFactor, SrcBlendFactor,
@@ -186,11 +186,11 @@ impl Renderer {
                 data,
             } => self.load_texture(id, width, height, zerocopy::transmute_ref!(data.as_slice())),
             Action::SetTexture { index, id } => self.set_texture(index, id),
-            Action::Draw(topology, attributes) => match topology {
-                Topology::QuadList => self.draw_quad_list(&attributes),
-                Topology::TriangleList => self.draw_triangle_list(&attributes),
-                Topology::TriangleStrip => self.draw_triangle_strip(&attributes),
-                Topology::TriangleFan => self.draw_triangle_fan(&attributes),
+            Action::Draw(topology, vertices) => match topology {
+                Topology::QuadList => self.draw_quad_list(&vertices),
+                Topology::TriangleList => self.draw_triangle_list(&vertices),
+                Topology::TriangleStrip => self.draw_triangle_strip(&vertices),
+                Topology::TriangleFan => self.draw_triangle_fan(&vertices),
                 Topology::LineList => tracing::warn!("ignored line list primitive"),
                 Topology::LineStrip => tracing::warn!("ignored line strip primitive"),
                 Topology::PointList => tracing::warn!("ignored point list primitive"),
@@ -279,35 +279,28 @@ impl Renderer {
         }
     }
 
-    fn insert_vertex(&mut self, vertex: data::Vertex) -> u32 {
+    fn insert_vertex(&mut self, vertex: &Vertex, matrices: &[Mat4]) -> u32 {
+        let vertex = data::Vertex {
+            position: vertex.position,
+            config_idx: self.configs.len() as u32 - 1,
+            normal: vertex.normal,
+
+            _pad0: 0,
+
+            position_mat: matrices[vertex.position_matrix as usize],
+            normal_mat: matrices[vertex.normal_matrix as usize],
+
+            diffuse: vertex.diffuse,
+            specular: vertex.specular,
+
+            tex_coord: vertex.tex_coords,
+            tex_coord_mat: vertex.tex_coords_matrix.map(|i| matrices[i as usize]),
+        };
+
         let idx = self.vertices.len();
         self.vertices.push(vertex);
 
         idx as u32
-    }
-
-    fn attributes_to_vertex(&mut self, attributes: &Vertex) -> data::Vertex {
-        data::Vertex {
-            position: attributes.position,
-            config_idx: self.configs.len() as u32 - 1,
-            normal: attributes.normal,
-
-            _pad0: 0,
-
-            position_mat: attributes.position_matrix,
-            normal_mat: Mat4::from_mat3(attributes.normal_matrix),
-
-            diffuse: attributes.diffuse,
-            specular: attributes.specular,
-
-            tex_coord: attributes.tex_coords,
-            tex_coord_mat: attributes.tex_coords_matrix,
-        }
-    }
-
-    pub fn insert_attributes(&mut self, attributes: &Vertex) -> u32 {
-        let vertex = self.attributes_to_vertex(attributes);
-        self.insert_vertex(vertex)
     }
 
     pub fn set_framebuffer_format(&mut self, format: pix::BufferFormat) {
@@ -496,7 +489,10 @@ impl Renderer {
         }
     }
 
-    pub fn draw_quad_list(&mut self, vertices: &[Vertex]) {
+    pub fn draw_quad_list(&mut self, vertices: &Vertices) {
+        let matrices = vertices.matrices();
+        let vertices = vertices.vertices();
+
         if vertices.is_empty() {
             return;
         }
@@ -507,13 +503,16 @@ impl Renderer {
             vertices.len()
         ));
         for vertices in vertices.iter().array_chunks::<4>() {
-            let [v0, v1, v2, v3] = vertices.map(|a| self.insert_attributes(a));
+            let [v0, v1, v2, v3] = vertices.map(|v| self.insert_vertex(v, matrices));
             self.indices.extend_from_slice(&[v0, v1, v2]);
             self.indices.extend_from_slice(&[v0, v2, v3]);
         }
     }
 
-    pub fn draw_triangle_list(&mut self, vertices: &[Vertex]) {
+    pub fn draw_triangle_list(&mut self, vertices: &Vertices) {
+        let matrices = vertices.matrices();
+        let vertices = vertices.vertices();
+
         if vertices.is_empty() {
             return;
         }
@@ -524,12 +523,15 @@ impl Renderer {
             vertices.len()
         ));
         for vertices in vertices.iter().array_chunks::<3>() {
-            let vertices = vertices.map(|a| self.insert_attributes(a));
+            let vertices = vertices.map(|v| self.insert_vertex(v, matrices));
             self.indices.extend_from_slice(&vertices);
         }
     }
 
-    pub fn draw_triangle_strip(&mut self, vertices: &[Vertex]) {
+    pub fn draw_triangle_strip(&mut self, vertices: &Vertices) {
+        let matrices = vertices.matrices();
+        let vertices = vertices.vertices();
+
         if vertices.is_empty() {
             return;
         }
@@ -541,10 +543,10 @@ impl Renderer {
             "drawing triangle strip with {} vertices",
             vertices.len()
         ));
-        let mut v0 = self.insert_attributes(iter.next().unwrap());
-        let mut v1 = self.insert_attributes(iter.next().unwrap());
+        let mut v0 = self.insert_vertex(iter.next().unwrap(), matrices);
+        let mut v1 = self.insert_vertex(iter.next().unwrap(), matrices);
         for v2 in iter {
-            let v2 = self.insert_attributes(v2);
+            let v2 = self.insert_vertex(v2, matrices);
             self.indices.extend_from_slice(&[v0, v1, v2]);
 
             v0 = v1;
@@ -552,7 +554,10 @@ impl Renderer {
         }
     }
 
-    pub fn draw_triangle_fan(&mut self, vertices: &[Vertex]) {
+    pub fn draw_triangle_fan(&mut self, vertices: &Vertices) {
+        let matrices = vertices.matrices();
+        let vertices = vertices.vertices();
+
         if vertices.is_empty() {
             return;
         }
@@ -564,10 +569,10 @@ impl Renderer {
             "drawing triangle fan with {} vertices",
             vertices.len()
         ));
-        let v0 = self.insert_attributes(iter.next().unwrap());
-        let mut v1 = self.insert_attributes(iter.next().unwrap());
+        let v0 = self.insert_vertex(iter.next().unwrap(), matrices);
+        let mut v1 = self.insert_vertex(iter.next().unwrap(), matrices);
         for v2 in iter {
-            let v2 = self.insert_attributes(v2);
+            let v2 = self.insert_vertex(v2, matrices);
             self.indices.extend_from_slice(&[v0, v1, v2]);
 
             v1 = v2;
