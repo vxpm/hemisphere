@@ -30,10 +30,8 @@ use bitos::{
 use gekko::Address;
 use glam::{Mat4, Vec2, Vec3};
 use ring_arena::{Handle, RingArena};
-use rustc_hash::FxHashMap;
 use seq_macro::seq;
 use std::{
-    collections::hash_map::Entry,
     num::NonZero,
     sync::{LazyLock, Mutex},
 };
@@ -431,7 +429,11 @@ impl Vertices {
     }
 }
 
-#[derive(Debug)]
+struct MatrixMapping {
+    index: u8,
+    normal: bool,
+}
+
 pub struct Gpu {
     pub mode: GenMode,
     pub command: cmd::Interface,
@@ -440,7 +442,7 @@ pub struct Gpu {
     pub texture: tex::Interface,
     pub pixel: pix::Interface,
     pub write_mask: u32,
-    matrix_map: FxHashMap<(u8, bool), MatrixId>,
+    matrix_map: Vec<MatrixMapping>,
 }
 
 impl Default for Gpu {
@@ -453,7 +455,7 @@ impl Default for Gpu {
             texture: Default::default(),
             pixel: Default::default(),
             write_mask: 0x00FF_FFFF,
-            matrix_map: FxHashMap::default(),
+            matrix_map: Vec::with_capacity(32),
         }
     }
 }
@@ -1065,10 +1067,17 @@ fn alloc_matrices_handle(length: usize) -> Handle<Mat4> {
 }
 
 fn get_matrix_id(sys: &mut System, index: u8, normal: bool) -> MatrixId {
-    let len = sys.gpu.matrix_map.len();
-    match sys.gpu.matrix_map.entry((index, normal)) {
-        Entry::Occupied(o) => *o.get(),
-        Entry::Vacant(v) => *v.insert(len as u16),
+    let id = sys
+        .gpu
+        .matrix_map
+        .iter()
+        .position(|m| m.normal == normal && m.index == index);
+
+    if let Some(id) = id {
+        id as MatrixId
+    } else {
+        sys.gpu.matrix_map.push(MatrixMapping { index, normal });
+        sys.gpu.matrix_map.len() as MatrixId - 1
     }
 }
 
@@ -1145,14 +1154,14 @@ fn extract_vertices(sys: &mut System, stream: &VertexAttributeStream) -> Vertice
     let mut matrices = alloc_matrices_handle(sys.gpu.matrix_map.len());
     let matrices_slice = unsafe { matrices.as_mut_slice() };
 
-    for ((matrix_index, is_normal), index) in sys.gpu.matrix_map.drain() {
-        let mat = if is_normal {
-            Mat4::from_mat3(sys.gpu.transform.normal_matrix(matrix_index))
+    for (id, mapping) in sys.gpu.matrix_map.drain(..).enumerate() {
+        let mat = if mapping.normal {
+            Mat4::from_mat3(sys.gpu.transform.normal_matrix(mapping.index))
         } else {
-            sys.gpu.transform.matrix(matrix_index)
+            sys.gpu.transform.matrix(mapping.index)
         };
 
-        matrices_slice[index as usize].write(mat);
+        matrices_slice[id as usize].write(mat);
     }
 
     Vertices { vertices, matrices }
