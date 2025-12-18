@@ -720,6 +720,7 @@ fn fifo_pop(sys: &mut System) -> u8 {
     let data = sys.read::<u8>(sys.gpu.command.fifo.read_ptr);
     sys.gpu.command.fifo.read_ptr += 1;
     if sys.gpu.command.fifo.read_ptr > sys.gpu.command.fifo.end {
+        std::hint::cold_path();
         sys.gpu.command.fifo.read_ptr = sys.gpu.command.fifo.start;
     }
 
@@ -733,7 +734,7 @@ pub fn consume(sys: &mut System) {
     }
 
     while sys.gpu.command.fifo.count() > 0 {
-        let data = fifo_pop(sys);
+        let data = self::fifo_pop(sys);
         sys.gpu.command.queue.push_be(data);
     }
 }

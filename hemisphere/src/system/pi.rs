@@ -108,7 +108,9 @@ pub struct Interface {
     pub fifo_start: Address,
     pub fifo_end: Address,
     pub fifo_current: FifoCurrent,
-    pub fifo_buffer: Option<VecDeque<u8>>,
+
+    fifo_queue: [u8; 36],
+    fifo_queue_index: usize,
 }
 
 impl Default for Interface {
@@ -118,7 +120,9 @@ impl Default for Interface {
             fifo_start: Default::default(),
             fifo_end: Default::default(),
             fifo_current: Default::default(),
-            fifo_buffer: Some(VecDeque::with_capacity(32)),
+
+            fifo_queue: [0; 36],
+            fifo_queue_index: 0,
         }
     }
 }
@@ -179,20 +183,18 @@ pub fn check_interrupts(sys: &mut System) {
 /// Pushes a value into the PI FIFO. Values are queued up until 32 bytes are available, then
 /// written all at once.
 pub fn fifo_push<P: Primitive>(sys: &mut System, value: P) {
-    let Some(mut fifo_buffer) = sys.processor.fifo_buffer.take() else {
-        unreachable!()
-    };
+    value.write_be_bytes(
+        &mut sys.processor.fifo_queue[sys.processor.fifo_queue_index..][..size_of::<P>()],
+    );
+    sys.processor.fifo_queue_index += size_of::<P>();
 
-    let mut buf = [0; 4];
-    value.write_be_bytes(&mut buf);
-    fifo_buffer.extend(&buf[..size_of::<P>()]);
-
-    if fifo_buffer.len() < 32 {
-        sys.processor.fifo_buffer = Some(fifo_buffer);
+    if sys.processor.fifo_queue_index < 32 {
         return;
     }
 
-    let data = fifo_buffer.drain(..32);
+    let mut data = [0; 32];
+    data.copy_from_slice(&sys.processor.fifo_queue[..32]);
+
     for byte in data {
         let current = sys.processor.fifo_current.address();
         sys.write(current, byte);
@@ -206,10 +208,13 @@ pub fn fifo_push<P: Primitive>(sys: &mut System, value: P) {
         }
     }
 
+    sys.processor
+        .fifo_queue
+        .copy_within(32..sys.processor.fifo_queue_index, 0);
+    sys.processor.fifo_queue_index -= 32;
+
     if sys.gpu.command.control.linked_mode() {
         gx::cmd::sync_to_pi(sys);
         gx::cmd::consume(sys);
     }
-
-    sys.processor.fifo_buffer = Some(fifo_buffer);
 }
