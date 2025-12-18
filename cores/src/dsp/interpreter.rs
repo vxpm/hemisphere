@@ -21,7 +21,6 @@ impl DspCore for InterpreterCore {
         self.interpreter.do_dma(sys);
         self.interpreter.check_reset(sys);
 
-        self.interpreter.exec(sys, instructions);
         if sys.dsp.control.halt()
             || !sys.dsp.cpu_mailbox.status() && self.interpreter.is_waiting_for_cpu_mail()
             || sys.dsp.dsp_mailbox.status() && self.interpreter.is_waiting_for_dsp_mail()
