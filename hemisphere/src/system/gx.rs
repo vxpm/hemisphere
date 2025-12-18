@@ -8,24 +8,25 @@ pub mod tex;
 pub mod xf;
 
 use crate::{
-    Primitive, System,
     modules::render,
     stream::{BinReader, BinaryStream},
     system::{
         gx::{
             cmd::{
-                ArrayDescriptor, AttributeMode, VertexAttributeStream,
                 attributes::{self, Attribute, AttributeDescriptor},
+                ArrayDescriptor, AttributeMode, VertexAttributeStream,
             },
             colors::Rgba,
             tex::{encode_color_texture, encode_depth_texture},
         },
         pi,
     },
+    Primitive, System,
 };
 use bitos::{
-    BitUtils, TryBits, bitos,
-    integer::{UnsignedInt, u3, u4},
+    bitos,
+    integer::{u3, u4, UnsignedInt},
+    BitUtils, TryBits,
 };
 use gekko::Address;
 use glam::{Mat3, Mat4, Vec2, Vec3};
@@ -1049,11 +1050,11 @@ fn read_attribute<A: Attribute>(
 
 #[inline]
 fn alloc_vertices_handle(length: usize) -> Handle<Vertex> {
-    const ARENA_SIZE: usize = 16 * bytesize::MIB as usize;
-    const ARENA_CAPACITY: NonZero<usize> = NonZero::new(ARENA_SIZE / size_of::<Vertex>()).unwrap();
+    const CHUNK_SIZE: usize = 2 * bytesize::MIB as usize;
+    const CHUNK_CAPACITY: NonZero<usize> = NonZero::new(CHUNK_SIZE / size_of::<Vertex>()).unwrap();
 
     static ARENA: LazyLock<Mutex<RingArena<Vertex>>> =
-        LazyLock::new(|| Mutex::new(RingArena::new(ARENA_CAPACITY)));
+        LazyLock::new(|| Mutex::new(RingArena::new(CHUNK_CAPACITY)));
 
     ARENA.lock().unwrap().allocate(length)
 }
