@@ -671,6 +671,7 @@ impl Interpreter {
         };
     }
 
+    #[inline(always)]
     pub fn check_interrupts(&mut self, sys: &mut System) {
         if self.loop_counter.is_some() {
             return;
@@ -685,7 +686,7 @@ impl Interpreter {
         }
 
         // external interrupt does not care about status interrupt enable
-        if sys.dsp.control.interrupt() && self.regs.status.external_interrupt_enable() {
+        if self.regs.status.external_interrupt_enable() && sys.dsp.control.interrupt() {
             std::hint::cold_path();
             tracing::warn!("DSP external interrupt raised");
             sys.dsp.control.set_interrupt(false);
@@ -836,7 +837,8 @@ impl Interpreter {
         self.accel.aram_curr += 1;
         if self.accel.aram_curr > self.accel.aram_end {
             self.accel.aram_curr = self.accel.aram_start;
-            self.accel.wrapped = wrap;
+            // HACK: wrap exceptions break Disney Cars (stacks overflow)
+            // self.accel.wrapped = wrap;
             self.accel.has_data = false;
         }
     }
@@ -1245,42 +1247,51 @@ impl Interpreter {
         cached
     }
 
-    pub fn step(&mut self, sys: &mut System) {
-        if sys.dsp.control.halt() {
-            std::hint::cold_path();
-            return;
-        }
-
-        self.check_interrupts(sys);
-        self.check_stacks();
-
-        // have we cached this instruction already?
-        let ins = if let Some(cached) = self.cached[self.regs.pc as usize] {
-            cached
-        } else {
-            std::hint::cold_path();
-            self.fetch_decode_and_cache()
-        };
-
-        // execute
-        if let Some(extension) = ins.extension {
-            let regs_previous = self.regs.clone();
-            (ins.main)(self, sys, ins.ins);
-            (extension)(self, sys, ins.ins, &regs_previous);
-        } else {
-            (ins.main)(self, sys, ins.ins);
-        }
-
-        if let Some(loop_counter) = &mut self.loop_counter {
-            if *loop_counter == 0 {
+    pub fn exec(&mut self, sys: &mut System, instructions: u32) {
+        let mut i = 0;
+        while i < instructions {
+            if sys.dsp.control.halt() {
                 std::hint::cold_path();
-                self.loop_counter = None;
-                self.regs.pc += 1;
-            } else {
-                *loop_counter -= 1;
+                break;
             }
-        } else {
-            self.regs.pc = self.regs.pc.wrapping_add(ins.len);
+
+            self.check_interrupts(sys);
+            self.check_stacks();
+
+            // have we cached this instruction already?
+            let ins = if let Some(cached) = self.cached[self.regs.pc as usize] {
+                cached
+            } else {
+                std::hint::cold_path();
+                self.fetch_decode_and_cache()
+            };
+
+            // execute
+            if let Some(extension) = ins.extension {
+                let regs_previous = self.regs.clone();
+                (ins.main)(self, sys, ins.ins);
+                (extension)(self, sys, ins.ins, &regs_previous);
+            } else {
+                (ins.main)(self, sys, ins.ins);
+            }
+
+            if let Some(loop_counter) = &mut self.loop_counter {
+                if *loop_counter == 0 {
+                    std::hint::cold_path();
+                    self.loop_counter = None;
+                    self.regs.pc += 1;
+                } else {
+                    *loop_counter -= 1;
+                }
+            } else {
+                self.regs.pc = self.regs.pc.wrapping_add(ins.len);
+            }
+
+            i += 1;
         }
+    }
+
+    pub fn step(&mut self, sys: &mut System) {
+        self.exec(sys, 1);
     }
 }
