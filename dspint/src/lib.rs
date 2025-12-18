@@ -833,7 +833,7 @@ impl Interpreter {
         }
     }
 
-    fn increment_aram_curr(&mut self, wrap: Option<AccelWrap>) {
+    fn increment_aram_curr(&mut self, _wrap: Option<AccelWrap>) {
         self.accel.aram_curr += 1;
         if self.accel.aram_curr > self.accel.aram_end {
             self.accel.aram_curr = self.accel.aram_start;

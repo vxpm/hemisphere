@@ -1085,6 +1085,8 @@ fn extract_vertices(sys: &mut System, stream: &VertexAttributeStream) -> Vertice
     let vat = stream.table_index();
     let default_pos_matrix_idx = sys.gpu.transform.internal.mat_indices.view().value();
 
+    sys.gpu.matrix_map.clear();
+
     let mut vertices = alloc_vertices_handle(stream.count() as usize);
     let vertices_slice = unsafe { vertices.as_mut_slice() };
 
@@ -1154,7 +1156,7 @@ fn extract_vertices(sys: &mut System, stream: &VertexAttributeStream) -> Vertice
     let mut matrices = alloc_matrices_handle(sys.gpu.matrix_map.len());
     let matrices_slice = unsafe { matrices.as_mut_slice() };
 
-    for (id, mapping) in sys.gpu.matrix_map.drain(..).enumerate() {
+    for (id, mapping) in sys.gpu.matrix_map.iter().enumerate() {
         let mat = if mapping.normal {
             Mat4::from_mat3(sys.gpu.transform.normal_matrix(mapping.index))
         } else {
