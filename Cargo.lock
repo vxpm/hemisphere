@@ -3621,9 +3621,10 @@ checksum = "3b30109dce6405f545442493099ca90f158b1f5a99c314ce11c6bf50b595f183"
 [[package]]
 name = "ring-arena"
 version = "0.1.0"
-source = "git+https://github.com/vxpm/ring-arena.git#0802fa2564f31067b92109113bb7eebd9cff156c"
+source = "git+https://github.com/vxpm/ring-arena.git#75d965dbdcd2feedb166621e6ae29501f43a1346"
 dependencies = [
  "flume",
+ "triomphe",
 ]
 
 [[package]]
@@ -4277,6 +4278,15 @@ dependencies = [
  "tracing",
  "tracing-core",
  "tracing-log",
+]
+
+[[package]]
+name = "triomphe"
+version = "0.1.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dd69c5aa8f924c7519d6372789a74eac5b94fb0f8fcf0d4a97eb0bfc3e785f39"
+dependencies = [
+ "stable_deref_trait",
 ]
 
 [[package]]
