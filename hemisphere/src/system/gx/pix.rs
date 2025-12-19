@@ -95,19 +95,19 @@ pub enum DepthCopyFormat {
     Z4 = 0x0,
     Z8 = 0x1,
     Reserved0 = 0x2,
-    Z16 = 0x3,
+    Z16C = 0x3,
     Reserved1 = 0x4,
     Reserved2 = 0x5,
     Z24X8 = 0x6,
     Reserved3 = 0x7,
-    Reserved4 = 0x8,
+    Z8H = 0x8,
     Z8M = 0x9,
     Z8L = 0xA,
-    Z8H = 0xB,
-    Z16L = 0xC,
-    Reserved6 = 0xD,
-    Reserved7 = 0xE,
-    Reserved8 = 0xF,
+    Z16A = 0xB,
+    Z16B = 0xC,
+    Reserved4 = 0xD,
+    Reserved5 = 0xE,
+    Reserved6 = 0xF,
 }
 
 impl DepthCopyFormat {
@@ -116,12 +116,13 @@ impl DepthCopyFormat {
         match self {
             Self::Z4 => I4,
             Self::Z8 => I8,
-            Self::Z16 => IA8,
+            Self::Z16C => IA8,
             Self::Z24X8 => Rgba8,
+            Self::Z8H => I8,
             Self::Z8M => I8,
             Self::Z8L => I8,
-            Self::Z8H => I8,
-            Self::Z16L => IA8,
+            Self::Z16A => IA8,
+            Self::Z16B => IA8,
             _ => panic!("reserved copy format {self:?}"),
         }
     }

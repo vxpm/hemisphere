@@ -17,7 +17,7 @@ use glam::Mat4;
 use hemisphere::{
     modules::render::{Action, TexEnvConfig, TexGenConfig, Viewport, oneshot},
     system::gx::{
-        DEPTH_24_BIT_MAX, Topology, Vertex, Vertices,
+        DEPTH_24_BIT_MAX, Topology, Vertex, VertexStream,
         colors::{Rgba, Rgba8},
         pix::{
             self, BlendMode, CompareMode, ConstantAlpha, DepthMode, DstBlendFactor, SrcBlendFactor,
@@ -489,19 +489,20 @@ impl Renderer {
         }
     }
 
-    pub fn draw_quad_list(&mut self, vertices: &Vertices) {
-        let matrices = vertices.matrices();
-        let vertices = vertices.vertices();
+    pub fn draw_quad_list(&mut self, stream: &VertexStream) {
+        let matrices = stream.matrices();
+        let vertices = stream.vertices();
 
         if vertices.is_empty() {
             return;
         }
-        self.flush_config();
 
+        self.flush_config();
         self.debug(format!(
             "drawing quad list with {} vertices",
             vertices.len()
         ));
+
         for vertices in vertices.iter().array_chunks::<4>() {
             let [v0, v1, v2, v3] = vertices.map(|v| self.insert_vertex(v, matrices));
             self.indices.extend_from_slice(&[v0, v1, v2]);
@@ -509,40 +510,41 @@ impl Renderer {
         }
     }
 
-    pub fn draw_triangle_list(&mut self, vertices: &Vertices) {
-        let matrices = vertices.matrices();
-        let vertices = vertices.vertices();
+    pub fn draw_triangle_list(&mut self, stream: &VertexStream) {
+        let matrices = stream.matrices();
+        let vertices = stream.vertices();
 
         if vertices.is_empty() {
             return;
         }
-        self.flush_config();
 
+        self.flush_config();
         self.debug(format!(
             "drawing triangle list with {} vertices",
             vertices.len()
         ));
+
         for vertices in vertices.iter().array_chunks::<3>() {
             let vertices = vertices.map(|v| self.insert_vertex(v, matrices));
             self.indices.extend_from_slice(&vertices);
         }
     }
 
-    pub fn draw_triangle_strip(&mut self, vertices: &Vertices) {
-        let matrices = vertices.matrices();
-        let vertices = vertices.vertices();
+    pub fn draw_triangle_strip(&mut self, stream: &VertexStream) {
+        let matrices = stream.matrices();
+        let vertices = stream.vertices();
 
         if vertices.is_empty() {
             return;
         }
+
         self.flush_config();
-
-        let mut iter = vertices.iter();
-
         self.debug(format!(
             "drawing triangle strip with {} vertices",
             vertices.len()
         ));
+
+        let mut iter = vertices.iter();
         let mut v0 = self.insert_vertex(iter.next().unwrap(), matrices);
         let mut v1 = self.insert_vertex(iter.next().unwrap(), matrices);
         for v2 in iter {
@@ -554,21 +556,21 @@ impl Renderer {
         }
     }
 
-    pub fn draw_triangle_fan(&mut self, vertices: &Vertices) {
-        let matrices = vertices.matrices();
-        let vertices = vertices.vertices();
+    pub fn draw_triangle_fan(&mut self, stream: &VertexStream) {
+        let matrices = stream.matrices();
+        let vertices = stream.vertices();
 
         if vertices.is_empty() {
             return;
         }
+
         self.flush_config();
-
-        let mut iter = vertices.iter();
-
         self.debug(format!(
             "drawing triangle fan with {} vertices",
             vertices.len()
         ));
+
+        let mut iter = vertices.iter();
         let v0 = self.insert_vertex(iter.next().unwrap(), matrices);
         let mut v1 = self.insert_vertex(iter.next().unwrap(), matrices);
         for v2 in iter {
@@ -985,6 +987,10 @@ impl Renderer {
             let row_data = &data[row * row_stride as usize..][..row_size as usize];
             depth.extend(row_data.chunks_exact(4).map(|c| {
                 let value = f32::from_ne_bytes([c[0], c[1], c[2], c[3]]);
+
+                assert!(value >= 0.0f32);
+                assert!(value <= 1.0f32);
+
                 (value * DEPTH_24_BIT_MAX as f32) as u32
             }));
         }

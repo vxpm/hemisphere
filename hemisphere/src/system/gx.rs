@@ -409,13 +409,13 @@ pub struct Vertex {
     pub tex_coords_matrix: [MatrixId; 8],
 }
 
-/// A sequence of [`Vertex`] elements and their associated matrices.
-pub struct Vertices {
+/// A stream of [`Vertex`] elements and their associated matrices.
+pub struct VertexStream {
     vertices: Handle<Vertex>,
     matrices: Handle<Mat4>,
 }
 
-impl Vertices {
+impl VertexStream {
     pub fn vertices(&self) -> &[Vertex] {
         // SAFETY: this struct is only created inside `extract_vertices`, which mantains
         // a static arena
@@ -1081,7 +1081,7 @@ fn get_matrix_id(sys: &mut System, index: u8, normal: bool) -> MatrixId {
     }
 }
 
-fn extract_vertices(sys: &mut System, stream: &VertexAttributeStream) -> Vertices {
+fn extract_vertices(sys: &mut System, stream: &VertexAttributeStream) -> VertexStream {
     let vat = stream.table_index();
     let default_pos_matrix_idx = sys.gpu.transform.internal.mat_indices.view().value();
 
@@ -1166,7 +1166,7 @@ fn extract_vertices(sys: &mut System, stream: &VertexAttributeStream) -> Vertice
         matrices_slice[id as usize].write(mat);
     }
 
-    Vertices { vertices, matrices }
+    VertexStream { vertices, matrices }
 }
 
 fn update_texture(sys: &mut System, index: usize) {

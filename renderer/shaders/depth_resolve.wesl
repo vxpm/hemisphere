@@ -40,7 +40,7 @@ fn fs_main(in: VertexOutput) -> @location(0) f32 {
     // compute mean of samples
     let samples = textureNumSamples(depth_texture);
     var acc = 0f;
-    var min = pow(2f, 32f);
+    var min = 1f;
     var max = 0f;
     for (var i: u32 = 0; i < samples; i += 1) {
         let sample = textureLoad(depth_texture, vec2u(x, y), i);
