@@ -201,7 +201,6 @@ pub fn write_control(sys: &mut System, value: Control) {
         sys.disk.control.set_transfer_ongoing(true);
 
         let command = sys.disk.command();
-        dbg!(command);
         match command {
             Command::Identify => {
                 let target = sys.mmu.translate_data_addr(sys.disk.dma_base).unwrap();
@@ -253,35 +252,41 @@ pub fn write_control(sys: &mut System, value: Control) {
                 sys.scheduler.schedule(10000, complete_transfer);
             }
             Command::Seek { .. } => {
-                tracing::warn!("doing disk seek! current implementation is half assed");
+                tracing::warn!("stubbed DVD command - disk seek");
                 sys.scheduler.schedule(5000, complete_seek);
             }
             Command::StopMotor => {
+                tracing::warn!("stubbed DVD command - stop motor");
                 sys.disk.status.set_transfer_interrupt(true);
                 sys.disk.control.set_transfer_ongoing(false);
                 sys.disk.immediate = 0;
             }
             Command::StartAudioStream { .. } => {
+                tracing::warn!("stubbed DVD command - start audio stream");
                 sys.disk.status.set_transfer_interrupt(true);
                 sys.disk.control.set_transfer_ongoing(false);
                 sys.disk.immediate = 0;
             }
             Command::StopAudioStream { .. } => {
+                tracing::warn!("stubbed DVD command - stop audio stream");
                 sys.disk.status.set_transfer_interrupt(true);
                 sys.disk.control.set_transfer_ongoing(false);
                 sys.disk.immediate = 0;
             }
             Command::AudioStreamStatus { .. } => {
+                tracing::warn!("stubbed DVD command - audio stream status");
                 sys.disk.status.set_transfer_interrupt(true);
                 sys.disk.control.set_transfer_ongoing(false);
                 sys.disk.immediate = 0;
             }
             Command::EnableAudioStream { .. } => {
+                tracing::warn!("stubbed DVD command - enable audio stream");
                 sys.disk.status.set_transfer_interrupt(true);
                 sys.disk.control.set_transfer_ongoing(false);
                 sys.disk.immediate = 0;
             }
             Command::DisableAudioStream { .. } => {
+                tracing::warn!("stubbed DVD command - disable audio stream");
                 sys.disk.status.set_transfer_interrupt(true);
                 sys.disk.control.set_transfer_ongoing(false);
                 sys.disk.immediate = 0;
@@ -289,4 +294,13 @@ pub fn write_control(sys: &mut System, value: Control) {
             _ => panic!("unimplemented disk command: {:?}", command),
         }
     }
+}
+
+// TODO: figure this out
+pub fn reset(sys: &mut System, value: u32) {
+    if !value.bit(2) {
+        return;
+    }
+
+    sys.disk = Default::default();
 }

@@ -445,6 +445,11 @@ impl System {
                 self.processor.fifo_end += 4;
             }
             Mmio::ProcessorFifoCurrent => ne!(self.processor.fifo_current.as_mut_bytes()),
+            Mmio::ProcessorDvdReset => {
+                let mut value = 0u32;
+                ne!(value.as_mut_bytes());
+                di::reset(self, value);
+            }
 
             // === DSP Interface ===
             Mmio::DspSendMailbox => {
