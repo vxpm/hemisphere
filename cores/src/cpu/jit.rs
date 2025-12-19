@@ -383,8 +383,8 @@ const CTX_HOOKS: Hooks = {
         } else {
             0
         };
-        let scaled = value * 2.0f64.powi(-scale as i32);
 
+        let scaled = value * 2.0f64.powi(-scale as i32);
         match gqr.store_type() {
             QuantizedType::U8 => ctx.sys.write(physical, scaled as u8),
             QuantizedType::U16 => ctx.sys.write(physical, scaled as u16),

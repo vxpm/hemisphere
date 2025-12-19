@@ -22,7 +22,6 @@ use eyre_pretty::eyre::Result;
 use hemisphere::{
     Address, Cycles, Hemisphere,
     cores::Cores,
-    iso,
     system::{self, Modules, executable::Executable},
 };
 use nanorand::Rng;
@@ -35,7 +34,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use app_modules::{audio::CpalAudio, input::GilrsInput};
+use app_modules::{audio::CpalAudio, disk::IsoModule, input::GilrsInput};
 use cores::cpu::jit as jitcore;
 use cores::dsp::interpreter as dspcore;
 
@@ -89,13 +88,13 @@ impl App {
             None
         };
 
-        let iso = if let Some(path) = &args.iso {
+        let iso = IsoModule(if let Some(path) = &args.iso {
             let file = std::fs::File::open(path)?;
             let reader = BufReader::new(file);
-            Some(iso::Iso::new(Box::new(reader) as _)?)
+            Some(reader)
         } else {
             None
-        };
+        });
 
         let executable = if let Some(path) = &args.exec {
             Some(Executable::open(path)?)
@@ -146,6 +145,7 @@ impl App {
             render: Box::new(renderer.clone()),
             input: Box::new(GilrsInput::new()),
             audio: Box::new(CpalAudio::new()),
+            disk: Box::new(iso),
         };
 
         let hemisphere = Hemisphere::new(
@@ -154,7 +154,6 @@ impl App {
             system::Config {
                 force_ipl: args.force_ipl,
                 ipl,
-                iso,
                 sideload: executable,
                 debug_info,
             },

@@ -5,7 +5,6 @@ use crate::{
 };
 use bitos::{bitos, integer::u26};
 use gekko::{Address, Exception};
-use std::collections::VecDeque;
 
 #[bitos(14)]
 #[derive(Default, Clone, Copy)]

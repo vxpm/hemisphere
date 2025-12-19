@@ -14,7 +14,7 @@ use crate::filesystem::FileSystem;
 #[brw(big, magic = 0xC233_9F3D_u32)]
 pub struct MagicWord;
 
-// The header of a GameCube .iso file.
+/// The header of a GameCube .iso file.
 #[derive(Debug, Clone, BinRead, BinWrite)]
 #[brw(big)]
 pub struct Header {
@@ -91,7 +91,7 @@ impl Header {
     }
 }
 
-// An apploader program in a .iso.
+/// An apploader program in a .iso.
 #[derive(Debug, BinRead, BinWrite)]
 #[brw(big)]
 pub struct Apploader {

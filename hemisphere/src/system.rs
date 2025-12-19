@@ -18,7 +18,7 @@ pub mod si;
 pub mod vi;
 
 use crate::{
-    modules::{audio::AudioModule, input::InputModule, render::RenderModule},
+    modules::{audio::AudioModule, disk::DiskModule, input::InputModule, render::RenderModule},
     system::{
         dspi::Dsp,
         executable::{DebugInfo, Executable},
@@ -30,18 +30,14 @@ use crate::{
     },
 };
 use dol::binrw::BinRead;
+use easyerr::{Error, ResultExt};
 use gekko::{Address, Cpu, Cycles};
-use iso::Iso;
-use std::io::{Cursor, Read, Seek};
-
-pub trait ReadAndSeek: Read + Seek + Send + 'static {}
-impl<T> ReadAndSeek for T where T: Read + Seek + Send + 'static {}
+use std::io::{Cursor, SeekFrom};
 
 /// System configuration.
 pub struct Config {
     pub force_ipl: bool,
     pub ipl: Option<Vec<u8>>,
-    pub iso: Option<Iso<Box<dyn ReadAndSeek>>>,
     pub sideload: Option<Executable>,
     pub debug_info: Option<Box<dyn DebugInfo>>,
 }
@@ -51,7 +47,7 @@ pub struct Modules {
     pub render: Box<dyn RenderModule>,
     pub input: Box<dyn InputModule>,
     pub audio: Box<dyn AudioModule>,
-    // pub disk: Box<dyn DiskModule>,
+    pub disk: Box<dyn DiskModule>,
 }
 
 /// System state.
@@ -88,17 +84,28 @@ pub struct System {
     pub serial: si::Interface,
 }
 
-impl System {
-    fn load_apploader(&mut self) -> Option<Address> {
-        let Some(iso) = &mut self.config.iso else {
-            return None;
-        };
+#[derive(Debug, Error)]
+pub enum LoadApploaderError {
+    #[error(transparent)]
+    Io { source: std::io::Error },
+    #[error(transparent)]
+    Apploader { source: iso::binrw::Error },
+}
 
-        let apploader = iso.apploader().unwrap();
+impl System {
+    fn load_apploader(&mut self) -> Result<Address, LoadApploaderError> {
+        self.modules
+            .disk
+            .seek(SeekFrom::Start(0x2440))
+            .context(LoadApploaderCtx::Io)?;
+
+        let apploader =
+            iso::Apploader::read(&mut self.modules.disk).context(LoadApploaderCtx::Apploader)?;
+
         let size = apploader.size;
         self.mem.ram[0x0120_0000..][..size as usize].copy_from_slice(&apploader.data);
 
-        Some(Address(apploader.entrypoint))
+        Ok(Address(apploader.entrypoint))
     }
 
     fn load_executable(&mut self) {
@@ -159,6 +166,28 @@ impl System {
         self.cpu.supervisor.memory.setup_default_bats();
         self.mmu.build_bat_lut(&self.cpu.supervisor.memory);
 
+        self.modules
+            .disk
+            .seek(SeekFrom::Start(0))
+            .context(LoadApploaderCtx::Io)
+            .unwrap();
+
+        let header = iso::Header::read(&mut self.modules.disk)
+            .context(LoadApploaderCtx::Apploader)
+            .unwrap();
+
+        tracing::info!(
+            game_code = header.game_code(),
+            maker_code = header.maker_code,
+            disk_id = header.disk_id,
+            version = header.version,
+            audio_streaming = header.audio_streaming,
+            stream_buffer_size = header.stream_buffer_size,
+            "loading '{}' ({}) using IPL HLE",
+            header.game_name,
+            header.game_code_str().as_deref().unwrap_or("<unknown>")
+        );
+
         // load apploader
         let entry = self.load_apploader().unwrap();
 
@@ -172,7 +201,6 @@ impl System {
         self.cpu.user.gpr[3] = entry.value();
 
         // load dolphin-os globals
-        let header = self.config.iso.as_ref().unwrap().header().clone();
         self.write::<u32>(Address(0x00), header.game_code());
         self.write::<u16>(Address(0x04), header.maker_code);
         self.write::<u8>(Address(0x06), header.disk_id);
@@ -242,7 +270,7 @@ impl System {
             system.load_ipl();
         } else if system.config.sideload.is_some() {
             system.load_executable();
-        } else if system.config.iso.is_some() {
+        } else if system.modules.disk.has_disk() {
             system.load_ipl_hle();
         } else {
             system.load_ipl();

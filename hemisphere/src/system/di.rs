@@ -1,6 +1,6 @@
 //! Disk interface (DI).
 use crate::system::{System, pi};
-use bitos::bitos;
+use bitos::{BitUtils, bitos};
 use gekko::Address;
 use std::io::SeekFrom;
 use strum::FromRepr;
@@ -201,6 +201,7 @@ pub fn write_control(sys: &mut System, value: Control) {
         sys.disk.control.set_transfer_ongoing(true);
 
         let command = sys.disk.command();
+        dbg!(command);
         match command {
             Command::Identify => {
                 let target = sys.mmu.translate_data_addr(sys.disk.dma_base).unwrap();
@@ -231,14 +232,22 @@ pub fn write_control(sys: &mut System, value: Control) {
                     "reading 0x{length:08X} bytes from disk at 0x{offset:08X} into {target}"
                 );
 
-                let target = sys.mmu.translate_instr_addr(target).unwrap();
-                let slice = &mut sys.mem.ram[target.value() as usize..][..length as usize];
-                if let Some(iso) = sys.config.iso.as_mut() {
-                    let reader = iso.reader();
-                    reader.seek(SeekFrom::Start(offset as u64)).unwrap();
-                    reader.read_exact(slice).unwrap();
-                } else {
+                let target = target.value().with_bit(31, false);
+                let slice = &mut sys.mem.ram[target as usize..][..length as usize];
+
+                if !sys.modules.disk.has_disk() {
+                    tracing::error!("tried to read from disk but no disk is inserted");
                     slice.fill(0);
+                } else {
+                    let new = sys
+                        .modules
+                        .disk
+                        .seek(SeekFrom::Start(offset as u64))
+                        .unwrap();
+
+                    assert_eq!(new, offset as u64);
+
+                    sys.modules.disk.read_exact(slice).unwrap();
                 }
 
                 sys.scheduler.schedule(10000, complete_transfer);
