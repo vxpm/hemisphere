@@ -1,6 +1,8 @@
 #![feature(trim_prefix_suffix)]
 
 mod cli;
+mod runner;
+
 mod control;
 mod debug;
 mod disasm;

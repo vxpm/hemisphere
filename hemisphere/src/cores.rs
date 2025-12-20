@@ -12,7 +12,7 @@ pub struct Executed {
 }
 
 /// Trait for CPU cores.
-pub trait CpuCore {
+pub trait CpuCore: Send {
     /// Drives the CPU core forward by approximatedly the given number of `cycles`, stopping at any
     /// address in `breakpoints`.
     fn exec(&mut self, sys: &mut System, cycles: Cycles, breakpoints: &[Address]) -> Executed;
@@ -21,7 +21,7 @@ pub trait CpuCore {
 }
 
 /// Trait for DSP cores.
-pub trait DspCore {
+pub trait DspCore: Send {
     /// Drives the DSP core forward by _at most_ the specified amount of instructions. The actual
     /// number of instructions executed is returned.
     fn exec(&mut self, sys: &mut System, instructions: u32) -> u32;

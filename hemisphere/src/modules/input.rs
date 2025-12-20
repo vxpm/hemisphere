@@ -30,7 +30,7 @@ pub struct ControllerState {
 }
 
 /// Trait for controller modules.
-pub trait InputModule {
+pub trait InputModule: Send {
     fn controller(&mut self, index: usize) -> Option<ControllerState>;
 }
 

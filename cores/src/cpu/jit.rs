@@ -117,6 +117,9 @@ pub struct StoredBlock {
     pub links: Vec<*mut LinkData>,
 }
 
+// TODO: this is problematic
+unsafe impl Send for StoredBlock {}
+
 /// A structure which keeps tracks of compiled [`Block`]s.
 pub struct Blocks {
     pub storage: SlotMap<BlockId, StoredBlock>,

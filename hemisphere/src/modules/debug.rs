@@ -18,7 +18,7 @@ impl<'a> Location<'a> {
 }
 
 /// Trait for debug info modules.
-pub trait DebugModule {
+pub trait DebugModule: Send {
     fn find_symbol(&self, addr: Address) -> Option<String>;
     fn find_location(&self, addr: Address) -> Option<Location<'_>>;
 }

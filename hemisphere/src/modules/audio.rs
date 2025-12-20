@@ -1,7 +1,7 @@
 use crate::system::ai::{Frame, SampleRate};
 
 /// Trait for audio modules.
-pub trait AudioModule {
+pub trait AudioModule: Send {
     fn set_sample_rate(&mut self, sample_rate: SampleRate);
     fn play(&mut self, frame: Frame);
 }

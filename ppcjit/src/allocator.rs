@@ -22,6 +22,9 @@ struct Region {
     len: usize,
 }
 
+// TODO: this is problematic as multiple threads could change the protection of a region
+unsafe impl Send for Region {}
+
 impl Region {
     fn new(addr_hint: Option<NonZeroUsize>, len: usize) -> Self {
         let len = len.max(REGION_MIN_LEN);
@@ -137,6 +140,9 @@ impl DerefMut for Allocation<ReadWrite> {
         self.as_bytes_mut()
     }
 }
+
+// TODO: this is problematic
+unsafe impl<K> Send for Allocation<K> {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Protection {

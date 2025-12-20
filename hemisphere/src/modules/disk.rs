@@ -6,7 +6,7 @@ use std::io::{Read, Seek};
 /// read or seek the module should return an [`std::io::Error`] with [`std::io::ErrorKind::Other`].
 /// If the implementation doesn't support inserting a disk, it should return a
 /// [`std::io::ErrorKind::Unsupported`] instead.
-pub trait DiskModule: Read + Seek {
+pub trait DiskModule: Read + Seek + Send {
     /// Whether a disk is inserted.
     fn has_disk(&self) -> bool;
 }

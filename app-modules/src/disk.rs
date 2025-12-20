@@ -39,7 +39,7 @@ where
 
 impl<R> DiskModule for IsoDisk<R>
 where
-    R: Read + Seek,
+    R: Read + Seek + Send,
 {
     fn has_disk(&self) -> bool {
         self.0.is_some()
