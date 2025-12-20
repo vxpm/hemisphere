@@ -229,6 +229,7 @@ version = "0.1.0"
 dependencies = [
  "addr2line",
  "cpal",
+ "cwdemangle",
  "gilrs",
  "hemisphere",
  "hound",
@@ -1058,6 +1059,12 @@ name = "cursor-icon"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f27ae1dd37df86211c42e150270f82743308803d90a6f6e6651cd730d5e1732f"
+
+[[package]]
+name = "cwdemangle"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c2e06f9bce634a3c898eb1e5cb949ff63133cbb218af93cc9b38b31d6f3ea285"
 
 [[package]]
 name = "dasp_sample"
