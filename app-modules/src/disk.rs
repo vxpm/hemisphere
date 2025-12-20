@@ -3,9 +3,9 @@ use std::io::{Read, Seek};
 
 /// An implementation of [`DiskModule`] for raw .iso data from a reader.
 #[derive(Debug)]
-pub struct IsoModule<R>(pub Option<R>);
+pub struct IsoDisk<R>(pub Option<R>);
 
-impl<R> Read for IsoModule<R>
+impl<R> Read for IsoDisk<R>
 where
     R: Read,
 {
@@ -21,7 +21,7 @@ where
     }
 }
 
-impl<R> Seek for IsoModule<R>
+impl<R> Seek for IsoDisk<R>
 where
     R: Seek,
 {
@@ -37,7 +37,7 @@ where
     }
 }
 
-impl<R> DiskModule for IsoModule<R>
+impl<R> DiskModule for IsoDisk<R>
 where
     R: Read + Seek,
 {

@@ -38,7 +38,7 @@ use std::{
 use app_modules::{
     audio::CpalAudio,
     debug::{Addr2LineDebug, MapFileDebug},
-    disk::IsoModule,
+    disk::IsoDisk,
     input::GilrsInput,
 };
 use cores::cpu::jit as jitcore;
@@ -94,7 +94,7 @@ impl App {
             None
         };
 
-        let iso = IsoModule(if let Some(path) = &args.iso {
+        let iso = IsoDisk(if let Some(path) = &args.iso {
             let file = std::fs::File::open(path)?;
             let reader = BufReader::new(file);
             Some(reader)
