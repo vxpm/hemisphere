@@ -42,6 +42,6 @@ where
     R: Read + Seek,
 {
     fn has_disk(&self) -> bool {
-        true
+        self.0.is_some()
     }
 }
