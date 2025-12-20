@@ -4,6 +4,7 @@
 //! not perform any sort of emulation themselves.
 
 pub mod audio;
+pub mod debug;
 pub mod disk;
 pub mod input;
 pub mod render;

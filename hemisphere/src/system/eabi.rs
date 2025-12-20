@@ -56,12 +56,7 @@ impl System {
                 && let Some(prev_frame) = self.read_pure(prev_frame_addr)
                 && let Some(prev_routine) = self.read_pure(prev_routine_addr)
             {
-                let name = self
-                    .config
-                    .debug_info
-                    .as_ref()
-                    .and_then(|d| d.find_symbol(Address(current_routine)));
-
+                let name = self.modules.debug.find_symbol(Address(current_routine));
                 call_stack.push(CallFrame {
                     address: Address(current_routine),
                     symbol: name,

@@ -18,10 +18,13 @@ pub mod si;
 pub mod vi;
 
 use crate::{
-    modules::{audio::AudioModule, disk::DiskModule, input::InputModule, render::RenderModule},
+    modules::{
+        audio::AudioModule, debug::DebugModule, disk::DiskModule, input::InputModule,
+        render::RenderModule,
+    },
     system::{
         dspi::Dsp,
-        executable::{DebugInfo, Executable},
+        executable::Executable,
         gx::Gpu,
         lazy::Lazy,
         mem::Memory,
@@ -39,15 +42,15 @@ pub struct Config {
     pub force_ipl: bool,
     pub ipl: Option<Vec<u8>>,
     pub sideload: Option<Executable>,
-    pub debug_info: Option<Box<dyn DebugInfo>>,
 }
 
 /// System modules.
 pub struct Modules {
-    pub render: Box<dyn RenderModule>,
-    pub input: Box<dyn InputModule>,
     pub audio: Box<dyn AudioModule>,
+    pub debug: Box<dyn DebugModule>,
     pub disk: Box<dyn DiskModule>,
+    pub input: Box<dyn InputModule>,
+    pub render: Box<dyn RenderModule>,
 }
 
 /// System state.

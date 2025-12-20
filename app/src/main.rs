@@ -22,6 +22,7 @@ use eyre_pretty::eyre::Result;
 use hemisphere::{
     Address, Cycles, Hemisphere,
     cores::Cores,
+    modules::debug::{DebugModule, NopDebugModule},
     system::{self, Modules, executable::Executable},
 };
 use nanorand::Rng;
@@ -34,7 +35,12 @@ use std::{
     time::{Duration, Instant},
 };
 
-use app_modules::{audio::CpalAudio, disk::IsoModule, input::GilrsInput};
+use app_modules::{
+    audio::CpalAudio,
+    debug::{Addr2LineDebug, MapFileDebug},
+    disk::IsoModule,
+    input::GilrsInput,
+};
 use cores::cpu::jit as jitcore;
 use cores::dsp::interpreter as dspcore;
 
@@ -102,7 +108,8 @@ impl App {
             None
         };
 
-        let debug_info = if let Some(path) = args.debug.as_deref() {
+        // this is a mess lol
+        let debug_module = if let Some(path) = args.debug.as_deref() {
             match path
                 .extension()
                 .and_then(|e| e.to_str())
@@ -110,14 +117,16 @@ impl App {
                 .as_deref()
             {
                 Some("elf") => {
-                    let loader = addr2line::Loader::new(path).ok();
-                    loader.map(|l| Box::new(debug::Addr2LineDebug(l)) as _)
+                    let debug = Addr2LineDebug::new(path);
+                    debug
+                        .map(|d| Box::new(d) as Box<dyn DebugModule>)
+                        .unwrap_or_else(|| Box::new(NopDebugModule))
                 }
-                Some("map") => Some(Box::new(debug::MapFileDebug::new(path)) as _),
-                _ => None,
+                Some("map") => Box::new(MapFileDebug::new(path)) as Box<dyn DebugModule>,
+                _ => Box::new(NopDebugModule),
             }
         } else {
-            None
+            Box::new(NopDebugModule)
         };
 
         let wgpu_state = cc.wgpu_render_state.as_ref().unwrap();
@@ -142,10 +151,11 @@ impl App {
         };
 
         let modules = Modules {
-            render: Box::new(renderer.clone()),
-            input: Box::new(GilrsInput::new()),
             audio: Box::new(CpalAudio::new()),
+            debug: debug_module,
             disk: Box::new(iso),
+            input: Box::new(GilrsInput::new()),
+            render: Box::new(renderer.clone()),
         };
 
         let hemisphere = Hemisphere::new(
@@ -155,7 +165,6 @@ impl App {
                 force_ipl: args.force_ipl,
                 ipl,
                 sideload: executable,
-                debug_info,
             },
         );
 

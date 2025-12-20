@@ -1,31 +1,9 @@
-use gekko::Address;
 use dol::{
     Dol,
     binrw::{BinRead, io::BufReader},
 };
 use easyerr::{Error, ResultExt};
-use std::{borrow::Cow, path::Path};
-
-pub struct Location<'a> {
-    pub file: Option<Cow<'a, str>>,
-    pub line: Option<u32>,
-    pub column: Option<u32>,
-}
-
-impl<'a> Location<'a> {
-    pub fn into_owned(self) -> Location<'static> {
-        Location {
-            file: self.file.map(|s| Cow::Owned(s.into_owned())),
-            line: self.line,
-            column: self.column,
-        }
-    }
-}
-
-pub trait DebugInfo: Send {
-    fn find_symbol(&self, addr: Address) -> Option<String>;
-    fn find_location(&self, addr: Address) -> Option<Location<'_>>;
-}
+use std::path::Path;
 
 #[derive(Debug, Error)]
 pub enum OpenError {

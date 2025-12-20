@@ -212,6 +212,8 @@ pub fn write_control(sys: &mut System, value: Control) {
                     0x20, 0x02, 0x04, 0x02, // date
                     0x61, 0x00, 0x00, 0x00, // version
                 ]);
+
+                sys.mem.ram[target.value() as usize + 12..][..32 - 12].fill(0);
                 sys.scheduler.schedule(10000, complete_transfer);
             }
             Command::Read { offset, length } => {
@@ -302,5 +304,6 @@ pub fn reset(sys: &mut System, value: u32) {
         return;
     }
 
+    tracing::warn!("dvd drive reset through processor interface");
     sys.disk = Default::default();
 }

@@ -36,9 +36,4 @@ tracing-appender = "0.2"
 ron = { version = "0.12" }
 typetag = "0.2"
 serde = { version = "1", features = ["derive"] }
-addr2line = { version = "0.25", features = [
-    "cpp_demangle",
-    "loader",
-], default-features = false }
-mapfile_parser = "2.12"
 renderdoc = "0.12"

@@ -15,3 +15,8 @@ gilrs = "0.11"
 cpal = "0.16"
 resampler = "0.4"
 hound = "3.5"
+addr2line = { version = "0.25", features = [
+    "cpp_demangle",
+    "loader",
+], default-features = false }
+mapfile_parser = "2.12"
