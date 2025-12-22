@@ -358,14 +358,16 @@ const CTX_HOOKS: Hooks = {
             return 0;
         };
 
-        let gqr = ctx.sys.cpu.supervisor.gq[gqr as usize].clone();
-        let scale = if gqr.load_type() != QuantizedType::Float {
+        let gqr = ctx.sys.cpu.supervisor.gq[gqr as usize];
+        let ty = gqr.load_type();
+
+        let scale = if ty != QuantizedType::Float {
             gqr.load_scale().value()
         } else {
             0
         };
 
-        let read = match gqr.load_type() {
+        let read = match ty {
             QuantizedType::U8 => ctx.sys.read::<u8>(physical) as f64,
             QuantizedType::U16 => ctx.sys.read::<u16>(physical) as f64,
             QuantizedType::I8 => ctx.sys.read::<i8>(physical) as f64,
@@ -376,7 +378,7 @@ const CTX_HOOKS: Hooks = {
         let scaled = read * 2.0f64.powi(-scale as i32);
         *value = scaled;
 
-        gqr.load_type().size()
+        ty.size()
     }
 
     extern "sysv64-unwind" fn write_quantized(
@@ -391,15 +393,17 @@ const CTX_HOOKS: Hooks = {
             return 0;
         };
 
-        let gqr = ctx.sys.cpu.supervisor.gq[gqr as usize].clone();
-        let scale = if gqr.store_type() != QuantizedType::Float {
+        let gqr = ctx.sys.cpu.supervisor.gq[gqr as usize];
+        let ty = gqr.store_type();
+
+        let scale = if ty != QuantizedType::Float {
             gqr.store_scale().value()
         } else {
             0
         };
 
         let scaled = value * 2.0f64.powi(-scale as i32);
-        match gqr.store_type() {
+        match ty {
             QuantizedType::U8 => ctx.sys.write(physical, scaled as u8),
             QuantizedType::U16 => ctx.sys.write(physical, scaled as u16),
             QuantizedType::I8 => ctx.sys.write(physical, scaled as i8),
@@ -407,7 +411,7 @@ const CTX_HOOKS: Hooks = {
             _ => ctx.sys.write(physical, (scaled as f32).to_bits()),
         }
 
-        gqr.store_type().size()
+        ty.size()
     }
 
     extern "sysv64-unwind" fn cache_dma(ctx: &mut Context) {

@@ -985,7 +985,7 @@ impl QuantizedType {
 
 /// A graphics quantization register.
 #[bitos(32)]
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct QuantReg {
     /// Type of operand resulting from a conversion by a store instruction
     #[bits(0..3)]
