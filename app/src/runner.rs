@@ -1,3 +1,5 @@
+mod timer;
+
 use hemisphere::{Address, Cycles, Hemisphere};
 use spin_sleep::SpinSleeper;
 use std::{
@@ -9,10 +11,12 @@ use std::{
     time::{Duration, Instant},
 };
 
+use crate::runner::timer::Timer;
+
 pub struct State {
     pub emulator: Hemisphere,
     pub breakpoints: Vec<Address>,
-    pub cycles_history: VecDeque<(Cycles, Instant)>,
+    pub cycles_history: VecDeque<(Cycles, Duration)>,
 }
 
 impl State {
@@ -37,34 +41,77 @@ const STEP: Duration = Duration::from_millis(1);
 fn worker(state: Arc<Shared>) {
     let sleeper = SpinSleeper::default();
 
-    let mut late = Duration::ZERO;
-    let mut next = Instant::now();
+    let mut timer = Timer::new();
+    let mut emulated = Duration::ZERO;
 
     loop {
-        sleeper.sleep_until(next);
-        while !state.advance.load(Ordering::Relaxed) {
+        if state.advance.load(Ordering::Relaxed) {
+            timer.resume();
+        } else {
+            timer.pause();
             sleeper.sleep(Duration::from_micros(1));
+            continue;
         }
-        let start = Instant::now();
+
+        // compute how far behind real-time we are
+        let delta = timer.elapsed().saturating_sub(emulated);
+
+        // wait until delta >= STEP
+        sleeper.sleep(STEP.saturating_sub(delta));
+        let now = timer.elapsed();
+
+        // ignore slowdowns that are too large (~1 frame at 60fps)
+        let delta = if delta > Duration::from_millis(16) {
+            emulated = now - STEP;
+            STEP
+        } else {
+            now.saturating_sub(emulated)
+        };
 
         let mut lock = state.state.lock().unwrap();
         let state = &mut *lock;
 
-        let to_exec = (STEP + late).min(4 * STEP);
         let executed = state
             .emulator
-            .exec(Cycles::from_duration(to_exec), &state.breakpoints);
+            .exec(Cycles::from_duration(delta), &state.breakpoints);
+
+        emulated += delta;
 
         while let Some(front) = state.cycles_history.front()
-            && start.duration_since(front.1) > Duration::from_secs(1)
+            && now.saturating_sub(front.1) > Duration::from_secs(1)
         {
             state.cycles_history.pop_front();
         }
-        state.cycles_history.push_back((executed.cycles, start));
-
-        late = start.elapsed().saturating_sub(to_exec);
-        next = (next + STEP).max(Instant::now());
+        state.cycles_history.push_back((executed.cycles, now));
     }
+
+    // let mut late = Duration::ZERO;
+    // let mut next = Instant::now();
+    // loop {
+    // sleeper.sleep_until(next);
+    // while !state.advance.load(Ordering::Relaxed) {
+    //     sleeper.sleep(Duration::from_micros(1));
+    // }
+    // let start = Instant::now();
+    //
+    // let mut lock = state.state.lock().unwrap();
+    // let state = &mut *lock;
+    //
+    // let to_exec = (STEP + late).min(4 * STEP);
+    // let executed = state
+    //     .emulator
+    //     .exec(Cycles::from_duration(to_exec), &state.breakpoints);
+    //
+    // while let Some(front) = state.cycles_history.front()
+    //     && start.duration_since(front.1) > Duration::from_secs(1)
+    // {
+    //     state.cycles_history.pop_front();
+    // }
+    // state.cycles_history.push_back((executed.cycles, start));
+    //
+    // late = start.elapsed().saturating_sub(to_exec);
+    // next = (next + STEP).max(Instant::now());
+    // }
 }
 
 pub struct Runner {
