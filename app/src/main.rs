@@ -14,7 +14,7 @@ mod variables;
 mod windows;
 mod xfb;
 
-use crate::windows::AppWindow;
+use crate::{runner::Runner, windows::AppWindow};
 use clap::Parser;
 use eframe::{
     egui,
@@ -22,16 +22,16 @@ use eframe::{
 };
 use eyre_pretty::eyre::Result;
 use hemisphere::{
-    Address, Cycles, Hemisphere,
+    Hemisphere,
     cores::Cores,
     modules::debug::{DebugModule, NopDebugModule},
     system::{self, Modules, executable::Executable},
 };
 use nanorand::Rng;
 use renderer::Renderer;
+use runner::State;
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::VecDeque,
     io::BufReader,
     sync::Arc,
     time::{Duration, Instant},
@@ -52,24 +52,6 @@ struct Ctx<'a> {
     renderer: &'a mut Renderer,
 }
 
-struct State {
-    running: bool,
-    emulator: Hemisphere,
-    breakpoints: Vec<Address>,
-}
-
-impl State {
-    fn add_breakpoint(&mut self, breakpoint: Address) {
-        if !self.breakpoints.contains(&breakpoint) {
-            self.breakpoints.push(breakpoint);
-        }
-    }
-
-    fn remove_breakpoint(&mut self, breakpoint: Address) {
-        self.breakpoints.retain(|b| *b != breakpoint);
-    }
-}
-
 #[derive(Serialize, Deserialize)]
 struct AppWindowState {
     id: egui::Id,
@@ -80,9 +62,9 @@ struct AppWindowState {
 struct App {
     last_update: Instant,
     renderer: Renderer,
-    state: State,
     windows: Vec<AppWindowState>,
-    cycles_per_second: VecDeque<f64>,
+    runner: Runner,
+    cps: f64,
 }
 
 impl App {
@@ -170,11 +152,7 @@ impl App {
             },
         );
 
-        let state = State {
-            running: args.run,
-            emulator: hemisphere,
-            breakpoints: vec![],
-        };
+        let runner = runner::Runner::new(hemisphere);
 
         let windows: Vec<AppWindowState> = cc
             .storage
@@ -187,9 +165,9 @@ impl App {
         Ok(Self {
             last_update: Instant::now(),
             renderer,
-            state,
             windows,
-            cycles_per_second: VecDeque::with_capacity(120),
+            runner,
+            cps: 0f64,
         })
     }
 
@@ -255,21 +233,29 @@ impl eframe::App for App {
                     });
                 });
 
-                let cps = self.cycles_per_second.iter().sum::<f64>().abs()
-                    / self.cycles_per_second.len().max(1) as f64;
-
                 ui.label(format!(
                     "CPS: {}%",
-                    ((cps / hemisphere::gekko::FREQUENCY as f64) * 100.0).round()
+                    ((self.cps / hemisphere::gekko::FREQUENCY as f64) * 100.0).round()
                 ));
             });
         });
 
+        let running = self.runner.running();
+        self.runner.stop();
+
+        let mut state = self.runner.get().unwrap();
         for window_state in &mut self.windows {
-            window_state.window.prepare(&mut self.state);
+            window_state.window.prepare(&mut state);
         }
 
-        let running = self.state.running;
+        self.cps =
+            state.cps_history.iter().sum::<f64>().abs() / state.cps_history.len().max(1) as f64;
+        std::mem::drop(state);
+
+        if running {
+            self.runner.start();
+        }
+
         let mut context = Ctx {
             step: false,
             running,
@@ -300,41 +286,16 @@ impl eframe::App for App {
         });
 
         if context.running != running {
-            self.state.running = context.running;
-        }
-
-        if context.step {
-            self.state.emulator.step();
-        }
-
-        if self.state.running {
-            let start = Instant::now();
-            let target = Cycles::from_duration(FRAMETIME);
-
-            let mut cycles = 0u64;
-            while cycles < target && self.last_update.elapsed() <= 2 * FRAMETIME
-                || start.elapsed() <= FRAMETIME / 4
-            {
-                let executed = self
-                    .state
-                    .emulator
-                    .exec(Cycles(1 << 16), &self.state.breakpoints);
-
-                cycles += executed.cycles.0;
-
-                if executed.hit_breakpoint {
-                    self.state.running = false;
-                    break;
-                }
+            if context.running {
+                self.runner.start();
+            } else {
+                self.runner.stop();
             }
-
-            if self.cycles_per_second.len() == 30 {
-                self.cycles_per_second.pop_front();
-            }
-
-            let cps = cycles as f64 / start.elapsed().as_secs_f64();
-            self.cycles_per_second.push_back(cps);
         }
+
+        // if context.step {
+        //     self.runner.emulator.step();
+        // }
 
         let remaining = FRAMETIME.saturating_sub(self.last_update.elapsed());
         std::thread::sleep(remaining);

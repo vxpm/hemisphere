@@ -1,4 +1,4 @@
-use crate::{Ctx, State};
+use crate::{Ctx, runner::State};
 use eframe::egui;
 
 #[typetag::serde]

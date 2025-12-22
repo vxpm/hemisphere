@@ -37,3 +37,4 @@ ron = { version = "0.12" }
 typetag = "0.2"
 serde = { version = "1", features = ["derive"] }
 renderdoc = "0.12"
+spin_sleep = "1.3"
