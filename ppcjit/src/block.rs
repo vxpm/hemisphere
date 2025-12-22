@@ -9,7 +9,7 @@ use std::{ffi::c_void, ptr::NonNull};
 #[repr(C)]
 pub struct LinkData {
     /// Linked block
-    pub link: Option<BlockFn>,
+    pub block: BlockFn,
     /// Information regarding the pattern of the linked block
     pub pattern: Pattern,
 }
@@ -66,22 +66,19 @@ pub struct Meta {
 /// A handle representing a compiled block of PowerPC instructions. This struct does not manage the
 /// memory behind the block.
 ///
-/// In order to call a block, you need a trampoline.
+/// In order to call the block, use [`Jit::call`](super::Jit::call).
 pub struct Block {
     code: Allocation<Exec>,
     meta: Meta,
 }
 
-pub type BlockFn = NonNull<c_void>;
+/// A opaque handle representing the function of a compiled [`Block`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(transparent)]
+pub struct BlockFn(NonNull<c_void>);
 
 impl Block {
     pub(crate) fn new(code: Allocation<Exec>, meta: Meta) -> Self {
-        // let _unwind = if let Ok(Some(unwind_info)) = code.create_unwind_info(isa) {
-        //     unsafe { UnwindHandle::new(isa, ptr.addr(), &unwind_info) }
-        // } else {
-        //     None
-        // };
-
         Self { code, meta }
     }
 
@@ -92,11 +89,13 @@ impl Block {
 
     /// Returns a pointer to the function of this block.
     pub fn as_ptr(&self) -> BlockFn {
-        self.code.as_ptr().cast()
+        // SAFETY: the pointer isn't accessed by anything other than Jit::call
+        BlockFn(unsafe { self.code.as_ptr().cast() })
     }
 }
 
-pub struct Trampoline(pub(super) Allocation<Exec>);
+/// A trampoline that allows calling blocks produced by a [`Jit`](super::Jit) compiler.
+pub(super) struct Trampoline(pub(super) Allocation<Exec>);
 
 type TrampolineFn = extern "sysv64-unwind" fn(*mut Info, *mut Context, BlockFn);
 
@@ -104,9 +103,8 @@ impl Trampoline {
     /// Calls the given block using this trampoline.
     ///
     /// # Safety
-    /// The context pointer type must match the expected context of the hooks used by the compiler
-    /// that built the block. The compiler must also not be used while this function is being
-    /// called, as to prevent the allocator from being used while allocations are accessed.
+    /// The allocator used for this trampoline and the block must not be used while the block is
+    /// being called (i.e. this function is being executed).
     pub unsafe fn call(&self, ctx: *mut Context, block: BlockFn) -> Info {
         let mut info = Info {
             instructions: 0,

@@ -10,7 +10,7 @@ use hemisphere::{
 use indexmap::IndexMap;
 use ppcjit::{
     Block,
-    block::{BlockFn, Info, LinkData, Pattern, Trampoline},
+    block::{BlockFn, Info, LinkData, Pattern},
     hooks::*,
 };
 use rustc_hash::FxBuildHasher;
@@ -114,7 +114,7 @@ impl BlockMapping {
 
 pub struct StoredBlock {
     pub block: Block,
-    pub links: Vec<*mut LinkData>,
+    pub links: Vec<*mut Option<LinkData>>,
 }
 
 // TODO: this is problematic
@@ -196,7 +196,7 @@ impl Blocks {
             // invalidate links
             for link in block.links.drain(..) {
                 let link = unsafe { link.as_mut().unwrap() };
-                link.link = None;
+                *link = None;
             }
 
             // update LUT
@@ -250,18 +250,22 @@ const CTX_HOOKS: Hooks = {
     extern "sysv64-unwind" fn follow_link(
         info: &Info,
         ctx: &mut Context,
-        link_data: &mut LinkData,
+        link_data: &mut Option<LinkData>,
     ) -> bool {
         // if we have reached cycle or instruction limit, don't follow links, just exit.
         if info.cycles >= ctx.target_cycles || info.instructions >= ctx.max_instructions {
-            ctx.last_followed_link = link_data.link;
+            ctx.last_followed_link = None;
             return false;
         }
+
+        let Some(link_data) = link_data else {
+            return true;
+        };
 
         // otherwise, detect whether we are idle looping and exit too
         let follow = match link_data.pattern {
             Pattern::IdleBasic | Pattern::IdleVolatileRead => {
-                if ctx.last_followed_link == link_data.link {
+                if ctx.last_followed_link == Some(link_data.block) {
                     ctx.exit_reason = ExitReason::IdleLooping;
                     false
                 } else {
@@ -272,16 +276,23 @@ const CTX_HOOKS: Hooks = {
         };
 
         // if not idle looping, then sure, follow link
-        ctx.last_followed_link = link_data.link;
+        ctx.last_followed_link = Some(link_data.block);
         follow
     }
 
-    extern "sysv64-unwind" fn try_link(ctx: &mut Context, addr: Address, link_data: &mut LinkData) {
-        debug_assert!(link_data.link.is_none());
+    extern "sysv64-unwind" fn try_link(
+        ctx: &mut Context,
+        addr: Address,
+        link_data: &mut Option<LinkData>,
+    ) {
+        debug_assert!(link_data.is_none());
         if let Some(id) = ctx.blocks.mapping.get(addr) {
             let stored = ctx.blocks.storage.get_mut(id).unwrap();
-            link_data.link = Some(stored.block.as_ptr());
-            link_data.pattern = stored.block.meta().pattern;
+            *link_data = Some(LinkData {
+                block: stored.block.as_ptr(),
+                pattern: stored.block.meta().pattern,
+            });
+
             stored.links.push(&raw mut *link_data);
         }
     }
@@ -574,8 +585,7 @@ impl Default for Config {
 
 pub struct JitCore {
     pub config: Config,
-    pub compiler: ppcjit::JIT,
-    pub trampoline: Trampoline,
+    pub compiler: ppcjit::Jit,
     pub blocks: Blocks,
 
     to_invalidate: Vec<Address>,
@@ -583,13 +593,11 @@ pub struct JitCore {
 
 impl JitCore {
     pub fn new(config: Config) -> Self {
-        let mut compiler = ppcjit::JIT::new(config.jit_settings.clone(), CTX_HOOKS);
-        let trampoline = compiler.trampoline();
+        let compiler = ppcjit::Jit::new(config.jit_settings.clone(), CTX_HOOKS);
 
         Self {
             config,
             compiler,
-            trampoline,
             blocks: Blocks::default(),
 
             to_invalidate: Vec::with_capacity(16),
@@ -669,7 +677,7 @@ impl JitCore {
         };
 
         let info = unsafe {
-            self.trampoline
+            self.compiler
                 .call(&raw mut ctx as *mut ppcjit::hooks::Context, block)
         };
 

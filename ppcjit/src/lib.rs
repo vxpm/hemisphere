@@ -12,9 +12,9 @@ pub mod hooks;
 use std::sync::Arc;
 
 use crate::{
-    block::{Meta, Trampoline},
+    block::{BlockFn, Info, Meta, Trampoline},
     builder::BlockBuilder,
-    hooks::Hooks,
+    hooks::{Context, Hooks},
     module::Module,
     unwind::UnwindHandle,
 };
@@ -80,38 +80,9 @@ impl Compiler {
             module: Module::new(),
         }
     }
-}
-
-/// A JIT compiler, producing [`Block`]s.
-pub struct JIT {
-    compiler: Compiler,
-    code_ctx: codegen::Context,
-    func_ctx: frontend::FunctionBuilderContext,
-    compiled_count: u64,
-}
-
-#[derive(Debug, Error)]
-pub enum BuildError {
-    #[error("block contains no instructions")]
-    EmptyBlock,
-    #[error(transparent)]
-    Builder { source: builder::BuilderError },
-    #[error(transparent)]
-    Codegen { source: codegen::CodegenError },
-}
-
-impl JIT {
-    pub fn new(settings: Settings, hooks: Hooks) -> Self {
-        Self {
-            compiler: Compiler::new(settings, hooks),
-            code_ctx: codegen::Context::new(),
-            func_ctx: frontend::FunctionBuilderContext::new(),
-            compiled_count: 0,
-        }
-    }
 
     fn block_signature(&self) -> ir::Signature {
-        let ptr = self.compiler.isa.pointer_type();
+        let ptr = self.isa.pointer_type();
         ir::Signature {
             params: vec![ir::AbiParam::new(ptr); 3],
             returns: vec![],
@@ -120,7 +91,7 @@ impl JIT {
     }
 
     fn trampoline_signature(&self) -> ir::Signature {
-        let ptr = self.compiler.isa.pointer_type();
+        let ptr = self.isa.pointer_type();
         ir::Signature {
             params: vec![ir::AbiParam::new(ptr); 3],
             returns: vec![],
@@ -129,13 +100,17 @@ impl JIT {
     }
 
     /// Compiles and returns a trampoline to call blocks.
-    pub fn trampoline(&mut self) -> Trampoline {
+    fn trampoline(
+        &mut self,
+        code_ctx: &mut codegen::Context,
+        func_ctx: &mut frontend::FunctionBuilderContext,
+    ) -> Trampoline {
         let block_sig = self.block_signature();
 
         let mut func = ir::Function::new();
         func.signature = self.trampoline_signature();
 
-        let mut builder = frontend::FunctionBuilder::new(&mut func, &mut self.func_ctx);
+        let mut builder = frontend::FunctionBuilder::new(&mut func, func_ctx);
         let entry_bb = builder.create_block();
         builder.append_block_params_for_function_params(entry_bb);
         builder.switch_to_block(entry_bb);
@@ -147,11 +122,11 @@ impl JIT {
         let block_ptr = params[2];
 
         // extract regs ptr
-        let ptr_type = self.compiler.isa.pointer_type();
+        let ptr_type = self.isa.pointer_type();
         let get_regs_sig = builder.import_signature(Hooks::get_registers_sig(ptr_type));
         let get_registers = builder
             .ins()
-            .iconst(ptr_type, self.compiler.hooks.get_registers as usize as i64);
+            .iconst(ptr_type, self.hooks.get_registers as usize as i64);
         let inst = builder
             .ins()
             .call_indirect(get_regs_sig, get_registers, &[ctx_ptr]);
@@ -166,16 +141,53 @@ impl JIT {
         builder.ins().return_(&[]);
         builder.finalize();
 
-        self.code_ctx.clear();
-        self.code_ctx.func = func;
-        self.code_ctx
-            .compile(&*self.compiler.isa, &mut Default::default())
+        code_ctx.clear();
+        code_ctx.func = func;
+        code_ctx
+            .compile(&*self.isa, &mut Default::default())
             .unwrap();
 
-        let compiled = self.code_ctx.take_compiled_code().unwrap();
-        let alloc = self.compiler.module.allocate_code(compiled.code_buffer());
+        let compiled = code_ctx.take_compiled_code().unwrap();
+        let alloc = self.module.allocate_code(compiled.code_buffer());
 
         Trampoline(alloc)
+    }
+}
+
+/// A JIT context, producing [`Block`]s.
+pub struct Jit {
+    compiler: Compiler,
+    code_ctx: codegen::Context,
+    func_ctx: frontend::FunctionBuilderContext,
+    compiled_count: u64,
+    trampoline: Trampoline,
+}
+
+#[derive(Debug, Error)]
+pub enum BuildError {
+    #[error("block contains no instructions")]
+    EmptyBlock,
+    #[error(transparent)]
+    Builder { source: builder::BuilderError },
+    #[error(transparent)]
+    Codegen { source: codegen::CodegenError },
+}
+
+impl Jit {
+    pub fn new(settings: Settings, hooks: Hooks) -> Self {
+        let mut compiler = Compiler::new(settings, hooks);
+        let mut code_ctx = codegen::Context::new();
+        let mut func_ctx = frontend::FunctionBuilderContext::new();
+
+        let trampoline = compiler.trampoline(&mut code_ctx, &mut func_ctx);
+
+        Self {
+            compiler,
+            code_ctx,
+            func_ctx,
+            compiled_count: 0,
+            trampoline,
+        }
     }
 
     /// Compiles a block with the given instructions (up until a terminal instruction or the end of
@@ -185,7 +197,7 @@ impl JIT {
         instructions: impl Iterator<Item = Ins>,
     ) -> Result<Block, BuildError> {
         let mut func = ir::Function::new();
-        func.signature = self.block_signature();
+        func.signature = self.compiler.block_signature();
 
         let func_builder = frontend::FunctionBuilder::new(&mut func, &mut self.func_ctx);
         let builder = BlockBuilder::new(&mut self.compiler, func_builder);
@@ -235,5 +247,15 @@ impl JIT {
         self.compiled_count += 1;
 
         Ok(block)
+    }
+
+    /// Calls the given block with the given context.
+    ///
+    /// # Safety
+    /// `ctx` must match the type expected by the hooks of this JIT context.
+    pub unsafe fn call(&mut self, ctx: *mut Context, block: BlockFn) -> Info {
+        // SAFETY: the exclusive reference to the context guarantees the allocator is not being
+        // used, keeping the allocations safe
+        unsafe { self.trampoline.call(ctx, block) }
     }
 }

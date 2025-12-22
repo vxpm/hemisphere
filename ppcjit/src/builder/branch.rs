@@ -1,5 +1,10 @@
+use std::alloc::Layout;
+
 use super::BlockBuilder;
-use crate::builder::{Action, InstructionInfo, util::IntoIrValue};
+use crate::{
+    block::LinkData,
+    builder::{Action, InstructionInfo, util::IntoIrValue},
+};
 use bitos::{bitos, integer::u5};
 use cranelift::{codegen::ir, prelude::InstBuilder};
 use gekko::{Reg, SPR, disasm::Ins};
@@ -50,16 +55,19 @@ impl BlockBuilder<'_> {
         let link_data = self
             .compiler
             .module
-            .allocate_data(align_of::<usize>(), 2 * size_of::<usize>());
+            .allocate_data(Layout::new::<Option<LinkData>>());
+
+        // SAFETY: pointer is valid
+        unsafe { link_data.as_ptr().cast::<Option<LinkData>>().write(None) };
 
         self.update_info();
         self.flush();
 
         // call follow link hook
-        let link_data_ptr = self
-            .bd
-            .ins()
-            .iconst(self.consts.ptr_type, link_data.as_ptr().addr().get() as i64);
+        // SAFETY: allocator safety enforced by the contract of blocks
+        let link_data_ptr = self.bd.ins().iconst(self.consts.ptr_type, unsafe {
+            link_data.as_ptr().addr().get() as i64
+        });
 
         let follow_link_hook = self.bd.ins().iconst(
             self.consts.ptr_type,

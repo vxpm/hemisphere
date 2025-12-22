@@ -1,3 +1,5 @@
+//! Arena allocator for the JIT context.
+
 use std::{marker::PhantomData, num::NonZeroUsize, ptr::NonNull};
 
 #[cfg(target_family = "unix")]
@@ -104,16 +106,19 @@ impl Region {
     }
 }
 
-/// # Safety
+/// # Safety considerations
 /// The allocator this allocation comes from must not be modified while the allocation
 /// is accessed. This is specially important for multi-threaded contexts.
 pub struct Allocation<K>(NonNull<[u8]>, PhantomData<K>);
 
 impl<K> Allocation<K> {
-    /// Returns a pointer to the allocation. In order to access the data behind the pointer, be
-    /// sure to synchronize accesses to the underlying allocator, as stated in the type docs.
+    /// Returns a pointer to the allocation.
+    ///
+    /// # Safety
+    /// In order to access the data behind the pointer, accesses to the underlying allocator must
+    /// be synchronized, as stated in the type docs.
     #[inline(always)]
-    pub fn as_ptr(&self) -> NonNull<[u8]> {
+    pub unsafe fn as_ptr(&self) -> NonNull<[u8]> {
         self.0
     }
 }

@@ -1,4 +1,5 @@
 use crate::allocator::{Allocation, Allocator, Exec, ReadWrite};
+use std::alloc::Layout;
 
 pub struct Module {
     code_allocator: Allocator<Exec>,
@@ -17,7 +18,8 @@ impl Module {
         self.code_allocator.allocate(64, code)
     }
 
-    pub fn allocate_data(&mut self, alignment: usize, length: usize) -> Allocation<ReadWrite> {
-        self.data_allocator.allocate_uninit(alignment, length)
+    pub fn allocate_data(&mut self, layout: Layout) -> Allocation<ReadWrite> {
+        self.data_allocator
+            .allocate_uninit(layout.align(), layout.size())
     }
 }
