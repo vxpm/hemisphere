@@ -59,7 +59,7 @@ impl BlockBuilder<'_> {
         let link_data_ptr = self
             .bd
             .ins()
-            .iconst(self.consts.ptr_type, link_data.as_ptr().addr() as i64);
+            .iconst(self.consts.ptr_type, link_data.as_ptr().addr().get() as i64);
 
         let follow_link_hook = self.bd.ins().iconst(
             self.consts.ptr_type,

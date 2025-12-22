@@ -3,12 +3,13 @@ use crate::{
     allocator::{Allocation, Exec},
     hooks::Context,
 };
+use std::{ffi::c_void, ptr::NonNull};
 
 #[derive(Debug)]
 #[repr(C)]
 pub struct LinkData {
     /// Linked block
-    pub link: BlockFn,
+    pub link: Option<BlockFn>,
     /// Information regarding the pattern of the linked block
     pub pattern: Pattern,
 }
@@ -71,7 +72,7 @@ pub struct Block {
     meta: Meta,
 }
 
-pub type BlockFn = *const std::ffi::c_void;
+pub type BlockFn = NonNull<c_void>;
 
 impl Block {
     pub(crate) fn new(code: Allocation<Exec>, meta: Meta) -> Self {
@@ -104,14 +105,15 @@ impl Trampoline {
     ///
     /// # Safety
     /// The context pointer type must match the expected context of the hooks used by the compiler
-    /// that built the block.
+    /// that built the block. The compiler must also not be used while this function is being
+    /// called, as to prevent the allocator from being used while allocations are accessed.
     pub unsafe fn call(&self, ctx: *mut Context, block: BlockFn) -> Info {
         let mut info = Info {
             instructions: 0,
             cycles: 0,
         };
 
-        let trampoline: TrampolineFn = unsafe { std::mem::transmute(self.0.as_ptr()) };
+        let trampoline: TrampolineFn = unsafe { std::mem::transmute(self.0.as_ptr().cast::<u8>()) };
         trampoline(&raw mut info, ctx, block);
 
         info

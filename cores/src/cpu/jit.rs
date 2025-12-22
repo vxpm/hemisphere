@@ -196,7 +196,7 @@ impl Blocks {
             // invalidate links
             for link in block.links.drain(..) {
                 let link = unsafe { link.as_mut().unwrap() };
-                link.link = std::ptr::null();
+                link.link = None;
             }
 
             // update LUT
@@ -237,7 +237,7 @@ struct Context<'a> {
     /// Maximum instructions we should execute.
     max_instructions: u32,
     /// Last followed link.
-    last_followed_link: BlockFn,
+    last_followed_link: Option<BlockFn>,
     /// Reason for exit.
     exit_reason: ExitReason,
 }
@@ -277,10 +277,10 @@ const CTX_HOOKS: Hooks = {
     }
 
     extern "sysv64-unwind" fn try_link(ctx: &mut Context, addr: Address, link_data: &mut LinkData) {
-        debug_assert!(link_data.link.is_null());
+        debug_assert!(link_data.link.is_none());
         if let Some(id) = ctx.blocks.mapping.get(addr) {
             let stored = ctx.blocks.storage.get_mut(id).unwrap();
-            link_data.link = stored.block.as_ptr();
+            link_data.link = Some(stored.block.as_ptr());
             link_data.pattern = stored.block.meta().pattern;
             stored.links.push(&raw mut *link_data);
         }
@@ -664,7 +664,7 @@ impl JitCore {
             target_cycles,
             max_instructions,
 
-            last_followed_link: std::ptr::null(),
+            last_followed_link: None,
             exit_reason: ExitReason::None,
         };
 

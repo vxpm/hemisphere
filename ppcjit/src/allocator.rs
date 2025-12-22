@@ -1,9 +1,4 @@
-use std::{
-    marker::PhantomData,
-    num::NonZeroUsize,
-    ops::{Deref, DerefMut},
-    ptr::NonNull,
-};
+use std::{marker::PhantomData, num::NonZeroUsize, ptr::NonNull};
 
 #[cfg(target_family = "unix")]
 use nix::sys::mman::{self, MapFlags, ProtFlags};
@@ -22,7 +17,7 @@ struct Region {
     len: usize,
 }
 
-// TODO: this is problematic as multiple threads could change the protection of a region
+// SAFETY: changing the protection can be done from any thread
 unsafe impl Send for Region {}
 
 impl Region {
@@ -109,39 +104,22 @@ impl Region {
     }
 }
 
+/// # Safety
+/// The allocator this allocation comes from must not be modified while the allocation
+/// is accessed. This is specially important for multi-threaded contexts.
 pub struct Allocation<K>(NonNull<[u8]>, PhantomData<K>);
 
 impl<K> Allocation<K> {
+    /// Returns a pointer to the allocation. In order to access the data behind the pointer, be
+    /// sure to synchronize accesses to the underlying allocator, as stated in the type docs.
     #[inline(always)]
-    pub fn as_bytes(&self) -> &[u8] {
-        unsafe { self.0.as_ref() }
+    pub fn as_ptr(&self) -> NonNull<[u8]> {
+        self.0
     }
 }
 
-impl Allocation<ReadWrite> {
-    #[inline(always)]
-    pub fn as_bytes_mut(&mut self) -> &mut [u8] {
-        unsafe { self.0.as_mut() }
-    }
-}
-
-impl<K> Deref for Allocation<K> {
-    type Target = [u8];
-
-    #[inline(always)]
-    fn deref(&self) -> &Self::Target {
-        self.as_bytes()
-    }
-}
-
-impl DerefMut for Allocation<ReadWrite> {
-    #[inline(always)]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.as_bytes_mut()
-    }
-}
-
-// TODO: this is problematic
+// SAFETY: safe to send to another thread as long as accesses to the allocation are synchronized
+// with accesses to the allocator, which is the user's responsibility
 unsafe impl<K> Send for Allocation<K> {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

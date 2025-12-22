@@ -29,8 +29,7 @@ use gekko::disasm::Ins;
 pub use block::Block;
 pub use sequence::Sequence;
 
-#[derive(Debug, Clone)]
-#[derive(Default)]
+#[derive(Debug, Clone, Default)]
 pub struct Settings {
     /// Whether to treat `sc` instructions as no-ops.
     pub nop_syscalls: bool,
@@ -39,7 +38,6 @@ pub struct Settings {
     /// Whether to ignore unimplemented instructions instead of panicking.
     pub ignore_unimplemented: bool,
 }
-
 
 struct Compiler {
     settings: Settings,
@@ -217,13 +215,18 @@ impl JIT {
         let compiled = self.code_ctx.compiled_code().unwrap();
         let alloc = self.compiler.module.allocate_code(compiled.code_buffer());
 
-        let unwind_handle = if let Ok(Some(unwind_info)) =
-            compiled.create_unwind_info(&*self.compiler.isa)
-        {
-            unsafe { UnwindHandle::new(&*self.compiler.isa, alloc.as_ptr().addr(), &unwind_info) }
-        } else {
-            None
-        };
+        let unwind_handle =
+            if let Ok(Some(unwind_info)) = compiled.create_unwind_info(&*self.compiler.isa) {
+                unsafe {
+                    UnwindHandle::new(
+                        &*self.compiler.isa,
+                        alloc.as_ptr().addr().get(),
+                        &unwind_info,
+                    )
+                }
+            } else {
+                None
+            };
 
         // TODO: remove this and deal with handles
         std::mem::forget(unwind_handle);
