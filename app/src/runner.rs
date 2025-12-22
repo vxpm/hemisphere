@@ -12,7 +12,7 @@ use std::{
 pub struct State {
     pub emulator: Hemisphere,
     pub breakpoints: Vec<Address>,
-    pub cps_history: VecDeque<f64>,
+    pub cycles_history: VecDeque<(Cycles, Instant)>,
 }
 
 impl State {
@@ -32,7 +32,7 @@ struct Shared {
     advance: AtomicBool,
 }
 
-const STEP: Duration = Duration::from_millis(1);
+const STEP: Duration = Duration::from_millis(4);
 
 fn worker(state: Arc<Shared>) {
     let sleeper = SpinSleeper::default();
@@ -42,6 +42,7 @@ fn worker(state: Arc<Shared>) {
         sleeper.sleep_until(prev + STEP);
         while !state.advance.load(Ordering::Relaxed) {
             prev = Instant::now() - STEP;
+            sleeper.sleep(Duration::from_micros(5));
         }
 
         let start = Instant::now();
@@ -52,15 +53,18 @@ fn worker(state: Arc<Shared>) {
             .emulator
             .exec(Cycles::from_duration(prev.elapsed()), &state.breakpoints);
 
-        if state.cps_history.len() >= 256 {
-            state.cps_history.pop_front();
+        while let Some(front) = state.cycles_history.front()
+            && start.duration_since(front.1) > Duration::from_secs(1)
+        {
+            state.cycles_history.pop_front();
         }
+        state.cycles_history.push_back((executed.cycles, start));
 
-        state
-            .cps_history
-            .push_back(executed.cycles.value() as f64 / start.elapsed().as_secs_f64());
-
-        prev = start;
+        prev = if start.elapsed() > STEP {
+            Instant::now() - STEP
+        } else {
+            start
+        };
     }
 }
 
@@ -74,7 +78,7 @@ impl Runner {
             state: Mutex::new(State {
                 emulator: hemisphere,
                 breakpoints: vec![],
-                cps_history: VecDeque::new(),
+                cycles_history: VecDeque::new(),
             }),
             advance: AtomicBool::new(true),
         };

@@ -234,7 +234,7 @@ impl eframe::App for App {
                 });
 
                 ui.label(format!(
-                    "CPS: {}%",
+                    "Speed: {}%",
                     ((self.cps / hemisphere::gekko::FREQUENCY as f64) * 100.0).round()
                 ));
             });
@@ -248,8 +248,12 @@ impl eframe::App for App {
             window_state.window.prepare(&mut state);
         }
 
-        self.cps =
-            state.cps_history.iter().sum::<f64>().abs() / state.cps_history.len().max(1) as f64;
+        self.cps = state
+            .cycles_history
+            .iter()
+            .map(|c| c.0.value())
+            .sum::<u64>() as f64;
+
         std::mem::drop(state);
 
         if running {
