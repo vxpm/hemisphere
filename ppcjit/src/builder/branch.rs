@@ -111,30 +111,26 @@ impl BlockBuilder<'_> {
             0,
         );
 
+        let call_linked = self.bd.create_block();
         let need_to_link = self.bd.create_block();
-        let is_linked = self.bd.create_block();
+        let link_failure = self.bd.create_block();
+        self.bd.set_cold_block(need_to_link);
+        self.bd.set_cold_block(link_failure);
 
         self.bd
-            .ins()
-            .brif(stored_link, is_linked, &[], need_to_link, &[]);
+            .append_block_param(call_linked, self.consts.ptr_type);
 
-        self.bd.seal_block(is_linked);
-        self.bd.seal_block(need_to_link);
-        self.bd.set_cold_block(need_to_link);
-
-        // => follow link => is linked
-        self.bd.switch_to_block(is_linked);
-        self.bd.ins().return_call_indirect(
-            self.consts.signatures.block,
+        self.bd.ins().brif(
             stored_link,
-            &[
-                self.consts.info_ptr,
-                self.consts.ctx_ptr,
-                self.consts.regs_ptr,
-            ],
+            call_linked,
+            &[ir::BlockArg::Value(stored_link)],
+            need_to_link,
+            &[],
         );
 
-        // => follow link => need to link
+        self.bd.seal_block(need_to_link);
+
+        // => need to link
         self.bd.switch_to_block(need_to_link);
 
         // call try link hook
@@ -157,22 +153,23 @@ impl BlockBuilder<'_> {
             0,
         );
 
-        let link_success = self.bd.create_block();
-        let link_failure = self.bd.create_block();
+        self.bd.ins().brif(
+            stored_link,
+            call_linked,
+            &[ir::BlockArg::Value(stored_link)],
+            link_failure,
+            &[],
+        );
 
-        self.bd
-            .ins()
-            .brif(stored_link, link_success, &[], link_failure, &[]);
-
-        self.bd.seal_block(link_success);
+        self.bd.seal_block(call_linked);
         self.bd.seal_block(link_failure);
-        self.bd.set_cold_block(link_failure);
 
-        // => follow link => need to link => success
-        self.bd.switch_to_block(link_success);
+        // => call linked
+        self.bd.switch_to_block(call_linked);
+        let link = self.bd.block_params(call_linked)[0];
         self.bd.ins().return_call_indirect(
             self.consts.signatures.block,
-            stored_link,
+            link,
             &[
                 self.consts.info_ptr,
                 self.consts.ctx_ptr,
@@ -180,7 +177,7 @@ impl BlockBuilder<'_> {
             ],
         );
 
-        // => follow link => need to link => failure
+        // => link failure
         self.bd.switch_to_block(link_failure);
         self.prologue();
     }

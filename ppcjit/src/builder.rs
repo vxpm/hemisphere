@@ -288,7 +288,7 @@ impl<'ctx> BlockBuilder<'ctx> {
         let ps0 = self.get(fpr);
         let ps1 = self.get(Reg::PS1(fpr));
 
-        let paired = self.bd.ins().splat(ir::types::F64X2, ps0);
+        let paired = self.bd.ins().scalar_to_vector(ir::types::F64X2, ps0);
         let paired = self.bd.ins().insertlane(paired, ps1, 1);
 
         self.ps_cache.insert(
@@ -318,6 +318,8 @@ impl<'ctx> BlockBuilder<'ctx> {
         );
     }
 
+    /// Flushes a cached paired single (splits it into PS0 and PS1 and writes it to the normal
+    /// register cache).
     fn flush_ps(&mut self, fpr: FPR) {
         let Some(val) = self.ps_cache.get_mut(&fpr) else {
             return;
@@ -348,6 +350,7 @@ impl<'ctx> BlockBuilder<'ctx> {
         );
     }
 
+    /// Invalidates a specific paired single.
     fn invalidate_ps(&mut self, fpr: FPR) {
         self.flush_ps(fpr);
         self.ps_cache.remove(&fpr);
@@ -367,7 +370,8 @@ impl<'ctx> BlockBuilder<'ctx> {
         );
     }
 
-    /// Flushes the register cache to the registers struct.
+    /// Flushes the register cache to the registers struct. This does not invalidate the register
+    /// cache.
     fn flush(&mut self) {
         for (&fpr, val) in &self.ps_cache {
             if !val.modified {
@@ -383,15 +387,15 @@ impl<'ctx> BlockBuilder<'ctx> {
         }
 
         for (reg, val) in &self.cache {
+            if !val.modified {
+                continue;
+            }
+
             // check whether this reg is a FPR/PS1 that has already been flushed
             if let Reg::FPR(fpr) | Reg::PS1(fpr) = reg
                 && let Some(val) = self.ps_cache.get(fpr)
                 && val.modified
             {
-                continue;
-            }
-
-            if !val.modified {
                 continue;
             }
 
@@ -468,6 +472,7 @@ impl<'ctx> BlockBuilder<'ctx> {
             .set_srcloc(ir::SourceLoc::new(self.executed_instructions));
     }
 
+    /// Calls [`prologue`] as if an instruction with `info` had been executed.
     fn prologue_with(&mut self, info: InstructionInfo) {
         self.executed_instructions += 1;
         self.executed_cycles += info.cycles as u32;
