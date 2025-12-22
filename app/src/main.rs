@@ -243,18 +243,18 @@ impl eframe::App for App {
         let running = self.runner.running();
         self.runner.stop();
 
-        let mut state = self.runner.get().unwrap();
-        for window_state in &mut self.windows {
-            window_state.window.prepare(&mut state);
+        {
+            let mut state = self.runner.get().unwrap();
+            for window_state in &mut self.windows {
+                window_state.window.prepare(&mut state);
+            }
+
+            self.cps = state
+                .cycles_history
+                .iter()
+                .map(|c| c.0.value())
+                .sum::<u64>() as f64;
         }
-
-        self.cps = state
-            .cycles_history
-            .iter()
-            .map(|c| c.0.value())
-            .sum::<u64>() as f64;
-
-        std::mem::drop(state);
 
         if running {
             self.runner.start();

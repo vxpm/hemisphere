@@ -41,8 +41,7 @@ fn worker(state: Arc<Shared>) {
     loop {
         sleeper.sleep_until(prev + STEP);
         while !state.advance.load(Ordering::Relaxed) {
-            prev = Instant::now() - STEP;
-            sleeper.sleep(Duration::from_micros(5));
+            sleeper.sleep(Duration::from_micros(1));
         }
 
         let start = Instant::now();
