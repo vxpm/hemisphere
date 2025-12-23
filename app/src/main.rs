@@ -297,15 +297,13 @@ impl eframe::App for App {
             }
         }
 
-        // if context.step {
-        //     self.runner.emulator.step();
-        // }
+        if context.step {
+            self.runner.step();
+        }
 
         let remaining = FRAMETIME.saturating_sub(self.last_update.elapsed());
-        std::thread::sleep(remaining);
-
-        ctx.request_repaint();
-        self.last_update = Instant::now();
+        ctx.request_repaint_after(remaining);
+        self.last_update = Instant::now() + remaining;
     }
 
     fn save(&mut self, storage: &mut dyn eframe::Storage) {

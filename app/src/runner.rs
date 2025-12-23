@@ -149,6 +149,13 @@ impl Runner {
         self.shared.advance.store(false, Ordering::Relaxed);
     }
 
+    pub fn step(&mut self) {
+        if !self.running() {
+            let mut lock = self.shared.state.lock().unwrap();
+            lock.emulator.step();
+        }
+    }
+
     pub fn running(&mut self) -> bool {
         self.shared.advance.load(Ordering::Relaxed)
     }
