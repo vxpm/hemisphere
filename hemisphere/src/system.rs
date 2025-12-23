@@ -3,6 +3,7 @@
 pub mod bus;
 pub mod eabi;
 pub mod executable;
+pub mod ipl;
 pub mod lazy;
 pub mod scheduler;
 
@@ -26,6 +27,7 @@ use crate::{
         dspi::Dsp,
         executable::Executable,
         gx::Gpu,
+        ipl::Ipl,
         lazy::Lazy,
         mem::Memory,
         mmu::Mmu,
@@ -245,17 +247,19 @@ impl System {
         let mut scheduler = Scheduler::default();
         scheduler.schedule(1 << 16, gx::cmd::process);
 
+        let ipl = Ipl::new(
+            config
+                .ipl
+                .take()
+                .unwrap_or_else(|| vec![0; mem::IPL_LEN as usize]),
+        );
+
         let mut system = System {
             scheduler,
             cpu: Cpu::default(),
             gpu: Gpu::default(),
             dsp: Dsp::default(),
-            mem: Memory::new(
-                config
-                    .ipl
-                    .take()
-                    .unwrap_or_else(|| vec![0; mem::IPL_LEN as usize]),
-            ),
+            mem: Memory::new(ipl),
             mmu: Mmu::default(),
             lazy: Lazy::default(),
             video: vi::Interface::default(),
