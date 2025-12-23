@@ -749,7 +749,7 @@ impl Interpreter {
             // DMA from main memory if resetting at low
             if !sys.dsp.control.reset_high() {
                 tracing::debug!("DSP DMA stub from main memory");
-                let data = sys.mem.ram[0x0100_0000..][..1024]
+                let data = sys.mem.ram()[0x0100_0000..][..1024]
                     .chunks_exact(2)
                     .map(|c| u16::from_be_bytes([c[0], c[1]]));
 
@@ -788,7 +788,7 @@ impl Interpreter {
 
                     for word in 0..(length / 2) {
                         let data = u16::read_be_bytes(
-                            &sys.mem.ram[(ram_base + 2 * word as u32) as usize..],
+                            &&sys.mem.ram()[(ram_base + 2 * word as u32) as usize..],
                         );
 
                         self.write_dmem(sys, dsp_base + word, data);
@@ -802,7 +802,7 @@ impl Interpreter {
                     for word in 0..(length / 2) {
                         let data = self.read_dmem(sys, dsp_base + word);
                         data.write_be_bytes(
-                            &mut sys.mem.ram[(ram_base + 2 * word as u32) as usize..],
+                            &mut sys.mem.ram_mut()[(ram_base + 2 * word as u32) as usize..],
                         );
                     }
                 }
@@ -815,7 +815,7 @@ impl Interpreter {
 
                     for word in 0..(length / 2) {
                         let data = u16::read_be_bytes(
-                            &sys.mem.ram[(ram_base + 2 * word as u32) as usize..],
+                            &&sys.mem.ram()[(ram_base + 2 * word as u32) as usize..],
                         );
 
                         self.write_imem(dsp_base + word, data);
@@ -849,17 +849,17 @@ impl Interpreter {
         let value = match format.sample() {
             SampleSize::Nibble => {
                 let address = index / 2;
-                let byte = u8::read_be_bytes(&sys.mem.aram[address as usize..]) as u16;
+                let byte = u8::read_be_bytes(&sys.dsp.aram[address as usize..]) as u16;
                 if index.is_multiple_of(2) {
                     byte >> 4
                 } else {
                     byte & 0xF
                 }
             }
-            SampleSize::Byte => u8::read_be_bytes(&sys.mem.aram[index as usize..]) as u16,
+            SampleSize::Byte => u8::read_be_bytes(&sys.dsp.aram[index as usize..]) as u16,
             SampleSize::Word => {
                 let address = index * 2;
-                u16::read_be_bytes(&sys.mem.aram[address as usize..])
+                u16::read_be_bytes(&sys.dsp.aram[address as usize..])
             }
             _ => panic!("reserved format"),
         };
@@ -1041,7 +1041,7 @@ impl Interpreter {
                 );
 
                 value.write_be_bytes(
-                    sys.mem.aram[self.accel.aram_curr.with_bit(31, false) as usize..]
+                    sys.dsp.aram[self.accel.aram_curr.with_bit(31, false) as usize..]
                         .as_mut_bytes(),
                 );
 

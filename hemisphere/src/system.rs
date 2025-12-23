@@ -108,7 +108,7 @@ impl System {
             iso::Apploader::read(&mut self.modules.disk).context(LoadApploaderCtx::Apploader)?;
 
         let size = apploader.size;
-        self.mem.ram[0x0120_0000..][..size as usize].copy_from_slice(&apploader.data);
+        self.mem.ram_mut()[0x0120_0000..][..size as usize].copy_from_slice(&apploader.data);
 
         Ok(Address(apploader.entrypoint))
     }
@@ -258,13 +258,13 @@ impl System {
             scheduler,
             cpu: Cpu::default(),
             gpu: Gpu::default(),
-            dsp: Dsp::default(),
-            mem: Memory::new(ipl),
+            dsp: Dsp::new(),
+            mem: Memory::new(&ipl),
             mmu: Mmu::default(),
             lazy: Lazy::default(),
             video: vi::Interface::default(),
             processor: pi::Interface::default(),
-            external: exi::Interface::default(),
+            external: exi::Interface::new(),
             audio: ai::Interface::default(),
             disk: di::Interface::default(),
             serial: si::Interface::default(),

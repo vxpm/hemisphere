@@ -7,6 +7,9 @@ use bitos::{
 };
 use gekko::Address;
 use std::io::Write;
+use util::boxed_array;
+
+pub const SRAM_LEN: usize = 64;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Device0 {
@@ -153,11 +156,22 @@ pub struct Channel2 {
     pub immediate: u32,
 }
 
-#[derive(Default)]
 pub struct Interface {
+    pub sram: Box<[u8; SRAM_LEN]>,
     pub channel0: Channel0,
     pub channel1: Channel0,
     pub channel2: Channel0,
+}
+
+impl Interface {
+    pub fn new() -> Self {
+        Self {
+            sram: boxed_array(0),
+            channel0: Default::default(),
+            channel1: Default::default(),
+            channel2: Default::default(),
+        }
+    }
 }
 
 fn ipl_transfer(sys: &mut System) {
@@ -177,22 +191,23 @@ fn ipl_transfer(sys: &mut System) {
         ram_base
     );
 
-    sys.mem.ram[ram_base..][..length].copy_from_slice(&sys.mem.ipl[ipl_base..][..length]);
+    let regions = sys.mem.regions();
+    regions.ram[ram_base..][..length].copy_from_slice(&regions.ipl[ipl_base..][..length]);
 }
 
 fn update_sram_checksum(sys: &mut System) {
     let mut c1 = 0u16;
     let mut c2 = 0u16;
-    sys.mem.sram[0x13] = 0x2C;
+    sys.external.sram[0x13] = 0x2C;
 
     for i in 0..4 {
-        let word = u16::read_be_bytes(&sys.mem.sram[0xC + 2 * i..]);
+        let word = u16::read_be_bytes(&sys.external.sram[0xC + 2 * i..]);
         c1 = c1.wrapping_add(word);
         c2 = c2.wrapping_add(word ^ 0xFFFF);
     }
 
-    c1.write_be_bytes(&mut sys.mem.sram[0..2]);
-    c2.write_be_bytes(&mut sys.mem.sram[2..4]);
+    c1.write_be_bytes(&mut sys.external.sram[0..2]);
+    c2.write_be_bytes(&mut sys.external.sram[2..4]);
 }
 
 fn sram_transfer_read(sys: &mut System) {
@@ -215,7 +230,8 @@ fn sram_transfer_read(sys: &mut System) {
         ram_base
     );
 
-    sys.mem.ram[ram_base..][..length].copy_from_slice(&sys.mem.sram[sram_base..][..length]);
+    sys.mem.ram_mut()[ram_base..][..length]
+        .copy_from_slice(&sys.external.sram[sram_base..][..length]);
 }
 
 fn sram_transfer_write(sys: &mut System, current: u8) {
@@ -224,7 +240,7 @@ fn sram_transfer_write(sys: &mut System, current: u8) {
     sys.external
         .channel0
         .immediate
-        .write_be_bytes(&mut sys.mem.sram[current as usize..]);
+        .write_be_bytes(&mut sys.external.sram[current as usize..]);
 
     let next = current + 4;
     if next == 64 {
@@ -266,7 +282,7 @@ fn uart_transfer_read(sys: &mut System) {
         ram_base
     );
 
-    sys.mem.ram[ram_base..][..length].fill(0);
+    sys.mem.ram_mut()[ram_base..][..length].fill(0);
 }
 
 fn ipl_rtc_sram_transfer(sys: &mut System) {

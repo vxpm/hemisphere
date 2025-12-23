@@ -27,7 +27,7 @@ macro_rules! map {
     ($offset:ident, $match_addr:expr; $($addr:expr, $size:expr => $block:expr,)* @default => $default:expr $(,)?) => {
         match $match_addr.value() {
             $(
-                $addr..=ConstTrick::<{ $addr + ($size - 1) }>::OUTPUT => {
+                $addr..=ConstTrick::<{ ($addr + ($size - 1)) as u32 }>::OUTPUT => {
                     #[allow(unused_assignments)]
                     {
                         $offset = ($match_addr.value() - $addr) as usize;
@@ -50,8 +50,8 @@ impl System {
         let offset: usize;
         map! {
             offset, addr;
-            0x0000_0000, RAM_LEN => Some(P::read_be_bytes(&self.mem.ram.as_slice()[offset..])),
-            0xFFF0_0000, IPL_LEN / 2 => Some(P::read_be_bytes(&self.mem.ipl.as_slice()[offset..])),
+            0x0000_0000, RAM_LEN => Some(P::read_be_bytes(&self.mem.ram()[offset..])),
+            0xFFF0_0000, IPL_LEN / 2 => Some(P::read_be_bytes(&self.mem.ipl()[offset..])),
             @default => None
         }
     }
@@ -252,9 +252,9 @@ impl System {
         let offset: usize;
         map! {
             offset, addr;
-            0x0000_0000, RAM_LEN => P::read_be_bytes(&self.mem.ram[offset..]),
-            0xE000_0000, L2C_LEN => P::read_be_bytes(&self.mem.l2c[offset..]),
-            0xFFF0_0000, IPL_LEN / 2 => P::read_be_bytes(&self.mem.ipl[offset..]),
+            0x0000_0000, RAM_LEN => P::read_be_bytes(&self.mem.ram()[offset..]),
+            0xE000_0000, L2C_LEN => P::read_be_bytes(&self.mem.l2c()[offset..]),
+            0xFFF0_0000, IPL_LEN / 2 => P::read_be_bytes(&self.mem.ipl()[offset..]),
             @default => {
                 std::hint::cold_path();
                 if addr.value() & 0xFFFF_0000 != 0x0C00_0000 {
@@ -626,9 +626,9 @@ impl System {
         let offset: usize;
         map! {
             offset, addr;
-            0x0000_0000, RAM_LEN => value.write_be_bytes(&mut self.mem.ram[offset..]),
-            0xE000_0000, L2C_LEN => value.write_be_bytes(&mut self.mem.l2c[offset..]),
-            0xFFF0_0000, IPL_LEN / 2 => value.write_be_bytes(&mut self.mem.ipl[offset..]),
+            0x0000_0000, RAM_LEN => value.write_be_bytes(&mut self.mem.ram_mut()[offset..]),
+            0xE000_0000, L2C_LEN => value.write_be_bytes(&mut self.mem.l2c_mut()[offset..]),
+            0xFFF0_0000, IPL_LEN / 2 => tracing::warn!("bus write to IPL"),
             @default => {
                 std::hint::cold_path();
                 if addr.value() & 0xFFFF_0000 != 0x0C00_0000 {

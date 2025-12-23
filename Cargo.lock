@@ -1980,6 +1980,7 @@ dependencies = [
  "glam",
  "gxtex",
  "iso",
+ "nix",
  "oneshot",
  "ordered-float",
  "ring-arena",
@@ -1989,6 +1990,7 @@ dependencies = [
  "tracing",
  "twox-hash",
  "util",
+ "windows 0.62.2",
  "zerocopy",
 ]
 

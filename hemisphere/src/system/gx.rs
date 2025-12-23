@@ -1010,7 +1010,7 @@ fn read_attribute_from_array<D: AttributeDescriptor>(
     let base = array.address.value() as usize;
     let offset = array.stride.value() as usize * index as usize;
     let address = base + offset;
-    let mut array = &sys.mem.ram[address..];
+    let mut array = &sys.mem.ram()[address..];
     let mut reader = array.reader();
     descriptor.read(&mut reader).unwrap()
 }
@@ -1173,7 +1173,7 @@ fn update_texture(sys: &mut System, index: usize) {
     let map = sys.gpu.texture.maps[index];
     let start = map.address.value() as usize;
     let len = map.format.size().value() as usize;
-    let slice = &sys.mem.ram[start..][..len];
+    let slice = &sys.mem.ram()[start..][..len];
 
     if !sys.gpu.texture.insert_cache(map.address, slice) {
         // println!("READING TEXTURE FROM {}", map.address);
@@ -1195,7 +1195,7 @@ fn update_texture(sys: &mut System, index: usize) {
 fn call(sys: &mut System, address: Address, length: u32) {
     tracing::debug!("called {} with length 0x{:08X}", address, length);
     let address = address.value().with_bits(26, 32, 0);
-    let data = &sys.mem.ram[address.value() as usize..][..length as usize];
+    let data = &sys.mem.ram()[address.value() as usize..][..length as usize];
     sys.gpu.command.queue.push_front_bytes(data);
 }
 
@@ -1263,7 +1263,7 @@ fn do_efb_copy(sys: &mut System, cmd: pix::CopyCmd) {
         let stride = sys.gpu.pixel.copy_stride;
         let width = sys.gpu.pixel.copy_dimensions.width() as u32 / divisor;
         let height = sys.gpu.pixel.copy_dimensions.height() as u32 / divisor;
-        let output = &mut sys.mem.ram[sys.gpu.pixel.copy_dst.value() as usize..];
+        let output = &mut sys.mem.ram_mut()[sys.gpu.pixel.copy_dst.value() as usize..];
         encode_depth_texture(pixels, cmd.depth_format(), stride, width, height, output);
     } else {
         let (sender, receiver) = oneshot::channel();
@@ -1287,7 +1287,7 @@ fn do_efb_copy(sys: &mut System, cmd: pix::CopyCmd) {
         let stride = sys.gpu.pixel.copy_stride;
         let width = sys.gpu.pixel.copy_dimensions.width() as u32 / divisor;
         let height = sys.gpu.pixel.copy_dimensions.height() as u32 / divisor;
-        let output = &mut sys.mem.ram[sys.gpu.pixel.copy_dst.value() as usize..];
+        let output = &mut sys.mem.ram_mut()[sys.gpu.pixel.copy_dst.value() as usize..];
         encode_color_texture(pixels, cmd.color_format(), stride, width, height, output);
     }
 }

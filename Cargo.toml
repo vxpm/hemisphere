@@ -159,6 +159,12 @@ wesl = { version = "0.3", default-features = false, features = ["eval"] }
 wesl-quote = { version = "0.3" }
 wgpu = { version = "27.0", features = [], default-features = false }
 zerocopy = { version = "0.8", features = ["derive"] }
+windows = { version = ">=0.59", features = [
+    "Win32_System_Memory",
+    "Win32_System_Threading",
+    "Win32_System_Diagnostics_Debug",
+] }
+nix = { version = "0.30", features = ["mman"] }
 
 # lints
 [workspace.lints.clippy]

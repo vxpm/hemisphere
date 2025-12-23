@@ -207,13 +207,13 @@ pub fn write_control(sys: &mut System, value: Control) {
                 let length = sys.disk.dma_length;
                 assert_eq!(length, 32);
 
-                sys.mem.ram[target.value() as usize..][..12 as usize].copy_from_slice(&[
+                sys.mem.ram_mut()[target.value() as usize..][..12 as usize].copy_from_slice(&[
                     0x00, 0x00, 0x00, 0x00, // zeros
                     0x20, 0x02, 0x04, 0x02, // date
                     0x61, 0x00, 0x00, 0x00, // version
                 ]);
 
-                sys.mem.ram[target.value() as usize + 12..][..32 - 12].fill(0);
+                sys.mem.ram_mut()[target.value() as usize + 12..][..32 - 12].fill(0);
                 sys.scheduler.schedule(10000, complete_transfer);
             }
             Command::Read { offset, length } => {
@@ -234,7 +234,7 @@ pub fn write_control(sys: &mut System, value: Control) {
                 );
 
                 let target = target.value().with_bit(31, false);
-                let slice = &mut sys.mem.ram[target as usize..][..length as usize];
+                let slice = &mut sys.mem.ram_mut()[target as usize..][..length as usize];
 
                 if !sys.modules.disk.has_disk() {
                     tracing::error!("tried to read from disk but no disk is inserted");

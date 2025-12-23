@@ -386,7 +386,7 @@ fn xfb_inner(sys: &System, base: Address) -> Option<&[u8]> {
     }
 
     let length = 2 * pixels;
-    Some(&sys.mem.ram[xfb as usize..xfb as usize + length as usize])
+    Some(&sys.mem.ram()[xfb as usize..xfb as usize + length as usize])
 }
 
 /// Returns the data of the top XFB in YCbCr format (y0, cb, y1, cr).

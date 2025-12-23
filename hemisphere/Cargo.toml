@@ -28,4 +28,10 @@ tinyvec.workspace = true
 ring-arena.workspace = true
 twox-hash.workspace = true
 
+[target.'cfg(windows)'.dependencies]
+windows.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+nix.workspace = true
+
 color-backtrace = "0.7"

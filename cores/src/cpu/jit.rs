@@ -417,9 +417,10 @@ const CTX_HOOKS: Hooks = {
         let dma = ctx.sys.cpu.supervisor.config.dma.clone();
 
         if dma.lower.trigger() {
+            let regions = ctx.sys.mem.regions();
             let ram =
-                &mut ctx.sys.mem.ram[dma.mem_address().value() as usize..][..dma.length() as usize];
-            let l2c = &mut ctx.sys.mem.l2c[dma.cache_address().value() as usize - 0xE000_0000..]
+                &mut regions.ram[dma.mem_address().value() as usize..][..dma.length() as usize];
+            let l2c = &mut regions.l2c[dma.cache_address().value() as usize - 0xE000_0000..]
                 [..dma.length() as usize];
 
             debug_assert!(dma.length() <= 4096);

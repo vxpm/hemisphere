@@ -5,6 +5,9 @@ use bitos::{
     integer::{u15, u31},
 };
 use gekko::Address;
+use util::boxed_array;
+
+pub const ARAM_LEN: usize = 16 * bytesize::MIB as usize;
 
 #[bitos(32)]
 #[derive(Debug, Default)]
@@ -122,7 +125,6 @@ pub struct DspDma {
     pub control: DspDmaControl,
 }
 
-#[derive(Default)]
 pub struct Dsp {
     pub control: Control,
     /// Data from DSP to CPU
@@ -131,6 +133,20 @@ pub struct Dsp {
     pub cpu_mailbox: Mailbox,
     pub dsp_dma: DspDma,
     pub aram_dma: AramDma,
+    pub aram: Box<[u8; ARAM_LEN]>,
+}
+
+impl Dsp {
+    pub fn new() -> Self {
+        Self {
+            control: Default::default(),
+            dsp_mailbox: Default::default(),
+            cpu_mailbox: Default::default(),
+            dsp_dma: Default::default(),
+            aram_dma: Default::default(),
+            aram: boxed_array(0),
+        }
+    }
 }
 
 pub fn write_control(sys: &mut System, value: Control) {
@@ -180,8 +196,8 @@ pub fn aram_dma(sys: &mut System) {
                     Address(ram_base)
                 );
 
-                let aram = &mut sys.mem.aram[aram_base as usize..][..length];
-                aram.copy_from_slice(&sys.mem.ram[ram_base as usize..][..length]);
+                let aram = &mut sys.dsp.aram[aram_base as usize..][..length];
+                aram.copy_from_slice(&sys.mem.ram()[ram_base as usize..][..length]);
             }
             AramDmaDirection::FromAramToRam => {
                 tracing::debug!(
@@ -189,8 +205,8 @@ pub fn aram_dma(sys: &mut System) {
                     Address(ram_base)
                 );
 
-                sys.mem.ram[ram_base as usize..][..length]
-                    .copy_from_slice(&sys.mem.aram[aram_base as usize..][..length]);
+                sys.mem.ram_mut()[ram_base as usize..][..length]
+                    .copy_from_slice(&sys.dsp.aram[aram_base as usize..][..length]);
             }
         }
 
