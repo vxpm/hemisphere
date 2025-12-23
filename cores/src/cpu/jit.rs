@@ -15,7 +15,6 @@ use ppcjit::{
 };
 use rustc_hash::FxBuildHasher;
 use seq_macro::seq;
-use slotmap::{SlotMap, new_key_type};
 use std::{cell::Cell, ops::Range};
 
 pub use ppcjit;
@@ -25,10 +24,9 @@ type FxIndexMap<K, V> = IndexMap<K, V, FxBuildHasher>;
 const PAGE_SHIFT: usize = 12;
 const PAGE_COUNT: usize = 1 << (32 - PAGE_SHIFT);
 
-new_key_type! {
-    /// Identifier for a block in a [`Blocks`] storage.
-    pub struct BlockId;
-}
+/// Identifier for a block in a [`Blocks`] storage.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BlockId(usize);
 
 #[derive(Debug, Clone)]
 struct Mapping {
@@ -122,14 +120,14 @@ unsafe impl Send for StoredBlock {}
 
 /// A structure which keeps tracks of compiled [`Block`]s.
 pub struct Blocks {
-    pub storage: SlotMap<BlockId, StoredBlock>,
+    pub storage: Vec<StoredBlock>,
     pub mapping: BlockMapping,
 }
 
 impl Default for Blocks {
     fn default() -> Self {
         Self {
-            storage: SlotMap::with_key(),
+            storage: Vec::new(),
             mapping: BlockMapping::default(),
         }
     }
@@ -141,7 +139,8 @@ impl Blocks {
         let end = addr + block.meta().seq.len() as u32 * 4;
         let range = addr..end;
 
-        let id = self.storage.insert(StoredBlock {
+        let id = BlockId(self.storage.len());
+        self.storage.push(StoredBlock {
             block,
             links: Vec::new(),
         });
@@ -152,12 +151,12 @@ impl Blocks {
 
     #[inline(always)]
     pub fn get(&mut self, addr: Address) -> Option<&StoredBlock> {
-        self.storage.get(self.mapping.get(addr)?)
+        self.storage.get(self.mapping.get(addr)?.0)
     }
 
     #[inline(always)]
     pub fn get_uncached(&mut self, addr: Address) -> Option<&StoredBlock> {
-        self.storage.get(self.mapping.get_uncached(addr)?)
+        self.storage.get(self.mapping.get_uncached(addr)?.0)
     }
 
     #[inline(always)]
@@ -191,7 +190,7 @@ impl Blocks {
 
         for target in self.mapping.to_remove.drain(..) {
             let mapping = self.mapping.tree_map.swap_remove(&target).unwrap();
-            let block = self.storage.get_mut(mapping.id).unwrap();
+            let block = self.storage.get_mut(mapping.id.0).unwrap();
 
             // invalidate links
             for link in block.links.drain(..) {
@@ -287,7 +286,7 @@ const CTX_HOOKS: Hooks = {
     ) {
         debug_assert!(link_data.is_none());
         if let Some(id) = ctx.blocks.mapping.get(addr) {
-            let stored = ctx.blocks.storage.get_mut(id).unwrap();
+            let stored = ctx.blocks.storage.get_mut(id.0).unwrap();
             *link_data = Some(LinkData {
                 block: stored.block.as_ptr(),
                 pattern: stored.block.meta().pattern,
@@ -655,7 +654,7 @@ impl JitCore {
             .blocks
             .mapping
             .get(sys.cpu.pc)
-            .and_then(|id| self.blocks.storage.get(id))
+            .and_then(|id| self.blocks.storage.get(id.0))
             .filter(|b| b.block.meta().seq.len() <= max_instructions as usize);
 
         let compiled: ppcjit::Block;
@@ -716,7 +715,7 @@ impl JitCore {
             .blocks
             .mapping
             .get(sys.cpu.pc)
-            .and_then(|id| self.blocks.storage.get(id))
+            .and_then(|id| self.blocks.storage.get(id.0))
             .filter(|b| b.block.meta().seq.len() <= max_instructions as usize);
 
         if block.is_none() {

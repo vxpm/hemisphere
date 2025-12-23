@@ -21,3 +21,13 @@ glam.workspace = true
 rustc-hash.workspace = true
 
 flume = "0.12"
+
+# some target specific stuff for better build times i hope?
+[target.'cfg(target_os = "linux")'.dependencies]
+wgpu = { workspace = true, features = ["vulkan", "wgsl"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+wgpu = { workspace = true, features = ["vulkan", "metal", "wgsl"] }
+
+[target.'cfg(target_family = "windows")'.dependencies]
+wgpu = { workspace = true, features = ["dx12", "vulkan", "wgsl"] }

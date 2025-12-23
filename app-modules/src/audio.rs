@@ -155,7 +155,7 @@ impl CpalAudio {
             .supported_output_configs()
             .expect("error while querying configs");
 
-        let sample_rate = cpal::SampleRate(48_000);
+        let sample_rate = 48_000;
         let config = supported_configs
             .find(|c| {
                 c.sample_format() == cpal::SampleFormat::F32

@@ -16,7 +16,7 @@ rustc-hash.workspace = true
 zerocopy.workspace = true
 tracing.workspace = true
 
-cranelift = { version = "0.126", features = ["frontend", "native"] }
+cranelift = { version = "0.127", features = ["frontend", "native"] }
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = ">=0.59", features = [

@@ -33,7 +33,7 @@ eframe = { version = "0.33", features = [
 ], default-features = false }
 egui_extras = "0.33"
 tracing-appender = "0.2"
-ron = { version = "0.12" }
+ron = { version = "0.11" }
 typetag = "0.2"
 serde = { version = "1", features = ["derive"] }
 renderdoc = "0.12"

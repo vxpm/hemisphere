@@ -9,7 +9,6 @@ use bitos::{
 };
 use gekko::Address;
 use gxtex::{AlphaSource, IntensitySource};
-use rustc_hash::FxBuildHasher;
 use std::collections::HashMap;
 
 #[bitos(2)]
@@ -194,7 +193,6 @@ pub struct LutRef {
 pub struct Interface {
     pub maps: [TextureMap; 8],
     pub cache: HashMap<Address, u64>,
-    pub hasher: FxBuildHasher,
 }
 
 impl std::fmt::Debug for Interface {
@@ -210,8 +208,7 @@ impl Interface {
     /// Given an address and the texture data present there, returns whether the data hash matches
     /// with the one in the cache. If not, the hash is inserted into the cache.
     pub fn insert_cache(&mut self, addr: Address, data: &[u8]) -> bool {
-        use std::hash::BuildHasher;
-        let new_hash = self.hasher.hash_one(data);
+        let new_hash = twox_hash::XxHash3_64::oneshot(data);
         if let Some(old_hash) = self.cache.get(&addr) {
             if *old_hash == new_hash {
                 true
