@@ -93,13 +93,13 @@ impl BlockBuilder<'_> {
         self.bd.set_cold_block(exit);
 
         // => dont follow link, exit
-        self.bd.switch_to_block(exit);
+        self.switch_to_bb(exit);
         self.set(Reg::PC, destination);
         self.flush();
         self.prologue();
 
         // => follow link
-        self.bd.switch_to_block(follow_link);
+        self.switch_to_bb(follow_link);
         self.set(Reg::PC, destination);
         self.flush();
 
@@ -131,7 +131,7 @@ impl BlockBuilder<'_> {
         self.bd.seal_block(need_to_link);
 
         // => need to link
-        self.bd.switch_to_block(need_to_link);
+        self.switch_to_bb(need_to_link);
 
         // call try link hook
         let try_link_hook = self.bd.ins().iconst(
@@ -165,7 +165,7 @@ impl BlockBuilder<'_> {
         self.bd.seal_block(link_failure);
 
         // => call linked
-        self.bd.switch_to_block(call_linked);
+        self.switch_to_bb(call_linked);
         let link = self.bd.block_params(call_linked)[0];
         self.bd.ins().return_call_indirect(
             self.consts.signatures.block,
@@ -179,7 +179,7 @@ impl BlockBuilder<'_> {
         );
 
         // => link failure
-        self.bd.switch_to_block(link_failure);
+        self.switch_to_bb(link_failure);
         self.prologue();
     }
 

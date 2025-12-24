@@ -186,7 +186,7 @@ impl BlockBuilder<'_> {
         self.bd.seal_block(slow_block);
 
         // fast
-        self.bd.switch_to_block(fast_block);
+        self.switch_to_bb(fast_block);
         let offset = self.bd.ins().band_imm(addr, (1 << 17) - 1);
         let offset = self.bd.ins().uextend(self.consts.ptr_type, offset);
         let ptr = self.bd.ins().iadd(ptr, offset);
@@ -204,7 +204,7 @@ impl BlockBuilder<'_> {
             .jump(continue_block, &[ir::BlockArg::Value(value)]);
 
         // slow
-        self.bd.switch_to_block(slow_block);
+        self.switch_to_bb(slow_block);
         let value = self.slow_mem_read::<P>(addr);
         self.bd
             .ins()
@@ -212,14 +212,56 @@ impl BlockBuilder<'_> {
 
         // continue
         self.bd.seal_block(continue_block);
-        self.bd.switch_to_block(continue_block);
+        self.switch_to_bb(continue_block);
         let read = self.bd.block_params(continue_block)[0];
 
         read
     }
 
     pub fn mem_write<P: ReadWriteAble>(&mut self, addr: ir::Value, value: ir::Value) {
-        self.slow_mem_write::<P>(addr, value)
+        let pow = size_of::<*const ()>().ilog2();
+        let lut_index = self.bd.ins().ushr_imm(addr, 17);
+        let lut_index = self.bd.ins().uextend(self.consts.ptr_type, lut_index);
+        let lut_offset = self.bd.ins().ishl_imm(lut_index, pow as i64);
+
+        let lut_ptr = self.bd.ins().iadd(self.consts.fmem_ptr, lut_offset);
+        let ptr = self
+            .bd
+            .ins()
+            .load(self.consts.ptr_type, ir::MemFlags::trusted(), lut_ptr, 0);
+
+        let fast_block = self.bd.create_block();
+        let slow_block = self.bd.create_block();
+        let continue_block = self.bd.create_block();
+        self.bd.set_cold_block(slow_block);
+
+        self.bd.ins().brif(ptr, fast_block, &[], slow_block, &[]);
+        self.bd.seal_block(fast_block);
+        self.bd.seal_block(slow_block);
+
+        // fast
+        self.switch_to_bb(fast_block);
+        let offset = self.bd.ins().band_imm(addr, (1 << 17) - 1);
+        let offset = self.bd.ins().uextend(self.consts.ptr_type, offset);
+        let ptr = self.bd.ins().iadd(ptr, offset);
+        let value_bswap = if P::IR_TYPE != ir::types::I8 {
+            self.bd.ins().bswap(value)
+        } else {
+            value
+        };
+        self.bd
+            .ins()
+            .store(ir::MemFlags::trusted(), value_bswap, ptr, 0);
+        self.bd.ins().jump(continue_block, &[]);
+
+        // slow
+        self.switch_to_bb(slow_block);
+        self.slow_mem_write::<P>(addr, value);
+        self.bd.ins().jump(continue_block, &[]);
+
+        // continue
+        self.bd.seal_block(continue_block);
+        self.switch_to_bb(continue_block);
     }
 
     /// Reads a quantized value. Returns the value and the type size.
