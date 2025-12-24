@@ -1,10 +1,15 @@
-use crate::block::{Info, LinkData};
+use crate::{
+    FastmemLut,
+    block::{Info, LinkData},
+};
 use cranelift::{codegen::ir, prelude::isa};
 use gekko::{Address, Cpu};
 
 pub type Context = std::ffi::c_void;
 
 pub type GetRegistersHook = fn(*mut Context) -> *mut Cpu;
+pub type GetFastmemHook = fn(*mut Context) -> *mut FastmemLut;
+
 pub type FollowLinkHook = fn(*const Info, *mut Context, *mut LinkData) -> bool;
 pub type TryLinkHook = fn(*mut Context, Address, *mut LinkData);
 
@@ -19,6 +24,9 @@ pub type GenericHook = fn(*mut Context);
 pub struct Hooks {
     /// Hook that returns a pointer to the CPU state struct given the context.
     pub get_registers: GetRegistersHook,
+    /// Hook that returns a pointer to the fastmem LUT given the context.
+    pub get_fastmem: GetFastmemHook,
+
     /// Hook that checks whether a linked block should be followed or the execution should return.
     pub follow_link: FollowLinkHook,
     /// Tries to link this block to another one given the current context, the destination address
@@ -59,9 +67,20 @@ impl Hooks {
     pub(crate) fn get_registers_sig(ptr_type: ir::Type) -> ir::Signature {
         ir::Signature {
             params: vec![
-                ir::AbiParam::new(ptr_type), // registers
+                ir::AbiParam::new(ptr_type), // ctx
             ],
-            returns: vec![ir::AbiParam::new(ptr_type)],
+            returns: vec![ir::AbiParam::new(ptr_type)], // registers
+            call_conv: isa::CallConv::SystemV,
+        }
+    }
+
+    /// Returns the function signature for the `get_fastmem` hook.
+    pub(crate) fn get_fastmem_sig(ptr_type: ir::Type) -> ir::Signature {
+        ir::Signature {
+            params: vec![
+                ir::AbiParam::new(ptr_type), // ctx
+            ],
+            returns: vec![ir::AbiParam::new(ptr_type)], // fastmem lut
             call_conv: isa::CallConv::SystemV,
         }
     }

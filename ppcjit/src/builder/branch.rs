@@ -174,6 +174,7 @@ impl BlockBuilder<'_> {
                 self.consts.info_ptr,
                 self.consts.ctx_ptr,
                 self.consts.regs_ptr,
+                self.consts.fmem_ptr,
             ],
         );
 

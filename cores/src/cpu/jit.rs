@@ -9,7 +9,7 @@ use hemisphere::{
 };
 use indexmap::IndexMap;
 use ppcjit::{
-    Block,
+    Block, FastmemLut,
     block::{BlockFn, Info, LinkData, Pattern},
     hooks::*,
 };
@@ -244,6 +244,10 @@ struct Context<'a> {
 const CTX_HOOKS: Hooks = {
     extern "sysv64-unwind" fn get_registers<'a>(ctx: &'a mut Context) -> &'a mut Cpu {
         &mut ctx.sys.cpu
+    }
+
+    extern "sysv64-unwind" fn get_fastmem<'a>(ctx: &'a mut Context) -> &'a FastmemLut {
+        ctx.sys.mem.get_data_fastmem_lut()
     }
 
     extern "sysv64-unwind" fn follow_link(
@@ -483,6 +487,9 @@ const CTX_HOOKS: Hooks = {
 
         let get_registers =
             transmute::<_, GetRegistersHook>(get_registers as extern "sysv64-unwind" fn(_) -> _);
+        let get_fastmem =
+            transmute::<_, GetFastmemHook>(get_fastmem as extern "sysv64-unwind" fn(_) -> _);
+
         let follow_link =
             transmute::<_, FollowLinkHook>(follow_link as extern "sysv64-unwind" fn(_, _, _) -> _);
         let try_link = transmute::<_, TryLinkHook>(try_link as extern "sysv64-unwind" fn(_, _, _));
@@ -526,6 +533,8 @@ const CTX_HOOKS: Hooks = {
 
         Hooks {
             get_registers,
+            get_fastmem,
+
             follow_link,
             try_link,
 

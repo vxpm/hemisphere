@@ -38,9 +38,8 @@ impl PageTranslation {
 }
 
 const PAGES_COUNT: usize = 1 << 15;
-
-type TranslationLut = Box<[PageTranslation; PAGES_COUNT]>;
-type FastmemLut = Box<[Option<NonNull<u8>>; PAGES_COUNT]>;
+type TranslationLut = [PageTranslation; PAGES_COUNT];
+type FastmemLut = [Option<NonNull<u8>>; PAGES_COUNT];
 
 enum Region {
     Ram,
@@ -78,9 +77,9 @@ pub struct Memory {
     l2c: NonNull<u8>,
     ipl: NonNull<u8>,
 
-    data_fastmem_lut: FastmemLut,
-    data_translation_lut: TranslationLut,
-    inst_translation_lut: TranslationLut,
+    data_fastmem_lut: Box<FastmemLut>,
+    data_translation_lut: Box<TranslationLut>,
+    inst_translation_lut: Box<TranslationLut>,
 }
 
 fn update_lut_with(
@@ -255,12 +254,16 @@ impl Memory {
             .map(Into::into)
     }
 
-    #[inline]
-    pub fn get_data_fastmem_base(&self, addr: Address) -> Option<NonNull<u8>> {
-        let addr = addr.value();
-        let logical_base = addr >> 17;
-        self.data_fastmem_lut[logical_base as usize]
+    pub fn get_data_fastmem_lut(&self) -> &FastmemLut {
+        &*self.data_fastmem_lut
     }
+
+    // #[inline]
+    // pub fn get_data_fastmem_base(&self, addr: Address) -> Option<NonNull<u8>> {
+    //     let addr = addr.value();
+    //     let logical_base = addr >> 17;
+    //     self.data_fastmem_lut[logical_base as usize]
+    // }
 }
 
 unsafe impl Send for Memory {}

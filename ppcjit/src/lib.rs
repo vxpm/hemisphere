@@ -9,8 +9,6 @@ mod unwind;
 pub mod block;
 pub mod hooks;
 
-use std::sync::Arc;
-
 use crate::{
     block::{BlockFn, Info, Meta, Trampoline},
     builder::BlockBuilder,
@@ -25,6 +23,7 @@ use cranelift::{
 };
 use easyerr::{Error, ResultExt};
 use gekko::disasm::Ins;
+use std::{ptr::NonNull, sync::Arc};
 
 pub use block::Block;
 pub use sequence::Sequence;
@@ -38,6 +37,22 @@ pub struct Settings {
     /// Whether to ignore unimplemented instructions instead of panicking.
     pub ignore_unimplemented: bool,
 }
+
+pub const FASTMEM_LUT_COUNT: usize = 1 << 15;
+pub type FastmemLut = [Option<NonNull<u8>>; FASTMEM_LUT_COUNT];
+
+// fn empty_fastmem() -> NonNull<FastmemLut> {
+//     #[derive(Clone, Copy)]
+//     #[repr(transparent)]
+//     struct SendSyncWrapper(*mut u8);
+//     unsafe impl Send for SendSyncWrapper {}
+//     unsafe impl Sync for SendSyncWrapper {}
+//
+//     static EMPTY_FASTMEM_LUT: [SendSyncWrapper; FASTMEM_LUT_COUNT] =
+//         [SendSyncWrapper(std::ptr::null_mut()); FASTMEM_LUT_COUNT];
+//
+//     NonNull::new((&raw const EMPTY_FASTMEM_LUT).cast_mut().cast()).unwrap()
+// }
 
 struct Compiler {
     settings: Settings,
@@ -84,7 +99,8 @@ impl Compiler {
     fn block_signature(&self) -> ir::Signature {
         let ptr = self.isa.pointer_type();
         ir::Signature {
-            params: vec![ir::AbiParam::new(ptr); 3],
+            // info, ctx, regs, fastmem
+            params: vec![ir::AbiParam::new(ptr); 4],
             returns: vec![],
             call_conv: codegen::isa::CallConv::Tail,
         }
@@ -120,9 +136,9 @@ impl Compiler {
         let info_ptr = params[0];
         let ctx_ptr = params[1];
         let block_ptr = params[2];
+        let ptr_type = self.isa.pointer_type();
 
         // extract regs ptr
-        let ptr_type = self.isa.pointer_type();
         let get_regs_sig = builder.import_signature(Hooks::get_registers_sig(ptr_type));
         let get_registers = builder
             .ins()
@@ -132,11 +148,23 @@ impl Compiler {
             .call_indirect(get_regs_sig, get_registers, &[ctx_ptr]);
         let regs_ptr = builder.inst_results(inst)[0];
 
+        // extract fastmem ptr
+        let get_fmem_sig = builder.import_signature(Hooks::get_fastmem_sig(ptr_type));
+        let get_fmem = builder
+            .ins()
+            .iconst(ptr_type, self.hooks.get_fastmem as usize as i64);
+        let inst = builder
+            .ins()
+            .call_indirect(get_fmem_sig, get_fmem, &[ctx_ptr]);
+        let fmem_ptr = builder.inst_results(inst)[0];
+
         // call the block
         let block_sig = builder.import_signature(block_sig);
-        builder
-            .ins()
-            .call_indirect(block_sig, block_ptr, &[info_ptr, ctx_ptr, regs_ptr]);
+        builder.ins().call_indirect(
+            block_sig,
+            block_ptr,
+            &[info_ptr, ctx_ptr, regs_ptr, fmem_ptr],
+        );
 
         builder.ins().return_(&[]);
         builder.finalize();

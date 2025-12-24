@@ -109,6 +109,7 @@ struct Consts {
     info_ptr: ir::Value,
     ctx_ptr: ir::Value,
     regs_ptr: ir::Value,
+    fmem_ptr: ir::Value,
 
     signatures: Signatures,
 }
@@ -151,6 +152,7 @@ impl<'ctx> BlockBuilder<'ctx> {
         let info_ptr = params[0];
         let ctx_ptr = params[1];
         let regs_ptr = params[2];
+        let fmem_ptr = params[3];
 
         let signatures = Signatures {
             block: builder.import_signature(builder.func.signature.clone()),
@@ -177,6 +179,7 @@ impl<'ctx> BlockBuilder<'ctx> {
             info_ptr,
             ctx_ptr,
             regs_ptr,
+            fmem_ptr,
             signatures,
         };
 
