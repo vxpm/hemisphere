@@ -203,7 +203,8 @@ pub fn write_control(sys: &mut System, value: Control) {
         let command = sys.disk.command();
         match command {
             Command::Identify => {
-                let target = sys.mmu.translate_data_addr(sys.disk.dma_base).unwrap();
+                // TODO: is this right?
+                let target = sys.mem.translate_data_addr(sys.disk.dma_base).unwrap();
                 let length = sys.disk.dma_length;
                 assert_eq!(length, 32);
 

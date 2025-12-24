@@ -1,12 +1,75 @@
 //! Memory of the system.
 mod alloc;
 
+use bitos::BitUtils;
+use gekko::{Address, Bat, MemoryManagement};
+
 use crate::system::ipl::Ipl;
 use std::{num::NonZeroUsize, ptr::NonNull};
 
 pub const RAM_LEN: usize = 24 * bytesize::MIB as usize;
 pub const L2C_LEN: usize = 16 * bytesize::KIB as usize;
 pub const IPL_LEN: usize = 2 * bytesize::MIB as usize;
+
+const NO_MAPPING: usize = 1 << 17;
+
+#[repr(transparent)]
+#[derive(Clone, Copy)]
+struct BaseAndPtr(*mut u8);
+
+impl BaseAndPtr {
+    const NO_MAPPING: Self = Self(std::ptr::without_provenance_mut(NO_MAPPING));
+
+    #[inline(always)]
+    pub fn new(ptr: *mut u8, physical_base: Option<u16>) -> Self {
+        assert!(ptr.addr().is_multiple_of(1 << 17));
+        BaseAndPtr(ptr.map_addr(|a| {
+            a.with_bits(
+                0,
+                17,
+                physical_base.map(|b| b as usize).unwrap_or(NO_MAPPING),
+            )
+        }))
+    }
+
+    #[inline(always)]
+    pub fn as_ptr(&self) -> *mut u8 {
+        self.0.map_addr(|a| a.with_bits(0, 17, 0))
+    }
+
+    #[inline(always)]
+    pub fn base(&self) -> Option<u16> {
+        let base = self.0.addr().bits(0, 17);
+        (!base.bit(16)).then_some(base as u16)
+    }
+}
+
+type PagesLut = Box<[BaseAndPtr; PAGES_COUNT]>;
+const PAGES_COUNT: usize = 1 << 15;
+
+enum Region {
+    Ram,
+    L2c,
+    Ipl,
+}
+
+impl Region {
+    fn of(addr: Address) -> Option<Self> {
+        const RAM_START: u32 = 0x0000_0000;
+        const RAM_END: u32 = RAM_START + RAM_LEN as u32 - 1;
+        const L2C_START: u32 = 0xE000_0000;
+        const L2C_END: u32 = L2C_START + L2C_LEN as u32 - 1;
+        const IPL_START: u32 = 0xFFF0_0000;
+        const IPL_END: u32 = IPL_START + (IPL_LEN as u32 / 2 - 1);
+
+        Some(match addr.value() {
+            RAM_START..=RAM_END => Self::Ram,
+            L2C_START..=L2C_END => Self::L2c,
+            IPL_START..=IPL_END => Self::Ipl,
+            _ => return None,
+        })
+    }
+}
 
 pub struct Regions<'mem> {
     pub ram: &'mem mut [u8],
@@ -19,6 +82,51 @@ pub struct Memory {
     ram: NonNull<u8>,
     l2c: NonNull<u8>,
     ipl: NonNull<u8>,
+
+    data_lut: PagesLut,
+    inst_lut: PagesLut,
+}
+
+fn update_lut_with(ram: *mut u8, l2c: *mut u8, ipl: *mut u8, lut: &mut PagesLut, bat: &Bat) {
+    let physical_start_base = (bat.physical_start().value() >> 17) as u16;
+    let physical_end_base = (bat.physical_end().value() >> 17) as u16;
+    let logical_start_base = bat.start().value() >> 17;
+    let logical_end_base = bat.end().value() >> 17;
+
+    let logical_range = logical_start_base..=logical_end_base;
+    let physical_range = physical_start_base..=physical_end_base;
+    let iter = logical_range.zip(physical_range);
+
+    tracing::debug!(
+        "start = {}, end = {}, physical start = {}, physical end = {}",
+        bat.start(),
+        bat.end(),
+        bat.physical_start(),
+        bat.physical_end()
+    );
+    tracing::debug!(
+        "start base = {:04X}, end base = {:04X}, physical start base = {:04X}, physical end base = {:04X}",
+        logical_start_base,
+        logical_end_base,
+        physical_start_base,
+        physical_end_base
+    );
+
+    for (logical_base, physical_base) in iter {
+        let physical = Address((physical_base as u32) << 17);
+        let region = Region::of(physical);
+
+        let ptr = region
+            .map(|r| match r {
+                Region::Ram => ram,
+                Region::L2c => l2c,
+                Region::Ipl => ipl,
+            })
+            .unwrap_or_default();
+
+        tracing::debug!("setting logical base {logical_base:04X} to {physical_base:04X}");
+        lut[logical_base as usize] = BaseAndPtr::new(ptr, Some(physical_base));
+    }
 }
 
 impl Memory {
@@ -43,6 +151,9 @@ impl Memory {
             ram,
             l2c,
             ipl,
+
+            data_lut: util::boxed_array(BaseAndPtr::NO_MAPPING),
+            inst_lut: util::boxed_array(BaseAndPtr::NO_MAPPING),
         }
     }
 
@@ -78,6 +189,87 @@ impl Memory {
         let ipl = unsafe { std::slice::from_raw_parts(self.ipl.as_ptr(), IPL_LEN) };
 
         Regions { ram, l2c, ipl }
+    }
+
+    pub fn build_data_bat_lut(&mut self, dbats: &[Bat; 4]) {
+        let _span = tracing::info_span!("building dbat lut").entered();
+
+        self.data_lut.fill(BaseAndPtr::NO_MAPPING);
+        for (i, bat) in dbats.iter().enumerate() {
+            if !bat.supervisor_mode() {
+                tracing::warn!("dbat{i} is disabled in supervisor mode");
+                continue;
+            }
+
+            update_lut_with(
+                self.ram.as_ptr(),
+                self.l2c.as_ptr(),
+                self.ipl.as_ptr(),
+                &mut self.data_lut,
+                bat,
+            );
+        }
+    }
+
+    pub fn build_instr_bat_lut(&mut self, ibats: &[Bat; 4]) {
+        let _span = tracing::info_span!("building ibat lut").entered();
+
+        self.inst_lut.fill(BaseAndPtr::NO_MAPPING);
+        for (i, bat) in ibats.iter().enumerate() {
+            if !bat.supervisor_mode() {
+                tracing::warn!("ibat{i} is disabled in supervisor mode");
+                continue;
+            }
+
+            update_lut_with(
+                self.ram.as_ptr(),
+                self.l2c.as_ptr(),
+                self.ipl.as_ptr(),
+                &mut self.inst_lut,
+                bat,
+            );
+        }
+    }
+
+    pub fn build_bat_lut(&mut self, memory: &MemoryManagement) {
+        let _span = tracing::info_span!("building bat luts").entered();
+        self.build_data_bat_lut(&memory.dbat);
+        self.build_instr_bat_lut(&memory.ibat);
+    }
+
+    pub fn translate_data_addr<A: Into<Address>>(&self, addr: A) -> Option<A>
+    where
+        Address: Into<A>,
+    {
+        let addr = addr.into();
+        // tracing::debug!("translating {addr}");
+
+        let addr = addr.value();
+        let logical_base = addr >> 17;
+        // tracing::debug!("logical base {logical_base:04X}");
+        let base_and_ptr = self.data_lut[logical_base as usize];
+
+        if let Some(base) = base_and_ptr.base() {
+            let base = (base as u32) << 17;
+            Some(Address(base | addr.bits(0, 17)).into())
+        } else {
+            std::hint::cold_path();
+            None
+        }
+    }
+
+    pub fn translate_instr_addr(&self, addr: Address) -> Option<Address> {
+        let addr = addr.value();
+        let logical_base = addr >> 17;
+        let base_and_ptr = self.inst_lut[logical_base as usize];
+
+        if let Some(base) = base_and_ptr.base() {
+            let base = (base as u32) << 17;
+            Some(Address(base | addr.bits(0, 17)).into())
+        } else {
+            std::hint::cold_path();
+            None
+        }
     }
 }
 

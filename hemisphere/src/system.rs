@@ -13,7 +13,6 @@ pub mod dspi;
 pub mod exi;
 pub mod gx;
 pub mod mem;
-pub mod mmu;
 pub mod pi;
 pub mod si;
 pub mod vi;
@@ -30,7 +29,6 @@ use crate::{
         ipl::Ipl,
         lazy::Lazy,
         mem::Memory,
-        mmu::Mmu,
         scheduler::{HandlerCtx, Scheduler},
     },
 };
@@ -71,8 +69,6 @@ pub struct System {
     pub dsp: Dsp,
     /// System memory.
     pub mem: Memory,
-    /// State of memory mapping.
-    pub mmu: Mmu,
     /// State of mechanisms that update lazily (e.g. time related registers).
     pub lazy: Lazy,
     /// The video interface.
@@ -122,7 +118,7 @@ impl System {
             Executable::Dol(dol) => {
                 self.cpu.pc = Address(dol.entrypoint());
                 self.cpu.supervisor.memory.setup_default_bats();
-                self.mmu.build_bat_lut(&self.cpu.supervisor.memory);
+                self.mem.build_bat_lut(&self.cpu.supervisor.memory);
 
                 self.cpu
                     .supervisor
@@ -169,7 +165,7 @@ impl System {
 
     fn load_ipl_hle(&mut self) {
         self.cpu.supervisor.memory.setup_default_bats();
-        self.mmu.build_bat_lut(&self.cpu.supervisor.memory);
+        self.mem.build_bat_lut(&self.cpu.supervisor.memory);
 
         self.modules
             .disk
@@ -260,7 +256,6 @@ impl System {
             gpu: Gpu::default(),
             dsp: Dsp::new(),
             mem: Memory::new(&ipl),
-            mmu: Mmu::default(),
             lazy: Lazy::default(),
             video: vi::Interface::default(),
             processor: pi::Interface::default(),
@@ -292,7 +287,7 @@ impl System {
             return Some(addr);
         }
 
-        self.mmu.translate_data_addr(addr)
+        self.mem.translate_data_addr(addr)
     }
 
     /// Translates an instruction logical address into a physical address.
@@ -301,7 +296,7 @@ impl System {
             return Some(addr);
         }
 
-        self.mmu.translate_instr_addr(addr)
+        self.mem.translate_instr_addr(addr)
     }
 
     /// Processes scheduled events.

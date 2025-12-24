@@ -397,7 +397,7 @@ dependencies = [
 [[package]]
 name = "bitos"
 version = "0.1.0"
-source = "git+https://github.com/vxpm/bitos.git#e1f78b01e4779773723263d26ed6037c86a381f6"
+source = "git+https://github.com/vxpm/bitos.git#7c7cbf9496bf0faad594c4766268c01cd22d410a"
 dependencies = [
  "bitos_core",
  "bitos_macro",
@@ -407,7 +407,7 @@ dependencies = [
 [[package]]
 name = "bitos_core"
 version = "0.1.0"
-source = "git+https://github.com/vxpm/bitos.git#e1f78b01e4779773723263d26ed6037c86a381f6"
+source = "git+https://github.com/vxpm/bitos.git#7c7cbf9496bf0faad594c4766268c01cd22d410a"
 dependencies = [
  "bitut",
  "num-traits",
@@ -418,7 +418,7 @@ dependencies = [
 [[package]]
 name = "bitos_macro"
 version = "0.1.0"
-source = "git+https://github.com/vxpm/bitos.git#e1f78b01e4779773723263d26ed6037c86a381f6"
+source = "git+https://github.com/vxpm/bitos.git#7c7cbf9496bf0faad594c4766268c01cd22d410a"
 dependencies = [
  "bitos_macro_core",
  "proc-macro2",
@@ -427,7 +427,7 @@ dependencies = [
 [[package]]
 name = "bitos_macro_core"
 version = "0.1.0"
-source = "git+https://github.com/vxpm/bitos.git#e1f78b01e4779773723263d26ed6037c86a381f6"
+source = "git+https://github.com/vxpm/bitos.git#7c7cbf9496bf0faad594c4766268c01cd22d410a"
 dependencies = [
  "heck",
  "proc-macro2",
@@ -438,7 +438,7 @@ dependencies = [
 [[package]]
 name = "bitut"
 version = "0.2.1"
-source = "git+https://github.com/vxpm/bitut.git#826242b6927c5b07c1451af3b51302c5f9195b89"
+source = "git+https://github.com/vxpm/bitut.git#09c995c5b116179c9cae8dd2588faed8f67241b5"
 
 [[package]]
 name = "block"

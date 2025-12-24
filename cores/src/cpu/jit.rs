@@ -453,14 +453,14 @@ const CTX_HOOKS: Hooks = {
         tracing::info!("ibats changed - clearing blocks mapping and rebuilding ibat lut");
         ctx.blocks.mapping.clear();
         ctx.sys
-            .mmu
+            .mem
             .build_instr_bat_lut(&ctx.sys.cpu.supervisor.memory.ibat);
     }
 
     extern "sysv64-unwind" fn dbat_changed(ctx: &mut Context) {
         tracing::info!("dbats changed - rebuilding dbat lut");
         ctx.sys
-            .mmu
+            .mem
             .build_data_bat_lut(&ctx.sys.cpu.supervisor.memory.dbat);
     }
 

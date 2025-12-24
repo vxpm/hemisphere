@@ -43,7 +43,7 @@ impl AppWindow for Window {
         for variable in self.variables.iter_mut() {
             let physical = emulator
                 .system
-                .mmu
+                .mem
                 .translate_data_addr(variable.address)
                 .unwrap_or(0);
 
