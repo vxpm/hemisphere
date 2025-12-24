@@ -281,24 +281,6 @@ impl System {
         system
     }
 
-    /// Translates a data logical address into a physical address.
-    pub fn translate_data_addr(&self, addr: Address) -> Option<Address> {
-        if !self.cpu.supervisor.config.msr.data_addr_translation() {
-            return Some(addr);
-        }
-
-        self.mem.translate_data_addr(addr)
-    }
-
-    /// Translates an instruction logical address into a physical address.
-    pub fn translate_instr_addr(&self, addr: Address) -> Option<Address> {
-        if !self.cpu.supervisor.config.msr.instr_addr_translation() {
-            return Some(addr);
-        }
-
-        self.mem.translate_inst_addr(addr)
-    }
-
     /// Processes scheduled events.
     #[inline(always)]
     pub fn process_events(&mut self) {

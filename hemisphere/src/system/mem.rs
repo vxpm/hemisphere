@@ -1,47 +1,29 @@
 //! Memory of the system.
-mod alloc;
-
 use bitos::BitUtils;
 use gekko::{Address, Bat, MemoryManagement};
 
 use crate::system::ipl::Ipl;
-use std::{num::NonZeroUsize, ptr::NonNull};
+use std::{alloc::Layout, ptr::NonNull};
 
 pub const RAM_LEN: usize = 24 * bytesize::MIB as usize;
 pub const L2C_LEN: usize = 16 * bytesize::KIB as usize;
 pub const IPL_LEN: usize = 2 * bytesize::MIB as usize;
 
-const BAT_PAGE_STRIDE: usize = 1 << 17;
+#[derive(Clone, Copy, PartialEq, Eq)]
+#[repr(transparent)]
+pub struct PageTranslation(u16);
 
-#[derive(Clone, Copy)]
-pub struct BatPage {
-    ptr: *mut u8,
-    base: Option<u16>,
-}
-
-impl BatPage {
-    const NO_MAPPING: Self = Self {
-        ptr: std::ptr::null_mut(),
-        base: None,
-    };
+impl PageTranslation {
+    const NO_MAPPING: Self = Self(1 << 15);
 
     #[inline(always)]
-    pub fn new(ptr: *mut u8, physical_base: Option<u16>) -> Self {
-        assert!(ptr.addr().is_multiple_of(BAT_PAGE_STRIDE));
-        BatPage {
-            ptr,
-            base: physical_base,
-        }
-    }
-
-    #[inline(always)]
-    pub fn as_ptr(&self) -> *mut u8 {
-        self.ptr
+    pub fn new(physical_base: Option<u16>) -> Self {
+        physical_base.map(Self).unwrap_or(Self::NO_MAPPING)
     }
 
     #[inline(always)]
     pub fn base(&self) -> Option<u16> {
-        self.base
+        (*self != Self::NO_MAPPING).then_some(self.0)
     }
 
     #[inline(always)]
@@ -55,8 +37,10 @@ impl BatPage {
     }
 }
 
-type PagesLut = Box<[BatPage; PAGES_COUNT]>;
 const PAGES_COUNT: usize = 1 << 15;
+
+type TranslationLut = Box<[PageTranslation; PAGES_COUNT]>;
+type FastmemLut = Box<[Option<NonNull<u8>>; PAGES_COUNT]>;
 
 enum Region {
     Ram,
@@ -90,16 +74,23 @@ pub struct Regions<'mem> {
 }
 
 pub struct Memory {
-    base: NonNull<u8>,
     ram: NonNull<u8>,
     l2c: NonNull<u8>,
     ipl: NonNull<u8>,
 
-    data_lut: PagesLut,
-    inst_lut: PagesLut,
+    data_fastmem_lut: FastmemLut,
+    data_translation_lut: TranslationLut,
+    inst_translation_lut: TranslationLut,
 }
 
-fn update_lut_with(ram: *mut u8, l2c: *mut u8, ipl: *mut u8, lut: &mut PagesLut, bat: &Bat) {
+fn update_lut_with(
+    ram: *mut u8,
+    l2c: *mut u8,
+    ipl: *mut u8,
+    translation: &mut TranslationLut,
+    mut fastmem: Option<&mut FastmemLut>,
+    bat: &Bat,
+) {
     let physical_start_base = (bat.physical_start().value() >> 17) as u16;
     let physical_end_base = (bat.physical_end().value() >> 17) as u16;
     let logical_start_base = bat.start().value() >> 17;
@@ -109,67 +100,51 @@ fn update_lut_with(ram: *mut u8, l2c: *mut u8, ipl: *mut u8, lut: &mut PagesLut,
     let physical_range = physical_start_base..=physical_end_base;
     let iter = logical_range.zip(physical_range);
 
-    tracing::debug!(
-        "start = {}, end = {}, physical start = {}, physical end = {}",
-        bat.start(),
-        bat.end(),
-        bat.physical_start(),
-        bat.physical_end()
-    );
-    tracing::debug!(
-        "start base = {:04X}, end base = {:04X}, physical start base = {:04X}, physical end base = {:04X}",
-        logical_start_base,
-        logical_end_base,
-        physical_start_base,
-        physical_end_base
-    );
-
     for (logical_base, physical_base) in iter {
-        let physical = Address((physical_base as u32) << 17);
-        let region = Region::of(physical);
+        translation[logical_base as usize] = PageTranslation::new(Some(physical_base));
+        if let Some(fastmem) = fastmem.as_mut() {
+            let physical = Address((physical_base as u32) << 17);
+            let region = Region::of(physical);
 
-        let ptr = if let Some((region, offset)) = region {
-            let base = match region {
-                Region::Ram => ram,
-                Region::L2c => l2c,
-                Region::Ipl => ipl,
+            let ptr = if let Some((region, offset)) = region {
+                let base = match region {
+                    Region::Ram => ram,
+                    Region::L2c => l2c,
+                    Region::Ipl => ipl,
+                };
+
+                unsafe { base.add(offset as usize) }
+            } else {
+                std::ptr::null_mut()
             };
 
-            unsafe { base.add(offset as usize) }
-        } else {
-            std::ptr::null_mut()
-        };
-
-        tracing::debug!("setting logical base {logical_base:04X} to {physical_base:04X}");
-        lut[logical_base as usize] = BatPage::new(ptr, Some(physical_base));
+            fastmem[logical_base as usize] = NonNull::new(ptr);
+        }
     }
 }
 
 impl Memory {
     pub fn new(ipl_data: &Ipl) -> Self {
-        let base = alloc::map_address_space();
+        let alloc = |len| {
+            NonNull::new(unsafe { std::alloc::alloc(Layout::array::<u8>(len).unwrap()) }).unwrap()
+        };
 
-        let ram = base;
-        alloc::map_mem_at(ram, NonZeroUsize::new(RAM_LEN).unwrap());
-
-        let l2c = unsafe { base.add(0xE000_0000) };
-        alloc::map_mem_at(l2c, NonZeroUsize::new(L2C_LEN).unwrap());
-
-        let ipl = unsafe { base.add(0xFFF0_0000) };
-        alloc::map_mem_at(ipl, NonZeroUsize::new(IPL_LEN).unwrap());
+        let ram = alloc(RAM_LEN);
+        let l2c = alloc(L2C_LEN);
+        let ipl = alloc(IPL_LEN);
 
         unsafe {
             std::ptr::copy_nonoverlapping(ipl_data.as_ptr(), ipl.as_ptr(), IPL_LEN);
         }
 
         Self {
-            base,
             ram,
             l2c,
             ipl,
 
-            data_lut: util::boxed_array(BatPage::NO_MAPPING),
-            inst_lut: util::boxed_array(BatPage::NO_MAPPING),
+            data_fastmem_lut: util::boxed_array(None),
+            data_translation_lut: util::boxed_array(PageTranslation::NO_MAPPING),
+            inst_translation_lut: util::boxed_array(PageTranslation::NO_MAPPING),
         }
     }
 
@@ -210,7 +185,8 @@ impl Memory {
     pub fn build_data_bat_lut(&mut self, dbats: &[Bat; 4]) {
         let _span = tracing::info_span!("building dbat lut").entered();
 
-        self.data_lut.fill(BatPage::NO_MAPPING);
+        self.data_fastmem_lut.fill(None);
+        self.data_translation_lut.fill(PageTranslation::NO_MAPPING);
         for (i, bat) in dbats.iter().enumerate() {
             if !bat.supervisor_mode() {
                 tracing::warn!("dbat{i} is disabled in supervisor mode");
@@ -221,7 +197,8 @@ impl Memory {
                 self.ram.as_ptr(),
                 self.l2c.as_ptr(),
                 self.ipl.as_ptr(),
-                &mut self.data_lut,
+                &mut self.data_translation_lut,
+                Some(&mut self.data_fastmem_lut),
                 bat,
             );
         }
@@ -230,7 +207,7 @@ impl Memory {
     pub fn build_instr_bat_lut(&mut self, ibats: &[Bat; 4]) {
         let _span = tracing::info_span!("building ibat lut").entered();
 
-        self.inst_lut.fill(BatPage::NO_MAPPING);
+        self.inst_translation_lut.fill(PageTranslation::NO_MAPPING);
         for (i, bat) in ibats.iter().enumerate() {
             if !bat.supervisor_mode() {
                 tracing::warn!("ibat{i} is disabled in supervisor mode");
@@ -241,7 +218,8 @@ impl Memory {
                 self.ram.as_ptr(),
                 self.l2c.as_ptr(),
                 self.ipl.as_ptr(),
-                &mut self.inst_lut,
+                &mut self.inst_translation_lut,
+                None,
                 bat,
             );
         }
@@ -254,7 +232,7 @@ impl Memory {
     }
 
     #[inline(always)]
-    fn translate_addr(&self, lut: &PagesLut, addr: Address) -> Option<Address> {
+    fn translate_addr(&self, lut: &TranslationLut, addr: Address) -> Option<Address> {
         let addr = addr.value();
         let logical_base = addr >> 17;
         let page = lut[logical_base as usize];
@@ -265,7 +243,7 @@ impl Memory {
     where
         Address: Into<A>,
     {
-        self.translate_addr(&self.data_lut, addr.into())
+        self.translate_addr(&self.data_translation_lut, addr.into())
             .map(Into::into)
     }
 
@@ -273,15 +251,15 @@ impl Memory {
     where
         Address: Into<A>,
     {
-        self.translate_addr(&self.inst_lut, addr.into())
+        self.translate_addr(&self.inst_translation_lut, addr.into())
             .map(Into::into)
     }
 
     #[inline]
-    pub fn get_data_page(&self, addr: Address) -> BatPage {
+    pub fn get_data_fastmem_base(&self, addr: Address) -> Option<NonNull<u8>> {
         let addr = addr.value();
         let logical_base = addr >> 17;
-        self.data_lut[logical_base as usize]
+        self.data_fastmem_lut[logical_base as usize]
     }
 }
 
@@ -289,6 +267,12 @@ unsafe impl Send for Memory {}
 
 impl Drop for Memory {
     fn drop(&mut self) {
-        alloc::unmap_address_space(self.base);
+        let dealloc = |ptr: NonNull<u8>, len| unsafe {
+            std::alloc::dealloc(ptr.as_ptr(), Layout::array::<u8>(len).unwrap())
+        };
+
+        dealloc(self.ram, RAM_LEN);
+        dealloc(self.l2c, L2C_LEN);
+        dealloc(self.ipl, IPL_LEN);
     }
 }

@@ -7,7 +7,6 @@ use crate::system::{
     mem::{IPL_LEN, RAM_LEN},
 };
 use crate::system::{ai, dspi, gx, pi, si, vi};
-use bitos::BitUtils;
 use gekko::Address;
 use std::ops::Range;
 use zerocopy::IntoBytes;
@@ -45,6 +44,24 @@ macro_rules! map {
 // called from within the JIT.
 
 impl System {
+    /// Translates a data logical address into a physical address.
+    pub fn translate_data_addr(&self, addr: Address) -> Option<Address> {
+        if !self.cpu.supervisor.config.msr.data_addr_translation() {
+            return Some(addr);
+        }
+
+        self.mem.translate_data_addr(addr)
+    }
+
+    /// Translates an instruction logical address into a physical address.
+    pub fn translate_instr_addr(&self, addr: Address) -> Option<Address> {
+        if !self.cpu.supervisor.config.msr.instr_addr_translation() {
+            return Some(addr);
+        }
+
+        self.mem.translate_inst_addr(addr)
+    }
+
     /// Reads a primitive from the given physical address, but only if it can't possibly have a
     /// side effect.
     pub fn read_pure<P: Primitive>(&self, addr: Address) -> Option<P> {
@@ -271,23 +288,8 @@ impl System {
 
     /// Reads a primitive from the given logical address.
     pub fn read_logical<P: Primitive>(&mut self, addr: Address) -> Option<P> {
-        if !self.cpu.supervisor.config.msr.data_addr_translation() {
-            std::hint::cold_path();
-            return Some(self.read(addr));
-        }
-
-        let offset = addr.value().bits(0, 17);
-        let page = self.mem.get_data_page(addr);
-        let ptr = page.as_ptr();
-
-        if !ptr.is_null() {
-            let ptr = unsafe { ptr.add(offset as usize) };
-            let value = unsafe { ptr.cast::<P>().read_unaligned() };
-            Some(value.to_be())
-        } else {
-            std::hint::cold_path();
-            page.translate(offset).map(|a| self.read(Address(a)))
-        }
+        let addr = self.translate_data_addr(addr)?;
+        Some(self.read(addr))
     }
 
     fn write_mmio<P: Primitive>(&mut self, offset: u16, value: P) {
@@ -666,23 +668,10 @@ impl System {
 
     /// Writes a primitive to the given logical address.
     pub fn write_logical<P: Primitive>(&mut self, addr: Address, value: P) {
-        if !self.cpu.supervisor.config.msr.data_addr_translation() {
-            std::hint::cold_path();
-            self.write(addr, value);
+        let Some(addr) = self.translate_data_addr(addr) else {
             return;
-        }
+        };
 
-        let offset = addr.value().bits(0, 17);
-        let page = self.mem.get_data_page(addr);
-        let ptr = page.as_ptr();
-
-        if !ptr.is_null() {
-            let ptr = unsafe { ptr.add(offset as usize) };
-            unsafe { ptr.cast::<P>().write_unaligned(value.to_be()) };
-        } else {
-            std::hint::cold_path();
-            page.translate(offset)
-                .map(|a| self.write(Address(a), value));
-        }
+        self.write(addr, value);
     }
 }
