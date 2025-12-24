@@ -237,39 +237,35 @@ impl Memory {
         self.build_instr_bat_lut(&memory.ibat);
     }
 
-    pub fn translate_data_addr<A: Into<Address>>(&self, addr: A) -> Option<A>
-    where
-        Address: Into<A>,
-    {
-        let addr = addr.into();
-        // tracing::debug!("translating {addr}");
-
+    #[inline(always)]
+    fn translate_addr(&self, lut: &PagesLut, addr: Address) -> Option<Address> {
         let addr = addr.value();
         let logical_base = addr >> 17;
-        // tracing::debug!("logical base {logical_base:04X}");
-        let base_and_ptr = self.data_lut[logical_base as usize];
+        let base_and_ptr = lut[logical_base as usize];
 
         if let Some(base) = base_and_ptr.base() {
             let base = (base as u32) << 17;
-            Some(Address(base | addr.bits(0, 17)).into())
+            Some(Address(base | addr.bits(0, 17)))
         } else {
             std::hint::cold_path();
             None
         }
     }
 
-    pub fn translate_instr_addr(&self, addr: Address) -> Option<Address> {
-        let addr = addr.value();
-        let logical_base = addr >> 17;
-        let base_and_ptr = self.inst_lut[logical_base as usize];
+    pub fn translate_data_addr<A: Into<Address>>(&self, addr: A) -> Option<A>
+    where
+        Address: Into<A>,
+    {
+        self.translate_addr(&self.data_lut, addr.into())
+            .map(Into::into)
+    }
 
-        if let Some(base) = base_and_ptr.base() {
-            let base = (base as u32) << 17;
-            Some(Address(base | addr.bits(0, 17)).into())
-        } else {
-            std::hint::cold_path();
-            None
-        }
+    pub fn translate_inst_addr<A: Into<Address>>(&self, addr: A) -> Option<A>
+    where
+        Address: Into<A>,
+    {
+        self.translate_addr(&self.inst_lut, addr.into())
+            .map(Into::into)
     }
 }
 

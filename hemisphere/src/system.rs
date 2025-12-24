@@ -296,7 +296,7 @@ impl System {
             return Some(addr);
         }
 
-        self.mem.translate_instr_addr(addr)
+        self.mem.translate_inst_addr(addr)
     }
 
     /// Processes scheduled events.
