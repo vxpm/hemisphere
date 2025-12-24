@@ -301,18 +301,27 @@ const CTX_HOOKS: Hooks = {
         addr: Address,
         value: &mut P,
     ) -> bool {
-        if let Some(physical) = ctx.sys.translate_data_addr(addr) {
-            *value = ctx.sys.read(physical);
-            // tracing::debug!(
-            //     "reading from logical {addr}, physical {physical}: 0x{:X?}",
-            //     value
-            // );
+        if let Some(read) = ctx.sys.read_logical(addr) {
+            *value = read;
             true
         } else {
             std::hint::cold_path();
             tracing::error!(pc = ?ctx.sys.cpu.pc, "failed to translate address {addr}");
             false
         }
+
+        // if let Some(physical) = ctx.sys.translate_data_addr(addr) {
+        //     *value = ctx.sys.read(physical);
+        //     // tracing::debug!(
+        //     //     "reading from logical {addr}, physical {physical}: 0x{:X?}",
+        //     //     value
+        //     // );
+        //     true
+        // } else {
+        //     std::hint::cold_path();
+        //     tracing::error!(pc = ?ctx.sys.cpu.pc, "failed to translate address {addr}");
+        //     false
+        // }
     }
 
     extern "sysv64-unwind" fn write<P: Primitive>(

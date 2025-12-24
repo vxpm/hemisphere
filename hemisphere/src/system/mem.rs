@@ -11,19 +11,19 @@ pub const RAM_LEN: usize = 24 * bytesize::MIB as usize;
 pub const L2C_LEN: usize = 16 * bytesize::KIB as usize;
 pub const IPL_LEN: usize = 2 * bytesize::MIB as usize;
 
-const NO_MAPPING: usize = 1 << 17;
+const NO_MAPPING: usize = 1 << 16;
 
 #[repr(transparent)]
 #[derive(Clone, Copy)]
-struct BaseAndPtr(*mut u8);
+pub struct BatPage(*mut u8);
 
-impl BaseAndPtr {
+impl BatPage {
     const NO_MAPPING: Self = Self(std::ptr::without_provenance_mut(NO_MAPPING));
 
     #[inline(always)]
     pub fn new(ptr: *mut u8, physical_base: Option<u16>) -> Self {
         assert!(ptr.addr().is_multiple_of(1 << 17));
-        BaseAndPtr(ptr.map_addr(|a| {
+        BatPage(ptr.map_addr(|a| {
             a.with_bits(
                 0,
                 17,
@@ -42,9 +42,20 @@ impl BaseAndPtr {
         let base = self.0.addr().bits(0, 17);
         (!base.bit(16)).then_some(base as u16)
     }
+
+    #[inline(always)]
+    pub fn translate(&self, offset: u32) -> Option<u32> {
+        if let Some(base) = self.base() {
+            let base = (base as u32) << 17;
+            Some(base | offset.bits(0, 17))
+        } else {
+            std::hint::cold_path();
+            None
+        }
+    }
 }
 
-type PagesLut = Box<[BaseAndPtr; PAGES_COUNT]>;
+type PagesLut = Box<[BatPage; PAGES_COUNT]>;
 const PAGES_COUNT: usize = 1 << 15;
 
 enum Region {
@@ -125,7 +136,7 @@ fn update_lut_with(ram: *mut u8, l2c: *mut u8, ipl: *mut u8, lut: &mut PagesLut,
             .unwrap_or_default();
 
         tracing::debug!("setting logical base {logical_base:04X} to {physical_base:04X}");
-        lut[logical_base as usize] = BaseAndPtr::new(ptr, Some(physical_base));
+        lut[logical_base as usize] = BatPage::new(ptr, Some(physical_base));
     }
 }
 
@@ -152,8 +163,8 @@ impl Memory {
             l2c,
             ipl,
 
-            data_lut: util::boxed_array(BaseAndPtr::NO_MAPPING),
-            inst_lut: util::boxed_array(BaseAndPtr::NO_MAPPING),
+            data_lut: util::boxed_array(BatPage::NO_MAPPING),
+            inst_lut: util::boxed_array(BatPage::NO_MAPPING),
         }
     }
 
@@ -194,7 +205,7 @@ impl Memory {
     pub fn build_data_bat_lut(&mut self, dbats: &[Bat; 4]) {
         let _span = tracing::info_span!("building dbat lut").entered();
 
-        self.data_lut.fill(BaseAndPtr::NO_MAPPING);
+        self.data_lut.fill(BatPage::NO_MAPPING);
         for (i, bat) in dbats.iter().enumerate() {
             if !bat.supervisor_mode() {
                 tracing::warn!("dbat{i} is disabled in supervisor mode");
@@ -214,7 +225,7 @@ impl Memory {
     pub fn build_instr_bat_lut(&mut self, ibats: &[Bat; 4]) {
         let _span = tracing::info_span!("building ibat lut").entered();
 
-        self.inst_lut.fill(BaseAndPtr::NO_MAPPING);
+        self.inst_lut.fill(BatPage::NO_MAPPING);
         for (i, bat) in ibats.iter().enumerate() {
             if !bat.supervisor_mode() {
                 tracing::warn!("ibat{i} is disabled in supervisor mode");
@@ -241,15 +252,8 @@ impl Memory {
     fn translate_addr(&self, lut: &PagesLut, addr: Address) -> Option<Address> {
         let addr = addr.value();
         let logical_base = addr >> 17;
-        let base_and_ptr = lut[logical_base as usize];
-
-        if let Some(base) = base_and_ptr.base() {
-            let base = (base as u32) << 17;
-            Some(Address(base | addr.bits(0, 17)))
-        } else {
-            std::hint::cold_path();
-            None
-        }
+        let page = lut[logical_base as usize];
+        page.translate(addr).map(Address)
     }
 
     pub fn translate_data_addr<A: Into<Address>>(&self, addr: A) -> Option<A>
@@ -266,6 +270,13 @@ impl Memory {
     {
         self.translate_addr(&self.inst_lut, addr.into())
             .map(Into::into)
+    }
+
+    #[inline]
+    pub fn get_data_page(&self, addr: Address) -> BatPage {
+        let addr = addr.value();
+        let logical_base = addr >> 17;
+        self.data_lut[logical_base as usize]
     }
 }
 

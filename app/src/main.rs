@@ -152,7 +152,10 @@ impl App {
             },
         );
 
-        let runner = runner::Runner::new(hemisphere);
+        let mut runner = runner::Runner::new(hemisphere);
+        if args.run {
+            runner.start();
+        }
 
         let windows: Vec<AppWindowState> = cc
             .storage

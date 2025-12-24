@@ -7,6 +7,7 @@ use crate::system::{
     mem::{IPL_LEN, RAM_LEN},
 };
 use crate::system::{ai, dspi, gx, pi, si, vi};
+use bitos::BitUtils;
 use gekko::Address;
 use std::ops::Range;
 use zerocopy::IntoBytes;
@@ -265,6 +266,26 @@ impl System {
 
                 self.read_mmio(addr.value() as u16)
             },
+        }
+    }
+
+    /// Reads a primitive from the given logical address.
+    pub fn read_logical<P: Primitive>(&mut self, addr: Address) -> Option<P> {
+        if !self.cpu.supervisor.config.msr.data_addr_translation() {
+            std::hint::cold_path();
+            return Some(self.read(addr));
+        }
+
+        let page = self.mem.get_data_page(addr);
+        let ptr = page.as_ptr();
+
+        let offset = addr.value().bits(0, 17);
+        if !ptr.is_null() {
+            let ptr = unsafe { ptr.add(offset as usize) };
+            let slice = unsafe { std::slice::from_raw_parts(ptr, size_of::<P>()) };
+            Some(P::read_be_bytes(slice))
+        } else {
+            page.translate(offset).map(|a| self.read(Address(a)))
         }
     }
 
@@ -623,6 +644,7 @@ impl System {
 
     /// Writes a primitive to the given physical address.
     pub fn write<P: Primitive>(&mut self, addr: Address, value: P) {
+        dbg!(addr, value);
         let offset: usize;
         map! {
             offset, addr;

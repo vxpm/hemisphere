@@ -126,7 +126,7 @@ impl Runner {
                 breakpoints: vec![],
                 cycles_history: VecDeque::new(),
             }),
-            advance: AtomicBool::new(true),
+            advance: AtomicBool::new(false),
         };
 
         let state = Arc::new(state);
