@@ -84,34 +84,6 @@ fn worker(state: Arc<Shared>) {
         }
         state.cycles_history.push_back((executed.cycles, now));
     }
-
-    // let mut late = Duration::ZERO;
-    // let mut next = Instant::now();
-    // loop {
-    // sleeper.sleep_until(next);
-    // while !state.advance.load(Ordering::Relaxed) {
-    //     sleeper.sleep(Duration::from_micros(1));
-    // }
-    // let start = Instant::now();
-    //
-    // let mut lock = state.state.lock().unwrap();
-    // let state = &mut *lock;
-    //
-    // let to_exec = (STEP + late).min(4 * STEP);
-    // let executed = state
-    //     .emulator
-    //     .exec(Cycles::from_duration(to_exec), &state.breakpoints);
-    //
-    // while let Some(front) = state.cycles_history.front()
-    //     && start.duration_since(front.1) > Duration::from_secs(1)
-    // {
-    //     state.cycles_history.pop_front();
-    // }
-    // state.cycles_history.push_back((executed.cycles, start));
-    //
-    // late = start.elapsed().saturating_sub(to_exec);
-    // next = (next + STEP).max(Instant::now());
-    // }
 }
 
 pub struct Runner {
