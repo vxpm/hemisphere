@@ -11,43 +11,43 @@ pub const RAM_LEN: usize = 24 * bytesize::MIB as usize;
 pub const L2C_LEN: usize = 16 * bytesize::KIB as usize;
 pub const IPL_LEN: usize = 2 * bytesize::MIB as usize;
 
-const NO_MAPPING: usize = 1 << 16;
+const BAT_PAGE_STRIDE: usize = 1 << 17;
 
-#[repr(transparent)]
 #[derive(Clone, Copy)]
-pub struct BatPage(*mut u8);
+pub struct BatPage {
+    ptr: *mut u8,
+    base: Option<u16>,
+}
 
 impl BatPage {
-    const NO_MAPPING: Self = Self(std::ptr::without_provenance_mut(NO_MAPPING));
+    const NO_MAPPING: Self = Self {
+        ptr: std::ptr::null_mut(),
+        base: None,
+    };
 
     #[inline(always)]
     pub fn new(ptr: *mut u8, physical_base: Option<u16>) -> Self {
-        assert!(ptr.addr().is_multiple_of(1 << 17));
-        BatPage(ptr.map_addr(|a| {
-            a.with_bits(
-                0,
-                17,
-                physical_base.map(|b| b as usize).unwrap_or(NO_MAPPING),
-            )
-        }))
+        assert!(ptr.addr().is_multiple_of(BAT_PAGE_STRIDE));
+        BatPage {
+            ptr,
+            base: physical_base,
+        }
     }
 
     #[inline(always)]
     pub fn as_ptr(&self) -> *mut u8 {
-        self.0.map_addr(|a| a.with_bits(0, 17, 0))
+        self.ptr
     }
 
     #[inline(always)]
     pub fn base(&self) -> Option<u16> {
-        let base = self.0.addr().bits(0, 17);
-        (!base.bit(16)).then_some(base as u16)
+        self.base
     }
 
     #[inline(always)]
     pub fn translate(&self, offset: u32) -> Option<u32> {
         if let Some(base) = self.base() {
-            let base = (base as u32) << 17;
-            Some(base | offset.bits(0, 17))
+            Some(offset.with_bits(17, 32, base as u32))
         } else {
             std::hint::cold_path();
             None
@@ -65,7 +65,7 @@ enum Region {
 }
 
 impl Region {
-    fn of(addr: Address) -> Option<Self> {
+    fn of(addr: Address) -> Option<(Self, u32)> {
         const RAM_START: u32 = 0x0000_0000;
         const RAM_END: u32 = RAM_START + RAM_LEN as u32 - 1;
         const L2C_START: u32 = 0xE000_0000;
@@ -73,10 +73,11 @@ impl Region {
         const IPL_START: u32 = 0xFFF0_0000;
         const IPL_END: u32 = IPL_START + (IPL_LEN as u32 / 2 - 1);
 
-        Some(match addr.value() {
-            RAM_START..=RAM_END => Self::Ram,
-            L2C_START..=L2C_END => Self::L2c,
-            IPL_START..=IPL_END => Self::Ipl,
+        let addr = addr.value();
+        Some(match addr {
+            RAM_START..=RAM_END => (Self::Ram, addr - RAM_START),
+            L2C_START..=L2C_END => (Self::L2c, addr - L2C_START),
+            IPL_START..=IPL_END => (Self::Ipl, addr - IPL_START),
             _ => return None,
         })
     }
@@ -127,13 +128,17 @@ fn update_lut_with(ram: *mut u8, l2c: *mut u8, ipl: *mut u8, lut: &mut PagesLut,
         let physical = Address((physical_base as u32) << 17);
         let region = Region::of(physical);
 
-        let ptr = region
-            .map(|r| match r {
+        let ptr = if let Some((region, offset)) = region {
+            let base = match region {
                 Region::Ram => ram,
                 Region::L2c => l2c,
                 Region::Ipl => ipl,
-            })
-            .unwrap_or_default();
+            };
+
+            unsafe { base.add(offset as usize) }
+        } else {
+            std::ptr::null_mut()
+        };
 
         tracing::debug!("setting logical base {logical_base:04X} to {physical_base:04X}");
         lut[logical_base as usize] = BatPage::new(ptr, Some(physical_base));

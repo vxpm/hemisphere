@@ -16,6 +16,8 @@ pub trait Primitive:
     + Sync
     + 'static
 {
+    fn to_be(self) -> Self;
+
     /// Reads a value of this primitive from the bytes of a buffer (in native endian). If `buf`
     /// does not contain enough data, it's going to be completed with zeros.
     fn read_ne_bytes(buf: &[u8]) -> Self;
@@ -45,6 +47,11 @@ macro_rules! impl_primitive {
     ($($type:ty),*) => {
         $(
             impl Primitive for $type {
+                #[inline(always)]
+                fn to_be(self) -> Self {
+                    self.to_be()
+                }
+
                 #[inline(always)]
                 fn read_ne_bytes(buf: &[u8]) -> Self {
                     const SELF_SIZE: usize = size_of::<$type>();

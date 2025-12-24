@@ -309,19 +309,6 @@ const CTX_HOOKS: Hooks = {
             tracing::error!(pc = ?ctx.sys.cpu.pc, "failed to translate address {addr}");
             false
         }
-
-        // if let Some(physical) = ctx.sys.translate_data_addr(addr) {
-        //     *value = ctx.sys.read(physical);
-        //     // tracing::debug!(
-        //     //     "reading from logical {addr}, physical {physical}: 0x{:X?}",
-        //     //     value
-        //     // );
-        //     true
-        // } else {
-        //     std::hint::cold_path();
-        //     tracing::error!(pc = ?ctx.sys.cpu.pc, "failed to translate address {addr}");
-        //     false
-        // }
     }
 
     extern "sysv64-unwind" fn write<P: Primitive>(
@@ -329,18 +316,7 @@ const CTX_HOOKS: Hooks = {
         addr: Address,
         value: P,
     ) -> bool {
-        let Some(physical) = ctx.sys.translate_data_addr(addr) else {
-            std::hint::cold_path();
-            tracing::error!(pc = ?ctx.sys.cpu.pc, "failed to translate address {addr}");
-            return false;
-        };
-
-        // tracing::debug!(
-        //     "writing to logical {addr}, physical {physical}: 0x{:X?}",
-        //     value
-        // );
-
-        ctx.sys.write(physical, value);
+        ctx.sys.write_logical(addr, value);
         ctx.to_invalidate.push(addr);
 
         seq! {
