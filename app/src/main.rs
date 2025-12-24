@@ -64,7 +64,7 @@ struct App {
     renderer: Renderer,
     windows: Vec<AppWindowState>,
     runner: Runner,
-    cps: f64,
+    cps: u64,
 }
 
 impl App {
@@ -170,7 +170,7 @@ impl App {
             renderer,
             windows,
             runner,
-            cps: 0f64,
+            cps: 0,
         })
     }
 
@@ -238,7 +238,7 @@ impl eframe::App for App {
 
                 ui.label(format!(
                     "Speed: {}%",
-                    ((self.cps / hemisphere::gekko::FREQUENCY as f64) * 100.0).round()
+                    ((self.cps as f64 / hemisphere::gekko::FREQUENCY as f64) * 100.0).round()
                 ));
             });
         });
@@ -256,7 +256,8 @@ impl eframe::App for App {
                 .cycles_history
                 .iter()
                 .map(|c| c.0.value())
-                .sum::<u64>() as f64;
+                .sum::<u64>()
+                * 2;
         }
 
         if running {

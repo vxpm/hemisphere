@@ -8,7 +8,7 @@ use std::{
         Arc, Mutex, MutexGuard,
         atomic::{AtomicBool, Ordering},
     },
-    time::{Duration, Instant},
+    time::Duration,
 };
 
 use crate::runner::timer::Timer;
@@ -78,7 +78,7 @@ fn worker(state: Arc<Shared>) {
         emulated += delta;
 
         while let Some(front) = state.cycles_history.front()
-            && now.saturating_sub(front.1) > Duration::from_secs(1)
+            && now.saturating_sub(front.1) > Duration::from_millis(500)
         {
             state.cycles_history.pop_front();
         }
