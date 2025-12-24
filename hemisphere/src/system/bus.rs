@@ -270,18 +270,14 @@ impl System {
         let offset: usize;
         map! {
             offset, addr;
+            0x0C00_0000, 0xFFFF => self.read_mmio(addr.value() as u16),
             0x0000_0000, RAM_LEN => P::read_be_bytes(&self.mem.ram()[offset..]),
             0xE000_0000, L2C_LEN => P::read_be_bytes(&self.mem.l2c()[offset..]),
             0xFFF0_0000, IPL_LEN / 2 => P::read_be_bytes(&self.mem.ipl()[offset..]),
             @default => {
                 std::hint::cold_path();
-                if addr.value() & 0xFFFF_0000 != 0x0C00_0000 {
-                    std::hint::cold_path();
-                    tracing::error!(pc = ?self.cpu.pc, "reading from {addr} (unknown region)");
-                    return P::default();
-                }
-
-                self.read_mmio(addr.value() as u16)
+                tracing::error!(pc = ?self.cpu.pc, "reading from {addr} (unknown region)");
+                return P::default();
             },
         }
     }
@@ -650,18 +646,14 @@ impl System {
         let offset: usize;
         map! {
             offset, addr;
+            0x0C00_0000, 0xFFFF => self.write_mmio(addr.value() as u16, value),
             0x0000_0000, RAM_LEN => value.write_be_bytes(&mut self.mem.ram_mut()[offset..]),
             0xE000_0000, L2C_LEN => value.write_be_bytes(&mut self.mem.l2c_mut()[offset..]),
             0xFFF0_0000, IPL_LEN / 2 => tracing::warn!("bus write to IPL"),
             @default => {
                 std::hint::cold_path();
-                if addr.value() & 0xFFFF_0000 != 0x0C00_0000 {
-                    std::hint::cold_path();
-                    tracing::error!(pc = ?self.cpu.pc, "writing 0x{value:08X} to {addr} (unknown region)");
-                    return;
-                }
-
-                self.write_mmio(addr.value() as u16, value);
+                tracing::error!(pc = ?self.cpu.pc, "writing 0x{value:08X} to {addr} (unknown region)");
+                return;
             },
         }
     }
