@@ -108,12 +108,10 @@ impl BlockBuilder<'_> {
 
     /// Gets bit `index` in the `value` (must be an I32).
     pub fn get_bit(&mut self, value: ir::Value, index: impl IntoIrValue) -> ir::Value {
-        let one = self.ir_value(1i32);
         let index = self.ir_value(index);
 
-        let mask = self.bd.ins().ishl(one, index);
-        let masked = self.bd.ins().band(value, mask);
-        let bit = self.bd.ins().ushr(masked, index);
+        let shifted = self.bd.ins().ushr(value, index);
+        let bit = self.bd.ins().band_imm(shifted, 0b1);
 
         self.bd.ins().ireduce(ir::types::I8, bit)
     }

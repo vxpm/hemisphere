@@ -93,16 +93,10 @@ impl BlockBuilder<'_> {
             .ins()
             .iconst(self.consts.ptr_type, func as usize as i64);
 
-        let stack_slot = self.bd.create_sized_stack_slot(ir::StackSlotData::new(
-            ir::StackSlotKind::ExplicitSlot,
-            size_of::<P>() as u32,
-            align_of::<P>().ilog2() as u8,
-        ));
-
-        let stack_slot_addr = self
-            .bd
-            .ins()
-            .stack_addr(self.consts.ptr_type, stack_slot, 0);
+        let stack_slot_addr =
+            self.bd
+                .ins()
+                .stack_addr(self.consts.ptr_type, self.consts.read_stack_slot, 0);
 
         let inst = self.bd.ins().call_indirect(
             sig,
@@ -128,7 +122,9 @@ impl BlockBuilder<'_> {
         self.prologue_with(LOAD_INFO);
 
         self.switch_to_bb(continue_block);
-        self.bd.ins().stack_load(P::IR_TYPE, stack_slot, 0)
+        self.bd
+            .ins()
+            .stack_load(P::IR_TYPE, self.consts.read_stack_slot, 0)
     }
 
     pub fn slow_mem_write<P: ReadWriteAble>(&mut self, addr: ir::Value, value: ir::Value) {
@@ -271,16 +267,10 @@ impl BlockBuilder<'_> {
             self.compiler.hooks.read_quantized as usize as i64,
         );
 
-        let stack_slot = self.bd.create_sized_stack_slot(ir::StackSlotData::new(
-            ir::StackSlotKind::ExplicitSlot,
-            size_of::<f64>() as u32,
-            align_of::<f64>().ilog2() as u8,
-        ));
-
-        let stack_slot_addr = self
-            .bd
-            .ins()
-            .stack_addr(self.consts.ptr_type, stack_slot, 0);
+        let stack_slot_addr =
+            self.bd
+                .ins()
+                .stack_addr(self.consts.ptr_type, self.consts.read_stack_slot, 0);
 
         // NOTE: maybe flush to ensure GQRs are up to date?
         let inst = self.bd.ins().call_indirect(
@@ -308,7 +298,9 @@ impl BlockBuilder<'_> {
 
         self.switch_to_bb(continue_block);
         (
-            self.bd.ins().stack_load(ir::types::F64, stack_slot, 0),
+            self.bd
+                .ins()
+                .stack_load(ir::types::F64, self.consts.read_stack_slot, 0),
             self.bd.ins().uextend(ir::types::I32, size),
         )
     }

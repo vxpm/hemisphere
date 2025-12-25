@@ -111,6 +111,8 @@ struct Consts {
     regs_ptr: ir::Value,
     fmem_ptr: ir::Value,
 
+    read_stack_slot: ir::StackSlot,
+
     signatures: Signatures,
 }
 
@@ -147,6 +149,12 @@ impl<'ctx> BlockBuilder<'ctx> {
         builder.switch_to_block(entry_bb);
         builder.seal_block(entry_bb);
 
+        let read_stack_slot = builder.create_sized_stack_slot(ir::StackSlotData::new(
+            ir::StackSlotKind::ExplicitSlot,
+            size_of::<u64>() as u32,
+            align_of::<u64>().ilog2() as u8,
+        ));
+
         let ptr_type = compiler.isa.pointer_type();
         let params = builder.block_params(entry_bb);
         let info_ptr = params[0];
@@ -176,10 +184,14 @@ impl<'ctx> BlockBuilder<'ctx> {
 
         let consts = Consts {
             ptr_type,
+
             info_ptr,
             ctx_ptr,
             regs_ptr,
             fmem_ptr,
+
+            read_stack_slot,
+
             signatures,
         };
 
