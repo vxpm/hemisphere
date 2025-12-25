@@ -223,6 +223,30 @@ enum ExitReason {
     IdleLooping,
 }
 
+const QUANTIZATION_FACTOR: [f64; 1 << 6] = {
+    let mut result = [0.0; 1 << 6];
+
+    let mut i = 0;
+    loop {
+        let scale = ((i as i8) << 2) >> 2;
+        let exp = scale.abs() as u8;
+        let factor = if scale >= 0 {
+            1.0 / ((1 << exp) as f64)
+        } else {
+            (1u64 << exp) as f64
+        };
+
+        result[i as usize] = factor;
+
+        i += 1;
+        if i >= (1 << 6) {
+            break;
+        }
+    }
+
+    result
+};
+
 /// Context to be passed in for execution of JIT blocks.
 struct Context<'a> {
     /// The system state, so that the JIT block can operate on it.
@@ -363,7 +387,7 @@ const CTX_HOOKS: Hooks = {
             _ => f32::from_bits(ctx.sys.read::<u32>(physical)) as f64,
         };
 
-        let scaled = read * 2.0f64.powi(-scale as i32);
+        let scaled = read * QUANTIZATION_FACTOR[(scale as usize) & 0b0011_1111];
         *value = scaled;
 
         ty.size()
@@ -390,7 +414,7 @@ const CTX_HOOKS: Hooks = {
             0
         };
 
-        let scaled = value * 2.0f64.powi(-scale as i32);
+        let scaled = value * QUANTIZATION_FACTOR[(scale as usize) & 0b0011_1111];
         match ty {
             QuantizedType::U8 => ctx.sys.write(physical, scaled as u8),
             QuantizedType::U16 => ctx.sys.write(physical, scaled as u16),
