@@ -604,7 +604,7 @@ impl Interpreter {
     pub fn ifcc(&mut self, _: &mut System, ins: Ins) {
         let code = CondCode::new(ins.base.bits(0, 4) as u8);
         if !self.condition(code) {
-            self.regs.pc += 1;
+            self.pc += 1;
         }
     }
 
@@ -1567,11 +1567,11 @@ impl Interpreter {
         let counter = self.regs.get(Reg::new(r));
 
         if counter != 0 {
-            self.regs.call_stack.push(self.regs.pc.wrapping_add(2));
+            self.regs.call_stack.push(self.pc.wrapping_add(2));
             self.regs.loop_stack.push(ins.extra + 1);
             self.regs.loop_count.push(counter);
         } else {
-            self.regs.pc = (ins.extra + 1) - 2;
+            self.pc = (ins.extra + 1) - 2;
         }
     }
 
@@ -1579,7 +1579,7 @@ impl Interpreter {
         let counter = ins.base.bits(0, 8);
 
         if counter != 0 {
-            self.regs.call_stack.push(self.regs.pc.wrapping_add(2));
+            self.regs.call_stack.push(self.pc.wrapping_add(2));
             self.regs.loop_stack.push(ins.extra + 1);
             self.regs.loop_count.push(counter);
         } else {
@@ -1590,8 +1590,8 @@ impl Interpreter {
     pub fn call(&mut self, _: &mut System, ins: Ins) {
         let code = CondCode::new(ins.base.bits(0, 4) as u8);
         if self.condition(code) {
-            self.regs.call_stack.push(self.regs.pc.wrapping_add(2));
-            self.regs.pc = ins.extra - 2;
+            self.regs.call_stack.push(self.pc.wrapping_add(2));
+            self.pc = ins.extra - 2;
         }
     }
 
@@ -1602,15 +1602,15 @@ impl Interpreter {
         let addr = self.regs.get(Reg::new(r));
 
         if self.condition(code) {
-            self.regs.call_stack.push(self.regs.pc.wrapping_add(1));
-            self.regs.pc = addr - 1;
+            self.regs.call_stack.push(self.pc.wrapping_add(1));
+            self.pc = addr - 1;
         }
     }
 
     pub fn jmp(&mut self, _: &mut System, ins: Ins) {
         let code = CondCode::new(ins.base.bits(0, 4) as u8);
         if self.condition(code) {
-            self.regs.pc = ins.extra - 2;
+            self.pc = ins.extra - 2;
         }
     }
 
@@ -1621,7 +1621,7 @@ impl Interpreter {
         let addr = self.regs.get(Reg::new(r));
 
         if self.condition(code) {
-            self.regs.pc = addr.wrapping_sub(1);
+            self.pc = addr.wrapping_sub(1);
         }
     }
 
@@ -1629,7 +1629,7 @@ impl Interpreter {
         let code = CondCode::new(ins.base.bits(0, 4) as u8);
         if self.condition(code) {
             let addr = self.regs.call_stack.pop().unwrap();
-            self.regs.pc = addr - 1;
+            self.pc = addr - 1;
         }
     }
 
@@ -1843,13 +1843,13 @@ impl Interpreter {
 
         let counter = self.regs.get(Reg::new(r));
         self.loop_counter = Some(counter);
-        self.regs.pc += 1;
+        self.pc += 1;
     }
 
     pub fn loopi(&mut self, _: &mut System, ins: Ins) {
         let imm = ins.base.bits(0, 8) as u8;
         self.loop_counter = Some(imm as u16);
-        self.regs.pc += 1;
+        self.pc += 1;
     }
 
     pub fn rti(&mut self, _: &mut System, ins: Ins) {
@@ -1858,7 +1858,7 @@ impl Interpreter {
             let sr = self.regs.data_stack.pop().unwrap();
             let pc = self.regs.call_stack.pop().unwrap();
             self.regs.set(Reg::Status, sr);
-            self.regs.pc = pc - 1;
+            self.pc = pc - 1;
         }
     }
 }

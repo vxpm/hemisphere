@@ -64,6 +64,7 @@ pub struct Acc40 {
 impl Acc40 {
     const MIN: i64 = (1 << 63) >> 24;
 
+    #[inline(always)]
     pub fn from(value: i64) -> Self {
         Self {
             low: value.bits(0, 16) as u16,
@@ -72,6 +73,7 @@ impl Acc40 {
         }
     }
 
+    #[inline(always)]
     pub fn get(&self) -> i64 {
         let bits = 0
             .with_bits(0, 16, self.low as i64)
@@ -81,6 +83,7 @@ impl Acc40 {
         (bits << 24) >> 24
     }
 
+    #[inline(always)]
     pub fn set(&mut self, value: i64) -> i64 {
         *self = Self::from(value);
         self.get()
@@ -203,7 +206,6 @@ impl Reg {
 
 #[derive(Debug, Clone)]
 pub struct Registers {
-    pub pc: u16,
     pub addressing: [u16; 4],
     pub indexing: [u16; 4],
     pub wrapping: [u16; 4],
@@ -221,7 +223,6 @@ pub struct Registers {
 impl Default for Registers {
     fn default() -> Self {
         Self {
-            pc: Default::default(),
             addressing: Default::default(),
             indexing: Default::default(),
             wrapping: [0xFFFF; 4],
@@ -324,22 +325,27 @@ impl Registers {
         }
     }
 
-    pub fn set_saturate(&mut self, reg: Reg, value: u16) {
-        let mut acc_saturate = |i: usize| {
-            if !self.status.sign_extend_to_40() {
-                self.acc40[i].mid = value;
-                return;
-            }
-
+    fn set_acc_saturate(&mut self, i: usize, value: u16) {
+        if self.status.sign_extend_to_40() {
             self.acc40[i].low = 0;
             self.acc40[i].mid = value;
             self.acc40[i].high = if value.bit(15) { !0 } else { 0 };
-        };
+        } else {
+            self.acc40[i].mid = value;
+        }
+    }
 
+    pub fn set_saturate(&mut self, reg: Reg, value: u16) {
         match reg {
-            Reg::Acc40Mid0 => acc_saturate(0),
-            Reg::Acc40Mid1 => acc_saturate(1),
-            Reg::LoopStack => (),
+            Reg::Acc40Mid0 => {
+                std::hint::cold_path();
+                self.set_acc_saturate(0, value)
+            }
+            Reg::Acc40Mid1 => {
+                std::hint::cold_path();
+                self.set_acc_saturate(1, value)
+            }
+            Reg::LoopStack => std::hint::cold_path(),
             _ => self.set(reg, value),
         }
     }
@@ -474,6 +480,7 @@ struct CachedIns {
 }
 
 pub struct Interpreter {
+    pub pc: u16,
     pub regs: Registers,
     pub mem: Memory,
     pub accel: Accelerator,
@@ -486,6 +493,7 @@ pub struct Interpreter {
 impl Default for Interpreter {
     fn default() -> Self {
         Self {
+            pc: Default::default(),
             regs: Default::default(),
             mem: Default::default(),
             accel: Default::default(),
@@ -661,9 +669,9 @@ static EXTENSION_EXEC_LUT: [ExtensionFn; 1 << 8] = {
 
 impl Interpreter {
     fn raise_interrupt(&mut self, interrupt: Interrupt) {
-        self.regs.call_stack.push(self.regs.pc);
+        self.regs.call_stack.push(self.pc);
         self.regs.data_stack.push(self.regs.status.to_bits());
-        self.regs.pc = interrupt as u16 * 2;
+        self.pc = interrupt as u16 * 2;
 
         match interrupt {
             Interrupt::External => self.regs.status.set_external_interrupt_enable(false),
@@ -696,12 +704,7 @@ impl Interpreter {
 
     #[inline(always)]
     fn check_stacks(&mut self) {
-        if self
-            .regs
-            .loop_stack
-            .last()
-            .is_some_and(|v| *v == self.regs.pc)
-        {
+        if self.regs.loop_stack.last().is_some_and(|v| *v == self.pc) {
             std::hint::cold_path();
 
             let counter = self.regs.loop_count.last_mut().unwrap();
@@ -714,7 +717,7 @@ impl Interpreter {
                 self.regs.loop_count.pop();
             } else {
                 let addr = *self.regs.call_stack.last().unwrap();
-                self.regs.pc = addr;
+                self.pc = addr;
             }
         }
     }
@@ -732,7 +735,7 @@ impl Interpreter {
         sys.dsp.dsp_mailbox = Mailbox::from_bits(0);
         sys.dsp.cpu_mailbox = Mailbox::from_bits(0);
 
-        self.regs.pc = if sys.dsp.control.reset_high() {
+        self.pc = if sys.dsp.control.reset_high() {
             tracing::debug!("resetting at IROM (0x8000)");
             0x8000
         } else {
@@ -1130,7 +1133,7 @@ impl Interpreter {
     }
 
     fn is_waiting_for_cpu_mail_inner(&mut self, offset: i16) -> bool {
-        let start = self.regs.pc.wrapping_add_signed(offset);
+        let start = self.pc.wrapping_add_signed(offset);
         let pattern_a = [
             // lrs   $ACM0, @cmbh
             0b0010_0110_1111_1110,
@@ -1172,7 +1175,7 @@ impl Interpreter {
     }
 
     fn is_waiting_for_dsp_mail_inner(&mut self, offset: i16) -> bool {
-        let start = self.regs.pc.wrapping_add_signed(offset);
+        let start = self.pc.wrapping_add_signed(offset);
         let pattern_a = [
             // lrs   $ACM0, @dmbh
             0b0010_0110_1111_1100,
@@ -1215,13 +1218,13 @@ impl Interpreter {
 
     fn fetch_decode_and_cache(&mut self) -> CachedIns {
         // fetch
-        let mut ins = Ins::new(self.read_imem(self.regs.pc));
+        let mut ins = Ins::new(self.read_imem(self.pc));
 
         // decode
         let decoded = ins.decoded();
         let extra = decoded
             .needs_extra
-            .then_some(self.read_imem(self.regs.pc.wrapping_add(1)));
+            .then_some(self.read_imem(self.pc.wrapping_add(1)));
 
         let len = if let Some(extra) = extra {
             ins.extra = extra;
@@ -1242,7 +1245,7 @@ impl Interpreter {
             main,
             extension,
         };
-        self.cached[self.regs.pc as usize] = Some(cached);
+        self.cached[self.pc as usize] = Some(cached);
 
         cached
     }
@@ -1259,7 +1262,7 @@ impl Interpreter {
             self.check_stacks();
 
             // have we cached this instruction already?
-            let ins = if let Some(cached) = self.cached[self.regs.pc as usize] {
+            let ins = if let Some(cached) = self.cached[self.pc as usize] {
                 cached
             } else {
                 std::hint::cold_path();
@@ -1279,12 +1282,12 @@ impl Interpreter {
                 if *loop_counter == 0 {
                     std::hint::cold_path();
                     self.loop_counter = None;
-                    self.regs.pc += 1;
+                    self.pc += 1;
                 } else {
                     *loop_counter -= 1;
                 }
             } else {
-                self.regs.pc = self.regs.pc.wrapping_add(ins.len);
+                self.pc = self.pc.wrapping_add(ins.len);
             }
 
             i += 1;
