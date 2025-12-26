@@ -208,7 +208,7 @@ pub fn write_control(sys: &mut System, value: Control) {
                 let length = sys.disk.dma_length;
                 assert_eq!(length, 32);
 
-                sys.mem.ram_mut()[target.value() as usize..][..12 as usize].copy_from_slice(&[
+                sys.mem.ram_mut()[target.value() as usize..][..12].copy_from_slice(&[
                     0x00, 0x00, 0x00, 0x00, // zeros
                     0x20, 0x02, 0x04, 0x02, // date
                     0x61, 0x00, 0x00, 0x00, // version
@@ -270,25 +270,25 @@ pub fn write_control(sys: &mut System, value: Control) {
                 sys.disk.control.set_transfer_ongoing(false);
                 sys.disk.immediate = 0;
             }
-            Command::StopAudioStream { .. } => {
+            Command::StopAudioStream => {
                 tracing::warn!("stubbed DVD command - stop audio stream");
                 sys.disk.status.set_transfer_interrupt(true);
                 sys.disk.control.set_transfer_ongoing(false);
                 sys.disk.immediate = 0;
             }
-            Command::AudioStreamStatus { .. } => {
+            Command::AudioStreamStatus => {
                 tracing::warn!("stubbed DVD command - audio stream status");
                 sys.disk.status.set_transfer_interrupt(true);
                 sys.disk.control.set_transfer_ongoing(false);
                 sys.disk.immediate = 0;
             }
-            Command::EnableAudioStream { .. } => {
+            Command::EnableAudioStream => {
                 tracing::warn!("stubbed DVD command - enable audio stream");
                 sys.disk.status.set_transfer_interrupt(true);
                 sys.disk.control.set_transfer_ongoing(false);
                 sys.disk.immediate = 0;
             }
-            Command::DisableAudioStream { .. } => {
+            Command::DisableAudioStream => {
                 tracing::warn!("stubbed DVD command - disable audio stream");
                 sys.disk.status.set_transfer_interrupt(true);
                 sys.disk.control.set_transfer_ongoing(false);

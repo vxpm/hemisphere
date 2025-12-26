@@ -238,7 +238,7 @@ impl System {
             config
                 .ipl
                 .take()
-                .unwrap_or_else(|| vec![0; mem::IPL_LEN as usize]),
+                .unwrap_or_else(|| vec![0; mem::IPL_LEN]),
         );
 
         let mut system = System {

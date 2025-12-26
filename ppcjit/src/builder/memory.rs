@@ -209,9 +209,9 @@ impl BlockBuilder<'_> {
         // continue
         self.bd.seal_block(continue_block);
         self.switch_to_bb(continue_block);
-        let read = self.bd.block_params(continue_block)[0];
+        
 
-        read
+        self.bd.block_params(continue_block)[0]
     }
 
     pub fn mem_write<P: ReadWriteAble>(&mut self, addr: ir::Value, value: ir::Value) {

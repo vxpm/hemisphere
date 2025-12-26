@@ -280,7 +280,7 @@ impl System {
             @default => {
                 std::hint::cold_path();
                 tracing::error!(pc = ?self.cpu.pc, "reading from {addr} (unknown region)");
-                return P::default();
+                P::default()
             },
         }
     }
@@ -682,7 +682,6 @@ impl System {
             @default => {
                 std::hint::cold_path();
                 tracing::error!(pc = ?self.cpu.pc, "writing 0x{value:08X} to {addr} (unknown region)");
-                return;
             },
         }
     }

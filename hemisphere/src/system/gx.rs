@@ -1046,7 +1046,7 @@ fn read_attribute<A: Attribute>(
 
 #[inline]
 fn alloc_vertices_handle(length: usize) -> Handle<Vertex> {
-    const CHUNK_SIZE: usize = 1 * bytesize::MIB as usize;
+    const CHUNK_SIZE: usize = bytesize::MIB as usize;
     const CHUNK_CAPACITY: NonZero<usize> = NonZero::new(CHUNK_SIZE / size_of::<Vertex>()).unwrap();
 
     static ARENA: LazyLock<Mutex<RingArena<Vertex>>> =
@@ -1163,7 +1163,7 @@ fn extract_vertices(sys: &mut System, stream: &VertexAttributeStream) -> VertexS
             sys.gpu.transform.matrix(mapping.index)
         };
 
-        matrices_slice[id as usize].write(mat);
+        matrices_slice[id].write(mat);
     }
 
     VertexStream { vertices, matrices }

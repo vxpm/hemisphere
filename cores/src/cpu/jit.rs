@@ -119,19 +119,12 @@ pub struct StoredBlock {
 unsafe impl Send for StoredBlock {}
 
 /// A structure which keeps tracks of compiled [`Block`]s.
+#[derive(Default)]
 pub struct Blocks {
     pub storage: Vec<StoredBlock>,
     pub mapping: BlockMapping,
 }
 
-impl Default for Blocks {
-    fn default() -> Self {
-        Self {
-            storage: Vec::new(),
-            mapping: BlockMapping::default(),
-        }
-    }
-}
 
 impl Blocks {
     #[inline(always)]
@@ -229,7 +222,7 @@ const QUANTIZATION_FACTOR: [f64; 1 << 6] = {
     let mut i = 0;
     loop {
         let scale = ((i as i8) << 2) >> 2;
-        let exp = scale.abs() as u8;
+        let exp = scale.unsigned_abs();
         let factor = if scale >= 0 {
             1.0 / ((1 << exp) as f64)
         } else {

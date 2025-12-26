@@ -61,7 +61,7 @@ pub struct Ipl(Vec<u8>);
 
 impl Ipl {
     pub fn new(mut data: Vec<u8>) -> Self {
-        assert_eq!(data.len(), mem::IPL_LEN as usize);
+        assert_eq!(data.len(), mem::IPL_LEN);
 
         let ipl_message = CStr::from_bytes_until_nul(&data).unwrap();
         let pal_message = "(C) 1999-2001 Nintendo.  All rights reserved.(C) 1999 ArtX Inc.  All rights reserved.PAL  Revision 1.0  ";

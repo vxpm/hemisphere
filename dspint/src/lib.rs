@@ -791,7 +791,7 @@ impl Interpreter {
 
                     for word in 0..(length / 2) {
                         let data = u16::read_be_bytes(
-                            &&sys.mem.ram()[(ram_base + 2 * word as u32) as usize..],
+                            &sys.mem.ram()[(ram_base + 2 * word as u32) as usize..],
                         );
 
                         self.write_dmem(sys, dsp_base + word, data);
@@ -818,7 +818,7 @@ impl Interpreter {
 
                     for word in 0..(length / 2) {
                         let data = u16::read_be_bytes(
-                            &&sys.mem.ram()[(ram_base + 2 * word as u32) as usize..],
+                            &sys.mem.ram()[(ram_base + 2 * word as u32) as usize..],
                         );
 
                         self.write_imem(dsp_base + word, data);

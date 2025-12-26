@@ -18,7 +18,7 @@ impl PageTranslation {
 
     #[inline(always)]
     pub fn new(physical_base: Option<u16>) -> Self {
-        physical_base.map(Self).unwrap_or(Self::NO_MAPPING)
+        physical_base.map_or(Self::NO_MAPPING, Self)
     }
 
     #[inline(always)]
@@ -131,19 +131,16 @@ fn update_fastmem_lut_with(
 
 fn update_fastmem_lut_physical(ram: *mut u8, l2c: *mut u8, ipl: *mut u8, lut: &mut FastmemLut) {
     let ram_iter = (RAM_START..=RAM_END)
-        .into_iter()
         .step_by(1 << 17)
         .map(|x| x >> 17)
         .map(|x| (x, x));
 
     let l2c_iter = (L2C_START..=L2C_END)
-        .into_iter()
         .step_by(1 << 17)
         .map(|x| x >> 17)
         .map(|x| (x, x));
 
     let ipl_iter = (IPL_START..=IPL_END)
-        .into_iter()
         .step_by(1 << 17)
         .map(|x| x >> 17)
         .map(|x| (x, x));
@@ -305,13 +302,13 @@ impl Memory {
     /// Returns the fastmem LUT.
     #[inline(always)]
     pub fn data_fastmem_lut_logical(&self) -> &FastmemLut {
-        &*self.data_fastmem_lut_logical
+        &self.data_fastmem_lut_logical
     }
 
     /// Returns the fastmem LUT.
     #[inline(always)]
     pub fn data_fastmem_lut_physical(&self) -> &FastmemLut {
-        &*self.data_fastmem_lut_physical
+        &self.data_fastmem_lut_physical
     }
 
     // #[inline]

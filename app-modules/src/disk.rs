@@ -13,8 +13,7 @@ where
         if let Some(r) = &mut self.0 {
             r.read(buf)
         } else {
-            Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
+            Err(std::io::Error::other(
                 "no disk inserted",
             ))
         }
@@ -29,8 +28,7 @@ where
         if let Some(r) = &mut self.0 {
             r.seek(from)
         } else {
-            Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
+            Err(std::io::Error::other(
                 "no disk inserted",
             ))
         }
