@@ -4,6 +4,11 @@ description = "The hemisphere emulator"
 version = "0.1.0"
 edition = "2024"
 
+[[test]]
+name = "memtest"
+path = "memtest/main.rs"
+harness = false
+
 [lints]
 workspace = true
 
@@ -27,6 +32,9 @@ oneshot.workspace = true
 tinyvec.workspace = true
 ring-arena.workspace = true
 twox-hash.workspace = true
+
+[dev-dependencies]
+indicatif = "0.18"
 
 [target.'cfg(windows)'.dependencies]
 windows.workspace = true

@@ -47,12 +47,12 @@ enum Region {
     Ipl,
 }
 
-const RAM_START: u32 = 0x0000_0000;
-const RAM_END: u32 = RAM_START + RAM_LEN as u32 - 1;
-const L2C_START: u32 = 0xE000_0000;
-const L2C_END: u32 = L2C_START + L2C_LEN as u32 - 1;
-const IPL_START: u32 = 0xFFF0_0000;
-const IPL_END: u32 = IPL_START + (IPL_LEN as u32 / 2 - 1);
+pub const RAM_START: u32 = 0x0000_0000;
+pub const RAM_END: u32 = RAM_START + RAM_LEN as u32 - 1;
+pub const L2C_START: u32 = 0xE000_0000;
+pub const L2C_END: u32 = L2C_START + L2C_LEN as u32 - 1;
+pub const IPL_START: u32 = 0xFFF0_0000;
+pub const IPL_END: u32 = IPL_START + (IPL_LEN as u32 / 2 - 1);
 
 impl Region {
     fn of(addr: Address) -> Option<(Self, u32)> {
