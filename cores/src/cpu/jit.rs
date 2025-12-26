@@ -348,7 +348,7 @@ const CTX_HOOKS: Hooks = {
         addr: Address,
         value: P,
     ) -> bool {
-        ctx.sys.write_logical(addr, value);
+        ctx.sys.write_slow(addr, value);
         ctx.to_invalidate.push(addr);
 
         seq! {
@@ -403,12 +403,6 @@ const CTX_HOOKS: Hooks = {
         gqr: u8,
         value: f64,
     ) -> u8 {
-        let Some(physical) = ctx.sys.translate_data_addr(addr) else {
-            std::hint::cold_path();
-            tracing::error!("failed to translate address {addr}");
-            return 0;
-        };
-
         let gqr = ctx.sys.cpu.supervisor.gq[gqr as usize];
         let ty = gqr.store_type();
 
@@ -419,12 +413,18 @@ const CTX_HOOKS: Hooks = {
         };
 
         let scaled = value * QUANTIZATION_FACTOR[(scale as usize) & 0b0011_1111];
-        match ty {
-            QuantizedType::U8 => ctx.sys.write(physical, scaled as u8),
-            QuantizedType::U16 => ctx.sys.write(physical, scaled as u16),
-            QuantizedType::I8 => ctx.sys.write(physical, scaled as i8),
-            QuantizedType::I16 => ctx.sys.write(physical, scaled as i16),
-            _ => ctx.sys.write(physical, (scaled as f32).to_bits()),
+        let success = match ty {
+            QuantizedType::U8 => ctx.sys.write(addr, scaled as u8),
+            QuantizedType::U16 => ctx.sys.write(addr, scaled as u16),
+            QuantizedType::I8 => ctx.sys.write(addr, scaled as i8),
+            QuantizedType::I16 => ctx.sys.write(addr, scaled as i16),
+            _ => ctx.sys.write(addr, (scaled as f32).to_bits()),
+        };
+
+        if !success {
+            std::hint::cold_path();
+            tracing::error!("failed to translate address {addr}");
+            return 0;
         }
 
         ty.size()

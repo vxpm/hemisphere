@@ -671,7 +671,7 @@ impl System {
     }
 
     /// Writes a primitive to the given physical address.
-    pub fn write<P: Primitive>(&mut self, addr: Address, value: P) {
+    pub fn write_phys_slow<P: Primitive>(&mut self, addr: Address, value: P) {
         let offset: usize;
         map! {
             offset, addr;
@@ -688,11 +688,41 @@ impl System {
     }
 
     /// Writes a primitive to the given logical address.
-    pub fn write_logical<P: Primitive>(&mut self, addr: Address, value: P) {
-        let Some(addr) = self.translate_data_addr(addr) else {
-            return;
+    #[inline(always)]
+    pub fn write_slow<P: Primitive>(&mut self, addr: Address, value: P) -> bool {
+        if let Some(addr) = self.translate_data_addr(addr) {
+            self.write_phys_slow(addr, value);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Writes a primitive to the given logical address using fastmem, if possible.
+    pub fn write_fast<P: Primitive>(&mut self, addr: Address, value: P) -> bool {
+        let lut = if self.cpu.supervisor.config.msr.data_addr_translation() {
+            self.mem.data_fastmem_lut_logical()
+        } else {
+            self.mem.data_fastmem_lut_physical()
         };
 
-        self.write(addr, value);
+        let page = addr.value() >> 17;
+        let base = lut[page as usize];
+
+        if let Some(base) = base {
+            let offset = addr.value().bits(0, 17) as usize;
+            let ptr = unsafe { base.add(offset) };
+            unsafe { ptr.cast::<P>().write(value.to_be()) }
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Writes a primitive to the given logical address, first by trying to use fastmem and then
+    /// falling back to slowmem if not possible.
+    #[inline(always)]
+    pub fn write<P: Primitive>(&mut self, addr: Address, value: P) -> bool {
+        self.write_fast(addr, value) || self.write_slow(addr, value)
     }
 }

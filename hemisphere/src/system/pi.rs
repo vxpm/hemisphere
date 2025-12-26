@@ -196,7 +196,7 @@ pub fn fifo_push<P: Primitive>(sys: &mut System, value: P) {
 
     for byte in data {
         let current = sys.processor.fifo_current.address();
-        sys.write(current, byte);
+        sys.write_phys_slow(current, byte);
         sys.processor.fifo_current.set_address(current + 1);
         if sys.processor.fifo_current.address() > sys.processor.fifo_end {
             std::hint::cold_path();

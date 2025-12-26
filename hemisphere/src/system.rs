@@ -133,27 +133,18 @@ impl System {
 
                 // zero bss first, let other sections overwrite it if it occurs
                 for offset in 0..dol.header.bss_size {
-                    let target = self
-                        .translate_data_addr(Address(dol.header.bss_target + offset))
-                        .unwrap();
-                    self.write(target, 0u8);
+                    self.write(Address(dol.header.bss_target + offset), 0u8);
                 }
 
                 for section in dol.text_sections() {
                     for (offset, byte) in section.content.iter().copied().enumerate() {
-                        let target = self
-                            .translate_instr_addr(Address(section.target) + offset as u32)
-                            .unwrap();
-                        self.write(target, byte);
+                        self.write(Address(section.target) + offset as u32, byte);
                     }
                 }
 
                 for section in dol.data_sections() {
                     for (offset, byte) in section.content.iter().copied().enumerate() {
-                        let target = self
-                            .translate_data_addr(Address(section.target) + offset as u32)
-                            .unwrap();
-                        self.write(target, byte);
+                        self.write(Address(section.target) + offset as u32, byte);
                     }
                 }
             }
@@ -202,27 +193,27 @@ impl System {
         self.cpu.user.gpr[3] = entry.value();
 
         // load dolphin-os globals
-        self.write::<u32>(Address(0x00), header.game_code());
-        self.write::<u16>(Address(0x04), header.maker_code);
-        self.write::<u8>(Address(0x06), header.disk_id);
-        self.write::<u8>(Address(0x07), header.version);
-        self.write::<u8>(Address(0x08), header.audio_streaming);
-        self.write::<u8>(Address(0x09), header.stream_buffer_size);
+        self.write_phys_slow::<u32>(Address(0x00), header.game_code());
+        self.write_phys_slow::<u16>(Address(0x04), header.maker_code);
+        self.write_phys_slow::<u8>(Address(0x06), header.disk_id);
+        self.write_phys_slow::<u8>(Address(0x07), header.version);
+        self.write_phys_slow::<u8>(Address(0x08), header.audio_streaming);
+        self.write_phys_slow::<u8>(Address(0x09), header.stream_buffer_size);
 
-        self.write::<u32>(Address(0x1C), 0xC233_9F3D); // DVD Magic Word
-        self.write::<u32>(Address(0x20), 0x0D15_EA5E); // Boot kind
-        self.write::<u32>(Address(0x24), 0x0000_0001); // Version
-        self.write::<u32>(Address(0x28), 0x0180_0000); // Physical Memory Size
-        self.write::<u32>(Address(0x2C), 0x1000_0005); // Console Type
-        self.write::<u32>(Address(0x30), 0x8042_E260); // Arena Low
-        self.write::<u32>(Address(0x34), 0x817F_E8C0); // Arena High
-        self.write::<u32>(Address(0x38), 0x817F_E8C0); // FST address
-        self.write::<u32>(Address(0x3C), 0x0000_0024); // FST max length
+        self.write_phys_slow::<u32>(Address(0x1C), 0xC233_9F3D); // DVD Magic Word
+        self.write_phys_slow::<u32>(Address(0x20), 0x0D15_EA5E); // Boot kind
+        self.write_phys_slow::<u32>(Address(0x24), 0x0000_0001); // Version
+        self.write_phys_slow::<u32>(Address(0x28), 0x0180_0000); // Physical Memory Size
+        self.write_phys_slow::<u32>(Address(0x2C), 0x1000_0005); // Console Type
+        self.write_phys_slow::<u32>(Address(0x30), 0x8042_E260); // Arena Low
+        self.write_phys_slow::<u32>(Address(0x34), 0x817F_E8C0); // Arena High
+        self.write_phys_slow::<u32>(Address(0x38), 0x817F_E8C0); // FST address
+        self.write_phys_slow::<u32>(Address(0x3C), 0x0000_0024); // FST max length
         // TODO: deal with TV mode, games hang if it is wrong...
-        self.write::<u32>(Address(0xCC), 0x0000_0000); // TV Mode
-        self.write::<u32>(Address(0xD0), 0x0100_0000); // ARAM size
-        self.write::<u32>(Address(0xF8), 0x09A7_EC80); // Bus clock
-        self.write::<u32>(Address(0xFC), 0x1CF7_C580); // CPU clock
+        self.write_phys_slow::<u32>(Address(0xCC), 0x0000_0000); // TV Mode
+        self.write_phys_slow::<u32>(Address(0xD0), 0x0100_0000); // ARAM size
+        self.write_phys_slow::<u32>(Address(0xF8), 0x09A7_EC80); // Bus clock
+        self.write_phys_slow::<u32>(Address(0xFC), 0x1CF7_C580); // CPU clock
 
         self.video
             .display_config
