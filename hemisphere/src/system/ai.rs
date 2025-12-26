@@ -122,8 +122,8 @@ pub struct Frame {
 fn push_data_dma_block(sys: &mut System, ctx: HandlerCtx) {
     let addr = Address(sys.audio.dma_base.0.with_bit(31, false)) + 32 * sys.audio.current_dma_block;
     let frames: [Frame; 8] = std::array::from_fn(|i| Frame {
-        left: sys.read::<i16>(addr + 4 * i as u32 + 2),
-        right: sys.read::<i16>(addr + 4 * i as u32),
+        left: sys.read_phys_slow::<i16>(addr + 4 * i as u32 + 2),
+        right: sys.read_phys_slow::<i16>(addr + 4 * i as u32),
     });
 
     for frame in frames {

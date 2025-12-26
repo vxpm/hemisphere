@@ -717,7 +717,7 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
 fn fifo_pop(sys: &mut System) -> u8 {
     assert!(sys.gpu.command.fifo.count() > 0);
 
-    let data = sys.read::<u8>(sys.gpu.command.fifo.read_ptr);
+    let data = sys.read_phys_slow::<u8>(sys.gpu.command.fifo.read_ptr);
     sys.gpu.command.fifo.read_ptr += 1;
     if sys.gpu.command.fifo.read_ptr > sys.gpu.command.fifo.end {
         std::hint::cold_path();

@@ -271,7 +271,11 @@ const CTX_HOOKS: Hooks = {
     }
 
     extern "sysv64-unwind" fn get_fastmem<'a>(ctx: &'a mut Context) -> &'a FastmemLut {
-        ctx.sys.mem.get_data_fastmem_lut()
+        if ctx.sys.cpu.supervisor.config.msr.data_addr_translation() {
+            ctx.sys.mem.data_fastmem_lut_logical()
+        } else {
+            ctx.sys.mem.data_fastmem_lut_physical()
+        }
     }
 
     extern "sysv64-unwind" fn follow_link(
@@ -329,7 +333,7 @@ const CTX_HOOKS: Hooks = {
         addr: Address,
         value: &mut P,
     ) -> bool {
-        if let Some(read) = ctx.sys.read_logical(addr) {
+        if let Some(read) = ctx.sys.read(addr) {
             *value = read;
             true
         } else {
@@ -380,11 +384,11 @@ const CTX_HOOKS: Hooks = {
         };
 
         let read = match ty {
-            QuantizedType::U8 => ctx.sys.read::<u8>(physical) as f64,
-            QuantizedType::U16 => ctx.sys.read::<u16>(physical) as f64,
-            QuantizedType::I8 => ctx.sys.read::<i8>(physical) as f64,
-            QuantizedType::I16 => ctx.sys.read::<i16>(physical) as f64,
-            _ => f32::from_bits(ctx.sys.read::<u32>(physical)) as f64,
+            QuantizedType::U8 => ctx.sys.read_phys_slow::<u8>(physical) as f64,
+            QuantizedType::U16 => ctx.sys.read_phys_slow::<u16>(physical) as f64,
+            QuantizedType::I8 => ctx.sys.read_phys_slow::<i8>(physical) as f64,
+            QuantizedType::I16 => ctx.sys.read_phys_slow::<i16>(physical) as f64,
+            _ => f32::from_bits(ctx.sys.read_phys_slow::<u32>(physical)) as f64,
         };
 
         let scaled = read * QUANTIZATION_FACTOR[(scale as usize) & 0b0011_1111];
@@ -639,7 +643,7 @@ impl JitCore {
             let current = addr + 4 * count;
             let physical = sys.translate_instr_addr(current)?;
 
-            let ins = Ins::new(sys.read(physical), Extensions::gekko_broadway());
+            let ins = Ins::new(sys.read_phys_slow(physical), Extensions::gekko_broadway());
             count += 1;
 
             Some(ins)

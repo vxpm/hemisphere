@@ -7,6 +7,7 @@ use crate::system::{
     mem::{IPL_LEN, RAM_LEN},
 };
 use crate::system::{ai, dspi, gx, pi, si, vi};
+use bitos::BitUtils;
 use gekko::Address;
 use std::ops::Range;
 use zerocopy::IntoBytes;
@@ -266,7 +267,7 @@ impl System {
     }
 
     /// Reads a primitive from the given physical address.
-    pub fn read<P: Primitive>(&mut self, addr: Address) -> P {
+    pub fn read_phys_slow<P: Primitive>(&mut self, addr: Address) -> P {
         let offset: usize;
         map! {
             offset, addr;
@@ -283,9 +284,33 @@ impl System {
     }
 
     /// Reads a primitive from the given logical address.
-    pub fn read_logical<P: Primitive>(&mut self, addr: Address) -> Option<P> {
+    pub fn read_slow<P: Primitive>(&mut self, addr: Address) -> Option<P> {
         let addr = self.translate_data_addr(addr)?;
-        Some(self.read(addr))
+        Some(self.read_phys_slow(addr))
+    }
+
+    /// Reads a primitive from the given logical address using fastmem, if possible.
+    pub fn read_fast<P: Primitive>(&mut self, addr: Address) -> Option<P> {
+        let lut = if self.cpu.supervisor.config.msr.data_addr_translation() {
+            self.mem.data_fastmem_lut_logical()
+        } else {
+            self.mem.data_fastmem_lut_physical()
+        };
+
+        let page = addr.value() >> 17;
+        let base = lut[page as usize];
+
+        base.map(|base| {
+            let offset = addr.value().bits(0, 17) as usize;
+            let ptr = unsafe { base.add(offset) };
+            unsafe { ptr.cast::<P>().read() }
+        })
+    }
+
+    /// Reads a primitive from the given logical address, first by trying to use fastmem and then
+    /// falling back to slowmem if not possible.
+    pub fn read<P: Primitive>(&mut self, addr: Address) -> Option<P> {
+        self.read_fast(addr).or_else(|| self.read_slow(addr))
     }
 
     fn write_mmio<P: Primitive>(&mut self, offset: u16, value: P) {

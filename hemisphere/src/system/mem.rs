@@ -1,5 +1,5 @@
 //! Memory of the system.
-use bitos::BitUtils;
+use bitos::{BitUtils, integer::u15};
 use gekko::{Address, Bat, MemoryManagement};
 
 use crate::system::ipl::Ipl;
@@ -47,15 +47,15 @@ enum Region {
     Ipl,
 }
 
+const RAM_START: u32 = 0x0000_0000;
+const RAM_END: u32 = RAM_START + RAM_LEN as u32 - 1;
+const L2C_START: u32 = 0xE000_0000;
+const L2C_END: u32 = L2C_START + L2C_LEN as u32 - 1;
+const IPL_START: u32 = 0xFFF0_0000;
+const IPL_END: u32 = IPL_START + (IPL_LEN as u32 / 2 - 1);
+
 impl Region {
     fn of(addr: Address) -> Option<(Self, u32)> {
-        const RAM_START: u32 = 0x0000_0000;
-        const RAM_END: u32 = RAM_START + RAM_LEN as u32 - 1;
-        const L2C_START: u32 = 0xE000_0000;
-        const L2C_END: u32 = L2C_START + L2C_LEN as u32 - 1;
-        const IPL_START: u32 = 0xFFF0_0000;
-        const IPL_END: u32 = IPL_START + (IPL_LEN as u32 / 2 - 1);
-
         let addr = addr.value();
         Some(match addr {
             RAM_START..=RAM_END => (Self::Ram, addr - RAM_START),
@@ -77,19 +77,83 @@ pub struct Memory {
     l2c: NonNull<u8>,
     ipl: NonNull<u8>,
 
-    data_fastmem_lut: Box<FastmemLut>,
+    data_fastmem_lut_physical: Box<FastmemLut>,
+    data_fastmem_lut_logical: Box<FastmemLut>,
     data_translation_lut: Box<TranslationLut>,
     inst_translation_lut: Box<TranslationLut>,
 }
 
-fn update_lut_with(
+fn update_fastmem_lut(
     ram: *mut u8,
     l2c: *mut u8,
     ipl: *mut u8,
-    translation: &mut TranslationLut,
-    mut fastmem: Option<&mut FastmemLut>,
+    lut: &mut FastmemLut,
+    iter: impl IntoIterator<Item = (u32, u32)>,
+) {
+    for (logical_base, physical_base) in iter {
+        let physical = Address(physical_base << 17);
+        let region = Region::of(physical);
+
+        let ptr = if let Some((region, offset)) = region {
+            let base = match region {
+                Region::Ram => ram,
+                Region::L2c => l2c,
+                Region::Ipl => ipl,
+            };
+
+            unsafe { base.add(offset as usize) }
+        } else {
+            std::ptr::null_mut()
+        };
+
+        lut[logical_base as usize] = NonNull::new(ptr);
+    }
+}
+
+fn update_fastmem_lut_with(
+    ram: *mut u8,
+    l2c: *mut u8,
+    ipl: *mut u8,
+    lut: &mut FastmemLut,
     bat: &Bat,
 ) {
+    let physical_start_base = bat.physical_start().value() >> 17;
+    let physical_end_base = bat.physical_end().value() >> 17;
+    let logical_start_base = bat.start().value() >> 17;
+    let logical_end_base = bat.end().value() >> 17;
+
+    let logical_range = logical_start_base..=logical_end_base;
+    let physical_range = physical_start_base..=physical_end_base;
+    let iter = logical_range.zip(physical_range);
+
+    update_fastmem_lut(ram, l2c, ipl, lut, iter);
+}
+
+fn update_fastmem_lut_physical(ram: *mut u8, l2c: *mut u8, ipl: *mut u8, lut: &mut FastmemLut) {
+    let ram_iter = (RAM_START..=RAM_END)
+        .into_iter()
+        .step_by(1 << 17)
+        .map(|x| x >> 17)
+        .map(|x| (x, x));
+
+    let l2c_iter = (L2C_START..=L2C_END)
+        .into_iter()
+        .step_by(1 << 17)
+        .map(|x| x >> 17)
+        .map(|x| (x, x));
+
+    let ipl_iter = (IPL_START..=IPL_END)
+        .into_iter()
+        .step_by(1 << 17)
+        .map(|x| x >> 17)
+        .map(|x| (x, x));
+
+    update_fastmem_lut(ram, l2c, ipl, lut, ram_iter);
+    update_fastmem_lut(ram, l2c, ipl, lut, l2c_iter);
+    update_fastmem_lut(ram, l2c, ipl, lut, ipl_iter);
+}
+
+fn update_translation_lut_with(translation: &mut TranslationLut, bat: &Bat) {
     let physical_start_base = (bat.physical_start().value() >> 17) as u16;
     let physical_end_base = (bat.physical_end().value() >> 17) as u16;
     let logical_start_base = bat.start().value() >> 17;
@@ -101,24 +165,6 @@ fn update_lut_with(
 
     for (logical_base, physical_base) in iter {
         translation[logical_base as usize] = PageTranslation::new(Some(physical_base));
-        if let Some(fastmem) = fastmem.as_mut() {
-            let physical = Address((physical_base as u32) << 17);
-            let region = Region::of(physical);
-
-            let ptr = if let Some((region, offset)) = region {
-                let base = match region {
-                    Region::Ram => ram,
-                    Region::L2c => l2c,
-                    Region::Ipl => ipl,
-                };
-
-                unsafe { base.add(offset as usize) }
-            } else {
-                std::ptr::null_mut()
-            };
-
-            fastmem[logical_base as usize] = NonNull::new(ptr);
-        }
     }
 }
 
@@ -136,12 +182,21 @@ impl Memory {
             std::ptr::copy_nonoverlapping(ipl_data.as_ptr(), ipl.as_ptr(), IPL_LEN);
         }
 
+        let mut data_fastmem_lut_physical = util::boxed_array(None);
+        update_fastmem_lut_physical(
+            ram.as_ptr(),
+            l2c.as_ptr(),
+            ipl.as_ptr(),
+            &mut data_fastmem_lut_physical,
+        );
+
         Self {
             ram,
             l2c,
             ipl,
 
-            data_fastmem_lut: util::boxed_array(None),
+            data_fastmem_lut_physical,
+            data_fastmem_lut_logical: util::boxed_array(None),
             data_translation_lut: util::boxed_array(PageTranslation::NO_MAPPING),
             inst_translation_lut: util::boxed_array(PageTranslation::NO_MAPPING),
         }
@@ -184,7 +239,7 @@ impl Memory {
     pub fn build_data_bat_lut(&mut self, dbats: &[Bat; 4]) {
         let _span = tracing::info_span!("building dbat lut").entered();
 
-        self.data_fastmem_lut.fill(None);
+        self.data_fastmem_lut_logical.fill(None);
         self.data_translation_lut.fill(PageTranslation::NO_MAPPING);
         for (i, bat) in dbats.iter().enumerate() {
             if !bat.supervisor_mode() {
@@ -192,12 +247,12 @@ impl Memory {
                 continue;
             }
 
-            update_lut_with(
+            update_translation_lut_with(&mut self.data_translation_lut, bat);
+            update_fastmem_lut_with(
                 self.ram.as_ptr(),
                 self.l2c.as_ptr(),
                 self.ipl.as_ptr(),
-                &mut self.data_translation_lut,
-                Some(&mut self.data_fastmem_lut),
+                &mut self.data_fastmem_lut_logical,
                 bat,
             );
         }
@@ -213,14 +268,7 @@ impl Memory {
                 continue;
             }
 
-            update_lut_with(
-                self.ram.as_ptr(),
-                self.l2c.as_ptr(),
-                self.ipl.as_ptr(),
-                &mut self.inst_translation_lut,
-                None,
-                bat,
-            );
+            update_translation_lut_with(&mut self.inst_translation_lut, bat);
         }
     }
 
@@ -254,8 +302,16 @@ impl Memory {
             .map(Into::into)
     }
 
-    pub fn get_data_fastmem_lut(&self) -> &FastmemLut {
-        &*self.data_fastmem_lut
+    /// Returns the fastmem LUT.
+    #[inline(always)]
+    pub fn data_fastmem_lut_logical(&self) -> &FastmemLut {
+        &*self.data_fastmem_lut_logical
+    }
+
+    /// Returns the fastmem LUT.
+    #[inline(always)]
+    pub fn data_fastmem_lut_physical(&self) -> &FastmemLut {
+        &*self.data_fastmem_lut_physical
     }
 
     // #[inline]

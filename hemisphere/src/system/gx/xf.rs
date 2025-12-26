@@ -559,7 +559,7 @@ pub fn write(sys: &mut System, addr: u16, value: u32) {
 pub fn write_indexed(sys: &mut System, array: ArrayDescriptor, base: u16, length: u8, index: u16) {
     for offset in 0..length {
         let current = array.address + (index as u32 + offset as u32) * array.stride;
-        let value = sys.read::<u32>(current);
+        let value = sys.read_phys_slow::<u32>(current);
         self::write(sys, base + offset as u16, value);
     }
 }
