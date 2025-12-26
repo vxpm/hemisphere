@@ -1259,6 +1259,7 @@ fn do_efb_copy(sys: &mut System, cmd: pix::CopyCmd) {
             response: sender,
         });
         let Ok(pixels) = receiver.recv() else {
+            tracing::warn!("render module did not answer depth copy request");
             return;
         };
 
@@ -1283,6 +1284,7 @@ fn do_efb_copy(sys: &mut System, cmd: pix::CopyCmd) {
             response: sender,
         });
         let Ok(pixels) = receiver.recv() else {
+            tracing::warn!("render module did not answer color copy request");
             return;
         };
 
