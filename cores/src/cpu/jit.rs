@@ -14,7 +14,6 @@ use ppcjit::{
     hooks::*,
 };
 use rustc_hash::FxBuildHasher;
-use seq_macro::seq;
 use std::{cell::Cell, ops::Range};
 
 pub use ppcjit;
@@ -246,7 +245,7 @@ struct Context<'a> {
     /// The block mapping, so that write operations can invalidate blocks.
     blocks: &'a mut Blocks,
     /// List of addresses that need to be invalidated.
-    to_invalidate: &'a mut Vec<Address>,
+    to_invalidate: &'a mut Vec<(Address, u8)>,
     /// Amount of cycles we are trying to execute.
     target_cycles: u32,
     /// Maximum instructions we should execute.
@@ -340,18 +339,14 @@ const CTX_HOOKS: Hooks = {
         addr: Address,
         value: P,
     ) -> bool {
-        ctx.sys.write_slow(addr, value);
-        ctx.to_invalidate.push(addr);
-
-        seq! {
-            N in 1..4 {
-                if const { size_of::<P>() >= N } {
-                    ctx.to_invalidate.push(addr + N);
-                }
-            }
+        if ctx.sys.write_slow(addr, value) {
+            ctx.to_invalidate.push((addr, size_of::<P>() as u8));
+            true
+        } else {
+            std::hint::cold_path();
+            tracing::error!(pc = ?ctx.sys.cpu.pc, "failed to translate address {addr}");
+            false
         }
-
-        true
     }
 
     extern "sysv64-unwind" fn read_quantized(
@@ -419,7 +414,14 @@ const CTX_HOOKS: Hooks = {
             return 0;
         }
 
-        ty.size()
+        let size = ty.size();
+        ctx.to_invalidate.push((addr, size as u8));
+
+        size
+    }
+
+    extern "sysv64-unwind" fn mark_written(ctx: &mut Context, addr: Address, size: u8) {
+        ctx.to_invalidate.push((addr, size));
     }
 
     extern "sysv64-unwind" fn cache_dma(ctx: &mut Context) {
@@ -536,6 +538,9 @@ const CTX_HOOKS: Hooks = {
         let write_quantized = transmute::<_, WriteQuantizedHook>(
             write_quantized as extern "sysv64-unwind" fn(_, _, _, _) -> _,
         );
+        let mark_written =
+            transmute::<_, MarkWrittenHook>(mark_written as extern "sysv64-unwind" fn(_, _, _));
+
         let cache_dma = transmute::<_, GenericHook>(cache_dma as extern "sysv64-unwind" fn(_));
 
         let msr_changed = transmute::<_, GenericHook>(msr_changed as extern "sysv64-unwind" fn(_));
@@ -568,6 +573,8 @@ const CTX_HOOKS: Hooks = {
             write_i64,
             read_quantized,
             write_quantized,
+            mark_written,
+
             cache_dma,
 
             msr_changed,
@@ -606,7 +613,7 @@ pub struct JitCore {
     pub compiler: ppcjit::Jit,
     pub blocks: Blocks,
 
-    to_invalidate: Vec<Address>,
+    to_invalidate: Vec<(Address, u8)>,
 }
 
 impl JitCore {
@@ -708,8 +715,10 @@ impl JitCore {
 
         if !self.to_invalidate.is_empty() {
             std::hint::cold_path();
-            for addr in self.to_invalidate.drain(..) {
-                self.blocks.invalidate(addr);
+            for (addr, size) in self.to_invalidate.drain(..) {
+                for offset in 0..size {
+                    self.blocks.invalidate(addr + offset as u32);
+                }
             }
         }
 

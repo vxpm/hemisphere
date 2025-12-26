@@ -1357,6 +1357,20 @@ impl SPR {
     pub fn is_bat(&self) -> bool {
         self.is_data_bat() || self.is_instr_bat()
     }
+
+    pub fn is_gqr(&self) -> bool {
+        matches!(
+            self,
+            Self::GQR0
+                | Self::GQR1
+                | Self::GQR2
+                | Self::GQR3
+                | Self::GQR4
+                | Self::GQR5
+                | Self::GQR6
+                | Self::GQR7
+        )
+    }
 }
 
 /// A register in the Gekko CPU.

@@ -160,10 +160,9 @@ impl BlockBuilder<'_> {
     }
 
     pub fn mem_read<P: ReadWriteAble>(&mut self, addr: ir::Value) -> ir::Value {
-        let pow = size_of::<*const ()>().ilog2();
         let lut_index = self.bd.ins().ushr_imm(addr, 17);
         let lut_index = self.bd.ins().uextend(self.consts.ptr_type, lut_index);
-        let lut_offset = self.bd.ins().ishl_imm(lut_index, pow as i64);
+        let lut_offset = self.bd.ins().imul_imm(lut_index, size_of::<usize>() as i64);
 
         let lut_ptr = self.bd.ins().iadd(self.consts.fmem_ptr, lut_offset);
         let ptr = self
@@ -214,10 +213,9 @@ impl BlockBuilder<'_> {
     }
 
     pub fn mem_write<P: ReadWriteAble>(&mut self, addr: ir::Value, value: ir::Value) {
-        let pow = size_of::<*const ()>().ilog2();
         let lut_index = self.bd.ins().ushr_imm(addr, 17);
         let lut_index = self.bd.ins().uextend(self.consts.ptr_type, lut_index);
-        let lut_offset = self.bd.ins().ishl_imm(lut_index, pow as i64);
+        let lut_offset = self.bd.ins().imul_imm(lut_index, size_of::<usize>() as i64);
 
         let lut_ptr = self.bd.ins().iadd(self.consts.fmem_ptr, lut_offset);
         let ptr = self
@@ -247,6 +245,19 @@ impl BlockBuilder<'_> {
         self.bd
             .ins()
             .store(ir::MemFlags::trusted(), value_bswap, ptr, 0);
+
+        let mark_written_fn = self.bd.ins().iconst(
+            self.consts.ptr_type,
+            self.compiler.hooks.mark_written as i64,
+        );
+
+        let size = self.ir_value(size_of::<P>() as u8);
+        self.bd.ins().call_indirect(
+            self.consts.signatures.mark_written_hook,
+            mark_written_fn,
+            &[self.consts.ctx_ptr, addr, size],
+        );
+
         self.bd.ins().jump(continue_block, &[]);
 
         // slow
