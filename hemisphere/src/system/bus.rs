@@ -46,6 +46,7 @@ macro_rules! map {
 
 impl System {
     /// Translates a data logical address into a physical address.
+    #[inline(always)]
     pub fn translate_data_addr(&self, addr: Address) -> Option<Address> {
         if !self.cpu.supervisor.config.msr.data_addr_translation() {
             return Some(addr);
@@ -55,6 +56,7 @@ impl System {
     }
 
     /// Translates an instruction logical address into a physical address.
+    #[inline(always)]
     pub fn translate_instr_addr(&self, addr: Address) -> Option<Address> {
         if !self.cpu.supervisor.config.msr.instr_addr_translation() {
             return Some(addr);
@@ -284,6 +286,7 @@ impl System {
     }
 
     /// Reads a primitive from the given logical address.
+    #[inline(always)]
     pub fn read_slow<P: Primitive>(&mut self, addr: Address) -> Option<P> {
         let addr = self.translate_data_addr(addr)?;
         Some(self.read_phys_slow(addr))
@@ -303,12 +306,13 @@ impl System {
         base.map(|base| {
             let offset = addr.value().bits(0, 17) as usize;
             let ptr = unsafe { base.add(offset) };
-            unsafe { ptr.cast::<P>().read() }
+            unsafe { ptr.cast::<P>().read().to_be() }
         })
     }
 
     /// Reads a primitive from the given logical address, first by trying to use fastmem and then
     /// falling back to slowmem if not possible.
+    #[inline(always)]
     pub fn read<P: Primitive>(&mut self, addr: Address) -> Option<P> {
         self.read_fast(addr).or_else(|| self.read_slow(addr))
     }

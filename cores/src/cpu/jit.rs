@@ -333,7 +333,7 @@ const CTX_HOOKS: Hooks = {
         addr: Address,
         value: &mut P,
     ) -> bool {
-        if let Some(read) = ctx.sys.read(addr) {
+        if let Some(read) = ctx.sys.read_slow(addr) {
             *value = read;
             true
         } else {
@@ -368,12 +368,6 @@ const CTX_HOOKS: Hooks = {
         gqr: u8,
         value: &mut f64,
     ) -> u8 {
-        let Some(physical) = ctx.sys.translate_data_addr(addr) else {
-            std::hint::cold_path();
-            tracing::error!("failed to translate address {addr}");
-            return 0;
-        };
-
         let gqr = ctx.sys.cpu.supervisor.gq[gqr as usize];
         let ty = gqr.load_type();
 
@@ -384,11 +378,17 @@ const CTX_HOOKS: Hooks = {
         };
 
         let read = match ty {
-            QuantizedType::U8 => ctx.sys.read_phys_slow::<u8>(physical) as f64,
-            QuantizedType::U16 => ctx.sys.read_phys_slow::<u16>(physical) as f64,
-            QuantizedType::I8 => ctx.sys.read_phys_slow::<i8>(physical) as f64,
-            QuantizedType::I16 => ctx.sys.read_phys_slow::<i16>(physical) as f64,
-            _ => f32::from_bits(ctx.sys.read_phys_slow::<u32>(physical)) as f64,
+            QuantizedType::U8 => ctx.sys.read::<u8>(addr).map(|x| x as f64),
+            QuantizedType::U16 => ctx.sys.read::<u16>(addr).map(|x| x as f64),
+            QuantizedType::I8 => ctx.sys.read::<i8>(addr).map(|x| x as f64),
+            QuantizedType::I16 => ctx.sys.read::<i16>(addr).map(|x| x as f64),
+            _ => ctx.sys.read::<u32>(addr).map(|x| f32::from_bits(x) as f64),
+        };
+
+        let Some(read) = read else {
+            std::hint::cold_path();
+            tracing::error!("failed to translate address {addr}");
+            return 0;
         };
 
         let scaled = read * QUANTIZATION_FACTOR[(scale as usize) & 0b0011_1111];
