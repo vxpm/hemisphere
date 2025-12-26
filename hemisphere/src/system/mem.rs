@@ -1,5 +1,5 @@
 //! Memory of the system.
-use bitos::{BitUtils, integer::u15};
+use bitos::BitUtils;
 use gekko::{Address, Bat, MemoryManagement};
 
 use crate::system::ipl::Ipl;
