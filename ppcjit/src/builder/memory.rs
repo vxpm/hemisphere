@@ -209,7 +209,6 @@ impl BlockBuilder<'_> {
         // continue
         self.bd.seal_block(continue_block);
         self.switch_to_bb(continue_block);
-        
 
         self.bd.block_params(continue_block)[0]
     }
@@ -237,7 +236,7 @@ impl BlockBuilder<'_> {
 
         // fast
         self.switch_to_bb(fast_block);
-        let offset = self.bd.ins().band_imm(addr, (1 << 17) - 1);
+        let offset = self.bd.ins().band_imm(addr, ((1u64 << 17) - 1) as i64);
         let offset = self.bd.ins().uextend(self.consts.ptr_type, offset);
         let ptr = self.bd.ins().iadd(ptr, offset);
         let value_bswap = if P::IR_TYPE != ir::types::I8 {

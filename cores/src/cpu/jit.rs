@@ -125,7 +125,6 @@ pub struct Blocks {
     pub mapping: BlockMapping,
 }
 
-
 impl Blocks {
     #[inline(always)]
     pub fn insert(&mut self, addr: Address, block: Block) -> BlockId {

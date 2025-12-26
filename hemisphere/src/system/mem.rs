@@ -110,7 +110,7 @@ fn update_fastmem_lut(
     }
 }
 
-fn update_fastmem_lut_with(
+fn update_fastmem_lut_with_bat(
     ram: *mut u8,
     l2c: *mut u8,
     ipl: *mut u8,
@@ -130,21 +130,10 @@ fn update_fastmem_lut_with(
 }
 
 fn update_fastmem_lut_physical(ram: *mut u8, l2c: *mut u8, ipl: *mut u8, lut: &mut FastmemLut) {
-    let ram_iter = (RAM_START..=RAM_END)
-        .step_by(1 << 17)
-        .map(|x| x >> 17)
-        .map(|x| (x, x));
-
-    let l2c_iter = (L2C_START..=L2C_END)
-        .step_by(1 << 17)
-        .map(|x| x >> 17)
-        .map(|x| (x, x));
-
-    let ipl_iter = (IPL_START..=IPL_END)
-        .step_by(1 << 17)
-        .map(|x| x >> 17)
-        .map(|x| (x, x));
-
+    let iter = |a, b| ((a >> 17)..=(b >> 17)).map(|x| (x, x));
+    let ram_iter = iter(RAM_START, RAM_END);
+    let l2c_iter = iter(L2C_START, L2C_END);
+    let ipl_iter = iter(IPL_START, IPL_END);
     update_fastmem_lut(ram, l2c, ipl, lut, ram_iter);
     update_fastmem_lut(ram, l2c, ipl, lut, l2c_iter);
     update_fastmem_lut(ram, l2c, ipl, lut, ipl_iter);
@@ -245,7 +234,7 @@ impl Memory {
             }
 
             update_translation_lut_with(&mut self.data_translation_lut, bat);
-            update_fastmem_lut_with(
+            update_fastmem_lut_with_bat(
                 self.ram.as_ptr(),
                 self.l2c.as_ptr(),
                 self.ipl.as_ptr(),
@@ -310,13 +299,6 @@ impl Memory {
     pub fn data_fastmem_lut_physical(&self) -> &FastmemLut {
         &self.data_fastmem_lut_physical
     }
-
-    // #[inline]
-    // pub fn get_data_fastmem_base(&self, addr: Address) -> Option<NonNull<u8>> {
-    //     let addr = addr.value();
-    //     let logical_base = addr >> 17;
-    //     self.data_fastmem_lut[logical_base as usize]
-    // }
 }
 
 unsafe impl Send for Memory {}
