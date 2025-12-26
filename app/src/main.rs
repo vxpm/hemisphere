@@ -102,9 +102,10 @@ impl App {
             {
                 Some("elf") => {
                     let debug = Addr2LineDebug::new(path);
-                    debug
-                        .map(|d| Box::new(d) as Box<dyn DebugModule>)
-                        .unwrap_or_else(|| Box::new(NopDebugModule))
+                    debug.map_or_else(
+                        || Box::new(NopDebugModule) as Box<dyn DebugModule>,
+                        |d| Box::new(d) as Box<dyn DebugModule>,
+                    )
                 }
                 Some("map") => Box::new(MapFileDebug::new(path)) as Box<dyn DebugModule>,
                 _ => Box::new(NopDebugModule),
@@ -247,7 +248,7 @@ impl eframe::App for App {
         self.runner.stop();
 
         {
-            let mut state = self.runner.get().unwrap();
+            let mut state = self.runner.get();
             for window_state in &mut self.windows {
                 window_state.window.prepare(&mut state);
             }

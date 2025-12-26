@@ -132,7 +132,7 @@ impl Runner {
         self.shared.advance.load(Ordering::Relaxed)
     }
 
-    pub fn get(&mut self) -> Option<MutexGuard<'_, State>> {
-        Some(self.shared.state.lock().unwrap())
+    pub fn get(&mut self) -> MutexGuard<'_, State> {
+        self.shared.state.lock().unwrap()
     }
 }
