@@ -24,11 +24,22 @@ jobs:
         if: ${{ github.event_name == 'schedule' }}
         run: test -z $(git rev-list  --after="24 hours"  ${{ github.sha }}) && echo "::set-output name=should_run::false"
 
-  nightly:
-    name: Build nightly release
+  generate_name:
+    name: Generate build artifact name
+    runs-on: ubuntu-latest
     needs: check_date
     if: ${{ needs.check_date.outputs.should_run != 'false' }}
+    outputs: 
+      hemisphere_name: ${{ steps.generate.outputs.name }}
+    steps:
+      - id: generate
+        run: echo "name='hemisphere-$(date -u +%y%m%d)'" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build nightly release
     runs-on: ubuntu-latest
+    needs: check_date generate_name
+    if: ${{ needs.check_date.outputs.should_run != 'false' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -50,10 +61,25 @@ jobs:
         run: cargo build --release
       - name: Compress debug sections
         run: objcopy --compress-debug-sections=zstd ./target/release/app ./target/release/hemisphere
-      - name: Generate build artifact name
-        run: echo "HEMISPHERE_NAME='hemisphere-$(date -u +%y%m%d)'" >> "$GITHUB_ENV"
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.HEMISPHERE_NAME }}
+          name: ${{ needs.generate_name.outputs.name }}
           path: ./target/release/hemisphere
+
+  release:
+    name: Create nightly release
+    runs-on: ubuntu-latest
+    needs: check_date generate_name build
+    if: ${{ needs.check_date.outputs.should_run != 'false' }}
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: ${{ needs.generate_name.outputs.name }}
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ needs.generate_name.outputs.name }} (Nightly)
+          files: ${{ needs.generate_name.outputs.name }}
+          prerelease: true
