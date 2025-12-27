@@ -30,10 +30,13 @@ jobs:
     needs: check_date
     if: ${{ needs.check_date.outputs.should_run != 'false' }}
     outputs: 
-      name: ${{ steps.generate.outputs.name }}
+      name: ${{ steps.generate_name.outputs.name }}
+      date: ${{ steps.generate_date.outputs.date }}
     steps:
-      - id: generate
-        run: echo "name='hemisphere-$(date -u +%y%m%d)'" >> "$GITHUB_OUTPUT"
+      - id: generate_name
+        run: echo "name=hemisphere-$(date -u +%y%m%d)" >> "$GITHUB_OUTPUT"
+      - id: generate_date
+        run: echo "date=$(date -u +%Y/%m/%d )" >> "$GITHUB_OUTPUT"
 
   build:
     name: Build nightly release
@@ -86,7 +89,8 @@ jobs:
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          name: ${{ needs.generate_name.outputs.name }} (Nightly)
+          name: Hemisphere Nightly (${{ needs.generate_name.outputs.date }})
+          body: Nightly release ${{ needs.generate_name.outputs.date }}
           files: ${{ needs.generate_name.outputs.name }}
           tag_name: nightly
-          prerelease: true
+          make_latest: true
