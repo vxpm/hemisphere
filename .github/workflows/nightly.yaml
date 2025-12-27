@@ -7,7 +7,6 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  RUSTFLAGS: '-Clink-arg=-Wl,--compress-debug-sections=zstd'
 
 jobs:
   check_date:
@@ -49,10 +48,12 @@ jobs:
         run: just ipl-hle build
       - name: Build
         run: cargo build --release
+      - name: Compress debug sections
+        run: objcopy --compress-debug-sections=zstd ./target/release/app ./target/release/hemisphere
       - name: Generate build artifact name
         run: echo "HEMISPHERE_NAME='hemisphere-$(date -u +%y%m%d)'" >> "$GITHUB_ENV"
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.HEMISPHERE_NAME }}
-          path: ./target/release/app
+          path: ./target/release/hemisphere
