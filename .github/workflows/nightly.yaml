@@ -33,7 +33,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
       - name: Update apt
-        run: apt-get update
+        run: sudo apt-get update
       - name: Install audio deps
         uses: awalsh128/cache-apt-pkgs-action@latest
         with:
