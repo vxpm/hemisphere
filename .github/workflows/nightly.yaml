@@ -30,7 +30,7 @@ jobs:
     needs: check_date
     if: ${{ needs.check_date.outputs.should_run != 'false' }}
     outputs: 
-      hemisphere_name: ${{ steps.generate.outputs.name }}
+      name: ${{ steps.generate.outputs.name }}
     steps:
       - id: generate
         run: echo "name='hemisphere-$(date -u +%y%m%d)'" >> "$GITHUB_OUTPUT"
@@ -49,6 +49,10 @@ jobs:
         uses: awalsh128/cache-apt-pkgs-action@latest
         with:
           packages: libasound2-dev libudev-dev
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2.7.7
+        with:
+          cache-on-failure: true
       - name: Install nightly rust toolchain
         uses: dtolnay/rust-toolchain@nightly
       - name: Install just
