@@ -86,4 +86,5 @@ jobs:
         with:
           name: ${{ needs.generate_name.outputs.name }} (Nightly)
           files: ${{ needs.generate_name.outputs.name }}
+          tag_name: nightly
           prerelease: true
