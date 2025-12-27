@@ -1,0 +1,57 @@
+name: Nightly build
+
+on:
+  workflow_dispatch:
+  schedule:
+     - cron: "0 0 * * *"
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check_date:
+    name: Check latest commit is recent enough
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.check_date.outputs.should_run }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Print latest commit
+        run: echo ${{ github.sha }}
+      - id: should_run
+        continue-on-error: true
+        name: Check latest commit is less than a day
+        if: ${{ github.event_name == 'schedule' }}
+        run: test -z $(git rev-list  --after="24 hours"  ${{ github.sha }}) && echo "::set-output name=should_run::false"
+
+  nightly:
+    name: Build nightly release
+    needs: check_date
+    if: ${{ needs.check_date.outputs.should_run != 'false' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Update apt
+        run: apt-get update
+      - name: Install audio deps
+        uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: libasound2-dev libudev-dev
+      - name: Install nightly rust toolchain
+        uses: dtolnay/rust-toolchain@nightly
+      - name: Install just
+        uses: taiki-e/install-action@v2
+        with:
+          tool: just
+      - name: Build ipl-hle
+        run: just ipl-hle build
+      - name: Build
+        run: cargo build
+      - name: Generate build artifact name
+        run: echo "HEMISPHERE_NAME='hemisphere-$(date -u +%y%m%d)'" >> "$GITHUB_ENV"
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.HEMISPHERE_NAME }}
+          path: ./target/debug/app

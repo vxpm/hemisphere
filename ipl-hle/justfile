@@ -11,6 +11,7 @@ build:
     @echo "=> Building ipl-hle.elf ..."
     @cargo build --release
     @echo "=> Copying ipl-hle.elf to local resources folder ..."
+    @mkdir ../local
     @cp ../target/powerpc-nintendo-gamecube-eabi/release/ipl-hle.elf ../local/ipl-hle.elf
     @echo "=> Converting ipl-hle.elf to ipl-hle.dol ..."
     @cd .. && cargo run -q -p cubetool convert -i local/ipl-hle.elf -o local/ipl-hle.dol
