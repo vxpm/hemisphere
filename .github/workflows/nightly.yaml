@@ -36,7 +36,7 @@ jobs:
       tag: ${{ steps.generate_tag.outputs.tag }}
     steps:
       - id: generate_name
-        run: echo "name=hemisphere-$(date -u +%y%m%d)" >> "$GITHUB_OUTPUT"
+        run: echo "name=hemisphere-linux-$(date -u +%y%m%d)" >> "$GITHUB_OUTPUT"
       - id: generate_date
         run: echo "date=$(date -u +%Y/%m/%d )" >> "$GITHUB_OUTPUT"
       - id: generate_tag
@@ -73,12 +73,12 @@ jobs:
       - name: Build hemisphere
         run: cargo build --release
       - name: Compress debug sections
-        run: objcopy --compress-debug-sections=zstd ./target/release/app ./target/release/hemisphere
+        run: objcopy --compress-debug-sections=zstd ./target/release/app ./target/release/${{ needs.generate_name.outputs.name }}
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ needs.generate_name.outputs.name }}
-          path: ./target/release/hemisphere
+          path: ./target/release/${{ needs.generate_name.outputs.name }}
 
   release:
     name: Create nightly release
