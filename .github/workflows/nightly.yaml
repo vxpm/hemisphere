@@ -92,14 +92,14 @@ jobs:
         uses: actions/download-artifact@v5
         with:
           name: ${{ needs.generate_name.outputs.name }}
-      - run: ls
-      - run: ls hemisphere
+          path: ./${{ needs.generate_name.outputs.name }}
+      - run: ls hemisphere/hemisphere
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
           name: Hemisphere Nightly (${{ needs.generate_name.outputs.date }})
           body: Nightly release ${{ needs.generate_name.outputs.date }}
-          files: ${{ needs.generate_name.outputs.name }}/${{ needs.generate_name.outputs.name }}
+          files: ./${{ needs.generate_name.outputs.name }}
           tag_name: ${{ needs.generate_name.outputs.tag }}
           make_latest: true
           prerelease: false
