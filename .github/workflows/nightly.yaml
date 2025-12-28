@@ -12,7 +12,7 @@ env:
 jobs:
   check_date:
     name: Check latest commit is recent enough
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     outputs:
       should_run: ${{ steps.check_date.outputs.should_run }}
     steps:
@@ -27,23 +27,26 @@ jobs:
 
   generate_name:
     name: Generate build artifact name
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     needs: check_date
     if: ${{ needs.check_date.outputs.should_run != 'false' }}
     outputs: 
-      name: ${{ steps.generate_name.outputs.name }}
+      name_linux: ${{ steps.generate_name.outputs.name_linux }}
+      name_windows: ${{ steps.generate_name.outputs.name_windows }}
       date: ${{ steps.generate_date.outputs.date }}
       tag: ${{ steps.generate_tag.outputs.tag }}
     steps:
       - id: generate_name
-        run: echo "name=hemisphere-linux-$(date -u +%y%m%d)" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "name_linux=hemisphere-linux-$(date -u +%y%m%d)" >> "$GITHUB_OUTPUT"
+          echo "name_windows=hemisphere-windows-$(date -u +%y%m%d)" >> "$GITHUB_OUTPUT"
       - id: generate_date
         run: echo "date=$(date -u +%Y/%m/%d )" >> "$GITHUB_OUTPUT"
       - id: generate_tag
         run: echo "tag=nightly-$(date -u +%y%m%d)" >> "$GITHUB_OUTPUT"
 
-  build:
-    name: Build nightly release
+  build_linux:
+    name: Build nightly (linux)
     runs-on: ubuntu-latest
     needs: [check_date, generate_name]
     if: ${{ needs.check_date.outputs.should_run != 'false' }}
@@ -73,25 +76,66 @@ jobs:
       - name: Build hemisphere
         run: cargo build --release
       - name: Compress debug sections
-        run: objcopy --compress-debug-sections=zstd ./target/release/app ./target/release/${{ needs.generate_name.outputs.name }}
+        run: objcopy --compress-debug-sections=zstd ./target/release/app ./target/release/${{ needs.generate_name.outputs.name_linux }}
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ needs.generate_name.outputs.name }}
-          path: ./target/release/${{ needs.generate_name.outputs.name }}
+          name: ${{ needs.generate_name.outputs.name_linux }}
+          path: ./target/release/${{ needs.generate_name.outputs.name_linux }}
+
+  build_windows:
+    name: Build nightly (windows)
+    runs-on: ubuntu-latest
+    needs: [check_date, generate_name]
+    if: ${{ needs.check_date.outputs.should_run != 'false' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2.7.7
+        with:
+          cache-on-failure: true
+      - name: Install nightly rust toolchain
+        uses: dtolnay/rust-toolchain@nightly
+      - name: Install just
+        uses: taiki-e/install-action@v2
+        with:
+          tool: just
+      - name: Install cargo-xwin
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-xwin
+      - name: Add x86_64-pc-windows-msvc target
+        run: rustup target add x86_64-pc-windows-msvc
+      - name: Build ipl-hle
+        run: just ipl-hle build
+      - name: Build hemisphere
+        run: cargo xwin build --target x86_64-pc-windows-msvc --release
+      - name: Rename executable
+        run: mv ./target/x86_64-pc-windows-msvc/release/app ./target/x86_64-pc-windows-msvc/release/${{ needs.generate_name.outputs.name_windows }}
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ needs.generate_name.outputs.name_windows }}
+          path: ./target/x86_64-pc-windows-msvc/release/${{ needs.generate_name.outputs.name_windows }}
 
   release:
     name: Create nightly release
-    runs-on: ubuntu-latest
-    needs: [check_date, generate_name, build]
+    runs-on: ubuntu-slim
+    needs: [check_date, generate_name, build_linux, build_windows]
     if: ${{ needs.check_date.outputs.should_run != 'false' }}
     permissions:
       contents: write
     steps:
-      - name: Download artifact
+      - name: Download linux artifacts
         uses: actions/download-artifact@v5
         with:
-          name: ${{ needs.generate_name.outputs.name }}
+          name: ${{ needs.generate_name.outputs.name_linux }}
+          path: build
+      - name: Download windows artifacts
+        uses: actions/download-artifact@v5
+        with:
+          name: ${{ needs.generate_name.outputs.name_windows }}
           path: build
       - name: Create release
         uses: softprops/action-gh-release@v2
