@@ -33,11 +33,14 @@ jobs:
     outputs: 
       name: ${{ steps.generate_name.outputs.name }}
       date: ${{ steps.generate_date.outputs.date }}
+      tag: ${{ steps.generate_tag.outputs.tag }}
     steps:
       - id: generate_name
         run: echo "name=hemisphere-$(date -u +%y%m%d)" >> "$GITHUB_OUTPUT"
       - id: generate_date
         run: echo "date=$(date -u +%Y/%m/%d )" >> "$GITHUB_OUTPUT"
+      - id: generate_tag
+        run: echo "tag=nightly-$(date -u +%y%m%d)" >> "$GITHUB_OUTPUT"
 
   build:
     name: Build nightly release
@@ -94,7 +97,7 @@ jobs:
         with:
           name: Hemisphere Nightly (${{ needs.generate_name.outputs.date }})
           body: Nightly release ${{ needs.generate_name.outputs.date }}
-          files: ./${{ needs.generate_name.outputs.name }}
-          tag_name: nightly
+          files: ${{ needs.generate_name.outputs.name }}/${{ needs.generate_name.outputs.name }}
+          tag_name: ${{ needs.generate_name.outputs.tag }}
           make_latest: true
           prerelease: false
