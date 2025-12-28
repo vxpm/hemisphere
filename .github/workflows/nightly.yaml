@@ -7,6 +7,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  RUSTFLAGS: -Z threads=4 -Z share-generics=y
 
 jobs:
   check_date:
@@ -56,6 +57,8 @@ jobs:
         uses: Swatinem/rust-cache@v2.7.7
         with:
           cache-on-failure: true
+      - name: Setup mold
+        uses: rui314/setup-mold@v1
       - name: Install nightly rust toolchain
         uses: dtolnay/rust-toolchain@nightly
       - name: Install just
@@ -64,7 +67,7 @@ jobs:
           tool: just
       - name: Build ipl-hle
         run: just ipl-hle build
-      - name: Build
+      - name: Build hemisphere
         run: cargo build --release
       - name: Compress debug sections
         run: objcopy --compress-debug-sections=zstd ./target/release/app ./target/release/hemisphere
@@ -91,6 +94,7 @@ jobs:
         with:
           name: Hemisphere Nightly (${{ needs.generate_name.outputs.date }})
           body: Nightly release ${{ needs.generate_name.outputs.date }}
-          files: ${{ needs.generate_name.outputs.name }}
+          files: ./${{ needs.generate_name.outputs.name }}
           tag_name: nightly
           make_latest: true
+          prerelease: false
