@@ -39,7 +39,7 @@ jobs:
       - id: generate_name
         run: |
           echo "name_linux=hemisphere-linux-$(date -u +%y%m%d)" >> "$GITHUB_OUTPUT"
-          echo "name_windows=hemisphere-windows-$(date -u +%y%m%d)" >> "$GITHUB_OUTPUT"
+          echo "name_windows=hemisphere-windows-$(date -u +%y%m%d).exe" >> "$GITHUB_OUTPUT"
       - id: generate_date
         run: echo "date=$(date -u +%Y/%m/%d )" >> "$GITHUB_OUTPUT"
       - id: generate_tag
@@ -112,7 +112,7 @@ jobs:
       - name: Build hemisphere
         run: cargo xwin build --target x86_64-pc-windows-msvc --release
       - name: Rename executable
-        run: mv ./target/x86_64-pc-windows-msvc/release/app ./target/x86_64-pc-windows-msvc/release/${{ needs.generate_name.outputs.name_windows }}
+        run: mv ./target/x86_64-pc-windows-msvc/release/app.exe ./target/x86_64-pc-windows-msvc/release/${{ needs.generate_name.outputs.name_windows }}
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
