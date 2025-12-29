@@ -28,8 +28,26 @@ const TABLE_BLOCKS_BITS: usize = 8;
 const TABLE_BLOCKS_COUNT: usize = 1 << TABLE_BLOCKS_BITS;
 const TABLE_BLOCKS_MASK: usize = TABLE_BLOCKS_COUNT - 1;
 
-type BlockTable =
-    Table<Table<Table<BlockId, TABLE_BLOCKS_COUNT>, TABLE_SECONDARY_COUNT>, TABLE_PRIMARY_COUNT>;
+/// Identifier for a block in a [`Blocks`] storage.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BlockId(usize);
+
+pub struct StoredBlock {
+    pub inner: Block,
+    pub links: Vec<*mut Option<LinkData>>,
+}
+
+// TODO: this is problematic
+unsafe impl Send for StoredBlock {}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Mapping {
+    pub id: BlockId,
+    pub length: u32,
+}
+
+type MappingTable =
+    Table<Table<Table<Mapping, TABLE_BLOCKS_COUNT>, TABLE_SECONDARY_COUNT>, TABLE_PRIMARY_COUNT>;
 
 fn addr_to_table_idx(addr: Address) -> (usize, usize, usize) {
     let base = (addr.value() >> 2) as usize;
@@ -41,70 +59,75 @@ fn addr_to_table_idx(addr: Address) -> (usize, usize, usize) {
     )
 }
 
-/// Identifier for a block in a [`Blocks`] storage.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct BlockId(usize);
-
-pub struct StoredBlock {
-    pub block: Block,
-    pub links: Vec<*mut Option<LinkData>>,
-}
-
-// TODO: this is problematic
-unsafe impl Send for StoredBlock {}
-
 /// A structure which keeps tracks of compiled [`Block`]s.
-#[derive(Default)]
 pub struct Blocks {
     storage: Vec<StoredBlock>,
-    table: BlockTable,
+    mappings: MappingTable,
+}
+
+impl Default for Blocks {
+    fn default() -> Self {
+        Self {
+            storage: Default::default(),
+            mappings: Default::default(),
+        }
+    }
 }
 
 impl Blocks {
+    fn insert_mapping(&mut self, addr: Address, mapping: Mapping) {
+        let (idx0, idx1, idx2) = addr_to_table_idx(addr);
+        let level1 = self.mappings.get_or_default(idx0);
+        let level2 = level1.get_or_default(idx1);
+        level2.insert(idx2, mapping);
+    }
+
     #[inline(always)]
     pub fn insert(&mut self, addr: Address, block: Block) -> BlockId {
+        let length = 4 * block.meta().seq.len() as u32;
         let id = BlockId(self.storage.len());
+
         self.storage.push(StoredBlock {
-            block,
+            inner: block,
             links: Vec::new(),
         });
 
-        let (idx0, idx1, idx2) = addr_to_table_idx(addr);
-        let level1 = self.table.get_or_default(idx0);
-        let level2 = level1.get_or_default(idx1);
-        level2.insert(idx2, id);
+        self.insert_mapping(addr, Mapping { id, length });
 
         id
     }
 
-    /// Invalidate blocks that contain `addr`.
-    pub fn invalidate(&mut self, addr: Address) {
-        let (idx0, idx1, _) = addr_to_table_idx(addr);
-        let Some(level1) = self.table.get_mut(idx0) else {
-            return;
-        };
-
-        level1.remove(idx1.saturating_sub(1));
-        level1.remove(idx1);
-        level1.remove(idx1.min(TABLE_SECONDARY_COUNT - 1));
-    }
-
-    /// Returns the ID of the block starting at `addr`.
+    /// Returns the mapping at `addr`.
     #[inline(always)]
-    pub fn get_id(&self, addr: Address) -> Option<BlockId> {
+    pub fn get_mapping(&self, addr: Address) -> Option<Mapping> {
         let (idx0, idx1, idx2) = addr_to_table_idx(addr);
-        let level1 = self.table.get(idx0)?;
+        let level1 = self.mappings.get(idx0)?;
         let level2 = level1.get(idx1)?;
         level2.get(idx2).copied()
     }
 
+    /// Returns the block mapped to `addr`.
     #[inline(always)]
     pub fn get(&mut self, addr: Address) -> Option<&StoredBlock> {
-        self.storage.get(self.get_id(addr)?.0)
+        self.storage.get(self.get_mapping(addr)?.id.0)
     }
 
+    /// Invalidate blocks that contain `addr`.
+    pub fn invalidate(&mut self, target: Address) {
+        // do nothing for now
+    }
+
+    /// Clears all mappings.
     pub fn clear(&mut self) {
-        self.table = Table::new();
+        self.mappings = Table::new();
+
+        // invalidate all links
+        for block in &mut self.storage {
+            for link in block.links.drain(..) {
+                let link = unsafe { link.as_mut().unwrap() };
+                *link = None;
+            }
+        }
     }
 }
 
@@ -206,11 +229,11 @@ const CTX_HOOKS: Hooks = {
         link_data: &mut Option<LinkData>,
     ) {
         debug_assert!(link_data.is_none());
-        if let Some(id) = ctx.blocks.get_id(addr) {
-            let stored = ctx.blocks.storage.get_mut(id.0).unwrap();
+        if let Some(mapping) = ctx.blocks.get_mapping(addr) {
+            let stored = ctx.blocks.storage.get_mut(mapping.id.0).unwrap();
             *link_data = Some(LinkData {
-                block: stored.block.as_ptr(),
-                pattern: stored.block.meta().pattern,
+                block: stored.inner.as_ptr(),
+                pattern: stored.inner.meta().pattern,
             });
 
             stored.links.push(&raw mut *link_data);
@@ -591,11 +614,11 @@ impl JitCore {
         let stored = self
             .blocks
             .get(sys.cpu.pc)
-            .filter(|b| b.block.meta().seq.len() <= max_instructions as usize);
+            .filter(|b| b.inner.meta().seq.len() <= max_instructions as usize);
 
         let compiled: ppcjit::Block;
         let block = match stored {
-            Some(stored) => stored.block.as_ptr(),
+            Some(stored) => stored.inner.as_ptr(),
             None => {
                 std::hint::cold_path();
 
@@ -651,7 +674,7 @@ impl JitCore {
         let block = self
             .blocks
             .get(sys.cpu.pc)
-            .filter(|b| b.block.meta().seq.len() <= max_instructions as usize);
+            .filter(|b| b.inner.meta().seq.len() <= max_instructions as usize);
 
         if block.is_none() {
             // avoid trying to compile unimplemented instructions in debug mode
@@ -678,13 +701,13 @@ impl JitCore {
         while executed.cycles < cycles {
             // detect mailbox idle loop
             if let Some(stored) = self.blocks.get(sys.cpu.pc)
-                && stored.block.meta().pattern == Pattern::Call
-                && let Some(dest) = stored.block.meta().seq.is_call(sys.cpu.pc)
+                && stored.inner.meta().pattern == Pattern::Call
+                && let Some(dest) = stored.inner.meta().seq.is_call(sys.cpu.pc)
             {
                 std::hint::cold_path();
 
                 if let Some(func_block) = self.blocks.get(dest)
-                    && func_block.block.meta().pattern == Pattern::GetMailboxStatusFunc
+                    && func_block.inner.meta().pattern == Pattern::GetMailboxStatusFunc
                     && sys.dsp.cpu_mailbox.status()
                 {
                     std::hint::cold_path();

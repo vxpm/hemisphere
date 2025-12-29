@@ -51,4 +51,8 @@ impl<T, const LEN: usize> Table<T, LEN> {
 
         self.insert(index, T::default())
     }
+
+    pub fn iter(&mut self) -> impl Iterator<Item = (usize, &mut Option<T>)> {
+        self.entries.iter_mut().enumerate()
+    }
 }
