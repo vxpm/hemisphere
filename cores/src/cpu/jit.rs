@@ -1,3 +1,5 @@
+mod table;
+
 use hemisphere::{
     Address, Cycles, Primitive,
     cores::{CpuCore, Executed},
@@ -14,14 +16,39 @@ use ppcjit::{
     hooks::*,
 };
 use rustc_hash::FxBuildHasher;
-use std::{cell::Cell, ops::Range};
+use std::ops::Range;
 
 pub use ppcjit;
 
+use crate::cpu::jit::table::Table;
+
 type FxIndexMap<K, V> = IndexMap<K, V, FxBuildHasher>;
 
-const PAGE_SHIFT: usize = 12;
-const PAGE_COUNT: usize = 1 << (32 - PAGE_SHIFT);
+const OVERLAP_PAGE_SHIFT: usize = 12;
+const OVERLAP_PAGE_COUNT: usize = 1 << (32 - OVERLAP_PAGE_SHIFT);
+
+const TABLE_PRIMARY_BITS: usize = 12;
+const TABLE_PRIMARY_COUNT: usize = 1 << TABLE_PRIMARY_BITS;
+const TABLE_PRIMARY_MASK: usize = TABLE_PRIMARY_COUNT - 1;
+const TABLE_SECONDARY_BITS: usize = 10;
+const TABLE_SECONDARY_COUNT: usize = 1 << TABLE_SECONDARY_BITS;
+const TABLE_SECONDARY_MASK: usize = TABLE_SECONDARY_COUNT - 1;
+const TABLE_BLOCKS_BITS: usize = 8;
+const TABLE_BLOCKS_COUNT: usize = 1 << TABLE_BLOCKS_BITS;
+const TABLE_BLOCKS_MASK: usize = TABLE_BLOCKS_COUNT - 1;
+
+type BlockTable =
+    Table<Table<Table<BlockId, TABLE_BLOCKS_COUNT>, TABLE_SECONDARY_COUNT>, TABLE_PRIMARY_COUNT>;
+
+fn addr_to_table_idx(addr: Address) -> (usize, usize, usize) {
+    let base = (addr.value() >> 2) as usize;
+    (
+        base >> (30 - TABLE_PRIMARY_BITS) & TABLE_PRIMARY_MASK,
+        (base >> (30 - TABLE_PRIMARY_BITS - TABLE_SECONDARY_BITS)) & TABLE_SECONDARY_MASK,
+        (base >> (30 - TABLE_PRIMARY_BITS - TABLE_SECONDARY_BITS - TABLE_BLOCKS_BITS))
+            & TABLE_BLOCKS_MASK,
+    )
+}
 
 /// Identifier for a block in a [`Blocks`] storage.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -35,77 +62,42 @@ struct Mapping {
 
 /// Mapping of addresses to JIT blocks.
 pub struct BlockMapping {
-    tree_map: FxIndexMap<Address, Mapping>,
-    overlap_lut: Box<[u16; PAGE_COUNT]>,
-
-    // caching stuff
-    to_remove: Vec<Address>,
-    last_query: Cell<Option<(Address, BlockId)>>,
+    table: BlockTable,
 }
 
 impl Default for BlockMapping {
     fn default() -> Self {
         Self {
-            tree_map: IndexMap::default(),
-            overlap_lut: util::boxed_array(0),
-
-            to_remove: Vec::with_capacity(128),
-            last_query: Cell::new(None),
+            table: Default::default(),
         }
     }
 }
 
 impl BlockMapping {
     fn insert(&mut self, range: Range<Address>, id: BlockId) {
-        self.tree_map.insert(
-            range.start,
-            Mapping {
-                id,
-                length: range.end.value() - range.start.value(),
-            },
-        );
-
-        // update LUT
-        let start_page = range.start.value() >> PAGE_SHIFT;
-        let end_page = range.end.value() >> PAGE_SHIFT;
-        for index in start_page..=end_page {
-            self.overlap_lut[index as usize] += 1;
-        }
+        let (idx0, idx1, idx2) = addr_to_table_idx(range.start);
+        let level1 = self.table.get_or_default(idx0);
+        let level2 = level1.get_or_default(idx1);
+        level2.insert(idx2, id);
     }
 
     /// Returns the block starting at `addr`.
     #[inline(always)]
     pub fn get(&self, addr: Address) -> Option<BlockId> {
-        if let Some((last_addr, id)) = self.last_query.get()
-            && last_addr == addr
-        {
-            std::hint::cold_path();
-            Some(id)
-        } else {
-            let id = self.tree_map.get(&addr)?.id;
-            self.last_query.set(Some((addr, id)));
-            Some(id)
-        }
+        let (idx0, idx1, idx2) = addr_to_table_idx(addr);
+        let level1 = self.table.get(idx0)?;
+        let level2 = level1.get(idx1)?;
+        level2.get(idx2).copied()
     }
 
     /// Returns the block starting at `addr`.
     #[inline(always)]
     pub fn get_uncached(&self, addr: Address) -> Option<BlockId> {
-        if let Some((last_addr, id)) = self.last_query.get()
-            && last_addr == addr
-        {
-            std::hint::cold_path();
-            Some(id)
-        } else {
-            let id = self.tree_map.get(&addr)?.id;
-            Some(id)
-        }
+        self.get(addr)
     }
 
     pub fn clear(&mut self) {
-        self.tree_map.clear();
-        self.overlap_lut.fill(0);
-        self.last_query.set(None);
+        self.table = Table::new();
     }
 }
 
@@ -159,52 +151,52 @@ impl Blocks {
     /// Invalidates all blocks that contain `addr`.
     #[inline(always)]
     pub fn invalidate(&mut self, addr: Address) {
-        // check LUT first
-        let page = addr.value() >> PAGE_SHIFT;
-
-        #[expect(clippy::redundant_else, reason = "makes it clearer")]
-        if self.mapping.overlap_lut[page as usize] == 0 {
-            return;
-        } else {
-            std::hint::cold_path();
-        }
-
-        self.mapping.to_remove.clear();
-        for (&candidate, mapping) in self.mapping.tree_map.iter() {
-            let length = mapping.length;
-            let range = candidate..candidate + length;
-
-            if range.contains(&addr) {
-                self.mapping.to_remove.push(candidate);
-            }
-        }
-
-        for target in self.mapping.to_remove.drain(..) {
-            let mapping = self.mapping.tree_map.swap_remove(&target).unwrap();
-            let block = self.storage.get_mut(mapping.id.0).unwrap();
-
-            // invalidate links
-            for link in block.links.drain(..) {
-                let link = unsafe { link.as_mut().unwrap() };
-                *link = None;
-            }
-
-            // update LUT
-            let start_page = target.value() >> PAGE_SHIFT;
-            let end_page = (target + mapping.length).value() >> PAGE_SHIFT;
-            for index in start_page..=end_page {
-                self.mapping.overlap_lut[index as usize] -= 1;
-            }
-        }
-
-        if self
-            .mapping
-            .last_query
-            .get()
-            .is_some_and(|(queried, _)| queried == addr)
-        {
-            self.mapping.last_query.set(None);
-        }
+        // // check LUT first
+        // let page = addr.value() >> OVERLAP_PAGE_SHIFT;
+        //
+        // #[expect(clippy::redundant_else, reason = "makes it clearer")]
+        // if self.mapping.overlap_lut[page as usize] == 0 {
+        //     return;
+        // } else {
+        //     std::hint::cold_path();
+        // }
+        //
+        // self.mapping.to_remove.clear();
+        // for (&candidate, mapping) in self.mapping.map.iter() {
+        //     let length = mapping.length;
+        //     let range = candidate..candidate + length;
+        //
+        //     if range.contains(&addr) {
+        //         self.mapping.to_remove.push(candidate);
+        //     }
+        // }
+        //
+        // for target in self.mapping.to_remove.drain(..) {
+        //     let mapping = self.mapping.map.swap_remove(&target).unwrap();
+        //     let block = self.storage.get_mut(mapping.id.0).unwrap();
+        //
+        //     // invalidate links
+        //     for link in block.links.drain(..) {
+        //         let link = unsafe { link.as_mut().unwrap() };
+        //         *link = None;
+        //     }
+        //
+        //     // update LUT
+        //     let start_page = target.value() >> OVERLAP_PAGE_SHIFT;
+        //     let end_page = (target + mapping.length).value() >> OVERLAP_PAGE_SHIFT;
+        //     for index in start_page..=end_page {
+        //         self.mapping.overlap_lut[index as usize] -= 1;
+        //     }
+        // }
+        //
+        // if self
+        //     .mapping
+        //     .last_query
+        //     .get()
+        //     .is_some_and(|(queried, _)| queried == addr)
+        // {
+        //     self.mapping.last_query.set(None);
+        // }
     }
 }
 
@@ -415,13 +407,13 @@ const CTX_HOOKS: Hooks = {
         }
 
         let size = ty.size();
-        ctx.to_invalidate.push((addr, size as u8));
+        // ctx.to_invalidate.push((addr, size as u8));
 
         size
     }
 
-    extern "sysv64-unwind" fn mark_written(ctx: &mut Context, addr: Address, size: u8) {
-        ctx.to_invalidate.push((addr, size));
+    extern "sysv64-unwind" fn mark_written(ctx: &mut Context, addr: Address, _: u8) {
+        ctx.blocks.invalidate(addr);
     }
 
     extern "sysv64-unwind" fn cache_dma(ctx: &mut Context) {
