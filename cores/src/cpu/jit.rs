@@ -9,6 +9,7 @@ use hemisphere::{
     },
     system::{self, System},
 };
+use indexmap::IndexSet;
 use ppcjit::{
     Block, FastmemLut,
     block::{BlockFn, Info, LinkData, Pattern},
@@ -17,6 +18,7 @@ use ppcjit::{
 use table::Table;
 
 pub use ppcjit;
+use util::boxed_array;
 
 const TABLE_PRIMARY_BITS: usize = 12;
 const TABLE_PRIMARY_COUNT: usize = 1 << TABLE_PRIMARY_BITS;
@@ -49,6 +51,7 @@ pub struct Mapping {
 type MappingTable =
     Table<Table<Table<Mapping, TABLE_BLOCKS_COUNT>, TABLE_SECONDARY_COUNT>, TABLE_PRIMARY_COUNT>;
 
+#[inline(always)]
 fn addr_to_table_idx(addr: Address) -> (usize, usize, usize) {
     let base = (addr.value() >> 2) as usize;
     (
@@ -59,10 +62,20 @@ fn addr_to_table_idx(addr: Address) -> (usize, usize, usize) {
     )
 }
 
+const DEPS_TABLE_BITS: usize = 20;
+const DEPS_TABLE_COUNT: usize = 1 << DEPS_TABLE_BITS;
+
+#[inline(always)]
+fn deps_page(addr: Address) -> usize {
+    (addr.value() >> (32 - DEPS_TABLE_BITS)) as usize
+}
+
 /// A structure which keeps tracks of compiled [`Block`]s.
 pub struct Blocks {
     storage: Vec<StoredBlock>,
     mappings: MappingTable,
+    deps: Box<[IndexSet<Address>; DEPS_TABLE_COUNT]>,
+    temp_deps: IndexSet<Address>,
 }
 
 impl Default for Blocks {
@@ -70,6 +83,8 @@ impl Default for Blocks {
         Self {
             storage: Default::default(),
             mappings: Default::default(),
+            deps: boxed_array(IndexSet::new()),
+            temp_deps: IndexSet::new(),
         }
     }
 }
@@ -80,8 +95,39 @@ impl Blocks {
         let level1 = self.mappings.get_or_default(idx0);
         let level2 = level1.get_or_default(idx1);
         level2.insert(idx2, mapping);
+
+        let start_page = deps_page(addr);
+        let end_page = deps_page(addr + mapping.length);
+
+        for page in start_page..=end_page {
+            self.deps[page].insert(addr);
+        }
     }
 
+    fn remove_mapping_if_contains(&mut self, addr: Address, target: Address) -> Option<Mapping> {
+        let (idx0, idx1, idx2) = addr_to_table_idx(addr);
+        let level1 = self.mappings.get_mut(idx0)?;
+        let level2 = level1.get_mut(idx1)?;
+        let mapping = level2.get(idx2)?;
+
+        let start = addr;
+        let end = addr + mapping.length;
+
+        if (start..=end).contains(&target) {
+            let start_page = deps_page(addr);
+            let end_page = deps_page(addr + mapping.length);
+
+            for page in start_page..=end_page {
+                self.deps[page].swap_remove(&addr);
+            }
+
+            level2.remove(idx2)
+        } else {
+            None
+        }
+    }
+
+    /// Inserts a block into the storage and maps it to the given address.
     #[inline(always)]
     pub fn insert(&mut self, addr: Address, block: Block) -> BlockId {
         let length = 4 * block.meta().seq.len() as u32;
@@ -112,21 +158,40 @@ impl Blocks {
         self.storage.get(self.get_mapping(addr)?.id.0)
     }
 
-    /// Invalidate blocks that contain `addr`.
+    /// Invalidate mappings that contain `addr`.
     pub fn invalidate(&mut self, target: Address) {
-        // do nothing for now
+        let page = deps_page(target);
+        if self.deps[page].is_empty() {
+            return;
+        }
+
+        let mut temp_deps = std::mem::replace(&mut self.temp_deps, IndexSet::new());
+        self.deps[page].clone_into(&mut temp_deps);
+
+        for dep in temp_deps.iter() {
+            let Some(mapping) = self.remove_mapping_if_contains(*dep, target) else {
+                tracing::warn!(
+                    "mapping {dep} is listed as dependent on page {page} but it does not exist"
+                );
+                continue;
+            };
+
+            let block = &mut self.storage[mapping.id.0];
+            for link in block.links.drain(..) {
+                let link = unsafe { link.as_mut().unwrap() };
+                *link = None;
+            }
+        }
+
+        temp_deps.clear();
+        self.temp_deps = temp_deps;
     }
 
     /// Clears all mappings.
     pub fn clear(&mut self) {
         self.mappings = Table::new();
-
-        // invalidate all links
-        for block in &mut self.storage {
-            for link in block.links.drain(..) {
-                let link = unsafe { link.as_mut().unwrap() };
-                *link = None;
-            }
+        for deps in self.deps.iter_mut() {
+            deps.clear();
         }
     }
 }
@@ -533,8 +598,6 @@ pub struct JitCore {
     pub config: Config,
     pub compiler: ppcjit::Jit,
     pub blocks: Blocks,
-
-    to_invalidate: Vec<(Address, u8)>,
 }
 
 fn closest_breakpoint(pc: Address, breakpoints: &[Address]) -> Address {
@@ -563,8 +626,6 @@ impl JitCore {
             config,
             compiler,
             blocks: Blocks::default(),
-
-            to_invalidate: Vec::with_capacity(16),
         }
     }
 
@@ -648,15 +709,6 @@ impl JitCore {
         } else {
             Cycles(info.cycles as u64)
         };
-
-        if !self.to_invalidate.is_empty() {
-            std::hint::cold_path();
-            for (addr, size) in self.to_invalidate.drain(..) {
-                for offset in 0..size {
-                    self.blocks.invalidate(addr + offset as u32);
-                }
-            }
-        }
 
         Executed {
             instructions: info.instructions,

@@ -49,7 +49,9 @@ fn worker(state: Arc<Shared>) {
             timer.resume();
         } else {
             timer.pause();
-            sleeper.sleep(Duration::from_micros(1));
+
+            // TODO: properly deal with this
+            std::thread::yield_now();
             continue;
         }
 

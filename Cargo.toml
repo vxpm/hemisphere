@@ -157,7 +157,10 @@ rustc-hash = "2"
 seq-macro = "0.3"
 strum = { version = "0.27", features = ["derive"] }
 tinyvec = { version = "1.10", features = ["alloc"] }
-tracing = { version = "0.1", default-features = false, features = ["std"] }
+tracing = { version = "0.1", default-features = false, features = [
+    "std",
+    "release_max_level_info",
+] }
 tracing-subscriber = { version = "0.3", default-features = false, features = [
     "ansi",
     "env-filter",
