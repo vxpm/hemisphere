@@ -18,7 +18,7 @@ pub type ReadHook<T> = extern "sysv64-unwind" fn(*mut Context, Address, *mut T) 
 pub type WriteHook<T> = extern "sysv64-unwind" fn(*mut Context, Address, T) -> bool;
 pub type ReadQuantizedHook = extern "sysv64-unwind" fn(*mut Context, Address, u8, *mut f64) -> u8;
 pub type WriteQuantizedHook = extern "sysv64-unwind" fn(*mut Context, Address, u8, f64) -> u8;
-pub type MarkWrittenHook = extern "sysv64-unwind" fn(*mut Context, Address, u8);
+pub type MarkWrittenHook = extern "sysv64-unwind" fn(*mut Context, Address);
 
 pub type GenericHook = extern "sysv64-unwind" fn(*mut Context);
 
@@ -176,7 +176,6 @@ impl Hooks {
             params: vec![
                 ir::AbiParam::new(ptr_type),       // ctx
                 ir::AbiParam::new(ir::types::I32), // address
-                ir::AbiParam::new(ir::types::I8),  // size
             ],
             returns: vec![],
             call_conv: isa::CallConv::SystemV,

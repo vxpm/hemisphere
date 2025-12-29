@@ -9,23 +9,14 @@ use hemisphere::{
     },
     system::{self, System},
 };
-use indexmap::IndexMap;
 use ppcjit::{
     Block, FastmemLut,
     block::{BlockFn, Info, LinkData, Pattern},
     hooks::*,
 };
-use rustc_hash::FxBuildHasher;
-use std::ops::Range;
+use table::Table;
 
 pub use ppcjit;
-
-use crate::cpu::jit::table::Table;
-
-type FxIndexMap<K, V> = IndexMap<K, V, FxBuildHasher>;
-
-const OVERLAP_PAGE_SHIFT: usize = 12;
-const OVERLAP_PAGE_COUNT: usize = 1 << (32 - OVERLAP_PAGE_SHIFT);
 
 const TABLE_PRIMARY_BITS: usize = 12;
 const TABLE_PRIMARY_COUNT: usize = 1 << TABLE_PRIMARY_BITS;
@@ -54,53 +45,6 @@ fn addr_to_table_idx(addr: Address) -> (usize, usize, usize) {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BlockId(usize);
 
-#[derive(Debug, Clone)]
-struct Mapping {
-    id: BlockId,
-    length: u32,
-}
-
-/// Mapping of addresses to JIT blocks.
-pub struct BlockMapping {
-    table: BlockTable,
-}
-
-impl Default for BlockMapping {
-    fn default() -> Self {
-        Self {
-            table: Default::default(),
-        }
-    }
-}
-
-impl BlockMapping {
-    fn insert(&mut self, range: Range<Address>, id: BlockId) {
-        let (idx0, idx1, idx2) = addr_to_table_idx(range.start);
-        let level1 = self.table.get_or_default(idx0);
-        let level2 = level1.get_or_default(idx1);
-        level2.insert(idx2, id);
-    }
-
-    /// Returns the block starting at `addr`.
-    #[inline(always)]
-    pub fn get(&self, addr: Address) -> Option<BlockId> {
-        let (idx0, idx1, idx2) = addr_to_table_idx(addr);
-        let level1 = self.table.get(idx0)?;
-        let level2 = level1.get(idx1)?;
-        level2.get(idx2).copied()
-    }
-
-    /// Returns the block starting at `addr`.
-    #[inline(always)]
-    pub fn get_uncached(&self, addr: Address) -> Option<BlockId> {
-        self.get(addr)
-    }
-
-    pub fn clear(&mut self) {
-        self.table = Table::new();
-    }
-}
-
 pub struct StoredBlock {
     pub block: Block,
     pub links: Vec<*mut Option<LinkData>>,
@@ -112,91 +56,55 @@ unsafe impl Send for StoredBlock {}
 /// A structure which keeps tracks of compiled [`Block`]s.
 #[derive(Default)]
 pub struct Blocks {
-    pub storage: Vec<StoredBlock>,
-    pub mapping: BlockMapping,
+    storage: Vec<StoredBlock>,
+    table: BlockTable,
 }
 
 impl Blocks {
     #[inline(always)]
     pub fn insert(&mut self, addr: Address, block: Block) -> BlockId {
-        let end = addr + block.meta().seq.len() as u32 * 4;
-        let range = addr..end;
-
         let id = BlockId(self.storage.len());
         self.storage.push(StoredBlock {
             block,
             links: Vec::new(),
         });
-        self.mapping.insert(range, id);
+
+        let (idx0, idx1, idx2) = addr_to_table_idx(addr);
+        let level1 = self.table.get_or_default(idx0);
+        let level2 = level1.get_or_default(idx1);
+        level2.insert(idx2, id);
 
         id
     }
 
+    /// Invalidate blocks that contain `addr`.
+    pub fn invalidate(&mut self, addr: Address) {
+        let (idx0, idx1, _) = addr_to_table_idx(addr);
+        let Some(level1) = self.table.get_mut(idx0) else {
+            return;
+        };
+
+        level1.remove(idx1.saturating_sub(1));
+        level1.remove(idx1);
+        level1.remove(idx1.min(TABLE_SECONDARY_COUNT - 1));
+    }
+
+    /// Returns the ID of the block starting at `addr`.
+    #[inline(always)]
+    pub fn get_id(&self, addr: Address) -> Option<BlockId> {
+        let (idx0, idx1, idx2) = addr_to_table_idx(addr);
+        let level1 = self.table.get(idx0)?;
+        let level2 = level1.get(idx1)?;
+        level2.get(idx2).copied()
+    }
+
     #[inline(always)]
     pub fn get(&mut self, addr: Address) -> Option<&StoredBlock> {
-        self.storage.get(self.mapping.get(addr)?.0)
+        self.storage.get(self.get_id(addr)?.0)
     }
 
-    #[inline(always)]
-    pub fn get_uncached(&mut self, addr: Address) -> Option<&StoredBlock> {
-        self.storage.get(self.mapping.get_uncached(addr)?.0)
-    }
-
-    #[inline(always)]
     pub fn clear(&mut self) {
-        self.storage.clear();
-        self.mapping.clear();
-    }
-
-    /// Invalidates all blocks that contain `addr`.
-    #[inline(always)]
-    pub fn invalidate(&mut self, addr: Address) {
-        // // check LUT first
-        // let page = addr.value() >> OVERLAP_PAGE_SHIFT;
-        //
-        // #[expect(clippy::redundant_else, reason = "makes it clearer")]
-        // if self.mapping.overlap_lut[page as usize] == 0 {
-        //     return;
-        // } else {
-        //     std::hint::cold_path();
-        // }
-        //
-        // self.mapping.to_remove.clear();
-        // for (&candidate, mapping) in self.mapping.map.iter() {
-        //     let length = mapping.length;
-        //     let range = candidate..candidate + length;
-        //
-        //     if range.contains(&addr) {
-        //         self.mapping.to_remove.push(candidate);
-        //     }
-        // }
-        //
-        // for target in self.mapping.to_remove.drain(..) {
-        //     let mapping = self.mapping.map.swap_remove(&target).unwrap();
-        //     let block = self.storage.get_mut(mapping.id.0).unwrap();
-        //
-        //     // invalidate links
-        //     for link in block.links.drain(..) {
-        //         let link = unsafe { link.as_mut().unwrap() };
-        //         *link = None;
-        //     }
-        //
-        //     // update LUT
-        //     let start_page = target.value() >> OVERLAP_PAGE_SHIFT;
-        //     let end_page = (target + mapping.length).value() >> OVERLAP_PAGE_SHIFT;
-        //     for index in start_page..=end_page {
-        //         self.mapping.overlap_lut[index as usize] -= 1;
-        //     }
-        // }
-        //
-        // if self
-        //     .mapping
-        //     .last_query
-        //     .get()
-        //     .is_some_and(|(queried, _)| queried == addr)
-        // {
-        //     self.mapping.last_query.set(None);
-        // }
+        self.table = Table::new();
     }
 }
 
@@ -236,8 +144,6 @@ struct Context<'a> {
     sys: &'a mut System,
     /// The block mapping, so that write operations can invalidate blocks.
     blocks: &'a mut Blocks,
-    /// List of addresses that need to be invalidated.
-    to_invalidate: &'a mut Vec<(Address, u8)>,
     /// Amount of cycles we are trying to execute.
     target_cycles: u32,
     /// Maximum instructions we should execute.
@@ -300,7 +206,7 @@ const CTX_HOOKS: Hooks = {
         link_data: &mut Option<LinkData>,
     ) {
         debug_assert!(link_data.is_none());
-        if let Some(id) = ctx.blocks.mapping.get(addr) {
+        if let Some(id) = ctx.blocks.get_id(addr) {
             let stored = ctx.blocks.storage.get_mut(id.0).unwrap();
             *link_data = Some(LinkData {
                 block: stored.block.as_ptr(),
@@ -332,7 +238,7 @@ const CTX_HOOKS: Hooks = {
         value: P,
     ) -> bool {
         if ctx.sys.write_slow(addr, value) {
-            ctx.to_invalidate.push((addr, size_of::<P>() as u8));
+            ctx.blocks.invalidate(addr);
             true
         } else {
             std::hint::cold_path();
@@ -407,12 +313,12 @@ const CTX_HOOKS: Hooks = {
         }
 
         let size = ty.size();
-        // ctx.to_invalidate.push((addr, size as u8));
+        ctx.blocks.invalidate(addr);
 
         size
     }
 
-    extern "sysv64-unwind" fn mark_written(ctx: &mut Context, addr: Address, _: u8) {
+    extern "sysv64-unwind" fn mark_written(ctx: &mut Context, addr: Address) {
         ctx.blocks.invalidate(addr);
     }
 
@@ -454,7 +360,7 @@ const CTX_HOOKS: Hooks = {
 
     extern "sysv64-unwind" fn ibat_changed(ctx: &mut Context) {
         tracing::info!("ibats changed - clearing blocks mapping and rebuilding ibat lut");
-        ctx.blocks.mapping.clear();
+        ctx.blocks.clear();
         ctx.sys
             .mem
             .build_instr_bat_lut(&ctx.sys.cpu.supervisor.memory.ibat);
@@ -531,7 +437,7 @@ const CTX_HOOKS: Hooks = {
             write_quantized as extern "sysv64-unwind" fn(_, _, _, _) -> _,
         );
         let mark_written =
-            transmute::<_, MarkWrittenHook>(mark_written as extern "sysv64-unwind" fn(_, _, _));
+            transmute::<_, MarkWrittenHook>(mark_written as extern "sysv64-unwind" fn(_, _));
 
         let cache_dma = transmute::<_, GenericHook>(cache_dma as extern "sysv64-unwind" fn(_));
 
@@ -608,8 +514,26 @@ pub struct JitCore {
     to_invalidate: Vec<(Address, u8)>,
 }
 
+fn closest_breakpoint(pc: Address, breakpoints: &[Address]) -> Address {
+    let mut closest_breakpoint = Address(pc.value().saturating_add(u32::MAX));
+    let mut closest_distance = closest_breakpoint.value() - pc.value();
+    for breakpoint in breakpoints.iter().copied() {
+        let distance = breakpoint.value().checked_sub(pc.value());
+        if let Some(distance) = distance
+            && distance <= closest_distance
+            && distance != 0
+        {
+            closest_breakpoint = breakpoint;
+            closest_distance = distance;
+        }
+    }
+
+    closest_breakpoint
+}
+
 impl JitCore {
     pub fn new(config: Config) -> Self {
+        assert!(config.instr_per_block <= TABLE_BLOCKS_COUNT as u32);
         let compiler = ppcjit::Jit::new(config.jit_settings.clone(), CTX_HOOKS);
 
         Self {
@@ -666,9 +590,7 @@ impl JitCore {
     ) -> Executed {
         let stored = self
             .blocks
-            .mapping
             .get(sys.cpu.pc)
-            .and_then(|id| self.blocks.storage.get(id.0))
             .filter(|b| b.block.meta().seq.len() <= max_instructions as usize);
 
         let compiled: ppcjit::Block;
@@ -685,7 +607,6 @@ impl JitCore {
         let mut ctx = Context {
             sys,
             blocks: &mut self.blocks,
-            to_invalidate: &mut self.to_invalidate,
             target_cycles,
             max_instructions,
 
@@ -729,9 +650,7 @@ impl JitCore {
     ) -> Executed {
         let block = self
             .blocks
-            .mapping
             .get(sys.cpu.pc)
-            .and_then(|id| self.blocks.storage.get(id.0))
             .filter(|b| b.block.meta().seq.len() <= max_instructions as usize);
 
         if block.is_none() {
@@ -764,7 +683,7 @@ impl JitCore {
             {
                 std::hint::cold_path();
 
-                if let Some(func_block) = self.blocks.get_uncached(dest)
+                if let Some(func_block) = self.blocks.get(dest)
                     && func_block.block.meta().pattern == Pattern::GetMailboxStatusFunc
                     && sys.dsp.cpu_mailbox.status()
                 {
@@ -776,7 +695,6 @@ impl JitCore {
             }
 
             let max_instructions = if BREAKPOINTS {
-                // find closest breakpoint
                 let closest_breakpoint = closest_breakpoint(sys.cpu.pc, breakpoints);
                 (closest_breakpoint.value() - sys.cpu.pc.value()) / 4
             } else {
@@ -797,23 +715,6 @@ impl JitCore {
 
         executed
     }
-}
-
-fn closest_breakpoint(pc: Address, breakpoints: &[Address]) -> Address {
-    let mut closest_breakpoint = Address(pc.value().saturating_add(u32::MAX));
-    let mut closest_distance = closest_breakpoint.value() - pc.value();
-    for breakpoint in breakpoints.iter().copied() {
-        let distance = breakpoint.value().checked_sub(pc.value());
-        if let Some(distance) = distance
-            && distance <= closest_distance
-            && distance != 0
-        {
-            closest_breakpoint = breakpoint;
-            closest_distance = distance;
-        }
-    }
-
-    closest_breakpoint
 }
 
 impl CpuCore for JitCore {

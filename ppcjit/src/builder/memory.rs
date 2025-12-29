@@ -248,14 +248,13 @@ impl BlockBuilder<'_> {
 
         let mark_written_fn = self.bd.ins().iconst(
             self.consts.ptr_type,
-            self.compiler.hooks.mark_written as i64,
+            self.compiler.hooks.mark_written as usize as i64,
         );
 
-        let size = self.ir_value(size_of::<P>() as u8);
         self.bd.ins().call_indirect(
             self.consts.signatures.mark_written_hook,
             mark_written_fn,
-            &[self.consts.ctx_ptr, addr, size],
+            &[self.consts.ctx_ptr, addr],
         );
 
         self.bd.ins().jump(continue_block, &[]);
