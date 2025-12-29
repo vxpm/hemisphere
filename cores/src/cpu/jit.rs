@@ -523,7 +523,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            instr_per_block: 256,
+            instr_per_block: 128,
             jit_settings: Default::default(),
         }
     }

@@ -29,7 +29,7 @@ pub struct Args {
     pub run: bool,
 
     /// Maximum number of instructions per block
-    #[arg(visible_alias("ipb"), long, default_value_t = 256)]
+    #[arg(visible_alias("ipb"), long, default_value_t = 128)]
     pub instr_per_block: u32,
     /// Whether to treat syscalls as no-ops
     #[arg(long, default_value_t = false)]
