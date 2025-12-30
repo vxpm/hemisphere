@@ -1,4 +1,4 @@
-//! Arena allocator for the JIT context.
+//! Arena allocator for JITs.
 
 use std::{marker::PhantomData, num::NonZeroUsize, ptr::NonNull};
 

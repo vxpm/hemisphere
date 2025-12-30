@@ -1,8 +1,5 @@
-use crate::{
-    Sequence,
-    allocator::{Allocation, Exec},
-    hooks::Context,
-};
+use crate::{Sequence, hooks::Context};
+use jitalloc::{Allocation, Exec};
 use std::{ffi::c_void, ptr::NonNull};
 
 #[derive(Debug)]

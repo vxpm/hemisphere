@@ -2281,6 +2281,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7ee5b5339afb4c41626dde77b7a611bd4f2c202b897852b4bcf5d03eddc61010"
 
 [[package]]
+name = "jitalloc"
+version = "0.1.0"
+dependencies = [
+ "nix",
+ "tracing",
+ "windows 0.62.2",
+]
+
+[[package]]
 name = "jni"
 version = "0.21.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3466,6 +3475,7 @@ dependencies = [
  "cranelift",
  "easyerr",
  "gekko",
+ "jitalloc",
  "nix",
  "rustc-hash 2.1.1",
  "tracing",
@@ -4517,6 +4527,20 @@ name = "version_check"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
+
+[[package]]
+name = "vtxjit"
+version = "0.1.0"
+dependencies = [
+ "bitos",
+ "cranelift",
+ "jitalloc",
+ "nix",
+ "rustc-hash 2.1.1",
+ "tracing",
+ "windows 0.62.2",
+ "zerocopy",
+]
 
 [[package]]
 name = "walkdir"

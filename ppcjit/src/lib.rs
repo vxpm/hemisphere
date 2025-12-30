@@ -1,6 +1,5 @@
 #![feature(debug_closure_helpers)]
 
-mod allocator;
 mod builder;
 mod module;
 mod sequence;

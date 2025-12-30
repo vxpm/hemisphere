@@ -1,4 +1,4 @@
-use crate::allocator::{Allocation, Allocator, Exec, ReadWrite};
+use jitalloc::{Allocation, Allocator, Exec, ReadWrite};
 use std::alloc::Layout;
 
 pub struct Module {

@@ -7,9 +7,11 @@ members = [
     "dol",
     "iso",
     "gxtex",
+    "jitalloc",
+    "hemisphere",
     "ppcjit",
     "dspint",
-    "hemisphere",
+    "vtxjit",
     "cores",
     "renderer",
     "app-modules",
@@ -26,9 +28,11 @@ default-members = [
     "dol",
     "iso",
     "gxtex",
+    "jitalloc",
+    "hemisphere",
     "ppcjit",
     "dspint",
-    "hemisphere",
+    "vtxjit",
     "cores",
     "renderer",
     "app-modules",
@@ -131,6 +135,7 @@ gekko = { path = "./gekko" }
 dol = { path = "./dol" }
 iso = { path = "./iso" }
 gxtex = { path = "./gxtex" }
+jitalloc = { path = "./jitalloc" }
 ppcjit = { path = "./ppcjit" }
 dspint = { path = "./dspint" }
 cores = { path = "./cores" }
@@ -144,6 +149,7 @@ bitos = { git = "https://github.com/vxpm/bitos.git", features = ["zerocopy"] }
 bitut = { git = "https://github.com/vxpm/bitut.git" }
 bytesize = "2"
 clap = { version = "4.5", features = ["derive"] }
+cranelift = { version = "0.127", features = ["frontend", "native"] }
 easyerr = "0.1"
 eyre-pretty = { git = "https://github.com/vxpm/eyre-pretty.git" }
 glam = { version = "0.30", features = ["zerocopy"] }
