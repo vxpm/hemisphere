@@ -1,11 +1,11 @@
 //! Vertex attribute parsing.
 use crate::stream::BinReader;
-use crate::system::gx::cmd::{ArrayDescriptor, Arrays, AttributeMode, VertexDescriptor};
+use crate::system::gx::cmd::{ArrayDescriptor, Arrays, VertexDescriptor};
 use crate::system::gx::colors::Rgba;
 use bitos::{BitUtils, bitos, integer::u5};
 use glam::{Vec2, Vec3};
 
-/// A vertex attribute descriptor.
+/// A vertex attribute descriptor. The descriptor defines how the attribute is encoded.
 pub trait AttributeDescriptor: std::fmt::Debug {
     /// The value type of this attribute.
     type Value;
@@ -124,39 +124,13 @@ pub enum NormalKind {
     N9 = 0b1,
 }
 
-#[bitos(3)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum NormalFormat {
-    #[default]
-    U8 = 0b000,
-    I8 = 0b001,
-    Reserved1 = 0b010,
-    I16 = 0b011,
-    F32 = 0b100,
-    Reserved2 = 0b101,
-    Reserved3 = 0b110,
-    Reserved4 = 0b111,
-}
-
-impl NormalFormat {
-    pub fn size(self) -> u32 {
-        match self {
-            Self::U8 => 1,
-            Self::I8 => 1,
-            Self::I16 => 2,
-            Self::F32 => 4,
-            _ => panic!("reserved format: {self:?}"),
-        }
-    }
-}
-
 #[bitos(4)]
 #[derive(Debug, Clone, Default)]
 pub struct NormalDescriptor {
     #[bits(0)]
     pub kind: NormalKind,
     #[bits(1..4)]
-    pub format: NormalFormat,
+    pub format: CoordsFormat,
 }
 
 impl AttributeDescriptor for NormalDescriptor {
@@ -172,10 +146,11 @@ impl AttributeDescriptor for NormalDescriptor {
     fn read(&self, reader: &mut BinReader) -> Option<Vec3> {
         let mut component = || {
             Some(match self.format() {
-                NormalFormat::U8 => reader.read_be::<u8>()? as f32,
-                NormalFormat::I8 => reader.read_be::<i8>()? as f32,
-                NormalFormat::I16 => reader.read_be::<i16>()? as f32,
-                NormalFormat::F32 => f32::from_bits(reader.read_be::<u32>()?),
+                CoordsFormat::U8 => reader.read_be::<u8>()? as f32,
+                CoordsFormat::I8 => reader.read_be::<i8>()? as f32,
+                CoordsFormat::U16 => reader.read_be::<u16>()? as f32,
+                CoordsFormat::I16 => reader.read_be::<i16>()? as f32,
+                CoordsFormat::F32 => f32::from_bits(reader.read_be::<u32>()?),
                 _ => panic!("reserved format"),
             })
         };
@@ -449,6 +424,38 @@ impl VertexAttributeTable {
             5..8 => self.c.tex5to7_at(index - 5).unwrap(),
             _ => return None,
         })
+    }
+}
+
+/// The mode of an attribute. The mode defines whether the attribute is present directly in the
+/// stream or indirectly through an index into an array.
+#[bitos[2]]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum AttributeMode {
+    /// Not present
+    #[default]
+    None = 0b00,
+    /// Directly in the vertex attribute stream
+    Direct = 0b01,
+    /// Indirectly through a 8 bit index in the vertex attribute stream
+    Index8 = 0b10,
+    /// Indirectly through a 16 bit index in the vertex attribute stream
+    Index16 = 0b11,
+}
+
+impl AttributeMode {
+    pub fn present(self) -> bool {
+        self != AttributeMode::None
+    }
+
+    /// Size of this attribute in a stream, if known.
+    pub fn size(self) -> Option<u32> {
+        match self {
+            Self::None => Some(0),
+            Self::Direct => None,
+            Self::Index8 => Some(1),
+            Self::Index16 => Some(2),
+        }
     }
 }
 

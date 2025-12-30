@@ -14,8 +14,8 @@ use crate::{
     system::{
         gx::{
             cmd::{
-                ArrayDescriptor, AttributeMode, VertexAttributeStream,
-                attributes::{self, Attribute, AttributeDescriptor},
+                ArrayDescriptor, VertexAttributeStream,
+                attributes::{self, Attribute, AttributeDescriptor, AttributeMode},
             },
             colors::Rgba,
             tex::{encode_color_texture, encode_depth_texture},
@@ -1176,7 +1176,6 @@ fn update_texture(sys: &mut System, index: usize) {
     let slice = &sys.mem.ram()[start..][..len];
 
     if !sys.gpu.texture.insert_cache(map.address, slice) {
-        // println!("READING TEXTURE FROM {}", map.address);
         let data = tex::decode_texture(slice, map.format);
         sys.modules.render.exec(render::Action::LoadTexture {
             id: map.address.value(),

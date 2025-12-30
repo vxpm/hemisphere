@@ -6,7 +6,10 @@ use crate::{
     stream::{BinRingBuffer, BinaryStream},
     system::{
         System,
-        gx::{self, Gpu, Reg as GxReg, Topology, cmd::attributes::AttributeDescriptor},
+        gx::{
+            self, Gpu, Reg as GxReg, Topology,
+            cmd::attributes::{AttributeDescriptor, AttributeMode},
+        },
     },
 };
 use attributes::VertexAttributeTable;
@@ -250,35 +253,6 @@ impl Fifo {
         );
 
         count as u32
-    }
-}
-
-#[bitos[2]]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum AttributeMode {
-    /// Not present
-    #[default]
-    None = 0b00,
-    /// Directly in the vertex attribute stream
-    Direct = 0b01,
-    /// Indirectly through a 8 bit index in the vertex attribute stream
-    Index8 = 0b10,
-    /// Indirectly through a 16 bit index in the vertex attribute stream
-    Index16 = 0b11,
-}
-
-impl AttributeMode {
-    pub fn present(self) -> bool {
-        self != AttributeMode::None
-    }
-
-    pub fn size(self) -> Option<u32> {
-        match self {
-            Self::None => Some(0),
-            Self::Direct => None,
-            Self::Index8 => Some(1),
-            Self::Index16 => Some(2),
-        }
     }
 }
 
