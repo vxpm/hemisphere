@@ -1,6 +1,6 @@
 [package]
-name = "ppcjit"
-description = "JIT for Gekko PowerPC code using cranelift"
+name = "vtxjit"
+description = "JIT vertex parser using Cranelift"
 version = "0.1.0"
 edition = "2024"
 
@@ -8,11 +8,8 @@ edition = "2024"
 workspace = true
 
 [dependencies]
-gekko.workspace = true
 jitalloc.workspace = true
-
 bitos.workspace = true
-easyerr.workspace = true
 rustc-hash.workspace = true
 zerocopy.workspace = true
 tracing.workspace = true
