@@ -8,3 +8,4 @@ pub mod debug;
 pub mod disk;
 pub mod input;
 pub mod render;
+pub mod vertex;

@@ -1,3 +1,5 @@
+//! Disk module interface.
+
 use std::io::{Read, Seek};
 
 /// Trait for disk modules.

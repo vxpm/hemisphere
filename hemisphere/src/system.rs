@@ -20,7 +20,7 @@ pub mod vi;
 use crate::{
     modules::{
         audio::AudioModule, debug::DebugModule, disk::DiskModule, input::InputModule,
-        render::RenderModule,
+        render::RenderModule, vertex::VertexModule,
     },
     system::{
         dspi::Dsp,
@@ -51,6 +51,7 @@ pub struct Modules {
     pub disk: Box<dyn DiskModule>,
     pub input: Box<dyn InputModule>,
     pub render: Box<dyn RenderModule>,
+    pub vertex: Box<dyn VertexModule>,
 }
 
 /// System state.
@@ -234,12 +235,7 @@ impl System {
         let mut scheduler = Scheduler::default();
         scheduler.schedule(1 << 16, gx::cmd::process);
 
-        let ipl = Ipl::new(
-            config
-                .ipl
-                .take()
-                .unwrap_or_else(|| vec![0; mem::IPL_LEN]),
-        );
+        let ipl = Ipl::new(config.ipl.take().unwrap_or_else(|| vec![0; mem::IPL_LEN]));
 
         let mut system = System {
             scheduler,

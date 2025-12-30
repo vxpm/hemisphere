@@ -24,7 +24,10 @@ use eyre_pretty::eyre::Result;
 use hemisphere::{
     Hemisphere,
     cores::Cores,
-    modules::debug::{DebugModule, NopDebugModule},
+    modules::{
+        debug::{DebugModule, NopDebugModule},
+        vertex::InterpreterVertexModule,
+    },
     system::{self, Modules, executable::Executable},
 };
 use nanorand::Rng;
@@ -141,6 +144,7 @@ impl App {
             disk: Box::new(iso),
             input: Box::new(GilrsInput::new()),
             render: Box::new(renderer.clone()),
+            vertex: Box::new(InterpreterVertexModule),
         };
 
         let hemisphere = Hemisphere::new(
