@@ -1,4 +1,5 @@
 use bitut::BitUtils;
+use multiversion::multiversion;
 use zerocopy::{FromBytes, Immutable, IntoBytes};
 
 // const DITHER: [[i8; 8]; 8] = [
@@ -141,6 +142,7 @@ pub fn compute_size<F: Format>(width: usize, height: usize) -> usize {
 }
 
 /// Stride is in cache lines.
+#[multiversion(targets = "simd")]
 pub fn encode<F: Format>(
     settings: &F::EncodeSettings,
     stride: usize,
@@ -171,13 +173,14 @@ pub fn encode<F: Format>(
                 let x = base_x + x;
                 let y = base_y + y;
                 let image_index = y * width + x;
-                
+
                 data.get(image_index).copied().unwrap_or_default()
             });
         }
     }
 }
 
+#[multiversion(targets = "simd")]
 pub fn decode<F: Format>(width: usize, height: usize, data: &[u8]) -> Vec<Pixel> {
     let mut pixels = vec![Pixel::default(); width * height];
 
@@ -467,7 +470,11 @@ impl Format for Rgb565 {
 
     type EncodeSettings = ();
 
-    fn encode_tile((): &Self::EncodeSettings, data: &mut [u8], get: impl Fn(usize, usize) -> Pixel) {
+    fn encode_tile(
+        (): &Self::EncodeSettings,
+        data: &mut [u8],
+        get: impl Fn(usize, usize) -> Pixel,
+    ) {
         for y in 0..Self::TILE_HEIGHT {
             for x in 0..Self::TILE_WIDTH {
                 let pixel = get(x, y);
@@ -500,7 +507,11 @@ impl Format for Rgb5A3 {
 
     type EncodeSettings = ();
 
-    fn encode_tile((): &Self::EncodeSettings, data: &mut [u8], get: impl Fn(usize, usize) -> Pixel) {
+    fn encode_tile(
+        (): &Self::EncodeSettings,
+        data: &mut [u8],
+        get: impl Fn(usize, usize) -> Pixel,
+    ) {
         for y in 0..Self::TILE_HEIGHT {
             for x in 0..Self::TILE_WIDTH {
                 let pixel = get(x, y);
@@ -534,7 +545,11 @@ impl Format for Rgba8 {
 
     type EncodeSettings = ();
 
-    fn encode_tile((): &Self::EncodeSettings, data: &mut [u8], get: impl Fn(usize, usize) -> Pixel) {
+    fn encode_tile(
+        (): &Self::EncodeSettings,
+        data: &mut [u8],
+        get: impl Fn(usize, usize) -> Pixel,
+    ) {
         for y in 0..Self::TILE_HEIGHT {
             for x in 0..Self::TILE_WIDTH {
                 let pixel = get(x, y);
