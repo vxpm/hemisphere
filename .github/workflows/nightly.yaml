@@ -23,7 +23,7 @@ jobs:
         continue-on-error: true
         name: Check latest commit is less than a day
         if: ${{ github.event_name == 'schedule' }}
-        run: test -z $(git rev-list  --after="24 hours"  ${{ github.sha }}) && echo "::set-output name=should_run::false"
+        run: test -z $(git rev-list --max-count=1 --after="24 hours" ${{ github.sha }}) && echo "should_run=false" >> "$GITHUB_OUTPUT"
 
   generate_name:
     name: Generate build artifact name
