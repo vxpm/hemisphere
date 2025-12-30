@@ -14,4 +14,4 @@ tracing.workspace = true
 windows.workspace = true
 
 [target.'cfg(unix)'.dependencies]
-nix.workspace = true
+rustix.workspace = true

@@ -17,9 +17,3 @@ rustc-hash.workspace = true
 zerocopy.workspace = true
 tracing.workspace = true
 cranelift.workspace = true
-
-[target.'cfg(windows)'.dependencies]
-windows.workspace = true
-
-[target.'cfg(unix)'.dependencies]
-nix.workspace = true

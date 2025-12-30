@@ -37,9 +37,3 @@ color-backtrace = "0.7"
 
 [dev-dependencies]
 indicatif = "0.18"
-
-[target.'cfg(windows)'.dependencies]
-windows.workspace = true
-
-[target.'cfg(unix)'.dependencies]
-nix.workspace = true
