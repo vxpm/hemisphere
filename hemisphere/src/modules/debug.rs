@@ -1,3 +1,5 @@
+//! Debug module interface.
+
 use gekko::Address;
 use std::borrow::Cow;
 

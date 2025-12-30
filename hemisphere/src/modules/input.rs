@@ -1,3 +1,5 @@
+//! Input module interface.
+
 #[derive(Debug, Clone, Copy)]
 pub struct ControllerState {
     // Analog

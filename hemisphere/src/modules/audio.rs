@@ -1,3 +1,5 @@
+//! Audio module interface.
+
 use crate::system::ai::{Frame, SampleRate};
 
 /// Trait for audio modules.

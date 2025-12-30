@@ -10,13 +10,9 @@ pub mod xf;
 use crate::{
     Primitive, System,
     modules::render,
-    stream::{BinReader, BinaryStream},
     system::{
         gx::{
-            cmd::{
-                ArrayDescriptor, VertexAttributeStream,
-                attributes::{self, Attribute, AttributeDescriptor, AttributeMode},
-            },
+            cmd::VertexAttributeStream,
             colors::Rgba,
             tex::{encode_color_texture, encode_depth_texture},
         },
@@ -30,7 +26,6 @@ use bitos::{
 use gekko::Address;
 use glam::{Mat4, Vec2, Vec3};
 use ring_arena::{Handle, RingArena};
-use seq_macro::seq;
 use std::{
     num::NonZero,
     sync::{LazyLock, Mutex},
@@ -391,7 +386,7 @@ pub struct GenMode {
     pub z_freeze: bool,
 }
 
-type MatrixId = u16;
+pub type MatrixId = u16;
 
 /// A vertex extracted from a [`VertexAttributeStream`].
 #[derive(Debug, Default)]
@@ -429,9 +424,9 @@ impl VertexStream {
     }
 }
 
-struct MatrixMapping {
-    index: u8,
-    normal: bool,
+pub struct MatrixMapping {
+    pub index: u8,
+    pub normal: bool,
 }
 
 pub struct Gpu {
@@ -1000,50 +995,6 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
     }
 }
 
-#[inline(always)]
-fn read_attribute_from_array<D: AttributeDescriptor>(
-    sys: &mut System,
-    descriptor: &D,
-    array: ArrayDescriptor,
-    index: u16,
-) -> D::Value {
-    let base = array.address.value() as usize;
-    let offset = array.stride.value() as usize * index as usize;
-    let address = base + offset;
-    let mut array = &sys.mem.ram()[address..];
-    let mut reader = array.reader();
-    descriptor.read(&mut reader).unwrap()
-}
-
-#[inline(always)]
-fn read_attribute<A: Attribute>(
-    sys: &mut System,
-    vat: usize,
-    reader: &mut BinReader,
-) -> Option<<A::Descriptor as AttributeDescriptor>::Value> {
-    let mode = A::get_mode(&sys.gpu.command.internal.vertex_descriptor);
-    let descriptor = A::get_descriptor(&sys.gpu.command.internal.vertex_attr_tables[vat]);
-
-    match mode {
-        AttributeMode::None => None,
-        AttributeMode::Direct => Some(
-            descriptor
-                .read(reader)
-                .unwrap_or_else(|| panic!("failed to read {:?}", A::NAME)),
-        ),
-        AttributeMode::Index8 => {
-            let index = reader.read_be::<u8>().unwrap() as u16;
-            let array = A::get_array(&sys.gpu.command.internal.arrays).unwrap();
-            Some(read_attribute_from_array(sys, &descriptor, array, index))
-        }
-        AttributeMode::Index16 => {
-            let index = reader.read_be::<u16>().unwrap();
-            let array = A::get_array(&sys.gpu.command.internal.arrays).unwrap();
-            Some(read_attribute_from_array(sys, &descriptor, array, index))
-        }
-    }
-}
-
 #[inline]
 fn alloc_vertices_handle(length: usize) -> Handle<Vertex> {
     const CHUNK_SIZE: usize = bytesize::MIB as usize;
@@ -1066,92 +1017,21 @@ fn alloc_matrices_handle(length: usize) -> Handle<Mat4> {
     ARENA.lock().unwrap().allocate(length)
 }
 
-fn get_matrix_id(sys: &mut System, index: u8, normal: bool) -> MatrixId {
-    let id = sys
-        .gpu
-        .matrix_map
-        .iter()
-        .position(|m| m.normal == normal && m.index == index);
-
-    if let Some(id) = id {
-        id as MatrixId
-    } else {
-        sys.gpu.matrix_map.push(MatrixMapping { index, normal });
-        sys.gpu.matrix_map.len() as MatrixId - 1
-    }
-}
-
 fn extract_vertices(sys: &mut System, stream: &VertexAttributeStream) -> VertexStream {
-    let vat = stream.table_index();
-    let default_pos_matrix_idx = sys.gpu.transform.internal.mat_indices.view().value();
-
-    sys.gpu.matrix_map.clear();
-
     let mut vertices = alloc_vertices_handle(stream.count() as usize);
     let vertices_slice = unsafe { vertices.as_mut_slice() };
 
-    let mut data = stream.data();
-    let mut reader = data.reader();
-    for i in 0..stream.count() {
-        let position_matrix_index =
-            read_attribute::<attributes::PosMatrixIndex>(sys, vat, &mut reader)
-                .unwrap_or(default_pos_matrix_idx);
-
-        let position_matrix = self::get_matrix_id(sys, position_matrix_index, false);
-        let normal_matrix = self::get_matrix_id(sys, position_matrix_index, true);
-
-        let mut tex_coords_matrix = [0; 8];
-        seq! {
-            N in 0..8 {
-                let default = sys
-                    .gpu
-                    .transform
-                    .internal
-                    .mat_indices
-                    .tex_at(N)
-                    .unwrap()
-                    .value();
-
-                let tex_matrix_index =
-                    read_attribute::<attributes::TexMatrixIndex<N>>(sys, vat, &mut reader)
-                    .unwrap_or(default);
-
-                tex_coords_matrix[N] = self::get_matrix_id(sys, tex_matrix_index, false);
-            }
-        }
-
-        let position =
-            read_attribute::<attributes::Position>(sys, vat, &mut reader).unwrap_or_default();
-
-        let normal =
-            read_attribute::<attributes::Normal>(sys, vat, &mut reader).unwrap_or_default();
-
-        let diffuse =
-            read_attribute::<attributes::Diffuse>(sys, vat, &mut reader).unwrap_or_default();
-
-        let specular =
-            read_attribute::<attributes::Specular>(sys, vat, &mut reader).unwrap_or_default();
-
-        let mut tex_coords = [Vec2::ZERO; 8];
-        seq! {
-            N in 0..8 {
-                tex_coords[N] =
-                    read_attribute::<attributes::TexCoords<N>>(sys, vat, &mut reader)
-                    .unwrap_or_default();
-            }
-        }
-
-        vertices_slice[i as usize].write(Vertex {
-            position,
-            position_matrix,
-            normal,
-            normal_matrix,
-            diffuse,
-            specular,
-            tex_coords,
-            tex_coords_matrix,
-        });
-    }
+    sys.gpu.matrix_map.clear();
+    sys.modules.vertex.parse(
+        sys.mem.ram(),
+        &sys.gpu.command.internal.vertex_descriptor,
+        &sys.gpu.command.internal.vertex_attr_tables[stream.table_index()],
+        &sys.gpu.command.internal.arrays,
+        &sys.gpu.transform.internal.mat_indices,
+        stream,
+        vertices_slice,
+        &mut sys.gpu.matrix_map,
+    );
 
     let mut matrices = alloc_matrices_handle(sys.gpu.matrix_map.len());
     let matrices_slice = unsafe { matrices.as_mut_slice() };
