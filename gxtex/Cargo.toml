@@ -16,3 +16,4 @@ image = { version = "0.25", default-features = false, features = [
 [dependencies]
 bitut.workspace = true
 zerocopy.workspace = true
+multiversion = "0.8"
