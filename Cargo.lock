@@ -2001,7 +2001,6 @@ dependencies = [
  "gxtex",
  "indicatif",
  "iso",
- "nix",
  "oneshot",
  "ordered-float",
  "ring-arena",
@@ -2011,7 +2010,6 @@ dependencies = [
  "tracing",
  "twox-hash",
  "util",
- "windows 0.62.2",
  "zerocopy",
 ]
 
@@ -2284,7 +2282,7 @@ checksum = "7ee5b5339afb4c41626dde77b7a611bd4f2c202b897852b4bcf5d03eddc61010"
 name = "jitalloc"
 version = "0.1.0"
 dependencies = [
- "nix",
+ "rustix 1.1.3",
  "tracing",
  "windows 0.62.2",
 ]
@@ -3476,10 +3474,8 @@ dependencies = [
  "easyerr",
  "gekko",
  "jitalloc",
- "nix",
  "rustc-hash 2.1.1",
  "tracing",
- "windows 0.62.2",
  "zerocopy",
 ]
 
@@ -4535,10 +4531,8 @@ dependencies = [
  "bitos",
  "cranelift",
  "jitalloc",
- "nix",
  "rustc-hash 2.1.1",
  "tracing",
- "windows 0.62.2",
  "zerocopy",
 ]
 

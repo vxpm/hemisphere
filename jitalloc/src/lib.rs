@@ -1,9 +1,8 @@
 //! Arena allocator for JITs.
-
-use std::{marker::PhantomData, num::NonZeroUsize, ptr::NonNull};
+use std::{marker::PhantomData, ptr::NonNull};
 
 #[cfg(target_family = "unix")]
-use nix::sys::mman::{self, MapFlags, ProtFlags};
+use rustix::mm::{self as mman, MapFlags, ProtFlags};
 
 #[cfg(target_family = "windows")]
 use windows::Win32::System::{
@@ -15,7 +14,7 @@ const REGION_MIN_LEN: usize = 1 << 16;
 /// A memory mapped region.
 #[derive(Clone, Copy)]
 struct Region {
-    ptr: NonNull<u8>,
+    ptr: *mut u8,
     len: usize,
 }
 
@@ -23,23 +22,25 @@ struct Region {
 unsafe impl Send for Region {}
 
 impl Region {
-    fn new(addr_hint: Option<NonZeroUsize>, len: usize) -> Self {
+    fn new(addr_hint: Option<usize>, len: usize) -> Self {
         let len = len.max(REGION_MIN_LEN);
 
         #[cfg(target_family = "unix")]
         let region = unsafe {
             mman::mmap_anonymous(
-                addr_hint,
-                NonZeroUsize::new(len).unwrap(),
-                ProtFlags::PROT_NONE,
-                MapFlags::MAP_PRIVATE,
+                addr_hint
+                    .map(|x| std::ptr::without_provenance_mut(x))
+                    .unwrap_or_default(),
+                len,
+                ProtFlags::empty(),
+                MapFlags::PRIVATE,
             )
         }
         .unwrap();
 
         #[cfg(target_family = "windows")]
         let region = unsafe {
-            let addr_hint_ptr = addr_hint.map(|p| std::ptr::with_exposed_provenance(p.get()));
+            let addr_hint_ptr = addr_hint.map(|addr| std::ptr::without_provenance(addr));
             let result = Memory::VirtualAlloc(
                 addr_hint_ptr,
                 len,
@@ -47,16 +48,15 @@ impl Region {
                 Memory::PAGE_NOACCESS,
             );
 
-            if let Some(region) = NonNull::new(result) {
-                region
+            if !result.is_null() {
+                result
             } else {
-                NonNull::new(Memory::VirtualAlloc(
+                Memory::VirtualAlloc(
                     None,
                     len,
                     Memory::MEM_RESERVE | Memory::MEM_COMMIT,
                     Memory::PAGE_NOACCESS,
-                ))
-                .unwrap()
+                )
             }
         };
 
@@ -70,16 +70,24 @@ impl Region {
         #[cfg(target_family = "unix")]
         unsafe {
             match protection {
-                Protection::ReadExec => mman::mprotect(
-                    self.ptr.cast(),
-                    length,
-                    ProtFlags::PROT_READ | ProtFlags::PROT_EXEC,
-                ),
-                Protection::ReadWrite => mman::mprotect(
-                    self.ptr.cast(),
-                    length,
-                    ProtFlags::PROT_READ | ProtFlags::PROT_WRITE,
-                ),
+                Protection::ReadExec => {
+                    use rustix::mm::MprotectFlags;
+
+                    mman::mprotect(
+                        self.ptr.cast(),
+                        length,
+                        MprotectFlags::READ | MprotectFlags::EXEC,
+                    )
+                }
+                Protection::ReadWrite => {
+                    use rustix::mm::MprotectFlags;
+
+                    mman::mprotect(
+                        self.ptr.cast(),
+                        length,
+                        MprotectFlags::READ | MprotectFlags::WRITE,
+                    )
+                }
             }
             .unwrap()
         }
@@ -89,13 +97,13 @@ impl Region {
             let mut previous = Memory::PAGE_PROTECTION_FLAGS(0);
             match protection {
                 Protection::ReadExec => Memory::VirtualProtect(
-                    self.ptr.as_ptr().cast(),
+                    self.ptr.cast(),
                     length,
                     Memory::PAGE_EXECUTE_READ,
                     &raw mut previous,
                 ),
                 Protection::ReadWrite => Memory::VirtualProtect(
-                    self.ptr.as_ptr().cast(),
+                    self.ptr.cast(),
                     length,
                     Memory::PAGE_READWRITE,
                     &raw mut previous,
@@ -202,7 +210,10 @@ where
 
         (
             region,
-            Allocation(NonNull::slice_from_raw_parts(start, length), PhantomData),
+            Allocation(
+                NonNull::slice_from_raw_parts(NonNull::new(start.cast()).unwrap(), length),
+                PhantomData,
+            ),
         )
     }
 

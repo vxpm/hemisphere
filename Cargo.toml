@@ -183,7 +183,7 @@ windows = { version = ">=0.59", features = [
     "Win32_System_Threading",
     "Win32_System_Diagnostics_Debug",
 ] }
-nix = { version = "0.30", features = ["mman"] }
+rustix = { version = "1.1", features = ["mm"] }
 
 # lints
 [workspace.lints.clippy]
