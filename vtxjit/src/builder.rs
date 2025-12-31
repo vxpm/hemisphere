@@ -1,5 +1,6 @@
 use crate::{Compiler, parser::Config};
 use cranelift::{codegen::ir, frontend, prelude::InstBuilder};
+use hemisphere::system::gx::Vertex;
 
 struct Consts {
     ptr_type: ir::Type,
@@ -69,6 +70,66 @@ impl<'ctx> ParserBuilder<'ctx> {
     }
 
     pub fn build(mut self) {
+        // setup the loop
+        let iter_bb = self.bd.create_block();
+        let body_bb = self.bd.create_block();
+        let exit_bb = self.bd.create_block();
+
+        self.bd.append_block_param(iter_bb, self.consts.ptr_type); // data ptr
+        self.bd.append_block_param(iter_bb, self.consts.ptr_type); // vertex ptr
+        self.bd.append_block_param(iter_bb, ir::types::I32); // loop iter
+
+        let zero = self.bd.ins().iconst(ir::types::I32, 0);
+        self.bd.ins().jump(
+            iter_bb,
+            &[
+                ir::BlockArg::Value(self.consts.data_ptr),
+                ir::BlockArg::Value(self.consts.vertices_ptr),
+                ir::BlockArg::Value(zero),
+            ],
+        );
+
+        // loop body: parse a single vertex
+        self.switch_to_bb(iter_bb);
+        let params = self.bd.block_params(iter_bb);
+        let data_ptr = params[0];
+        let vertex_ptr = params[1];
+        let loop_iter = params[2];
+
+        // first, check if loop iter < count, otherwise exit
+        let loop_cond = self.bd.ins().icmp(
+            ir::condcodes::IntCC::UnsignedLessThan,
+            loop_iter,
+            self.consts.count,
+        );
+        self.bd.ins().brif(loop_cond, body_bb, &[], exit_bb, &[]);
+
+        self.bd.seal_block(body_bb);
+        self.bd.seal_block(exit_bb);
+
+        // then, actually parse it
+        // TODO - somehow parse
+        self.switch_to_bb(body_bb);
+
+        // finally, increment everything and start next loop iteration
+        let vertex_ptr = self
+            .bd
+            .ins()
+            .iadd_imm(vertex_ptr, size_of::<Vertex>() as i64);
+        let loop_iter = self.bd.ins().iadd_imm(loop_iter, 1);
+        self.bd.ins().jump(
+            iter_bb,
+            &[
+                ir::BlockArg::Value(data_ptr),
+                ir::BlockArg::Value(vertex_ptr),
+                ir::BlockArg::Value(loop_iter),
+            ],
+        );
+
+        self.bd.seal_block(iter_bb);
+
+        // exit
+        self.switch_to_bb(exit_bb);
         self.bd.ins().return_(&[]);
         self.bd.finalize();
     }
