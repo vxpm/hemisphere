@@ -146,7 +146,7 @@ pub enum Action {
     },
 }
 
-pub trait RenderModule: Send + Sync {
+pub trait RenderModule: Send {
     fn exec(&mut self, action: Action);
 }
 
