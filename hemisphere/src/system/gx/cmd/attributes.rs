@@ -362,7 +362,7 @@ impl AttributeDescriptor for TexCoordsDescriptor {
 }
 
 #[bitos(32)]
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct VertexAttributeTableA {
     #[bits(0..9)]
     pub position: PositionDescriptor,
@@ -381,7 +381,7 @@ pub struct VertexAttributeTableA {
 }
 
 #[bitos(32)]
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct VertexAttributeTableB {
     #[bits(0..27)]
     pub tex1to3: [TexCoordsDescriptor; 3],
@@ -396,7 +396,7 @@ pub struct VertexAttributeTableB {
 }
 
 #[bitos(32)]
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct VertexAttributeTableC {
     #[bits(0..5)]
     pub tex4_shift: u5,
@@ -404,7 +404,7 @@ pub struct VertexAttributeTableC {
     pub tex5to7: [TexCoordsDescriptor; 3],
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct VertexAttributeTable {
     pub a: VertexAttributeTableA,
     pub b: VertexAttributeTableB,

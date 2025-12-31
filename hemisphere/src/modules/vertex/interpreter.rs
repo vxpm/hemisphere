@@ -4,7 +4,7 @@ use crate::{
     modules::vertex::VertexModule,
     stream::{BinReader, BinaryStream},
     system::gx::{
-        MatrixId, MatrixMapping, Vertex,
+        MatrixId, MatrixMap, MatrixMapping, Vertex,
         cmd::{
             ArrayDescriptor, Arrays, VertexAttributeStream, VertexDescriptor,
             attributes::{AttributeDescriptor, AttributeMode, VertexAttributeTable},
@@ -66,12 +66,7 @@ fn read_attribute<A: Attribute>(
 pub struct Interpreter;
 
 impl Interpreter {
-    fn get_matrix_id(
-        &mut self,
-        matrix_map: &mut Vec<MatrixMapping>,
-        index: u8,
-        normal: bool,
-    ) -> MatrixId {
+    fn get_matrix_id(&mut self, matrix_map: &mut MatrixMap, index: u8, normal: bool) -> MatrixId {
         let id = matrix_map
             .iter()
             .position(|m| m.normal == normal && m.index == index);
@@ -79,8 +74,8 @@ impl Interpreter {
         if let Some(id) = id {
             id as MatrixId
         } else {
-            matrix_map.push(MatrixMapping { index, normal });
-            matrix_map.len() as MatrixId - 1
+            matrix_map.map[matrix_map.len as usize] = MatrixMapping { index, normal };
+            matrix_map.len as MatrixId - 1
         }
     }
 }
@@ -95,7 +90,7 @@ impl VertexModule for Interpreter {
         default_matrices: &MatrixIndices,
         stream: &VertexAttributeStream,
         vertices: &mut [MaybeUninit<Vertex>],
-        matrix_map: &mut Vec<MatrixMapping>,
+        matrix_map: &mut MatrixMap,
     ) {
         let default_pos_matrix_idx = default_matrices.view().value();
 

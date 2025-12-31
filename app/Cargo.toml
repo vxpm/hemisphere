@@ -11,6 +11,7 @@ hemisphere.workspace = true
 cores.workspace = true
 renderer.workspace = true
 app-modules.workspace = true
+vtxjit.workspace = true
 
 eyre-pretty.workspace = true
 clap.workspace = true

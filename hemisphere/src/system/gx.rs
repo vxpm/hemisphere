@@ -424,9 +424,31 @@ impl VertexStream {
     }
 }
 
+#[derive(Debug, Clone, Copy, Default)]
 pub struct MatrixMapping {
     pub index: u8,
     pub normal: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct MatrixMap {
+    pub map: [MatrixMapping; 512],
+    pub len: u32,
+}
+
+impl Default for MatrixMap {
+    fn default() -> Self {
+        Self {
+            map: [MatrixMapping::default(); 512],
+            len: Default::default(),
+        }
+    }
+}
+
+impl MatrixMap {
+    pub fn iter(&self) -> impl Iterator<Item = MatrixMapping> {
+        self.map.iter().copied().take(self.len as usize)
+    }
 }
 
 pub struct Gpu {
@@ -437,7 +459,7 @@ pub struct Gpu {
     pub texture: tex::Interface,
     pub pixel: pix::Interface,
     pub write_mask: u32,
-    matrix_map: Vec<MatrixMapping>,
+    matrix_map: Box<MatrixMap>,
 }
 
 impl Default for Gpu {
@@ -450,7 +472,7 @@ impl Default for Gpu {
             texture: Default::default(),
             pixel: Default::default(),
             write_mask: 0x00FF_FFFF,
-            matrix_map: Vec::with_capacity(32),
+            matrix_map: Box::default(),
         }
     }
 }
@@ -1021,7 +1043,7 @@ fn extract_vertices(sys: &mut System, stream: &VertexAttributeStream) -> VertexS
     let mut vertices = alloc_vertices_handle(stream.count() as usize);
     let vertices_slice = unsafe { vertices.as_mut_slice() };
 
-    sys.gpu.matrix_map.clear();
+    sys.gpu.matrix_map.len = 0;
     sys.modules.vertex.parse(
         sys.mem.ram(),
         &sys.gpu.command.internal.vertex_descriptor,
@@ -1033,7 +1055,7 @@ fn extract_vertices(sys: &mut System, stream: &VertexAttributeStream) -> VertexS
         &mut sys.gpu.matrix_map,
     );
 
-    let mut matrices = alloc_matrices_handle(sys.gpu.matrix_map.len());
+    let mut matrices = alloc_matrices_handle(sys.gpu.matrix_map.len as usize);
     let matrices_slice = unsafe { matrices.as_mut_slice() };
 
     for (id, mapping) in sys.gpu.matrix_map.iter().enumerate() {

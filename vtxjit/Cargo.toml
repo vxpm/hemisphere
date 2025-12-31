@@ -9,6 +9,8 @@ workspace = true
 
 [dependencies]
 jitalloc.workspace = true
+hemisphere.workspace = true
+
 bitos.workspace = true
 rustc-hash.workspace = true
 zerocopy.workspace = true

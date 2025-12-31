@@ -136,10 +136,11 @@ dol = { path = "./dol" }
 iso = { path = "./iso" }
 gxtex = { path = "./gxtex" }
 jitalloc = { path = "./jitalloc" }
+hemisphere = { path = "./hemisphere" }
 ppcjit = { path = "./ppcjit" }
 dspint = { path = "./dspint" }
+vtxjit = { path = "./vtxjit" }
 cores = { path = "./cores" }
-hemisphere = { path = "./hemisphere" }
 renderer = { path = "./renderer" }
 app-modules = { path = "./app-modules" }
 

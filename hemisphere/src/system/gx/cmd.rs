@@ -277,7 +277,7 @@ pub struct VertexAttributeSet {
 
 /// Describes which attributes are present in the vertices of primitives and how they are present.
 #[bitos(64)]
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct VertexDescriptor {
     /// Whether the position/normal matrix index is present.
     #[bits(0)]

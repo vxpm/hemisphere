@@ -2,14 +2,14 @@
 mod interpreter;
 
 use crate::system::gx::{
-    MatrixMapping, Vertex,
+    MatrixMap, Vertex,
     cmd::{Arrays, VertexAttributeStream, VertexDescriptor, attributes::VertexAttributeTable},
     xf::MatrixIndices,
 };
 use std::mem::MaybeUninit;
 
 /// Trait for vertex parsing modules.
-pub trait VertexModule: Send + Sync {
+pub trait VertexModule: Send {
     fn parse(
         &mut self,
         ram: &[u8],
@@ -19,7 +19,7 @@ pub trait VertexModule: Send + Sync {
         default_matrices: &MatrixIndices,
         stream: &VertexAttributeStream,
         vertices: &mut [MaybeUninit<Vertex>],
-        matrix_map: &mut Vec<MatrixMapping>,
+        matrix_map: &mut MatrixMap,
     );
 }
 
