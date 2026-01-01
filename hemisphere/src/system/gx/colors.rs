@@ -54,6 +54,7 @@ impl Abgr8 {
 }
 
 #[derive(Clone, Copy, Immutable, IntoBytes, Default)]
+#[repr(C)]
 pub struct Rgba {
     pub r: f32,
     pub g: f32,

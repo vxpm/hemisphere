@@ -1,5 +1,3 @@
-mod attributes;
-
 use crate::{
     modules::vertex::VertexModule,
     stream::{BinReader, BinaryStream},
@@ -7,12 +5,13 @@ use crate::{
         MatrixId, MatrixMap, MatrixMapping, Vertex,
         cmd::{
             ArrayDescriptor, Arrays, VertexAttributeStream, VertexDescriptor,
-            attributes::{AttributeDescriptor, AttributeMode, VertexAttributeTable},
+            attributes::{
+                self, Attribute, AttributeDescriptor, AttributeMode, VertexAttributeTable,
+            },
         },
         xf::MatrixIndices,
     },
 };
-use attributes::Attribute;
 use glam::Vec2;
 use seq_macro::seq;
 use std::mem::MaybeUninit;
