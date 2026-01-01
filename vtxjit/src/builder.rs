@@ -1,6 +1,9 @@
-use crate::{Compiler, parser::Config};
+mod attr;
+
+use crate::{Compiler, builder::attr::AttributeDescriptorExt, parser::Config};
+use attr::Attribute;
 use cranelift::{codegen::ir, frontend, prelude::InstBuilder};
-use hemisphere::system::gx::Vertex;
+use hemisphere::system::gx::{Vertex, cmd::attributes::AttributeMode};
 
 struct Consts {
     ptr_type: ir::Type,
@@ -14,11 +17,17 @@ struct Consts {
     count: ir::Value,
 }
 
+struct Vars {
+    curr_data_ptr: ir::Value,
+    curr_vertex_ptr: ir::Value,
+}
+
 pub struct ParserBuilder<'ctx> {
     compiler: &'ctx mut Compiler,
     bd: frontend::FunctionBuilder<'ctx>,
     config: Config,
     consts: Consts,
+    vars: Vars,
     current_bb: ir::Block,
 }
 
@@ -55,11 +64,17 @@ impl<'ctx> ParserBuilder<'ctx> {
             count,
         };
 
+        let vars = Vars {
+            curr_data_ptr: data_ptr,
+            curr_vertex_ptr: vertices_ptr,
+        };
+
         Self {
             compiler,
             bd: builder,
             config,
             consts,
+            vars,
             current_bb: entry_bb,
         }
     }
@@ -69,12 +84,42 @@ impl<'ctx> ParserBuilder<'ctx> {
         self.current_bb = bb;
     }
 
+    fn parse_direct<A: Attribute>(&mut self) {
+        let descriptor = A::get_descriptor(&self.config.vat);
+        let consumed = descriptor.parse(
+            &mut self.bd,
+            self.vars.curr_data_ptr,
+            self.vars.curr_vertex_ptr,
+        );
+
+        self.vars.curr_data_ptr = self
+            .bd
+            .ins()
+            .iadd_imm(self.vars.curr_data_ptr, consumed as i64);
+    }
+
+    fn parse<A: Attribute>(&mut self) {
+        let mode = A::get_mode(&self.config.vcd);
+        match mode {
+            AttributeMode::None => (),
+            AttributeMode::Direct => self.parse_direct::<A>(),
+            AttributeMode::Index8 => todo!(),
+            AttributeMode::Index16 => todo!(),
+        }
+    }
+
+    fn body(&mut self) {
+        // emit code for parsing each attribute, in order
+        self.parse::<attr::Position>();
+    }
+
     pub fn build(mut self) {
         // setup the loop
         let iter_bb = self.bd.create_block();
         let body_bb = self.bd.create_block();
         let exit_bb = self.bd.create_block();
 
+        self.bd.set_cold_block(exit_bb);
         self.bd.append_block_param(iter_bb, self.consts.ptr_type); // data ptr
         self.bd.append_block_param(iter_bb, self.consts.ptr_type); // vertex ptr
         self.bd.append_block_param(iter_bb, ir::types::I32); // loop iter
@@ -92,8 +137,8 @@ impl<'ctx> ParserBuilder<'ctx> {
         // loop body: parse a single vertex
         self.switch_to_bb(iter_bb);
         let params = self.bd.block_params(iter_bb);
-        let data_ptr = params[0];
-        let vertex_ptr = params[1];
+        self.vars.curr_data_ptr = params[0];
+        self.vars.curr_vertex_ptr = params[1];
         let loop_iter = params[2];
 
         // first, check if loop iter < count, otherwise exit
@@ -108,20 +153,20 @@ impl<'ctx> ParserBuilder<'ctx> {
         self.bd.seal_block(exit_bb);
 
         // then, actually parse it
-        // TODO - somehow parse
         self.switch_to_bb(body_bb);
+        self.body();
 
         // finally, increment everything and start next loop iteration
-        let vertex_ptr = self
+        self.vars.curr_vertex_ptr = self
             .bd
             .ins()
-            .iadd_imm(vertex_ptr, size_of::<Vertex>() as i64);
+            .iadd_imm(self.vars.curr_vertex_ptr, size_of::<Vertex>() as i64);
         let loop_iter = self.bd.ins().iadd_imm(loop_iter, 1);
         self.bd.ins().jump(
             iter_bb,
             &[
-                ir::BlockArg::Value(data_ptr),
-                ir::BlockArg::Value(vertex_ptr),
+                ir::BlockArg::Value(self.vars.curr_data_ptr),
+                ir::BlockArg::Value(self.vars.curr_vertex_ptr),
                 ir::BlockArg::Value(loop_iter),
             ],
         );
