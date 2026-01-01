@@ -2,7 +2,7 @@
 mod interpreter;
 
 use crate::system::gx::{
-    MatrixMap, Vertex,
+    MatrixSet, Vertex,
     cmd::{Arrays, VertexAttributeStream, VertexDescriptor, attributes::VertexAttributeTable},
     xf::MatrixIndices,
 };
@@ -19,7 +19,7 @@ pub trait VertexModule: Send {
         default_matrices: &MatrixIndices,
         stream: &VertexAttributeStream,
         vertices: &mut [MaybeUninit<Vertex>],
-        matrix_map: &mut MatrixMap,
+        matrix_set: &mut MatrixSet,
     );
 }
 

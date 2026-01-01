@@ -407,7 +407,7 @@ pub struct Vertex {
 /// A stream of [`Vertex`] elements and their associated matrices.
 pub struct VertexStream {
     vertices: Handle<Vertex>,
-    matrices: Handle<Mat4>,
+    matrices: Handle<(u16, Mat4)>,
 }
 
 impl VertexStream {
@@ -417,37 +417,44 @@ impl VertexStream {
         unsafe { self.vertices.as_slice().assume_init_ref() }
     }
 
-    pub fn matrices(&self) -> &[Mat4] {
+    pub fn matrices(&self) -> &[(u16, Mat4)] {
         // SAFETY: this struct is only created inside `extract_vertices`, which mantains
         // a static arena
         unsafe { self.matrices.as_slice().assume_init_ref() }
     }
 }
 
-#[derive(Debug, Clone, Copy, Default)]
-pub struct MatrixMapping {
-    pub index: u8,
-    pub normal: bool,
-}
-
 #[derive(Debug, Clone)]
-pub struct MatrixMap {
-    pub map: [MatrixMapping; 512],
-    pub len: u32,
-}
+#[repr(transparent)]
+pub struct MatrixSet(pub [u8; 64]);
 
-impl Default for MatrixMap {
+impl Default for MatrixSet {
     fn default() -> Self {
-        Self {
-            map: [MatrixMapping::default(); 512],
-            len: Default::default(),
-        }
+        Self([0; 64])
     }
 }
 
-impl MatrixMap {
-    pub fn iter(&self) -> impl Iterator<Item = MatrixMapping> {
-        self.map.iter().copied().take(self.len as usize)
+impl MatrixSet {
+    pub fn include(&mut self, index: u16) {
+        let offset = index % 8;
+        let index = index / 8;
+        self.0[index as usize] |= 1 << offset;
+    }
+
+    pub fn clear(&mut self) {
+        self.0.fill(0);
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = u16> {
+        self.0
+            .iter()
+            .flat_map(|x| (0..8).map(|i| x.bit(i)))
+            .enumerate()
+            .filter_map(|(i, v)| v.then_some(i as u16))
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.iter().map(|x| x.count_ones() as usize).sum()
     }
 }
 
@@ -459,7 +466,7 @@ pub struct Gpu {
     pub texture: tex::Interface,
     pub pixel: pix::Interface,
     pub write_mask: u32,
-    matrix_map: Box<MatrixMap>,
+    matrix_set: Box<MatrixSet>,
 }
 
 impl Default for Gpu {
@@ -472,7 +479,7 @@ impl Default for Gpu {
             texture: Default::default(),
             pixel: Default::default(),
             write_mask: 0x00FF_FFFF,
-            matrix_map: Box::default(),
+            matrix_set: Box::default(),
         }
     }
 }
@@ -1029,11 +1036,11 @@ fn alloc_vertices_handle(length: usize) -> Handle<Vertex> {
 }
 
 #[inline]
-fn alloc_matrices_handle(length: usize) -> Handle<Mat4> {
+fn alloc_matrices_handle(length: usize) -> Handle<(u16, Mat4)> {
     const CHUNK_SIZE: usize = 2 * bytesize::MIB as usize;
     const CHUNK_CAPACITY: NonZero<usize> = NonZero::new(CHUNK_SIZE / size_of::<Mat4>()).unwrap();
 
-    static ARENA: LazyLock<Mutex<RingArena<Mat4>>> =
+    static ARENA: LazyLock<Mutex<RingArena<(u16, Mat4)>>> =
         LazyLock::new(|| Mutex::new(RingArena::new(CHUNK_CAPACITY)));
 
     ARENA.lock().unwrap().allocate(length)
@@ -1043,7 +1050,7 @@ fn extract_vertices(sys: &mut System, stream: &VertexAttributeStream) -> VertexS
     let mut vertices = alloc_vertices_handle(stream.count() as usize);
     let vertices_slice = unsafe { vertices.as_mut_slice() };
 
-    sys.gpu.matrix_map.len = 0;
+    sys.gpu.matrix_set.clear();
     sys.modules.vertex.parse(
         sys.mem.ram(),
         &sys.gpu.command.internal.vertex_descriptor,
@@ -1052,20 +1059,23 @@ fn extract_vertices(sys: &mut System, stream: &VertexAttributeStream) -> VertexS
         &sys.gpu.transform.internal.mat_indices,
         stream,
         vertices_slice,
-        &mut sys.gpu.matrix_map,
+        &mut sys.gpu.matrix_set,
     );
 
-    let mut matrices = alloc_matrices_handle(sys.gpu.matrix_map.len as usize);
+    let mut matrices = alloc_matrices_handle(sys.gpu.matrix_set.len());
     let matrices_slice = unsafe { matrices.as_mut_slice() };
 
-    for (id, mapping) in sys.gpu.matrix_map.iter().enumerate() {
-        let mat = if mapping.normal {
-            Mat4::from_mat3(sys.gpu.transform.normal_matrix(mapping.index))
+    for (i, mat_idx) in sys.gpu.matrix_set.iter().enumerate() {
+        let is_normal = mat_idx >= 256;
+        let mem_idx = mat_idx as u8;
+
+        let mat = if is_normal {
+            Mat4::from_mat3(sys.gpu.transform.normal_matrix(mem_idx))
         } else {
-            sys.gpu.transform.matrix(mapping.index)
+            sys.gpu.transform.matrix(mem_idx)
         };
 
-        matrices_slice[id].write(mat);
+        matrices_slice[i].write((mat_idx, mat));
     }
 
     VertexStream { vertices, matrices }
