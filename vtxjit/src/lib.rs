@@ -9,7 +9,7 @@ use cranelift::{
 use hemisphere::{
     modules::vertex::VertexModule,
     system::gx::{
-        MatrixMap, Vertex,
+        MatrixSet, Vertex,
         cmd::{Arrays, VertexAttributeStream, VertexDescriptor, attributes::VertexAttributeTable},
         xf::MatrixIndices,
     },
@@ -134,7 +134,7 @@ impl VertexModule for JitVertexModule {
         default_matrices: &MatrixIndices,
         stream: &VertexAttributeStream,
         vertices: &mut [std::mem::MaybeUninit<Vertex>],
-        matrix_map: &mut MatrixMap,
+        matrix_set: &mut MatrixSet,
     ) {
         let config = Config {
             vcd: vcd.clone(),
@@ -160,7 +160,7 @@ impl VertexModule for JitVertexModule {
             default_matrices,
             stream.data().as_ptr(),
             vertices.as_mut_ptr().cast(),
-            matrix_map,
+            matrix_set,
             stream.count() as u32,
         );
     }

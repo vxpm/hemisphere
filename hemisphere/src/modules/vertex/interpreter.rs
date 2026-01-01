@@ -2,7 +2,7 @@ use crate::{
     modules::vertex::VertexModule,
     stream::{BinReader, BinaryStream},
     system::gx::{
-        MatrixId, MatrixMap, MatrixMapping, Vertex,
+        MatrixSet, Vertex,
         cmd::{
             ArrayDescriptor, Arrays, VertexAttributeStream, VertexDescriptor,
             attributes::{
@@ -64,21 +64,6 @@ fn read_attribute<A: Attribute>(
 
 pub struct Interpreter;
 
-impl Interpreter {
-    fn get_matrix_id(&mut self, matrix_map: &mut MatrixMap, index: u8, normal: bool) -> MatrixId {
-        let id = matrix_map
-            .iter()
-            .position(|m| m.normal == normal && m.index == index);
-
-        if let Some(id) = id {
-            id as MatrixId
-        } else {
-            matrix_map.map[matrix_map.len as usize] = MatrixMapping { index, normal };
-            matrix_map.len as MatrixId - 1
-        }
-    }
-}
-
 impl VertexModule for Interpreter {
     fn parse(
         &mut self,
@@ -89,19 +74,20 @@ impl VertexModule for Interpreter {
         default_matrices: &MatrixIndices,
         stream: &VertexAttributeStream,
         vertices: &mut [MaybeUninit<Vertex>],
-        matrix_map: &mut MatrixMap,
+        matrix_set: &mut MatrixSet,
     ) {
         let default_pos_matrix_idx = default_matrices.view().value();
 
         let mut data = stream.data();
         let mut reader = data.reader();
         for i in 0..stream.count() {
-            let position_matrix_index =
+            let position_matrix =
                 read_attribute::<attributes::PosMatrixIndex>(ram, vcd, vat, arrays, &mut reader)
-                    .unwrap_or(default_pos_matrix_idx);
+                    .unwrap_or(default_pos_matrix_idx) as u16;
+            let normal_matrix = position_matrix + 256;
 
-            let position_matrix = self.get_matrix_id(matrix_map, position_matrix_index, false);
-            let normal_matrix = self.get_matrix_id(matrix_map, position_matrix_index, true);
+            matrix_set.include(position_matrix);
+            matrix_set.include(normal_matrix);
 
             let mut tex_coords_matrix = [0; 8];
             seq! {
@@ -113,9 +99,9 @@ impl VertexModule for Interpreter {
 
                     let tex_matrix_index =
                         read_attribute::<attributes::TexMatrixIndex<N>>(ram, vcd, vat, arrays, &mut reader)
-                        .unwrap_or(default);
-
-                    tex_coords_matrix[N] = self.get_matrix_id(matrix_map, tex_matrix_index, false);
+                        .unwrap_or(default) as u16;
+                    matrix_set.include(tex_matrix_index);
+                    tex_coords_matrix[N] = tex_matrix_index;
                 }
             }
 

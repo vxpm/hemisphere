@@ -1,5 +1,5 @@
 use hemisphere::system::gx::{
-    MatrixMap, Vertex,
+    MatrixSet, Vertex,
     cmd::{Arrays, VertexDescriptor, attributes::VertexAttributeTable},
     xf::MatrixIndices,
 };
@@ -25,7 +25,7 @@ pub type ParserFn = extern "sysv64" fn(
     *const MatrixIndices,
     *const u8,
     *mut Vertex,
-    *mut MatrixMap,
+    *mut MatrixSet,
     u32,
 );
 

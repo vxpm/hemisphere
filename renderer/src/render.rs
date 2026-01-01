@@ -279,7 +279,13 @@ impl Renderer {
         }
     }
 
-    fn insert_vertex(&mut self, vertex: &Vertex, matrices: &[Mat4]) -> u32 {
+    fn insert_vertex(&mut self, vertex: &Vertex, matrices: &[(u16, Mat4)]) -> u32 {
+        let get_matrix = |idx| {
+            matrices
+                .iter()
+                .find_map(|(i, m)| (*i == idx).then(|| m.clone()))
+        };
+
         let vertex = data::Vertex {
             position: vertex.position,
             config_idx: self.configs.len() as u32 - 1,
@@ -287,14 +293,14 @@ impl Renderer {
 
             _pad0: 0,
 
-            position_mat: matrices[vertex.position_matrix as usize],
-            normal_mat: matrices[vertex.normal_matrix as usize],
+            position_mat: get_matrix(vertex.position_matrix).unwrap(),
+            normal_mat: get_matrix(vertex.normal_matrix).unwrap(),
 
             diffuse: vertex.diffuse,
             specular: vertex.specular,
 
             tex_coord: vertex.tex_coords,
-            tex_coord_mat: vertex.tex_coords_matrix.map(|i| matrices[i as usize]),
+            tex_coord_mat: vertex.tex_coords_matrix.map(|i| get_matrix(i).unwrap()),
         };
 
         let idx = self.vertices.len();
