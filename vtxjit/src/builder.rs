@@ -1,9 +1,11 @@
 mod attr;
 
-use crate::{Compiler, builder::attr::AttributeDescriptorExt, parser::Config};
-use attr::Attribute;
+use crate::{Compiler, builder::attr::AttributeExt, parser::Config};
 use cranelift::{codegen::ir, frontend, prelude::InstBuilder};
-use hemisphere::system::gx::{Vertex, cmd::attributes::AttributeMode};
+use hemisphere::system::gx::{
+    Vertex,
+    cmd::attributes::{self, AttributeMode},
+};
 
 struct Consts {
     ptr_type: ir::Type,
@@ -18,12 +20,11 @@ struct Consts {
 }
 
 struct Vars {
-    curr_data_ptr: ir::Value,
-    curr_vertex_ptr: ir::Value,
+    data_ptr: ir::Value,
+    vertex_ptr: ir::Value,
 }
 
 pub struct ParserBuilder<'ctx> {
-    compiler: &'ctx mut Compiler,
     bd: frontend::FunctionBuilder<'ctx>,
     config: Config,
     consts: Consts,
@@ -33,7 +34,7 @@ pub struct ParserBuilder<'ctx> {
 
 impl<'ctx> ParserBuilder<'ctx> {
     pub fn new(
-        compiler: &'ctx mut Compiler,
+        compiler: &'ctx Compiler,
         mut builder: frontend::FunctionBuilder<'ctx>,
         config: Config,
     ) -> Self {
@@ -65,12 +66,11 @@ impl<'ctx> ParserBuilder<'ctx> {
         };
 
         let vars = Vars {
-            curr_data_ptr: data_ptr,
-            curr_vertex_ptr: vertices_ptr,
+            data_ptr,
+            vertex_ptr: vertices_ptr,
         };
 
         Self {
-            compiler,
             bd: builder,
             config,
             consts,
@@ -84,21 +84,17 @@ impl<'ctx> ParserBuilder<'ctx> {
         self.current_bb = bb;
     }
 
-    fn parse_direct<A: Attribute>(&mut self) {
-        let descriptor = A::get_descriptor(&self.config.vat);
-        let consumed = descriptor.parse(
-            &mut self.bd,
-            self.vars.curr_data_ptr,
-            self.vars.curr_vertex_ptr,
-        );
-
-        self.vars.curr_data_ptr = self
-            .bd
-            .ins()
-            .iadd_imm(self.vars.curr_data_ptr, consumed as i64);
+    fn get_matrix_idx(&mut self, is_normal: bool, index: ir::Value) -> ir::Value {
+        todo!()
     }
 
-    fn parse<A: Attribute>(&mut self) {
+    fn parse_direct<A: AttributeExt>(&mut self) {
+        let descriptor = A::get_descriptor(&self.config.vat);
+        let consumed = A::parse(&descriptor, self);
+        self.vars.data_ptr = self.bd.ins().iadd_imm(self.vars.data_ptr, consumed as i64);
+    }
+
+    fn parse<A: AttributeExt>(&mut self) {
         let mode = A::get_mode(&self.config.vcd);
         match mode {
             AttributeMode::None => (),
@@ -110,7 +106,9 @@ impl<'ctx> ParserBuilder<'ctx> {
 
     fn body(&mut self) {
         // emit code for parsing each attribute, in order
-        self.parse::<attr::Position>();
+        self.parse::<attributes::PosMatrixIndex>(); // TODO: if not present, needs to be default!
+        self.parse::<attributes::Position>();
+        self.parse::<attributes::Diffuse>();
     }
 
     pub fn build(mut self) {
@@ -137,8 +135,8 @@ impl<'ctx> ParserBuilder<'ctx> {
         // loop body: parse a single vertex
         self.switch_to_bb(iter_bb);
         let params = self.bd.block_params(iter_bb);
-        self.vars.curr_data_ptr = params[0];
-        self.vars.curr_vertex_ptr = params[1];
+        self.vars.data_ptr = params[0];
+        self.vars.vertex_ptr = params[1];
         let loop_iter = params[2];
 
         // first, check if loop iter < count, otherwise exit
@@ -157,16 +155,16 @@ impl<'ctx> ParserBuilder<'ctx> {
         self.body();
 
         // finally, increment everything and start next loop iteration
-        self.vars.curr_vertex_ptr = self
+        self.vars.vertex_ptr = self
             .bd
             .ins()
-            .iadd_imm(self.vars.curr_vertex_ptr, size_of::<Vertex>() as i64);
+            .iadd_imm(self.vars.vertex_ptr, size_of::<Vertex>() as i64);
         let loop_iter = self.bd.ins().iadd_imm(loop_iter, 1);
         self.bd.ins().jump(
             iter_bb,
             &[
-                ir::BlockArg::Value(self.vars.curr_data_ptr),
-                ir::BlockArg::Value(self.vars.curr_vertex_ptr),
+                ir::BlockArg::Value(self.vars.data_ptr),
+                ir::BlockArg::Value(self.vars.vertex_ptr),
                 ir::BlockArg::Value(loop_iter),
             ],
         );
