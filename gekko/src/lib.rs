@@ -9,23 +9,11 @@ use bitos::{
 };
 use std::time::Duration;
 use strum::{FromRepr, VariantArray};
+use util::offset_of;
 use zerocopy::{FromBytes, Immutable, IntoBytes};
 
 /// Disassembling of PowerPC instructions. Re-export of the [`powerpc`] crate.
 pub use powerpc as disasm;
-
-// like offset_of, except it also supports indexing arrays
-macro_rules! offset_of {
-    ($t:ty, $($path:tt)+) => {{
-        const OFFSET: usize = {
-            let data = core::mem::MaybeUninit::<$t>::uninit();
-            let ptr = data.as_ptr();
-            unsafe { (&raw const (*ptr).$($path)+).byte_offset_from(ptr) as usize }
-        };
-
-        OFFSET
-    }}
-}
 
 /// An address in the Gekko's memory address space. This is a thin wrapper around an [`u32`].
 #[repr(transparent)]

@@ -1699,6 +1699,7 @@ dependencies = [
  "powerpc",
  "strum",
  "tracing",
+ "util",
  "zerocopy",
 ]
 
@@ -4535,6 +4536,7 @@ dependencies = [
  "jitalloc",
  "rustc-hash 2.1.1",
  "tracing",
+ "util",
  "zerocopy",
 ]
 

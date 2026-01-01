@@ -8,6 +8,7 @@ edition = "2024"
 workspace = true
 
 [dependencies]
+util.workspace = true
 jitalloc.workspace = true
 hemisphere.workspace = true
 
