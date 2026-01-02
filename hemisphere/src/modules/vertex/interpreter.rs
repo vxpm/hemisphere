@@ -112,12 +112,11 @@ impl VertexModule for Interpreter {
             let normal = read_attribute::<attributes::Normal>(ram, vcd, vat, arrays, &mut reader)
                 .unwrap_or_default();
 
-            let diffuse = read_attribute::<attributes::Diffuse>(ram, vcd, vat, arrays, &mut reader)
+            let chan0 = read_attribute::<attributes::Chan0>(ram, vcd, vat, arrays, &mut reader)
                 .unwrap_or_default();
 
-            let specular =
-                read_attribute::<attributes::Specular>(ram, vcd, vat, arrays, &mut reader)
-                    .unwrap_or_default();
+            let chan1 = read_attribute::<attributes::Chan1>(ram, vcd, vat, arrays, &mut reader)
+                .unwrap_or_default();
 
             let mut tex_coords = [Vec2::ZERO; 8];
             seq! {
@@ -133,8 +132,8 @@ impl VertexModule for Interpreter {
                 position_matrix,
                 normal,
                 normal_matrix,
-                diffuse,
-                specular,
+                chan0,
+                chan1,
                 tex_coords,
                 tex_coords_matrix,
             });

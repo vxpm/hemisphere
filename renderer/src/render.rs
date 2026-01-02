@@ -296,8 +296,8 @@ impl Renderer {
             position_mat: get_matrix(vertex.position_matrix).unwrap(),
             normal_mat: get_matrix(vertex.normal_matrix).unwrap_or_default(),
 
-            diffuse: vertex.diffuse,
-            specular: vertex.specular,
+            chan0: vertex.chan0,
+            chan1: vertex.chan1,
 
             tex_coord: vertex.tex_coords,
             tex_coord_mat: vertex

@@ -397,8 +397,8 @@ pub struct Vertex {
     pub normal: Vec3,
     pub normal_matrix: MatrixId,
 
-    pub diffuse: Rgba,
-    pub specular: Rgba,
+    pub chan0: Rgba,
+    pub chan1: Rgba,
 
     pub tex_coords: [Vec2; 8],
     pub tex_coords_matrix: [MatrixId; 8],
