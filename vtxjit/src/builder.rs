@@ -9,16 +9,22 @@ use hemisphere::system::gx::{
         attributes::{self, AttributeMode},
     },
 };
+use rustc_hash::FxHashMap;
 use seq_macro::seq;
 use util::offset_of;
 
 const MEMFLAGS: ir::MemFlags = ir::MemFlags::new().with_notrap().with_can_move();
 
+struct Array {
+    base: ir::Value,
+    stride: ir::Value,
+}
+
 struct Consts {
     ptr_type: ir::Type,
 
-    ram_ptr: ir::Value,
     arrays_ptr: ir::Value,
+    ram_ptr: ir::Value,
     data_ptr: ir::Value,
     default_pos: ir::Value,
     default_tex: [ir::Value; 8],
@@ -28,6 +34,7 @@ struct Consts {
 }
 
 struct Vars {
+    arrays: FxHashMap<usize, Array>,
     data_ptr: ir::Value,
     vertex_ptr: ir::Value,
 }
@@ -76,8 +83,8 @@ impl<'ctx> ParserBuilder<'ctx> {
         let consts = Consts {
             ptr_type,
 
-            ram_ptr,
             arrays_ptr,
+            ram_ptr,
             data_ptr,
             default_pos,
             default_tex,
@@ -86,7 +93,9 @@ impl<'ctx> ParserBuilder<'ctx> {
             count,
         };
 
+        let arrays = FxHashMap::default();
         let vars = Vars {
+            arrays,
             data_ptr,
             vertex_ptr: vertices_ptr,
         };
@@ -139,22 +148,7 @@ impl<'ctx> ParserBuilder<'ctx> {
 
     fn parse_indexed<A: AttributeExt>(&mut self, index_ty: ir::Type) {
         let descriptor = A::get_descriptor(&self.config.vat);
-
-        // load base address
-        let base = self.bd.ins().load(
-            ir::types::I32,
-            MEMFLAGS,
-            self.consts.arrays_ptr,
-            (A::ARRAY_OFFSET + offset_of!(ArrayDescriptor, address)) as i32,
-        );
-
-        // load stride
-        let stride = self.bd.ins().load(
-            ir::types::I32,
-            MEMFLAGS,
-            self.consts.arrays_ptr,
-            (A::ARRAY_OFFSET + offset_of!(ArrayDescriptor, stride)) as i32,
-        );
+        let array = &self.vars.arrays[&A::ARRAY_OFFSET];
 
         // load index
         let index = self
@@ -171,8 +165,8 @@ impl<'ctx> ParserBuilder<'ctx> {
         let index = self.bd.ins().uextend(ir::types::I32, index);
 
         // compute address
-        let offset = self.bd.ins().imul(index, stride);
-        let addr = self.bd.ins().iadd(base, offset);
+        let offset = self.bd.ins().imul(index, array.stride);
+        let addr = self.bd.ins().iadd(array.base, offset);
 
         // compute ptr
         let addr = self.bd.ins().uextend(ir::types::I64, addr);
@@ -199,6 +193,47 @@ impl<'ctx> ParserBuilder<'ctx> {
     fn increment_srcloc(&mut self) {
         let curr = self.bd.srcloc().bits();
         self.bd.set_srcloc(ir::SourceLoc::new(curr + 1));
+    }
+
+    fn load_array<A: AttributeExt>(&mut self) {
+        let mode = A::get_mode(&self.config.vcd);
+        match mode {
+            AttributeMode::None => return,
+            AttributeMode::Direct => return,
+            _ => (),
+        }
+
+        // load base
+        let base = self.bd.ins().load(
+            ir::types::I32,
+            MEMFLAGS,
+            self.consts.arrays_ptr,
+            (A::ARRAY_OFFSET + offset_of!(ArrayDescriptor, address)) as i32,
+        );
+
+        // load stride
+        let stride = self.bd.ins().load(
+            ir::types::I32,
+            MEMFLAGS,
+            self.consts.arrays_ptr,
+            (A::ARRAY_OFFSET + offset_of!(ArrayDescriptor, stride)) as i32,
+        );
+
+        self.vars
+            .arrays
+            .insert(A::ARRAY_OFFSET, Array { base, stride });
+    }
+
+    fn head(&mut self) {
+        self.load_array::<attributes::Position>();
+        self.load_array::<attributes::Normal>();
+        self.load_array::<attributes::Chan0>();
+        self.load_array::<attributes::Chan1>();
+        seq! {
+            N in 0..8 {
+                self.load_array::<attributes::TexCoords<N>>();
+            }
+        }
     }
 
     fn body(&mut self) {
@@ -231,6 +266,9 @@ impl<'ctx> ParserBuilder<'ctx> {
     }
 
     pub fn build(mut self) {
+        // setup everything needed before the loop
+        self.head();
+
         // setup the loop
         let iter_bb = self.bd.create_block();
         let body_bb = self.bd.create_block();
