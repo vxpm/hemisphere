@@ -8,11 +8,17 @@ edition = "2024"
 workspace = true
 
 [dev-dependencies]
+criterion = "0.7.0"
 image = { version = "0.25", default-features = false, features = [
     "png",
     "webp",
 ] }
 
+[[bench]]
+name = "benchmarks"
+harness = false
+
 [dependencies]
 bitut.workspace = true
 zerocopy.workspace = true
+seq-macro.workspace = true
