@@ -155,6 +155,8 @@ impl<'ctx> ParserBuilder<'ctx> {
         self.increment_srcloc();
         self.parse::<attributes::Position>();
         self.increment_srcloc();
+        self.parse::<attributes::Normal>();
+        self.increment_srcloc();
         self.parse::<attributes::Chan0>();
         self.increment_srcloc();
         self.parse::<attributes::Chan1>();
