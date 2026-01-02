@@ -255,7 +255,29 @@ fn read_rgba(format: ColorFormat, parser: &mut ParserBuilder, ptr: ir::Value) ->
     };
 
     match format {
-        ColorFormat::Rgb565 => todo!(),
+        ColorFormat::Rgb565 => {
+            todo!()
+            // let value = parser.bd.ins().load(ir::types::I16, MEMFLAGS, ptr, 0);
+            // let value = parser.bd.ins().bswap(value);
+            //
+            // let shift_mask = |shift, mask| {
+            //     let shifted = parser.bd.ins().ushr_imm(value, shift);
+            //     let masked = parser.bd.ins().band_imm(shifted, mask);
+            //     masked
+            // };
+            //
+            // let r = shift_mask(0, 0x1F);
+            // let g = shift_mask(5, 0x3F);
+            // let b = shift_mask(11, 0x1F);
+            //
+            // parser
+            //     .bd
+            //     .func
+            //     .dfg
+            //     .constants
+            //     .insert(ir::ConstantData::from());
+            // parser.bd.ins().vconst(ir::types::F32X4, todo!());
+        }
         ColorFormat::Rgb888 => {
             let r = parser.bd.ins().load(ir::types::I8, MEMFLAGS, ptr, 0);
             let g = parser.bd.ins().load(ir::types::I8, MEMFLAGS, ptr, 1);

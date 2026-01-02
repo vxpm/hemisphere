@@ -23,6 +23,7 @@ use bitos::{
     BitUtils, TryBits, bitos,
     integer::{UnsignedInt, u3, u4},
 };
+use bitvec::array::BitArray;
 use gekko::Address;
 use glam::{Mat4, Vec2, Vec3};
 use ring_arena::{Handle, RingArena};
@@ -424,69 +425,33 @@ impl VertexStream {
 
 #[derive(Debug, Clone)]
 #[repr(transparent)]
-pub struct MatrixSet([u64; 8]);
+pub struct MatrixSet(BitArray<[u64; 8]>);
 
 impl Default for MatrixSet {
     fn default() -> Self {
-        Self([0; 8])
+        Self(BitArray::new([0; 8]))
     }
 }
 
 impl MatrixSet {
     #[inline(always)]
     pub fn include(&mut self, index: u16) {
-        let offset = index % 8;
-        let index = index / 8;
-        self.0[index as usize] |= 1 << offset;
+        self.0.set(index as usize, true);
     }
 
     #[inline(always)]
     pub fn clear(&mut self) {
-        self.0.fill(0);
+        self.0.fill(false);
     }
 
     #[inline(always)]
     pub fn iter(&self) -> impl Iterator<Item = u16> {
-        let bytes = self.0.as_bytes();
-
-        // let mut byte = 0;
-        // let mut bit = 0;
-        // let mut idx = 0;
-        // std::iter::from_fn(move || {
-        //     loop {
-        //         if byte == 64 {
-        //             return None;
-        //         }
-        //
-        //         let value = if bytes[byte].bit(bit) {
-        //             Some(idx)
-        //         } else {
-        //             None
-        //         };
-        //
-        //         idx += 1;
-        //         bit += 1;
-        //         if bit == 8 {
-        //             bit = 0;
-        //             byte += 1;
-        //         }
-        //
-        //         if value.is_some() {
-        //             return value;
-        //         }
-        //     }
-        // })
-
-        bytes
-            .iter()
-            .flat_map(|x| (0..8).map(|i| x.bit(i)))
-            .enumerate()
-            .filter_map(|(i, v)| v.then_some(i as u16))
+        self.0.iter_ones().map(|x| x as u16)
     }
 
     #[inline(always)]
     pub fn len(&self) -> usize {
-        self.0.iter().map(|x| x.count_ones() as usize).sum()
+        self.0.count_ones()
     }
 }
 
