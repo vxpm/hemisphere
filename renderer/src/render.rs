@@ -293,16 +293,14 @@ impl Renderer {
 
             _pad0: 0,
 
-            position_mat: get_matrix(vertex.position_matrix).unwrap(),
-            normal_mat: get_matrix(vertex.normal_matrix).unwrap_or_default(),
+            position_mat: get_matrix(vertex.pos_norm_matrix).unwrap(),
+            normal_mat: get_matrix(vertex.pos_norm_matrix + 256).unwrap(),
 
             chan0: vertex.chan0,
             chan1: vertex.chan1,
 
             tex_coord: vertex.tex_coords,
-            tex_coord_mat: vertex
-                .tex_coords_matrix
-                .map(|i| get_matrix(i).unwrap_or_default()),
+            tex_coord_mat: vertex.tex_coords_matrix.map(|i| get_matrix(i).unwrap()),
         };
 
         let idx = self.vertices.len();

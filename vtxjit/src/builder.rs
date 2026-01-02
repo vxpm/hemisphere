@@ -144,8 +144,14 @@ impl<'ctx> ParserBuilder<'ctx> {
     fn body(&mut self) {
         self.bd.set_srcloc(ir::SourceLoc::new(0));
 
-        // emit code for parsing each attribute, in order
         self.parse::<attributes::PosMatrixIndex>();
+        seq! {
+            N in 0..8 {
+                self.increment_srcloc();
+                self.parse::<attributes::TexMatrixIndex<N>>();
+            }
+        }
+
         self.increment_srcloc();
         self.parse::<attributes::Position>();
         self.increment_srcloc();
