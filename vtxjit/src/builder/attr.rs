@@ -169,8 +169,8 @@ fn read_rgba(format: ColorFormat, parser: &mut ParserBuilder, ptr: ir::Value) ->
     }
 }
 
-impl AttributeExt for attributes::Diffuse {
-    const ARRAY_OFFSET: usize = offset_of!(Arrays, diffuse);
+impl AttributeExt for attributes::Chan0 {
+    const ARRAY_OFFSET: usize = offset_of!(Arrays, chan0);
 
     fn parse(desc: &Self::Descriptor, parser: &mut ParserBuilder, ptr: ir::Value) -> u32 {
         let rgba = read_rgba(desc.format(), parser, ptr);
@@ -178,15 +178,15 @@ impl AttributeExt for attributes::Diffuse {
             MEMFLAGS,
             rgba,
             parser.vars.vertex_ptr,
-            offset_of!(Vertex, diffuse) as i32,
+            offset_of!(Vertex, chan0) as i32,
         );
 
         desc.size()
     }
 }
 
-impl AttributeExt for attributes::Specular {
-    const ARRAY_OFFSET: usize = offset_of!(Arrays, specular);
+impl AttributeExt for attributes::Chan1 {
+    const ARRAY_OFFSET: usize = offset_of!(Arrays, chan1);
 
     fn parse(desc: &Self::Descriptor, parser: &mut ParserBuilder, ptr: ir::Value) -> u32 {
         let rgba = read_rgba(desc.format(), parser, ptr);
@@ -194,7 +194,7 @@ impl AttributeExt for attributes::Specular {
             MEMFLAGS,
             rgba,
             parser.vars.vertex_ptr,
-            offset_of!(Vertex, diffuse) as i32,
+            offset_of!(Vertex, chan0) as i32,
         );
 
         desc.size()

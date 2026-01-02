@@ -64,8 +64,8 @@ pub enum Reg {
     // Array Base
     PositionPtr = 0xA0,
     NormalPtr = 0xA1,
-    DiffusePtr = 0xA2,
-    SpecularPtr = 0xA3,
+    Chan0Ptr = 0xA2,
+    Chan1Ptr = 0xA3,
     Tex0CoordPtr = 0xA4,
     Tex1CoordPtr = 0xA5,
     Tex2CoordPtr = 0xA6,
@@ -82,8 +82,8 @@ pub enum Reg {
     // Array Stride
     PositionStride = 0xB0,
     NormalStride = 0xB1,
-    DiffuseStride = 0xB2,
-    SpecularStride = 0xB3,
+    Chan0Stride = 0xB2,
+    Chan1Stride = 0xB3,
     Tex0CoordStride = 0xB4,
     Tex1CoordStride = 0xB5,
     Tex2CoordStride = 0xB6,
@@ -256,25 +256,6 @@ impl Fifo {
     }
 }
 
-#[bitos(32)]
-#[derive(Debug, Clone, Default)]
-pub struct VertexAttributeSet {
-    #[bits(0)]
-    pub pos_mat_index: bool,
-    #[bits(1..9)]
-    pub tex_coord_mat_index: [bool; 8],
-    #[bits(9)]
-    pub position: bool,
-    #[bits(10)]
-    pub normal: bool,
-    #[bits(11)]
-    pub diffuse: bool,
-    #[bits(12)]
-    pub specular: bool,
-    #[bits(13..21)]
-    pub tex_coord: [bool; 8],
-}
-
 /// Describes which attributes are present in the vertices of primitives and how they are present.
 #[bitos(64)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -291,34 +272,15 @@ pub struct VertexDescriptor {
     /// Whether the normal attribute is present.
     #[bits(11..13)]
     pub normal: AttributeMode,
-    /// Whether the diffuse color attribute is present.
+    /// Whether the color channel 0 attribute is present.
     #[bits(13..15)]
-    pub diffuse: AttributeMode,
-    /// Whether the specular color attribute is present.
+    pub chan0: AttributeMode,
+    /// Whether the color channel 1 attribute is present.
     #[bits(15..17)]
-    pub specular: AttributeMode,
+    pub chan1: AttributeMode,
     /// Whether the texture coordinate N attribute is present.
     #[bits(32..48)]
     pub tex_coord: [AttributeMode; 8],
-}
-
-impl VertexDescriptor {
-    /// Returns the set of attributes present in this vertex descriptor.
-    pub fn attribute_set(&self) -> VertexAttributeSet {
-        let mut set = VertexAttributeSet::default()
-            .with_pos_mat_index(self.pos_mat_index())
-            .with_tex_coord_mat_index(self.tex_coord_mat_index())
-            .with_position(self.position().present())
-            .with_normal(self.normal().present())
-            .with_diffuse(self.diffuse().present())
-            .with_specular(self.specular().present());
-
-        for i in 0..8 {
-            set.set_tex_coord_at(i, self.tex_coord_at(i).unwrap().present());
-        }
-
-        set
-    }
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -331,8 +293,8 @@ pub struct ArrayDescriptor {
 pub struct Arrays {
     pub position: ArrayDescriptor,
     pub normal: ArrayDescriptor,
-    pub diffuse: ArrayDescriptor,
-    pub specular: ArrayDescriptor,
+    pub chan0: ArrayDescriptor,
+    pub chan1: ArrayDescriptor,
     pub tex_coords: [ArrayDescriptor; 8],
     pub general_purpose: [ArrayDescriptor; 4],
 }
@@ -373,15 +335,15 @@ impl Internal {
 
         size += self
             .vertex_descriptor
-            .diffuse()
+            .chan0()
             .size()
-            .unwrap_or_else(|| self.vertex_attr_tables[vat].a.diffuse().size());
+            .unwrap_or_else(|| self.vertex_attr_tables[vat].a.chan0().size());
 
         size += self
             .vertex_descriptor
-            .specular()
+            .chan1()
             .size()
-            .unwrap_or_else(|| self.vertex_attr_tables[vat].a.specular().size());
+            .unwrap_or_else(|| self.vertex_attr_tables[vat].a.chan1().size());
 
         for i in 0..8 {
             size += self
@@ -639,8 +601,8 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
 
         Reg::PositionPtr => value.write_ne_bytes(cp.arrays.position.address.as_mut_bytes()),
         Reg::NormalPtr => value.write_ne_bytes(cp.arrays.normal.address.as_mut_bytes()),
-        Reg::DiffusePtr => value.write_ne_bytes(cp.arrays.diffuse.address.as_mut_bytes()),
-        Reg::SpecularPtr => value.write_ne_bytes(cp.arrays.specular.address.as_mut_bytes()),
+        Reg::Chan0Ptr => value.write_ne_bytes(cp.arrays.chan0.address.as_mut_bytes()),
+        Reg::Chan1Ptr => value.write_ne_bytes(cp.arrays.chan1.address.as_mut_bytes()),
 
         Reg::Tex0CoordPtr => value.write_ne_bytes(cp.arrays.tex_coords[0].address.as_mut_bytes()),
         Reg::Tex1CoordPtr => value.write_ne_bytes(cp.arrays.tex_coords[1].address.as_mut_bytes()),
@@ -658,8 +620,8 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
 
         Reg::PositionStride => value.write_ne_bytes(cp.arrays.position.stride.as_mut_bytes()),
         Reg::NormalStride => value.write_ne_bytes(cp.arrays.normal.stride.as_mut_bytes()),
-        Reg::DiffuseStride => value.write_ne_bytes(cp.arrays.diffuse.stride.as_mut_bytes()),
-        Reg::SpecularStride => value.write_ne_bytes(cp.arrays.specular.stride.as_mut_bytes()),
+        Reg::Chan0Stride => value.write_ne_bytes(cp.arrays.chan0.stride.as_mut_bytes()),
+        Reg::Chan1Stride => value.write_ne_bytes(cp.arrays.chan1.stride.as_mut_bytes()),
 
         Reg::Tex0CoordStride => value.write_ne_bytes(cp.arrays.tex_coords[0].stride.as_mut_bytes()),
         Reg::Tex1CoordStride => value.write_ne_bytes(cp.arrays.tex_coords[1].stride.as_mut_bytes()),

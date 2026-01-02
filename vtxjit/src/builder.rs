@@ -142,7 +142,7 @@ impl<'ctx> ParserBuilder<'ctx> {
         self.bd.set_srcloc(ir::SourceLoc::new(1));
         self.parse::<attributes::Position>();
         self.bd.set_srcloc(ir::SourceLoc::new(2));
-        self.parse::<attributes::Diffuse>();
+        self.parse::<attributes::Chan0>();
     }
 
     pub fn build(mut self) {

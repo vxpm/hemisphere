@@ -370,9 +370,9 @@ pub struct VertexAttributeTableA {
     #[bits(9..13)]
     pub normal: NormalDescriptor,
     #[bits(13..17)]
-    pub diffuse: ColorDescriptor,
+    pub chan0: ColorDescriptor,
     #[bits(17..21)]
-    pub specular: ColorDescriptor,
+    pub chan1: ColorDescriptor,
     #[bits(21..30)]
     pub tex0: TexCoordsDescriptor,
     #[bits(30)]
@@ -555,41 +555,41 @@ impl Attribute for Normal {
     }
 }
 
-pub struct Diffuse;
+pub struct Chan0;
 
-impl Attribute for Diffuse {
-    const NAME: &'static str = "Diffuse";
+impl Attribute for Chan0 {
+    const NAME: &'static str = "Color Channel 0";
     type Descriptor = ColorDescriptor;
 
     fn get_mode(vcd: &VertexDescriptor) -> AttributeMode {
-        vcd.diffuse()
+        vcd.chan0()
     }
 
     fn get_descriptor(vat: &VertexAttributeTable) -> Self::Descriptor {
-        vat.a.diffuse()
+        vat.a.chan0()
     }
 
     fn get_array(arrays: &Arrays) -> Option<ArrayDescriptor> {
-        Some(arrays.diffuse)
+        Some(arrays.chan0)
     }
 }
 
-pub struct Specular;
+pub struct Chan1;
 
-impl Attribute for Specular {
-    const NAME: &'static str = "Specular";
+impl Attribute for Chan1 {
+    const NAME: &'static str = "Color Channel 1";
     type Descriptor = ColorDescriptor;
 
     fn get_mode(vcd: &VertexDescriptor) -> AttributeMode {
-        vcd.specular()
+        vcd.chan1()
     }
 
     fn get_descriptor(vat: &VertexAttributeTable) -> Self::Descriptor {
-        vat.a.specular()
+        vat.a.chan1()
     }
 
     fn get_array(arrays: &Arrays) -> Option<ArrayDescriptor> {
-        Some(arrays.specular)
+        Some(arrays.chan1)
     }
 }
 

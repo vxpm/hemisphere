@@ -14,8 +14,8 @@ pub struct Vertex {
     pub position_mat: Mat4,
     pub normal_mat: Mat4,
 
-    pub diffuse: Rgba,
-    pub specular: Rgba,
+    pub chan0: Rgba,
+    pub chan1: Rgba,
 
     pub tex_coord: [Vec2; 8],
     pub tex_coord_mat: [Mat4; 8],
