@@ -4535,6 +4535,7 @@ dependencies = [
  "hemisphere",
  "jitalloc",
  "rustc-hash 2.1.1",
+ "seq-macro",
  "tracing",
  "util",
  "zerocopy",

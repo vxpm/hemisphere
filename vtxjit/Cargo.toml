@@ -17,3 +17,4 @@ rustc-hash.workspace = true
 zerocopy.workspace = true
 tracing.workspace = true
 cranelift.workspace = true
+seq-macro.workspace = true
