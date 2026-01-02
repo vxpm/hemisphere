@@ -4,9 +4,13 @@ use crate::{Compiler, builder::attr::AttributeExt, parser::Config};
 use cranelift::{codegen::ir, frontend, prelude::InstBuilder};
 use hemisphere::system::gx::{
     Vertex,
-    cmd::attributes::{self, AttributeMode},
+    cmd::{
+        ArrayDescriptor,
+        attributes::{self, AttributeMode},
+    },
 };
 use seq_macro::seq;
+use util::offset_of;
 
 const MEMFLAGS: ir::MemFlags = ir::MemFlags::new().with_notrap().with_can_move();
 
@@ -126,13 +130,62 @@ impl<'ctx> ParserBuilder<'ctx> {
         self.vars.data_ptr = self.bd.ins().iadd_imm(self.vars.data_ptr, consumed as i64);
     }
 
+    fn parse_indexed<A: AttributeExt>(&mut self, index_ty: ir::Type) {
+        let descriptor = A::get_descriptor(&self.config.vat);
+
+        // load base address
+        let base = self.bd.ins().load(
+            ir::types::I32,
+            MEMFLAGS,
+            self.consts.arrays_ptr,
+            (A::ARRAY_OFFSET + offset_of!(ArrayDescriptor, address)) as i32,
+        );
+
+        // load stride
+        let stride = self.bd.ins().load(
+            ir::types::I32,
+            MEMFLAGS,
+            self.consts.arrays_ptr,
+            (A::ARRAY_OFFSET + offset_of!(ArrayDescriptor, stride)) as i32,
+        );
+
+        // load index
+        let index = self
+            .bd
+            .ins()
+            .load(index_ty, MEMFLAGS, self.vars.data_ptr, 0);
+
+        let index = if index_ty.bytes() == 1 {
+            index
+        } else {
+            self.bd.ins().bswap(index)
+        };
+
+        let index = self.bd.ins().uextend(ir::types::I32, index);
+
+        // compute address
+        let offset = self.bd.ins().imul(index, stride);
+        let addr = self.bd.ins().iadd(base, offset);
+
+        // compute ptr
+        let addr = self.bd.ins().uextend(ir::types::I64, addr);
+        let ptr = self.bd.ins().iadd(self.consts.ram_ptr, addr);
+
+        // parse
+        A::parse(&descriptor, self, ptr);
+        self.vars.data_ptr = self
+            .bd
+            .ins()
+            .iadd_imm(self.vars.data_ptr, index_ty.bytes() as i64);
+    }
+
     fn parse<A: AttributeExt>(&mut self) {
         let mode = A::get_mode(&self.config.vcd);
         match mode {
             AttributeMode::None => A::set_default(self),
             AttributeMode::Direct => self.parse_direct::<A>(),
-            AttributeMode::Index8 => todo!(),
-            AttributeMode::Index16 => todo!(),
+            AttributeMode::Index8 => self.parse_indexed::<A>(ir::types::I8),
+            AttributeMode::Index16 => self.parse_indexed::<A>(ir::types::I16),
         }
     }
 
