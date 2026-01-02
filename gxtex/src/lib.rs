@@ -142,7 +142,6 @@ pub fn compute_size<F: Format>(width: usize, height: usize) -> usize {
 }
 
 /// Stride is in cache lines.
-#[multiversion(targets = "simd")]
 pub fn encode<F: Format>(
     settings: &F::EncodeSettings,
     stride: usize,
@@ -180,7 +179,6 @@ pub fn encode<F: Format>(
     }
 }
 
-#[multiversion(targets = "simd")]
 pub fn decode<F: Format>(width: usize, height: usize, data: &[u8]) -> Vec<Pixel> {
     let mut pixels = vec![Pixel::default(); width * height];
 
