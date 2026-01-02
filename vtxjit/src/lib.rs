@@ -4,7 +4,7 @@ mod parser;
 use cranelift::{
     codegen::{self, ir},
     frontend, native,
-    prelude::{Configurable, InstBuilder, isa::TargetIsa},
+    prelude::{Configurable, isa::TargetIsa},
 };
 use hemisphere::{
     modules::vertex::VertexModule,
@@ -91,17 +91,20 @@ impl Compiler {
         let builder = ParserBuilder::new(self, func_builder, config);
         builder.build();
 
+        println!("{:?}", config);
         println!("{}", func.display());
 
         code_ctx.clear();
+        code_ctx.want_disasm = true;
         code_ctx.func = func;
         code_ctx
             .compile(&*self.isa, &mut Default::default())
             .unwrap();
 
         let compiled = code_ctx.take_compiled_code().unwrap();
-        let alloc = self.allocator.allocate(64, compiled.code_buffer());
+        println!("{}", compiled.vcode.as_ref().unwrap());
 
+        let alloc = self.allocator.allocate(64, compiled.code_buffer());
         VertexParser::new(alloc)
     }
 }

@@ -61,7 +61,8 @@ impl<'ctx> ParserBuilder<'ctx> {
         let mut extract_idx = |i: usize| {
             let shifted = bd.ins().ushr_imm(default_mtx, i as i64 * 6);
             let masked = bd.ins().band_imm(shifted, 0x3F);
-            masked
+            let reduced = bd.ins().ireduce(ir::types::I16, masked);
+            reduced
         };
 
         let default_pos = extract_idx(0);

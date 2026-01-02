@@ -22,6 +22,7 @@ impl AttributeExt for attributes::PosMatrixIndex {
     const ARRAY_OFFSET: usize = usize::MAX;
 
     fn set_default(parser: &mut ParserBuilder) {
+        parser.include_matrix(false, parser.consts.default_pos);
         parser.bd.ins().store(
             MEMFLAGS,
             parser.consts.default_pos,
@@ -36,8 +37,8 @@ impl AttributeExt for attributes::PosMatrixIndex {
             .ins()
             .load(ir::types::I8, MEMFLAGS, parser.vars.data_ptr, 0);
 
+        let index = parser.bd.ins().uextend(ir::types::I16, index);
         parser.include_matrix(false, index);
-
         parser.bd.ins().store(
             MEMFLAGS,
             index,
@@ -65,54 +66,62 @@ impl AttributeExt for attributes::Position {
             _ => panic!("reserved format"),
         };
 
-        macro_rules! load_as_float {
-            ($ty:expr, $offset:expr) => {{
-                let value = parser
+        let mut load_as_float = |index| {
+            let value = parser.bd.ins().load(
+                if ty.is_float() { ir::types::I32 } else { ty },
+                MEMFLAGS,
+                parser.vars.data_ptr,
+                dbg!(index * ty.bytes() as i32),
+            );
+
+            let value = if ty.bytes() == 1 {
+                value
+            } else if ty.is_float() {
+                let value = parser.bd.ins().bswap(value);
+                parser
                     .bd
                     .ins()
-                    .load($ty, MEMFLAGS, parser.vars.data_ptr, $offset);
+                    .bitcast(ir::types::F32, ir::MemFlags::new(), value)
+            } else {
+                parser.bd.ins().bswap(value)
+            };
 
-                let value = if $ty.lane_type().is_float() {
-                    value
-                } else if signed {
-                    parser
-                        .bd
-                        .ins()
-                        .fcvt_from_sint(ir::types::F32.by($ty.lane_count()).unwrap(), value)
-                } else {
-                    parser
-                        .bd
-                        .ins()
-                        .fcvt_from_uint(ir::types::F32.by($ty.lane_count()).unwrap(), value)
-                };
+            let value = if ty.is_float() {
+                value
+            } else if signed {
+                parser.bd.ins().fcvt_from_sint(ir::types::F32, value)
+            } else {
+                parser.bd.ins().fcvt_from_uint(ir::types::F32, value)
+            };
 
-                let shift = if $ty.lane_count() == 1 {
-                    shift
-                } else {
-                    parser
-                        .bd
-                        .ins()
-                        .splat(ir::types::F32.by($ty.lane_count()).unwrap(), shift)
-                };
-
+            if ty.is_float() {
+                value
+            } else {
                 parser.bd.ins().fmul(value, shift)
-            }};
-        }
+            }
+        };
 
-        let xy_ty = ty.by(2).unwrap();
-        let xy = load_as_float!(xy_ty, 0);
-
-        parser.bd.ins().store(
-            MEMFLAGS,
-            xy,
-            parser.vars.vertex_ptr,
-            offset_of!(Vertex, position) as i32,
-        );
+        let x = load_as_float(0);
+        let y = load_as_float(1);
 
         let z = match desc.kind() {
             PositionKind::Vec2 => parser.bd.ins().f32const(0.0),
-            PositionKind::Vec3 => load_as_float!(ty, xy_ty.bytes() as i32),
+            PositionKind::Vec3 => load_as_float(2),
         };
+
+        parser.bd.ins().store(
+            MEMFLAGS,
+            x,
+            parser.vars.vertex_ptr,
+            offset_of!(Vertex, position.x) as i32,
+        );
+
+        parser.bd.ins().store(
+            MEMFLAGS,
+            y,
+            parser.vars.vertex_ptr,
+            offset_of!(Vertex, position.y) as i32,
+        );
 
         parser.bd.ins().store(
             MEMFLAGS,
