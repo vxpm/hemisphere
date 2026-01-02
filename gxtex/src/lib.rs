@@ -1,6 +1,7 @@
 #![feature(portable_simd)]
 
 use bitut::BitUtils;
+use multiversion::multiversion;
 use seq_macro::seq;
 use std::simd::u16x4;
 use zerocopy::{FromBytes, Immutable, IntoBytes};
@@ -145,6 +146,7 @@ pub fn compute_size<F: Format>(width: usize, height: usize) -> usize {
 }
 
 /// Stride is in cache lines.
+#[multiversion(targets = "simd")]
 pub fn encode<F: Format>(
     settings: &F::EncodeSettings,
     stride: usize,
@@ -182,6 +184,7 @@ pub fn encode<F: Format>(
     }
 }
 
+#[multiversion(targets = "simd")]
 pub fn decode<F: Format>(width: usize, height: usize, data: &[u8]) -> Vec<Pixel> {
     let mut pixels = vec![Pixel::default(); width * height];
 

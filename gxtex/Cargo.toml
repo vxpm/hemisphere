@@ -22,3 +22,5 @@ harness = false
 bitut.workspace = true
 zerocopy.workspace = true
 seq-macro.workspace = true
+
+multiversion = "0.8"
