@@ -121,7 +121,7 @@ impl<'ctx> ParserBuilder<'ctx> {
 
     fn parse_direct<A: AttributeExt>(&mut self) {
         let descriptor = A::get_descriptor(&self.config.vat);
-        let consumed = A::parse(&descriptor, self);
+        let consumed = A::parse(&descriptor, self, self.vars.data_ptr);
         self.vars.data_ptr = self.bd.ins().iadd_imm(self.vars.data_ptr, consumed as i64);
     }
 

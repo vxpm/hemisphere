@@ -15,7 +15,7 @@ pub trait AttributeExt: Attribute {
     const ARRAY_OFFSET: usize;
 
     fn set_default(_parser: &mut ParserBuilder) {}
-    fn parse(desc: &Self::Descriptor, parser: &mut ParserBuilder) -> u32;
+    fn parse(desc: &Self::Descriptor, parser: &mut ParserBuilder, ptr: ir::Value) -> u32;
 }
 
 impl AttributeExt for attributes::PosMatrixIndex {
@@ -31,12 +31,8 @@ impl AttributeExt for attributes::PosMatrixIndex {
         );
     }
 
-    fn parse(_: &Self::Descriptor, parser: &mut ParserBuilder) -> u32 {
-        let index = parser
-            .bd
-            .ins()
-            .load(ir::types::I8, MEMFLAGS, parser.vars.data_ptr, 0);
-
+    fn parse(_: &Self::Descriptor, parser: &mut ParserBuilder, ptr: ir::Value) -> u32 {
+        let index = parser.bd.ins().load(ir::types::I8, MEMFLAGS, ptr, 0);
         let index = parser.bd.ins().uextend(ir::types::I16, index);
         parser.include_matrix(false, index);
         parser.bd.ins().store(
@@ -53,7 +49,7 @@ impl AttributeExt for attributes::PosMatrixIndex {
 impl AttributeExt for attributes::Position {
     const ARRAY_OFFSET: usize = offset_of!(Arrays, position);
 
-    fn parse(desc: &Self::Descriptor, parser: &mut ParserBuilder) -> u32 {
+    fn parse(desc: &Self::Descriptor, parser: &mut ParserBuilder, ptr: ir::Value) -> u32 {
         let shift = 1.0 / 2.0f32.powi(desc.shift().value() as i32);
         let shift = parser.bd.ins().f32const(shift);
 
@@ -70,7 +66,7 @@ impl AttributeExt for attributes::Position {
             let value = parser.bd.ins().load(
                 if ty.is_float() { ir::types::I32 } else { ty },
                 MEMFLAGS,
-                parser.vars.data_ptr,
+                ptr,
                 dbg!(index * ty.bytes() as i32),
             );
 
@@ -134,7 +130,7 @@ impl AttributeExt for attributes::Position {
     }
 }
 
-fn read_rgba(format: ColorFormat, parser: &mut ParserBuilder) -> ir::Value {
+fn read_rgba(format: ColorFormat, parser: &mut ParserBuilder, ptr: ir::Value) -> ir::Value {
     let to_float = |parser: &mut ParserBuilder, rgba, max: u8| {
         let rgba = parser.bd.ins().fcvt_from_uint(ir::types::F32X4, rgba);
         let recip = parser.bd.ins().f32const(1.0 / (max as f32));
@@ -145,18 +141,9 @@ fn read_rgba(format: ColorFormat, parser: &mut ParserBuilder) -> ir::Value {
     match format {
         ColorFormat::Rgb565 => todo!(),
         ColorFormat::Rgb888 => {
-            let r = parser
-                .bd
-                .ins()
-                .load(ir::types::I8, MEMFLAGS, parser.vars.data_ptr, 0);
-            let g = parser
-                .bd
-                .ins()
-                .load(ir::types::I8, MEMFLAGS, parser.vars.data_ptr, 1);
-            let b = parser
-                .bd
-                .ins()
-                .load(ir::types::I8, MEMFLAGS, parser.vars.data_ptr, 2);
+            let r = parser.bd.ins().load(ir::types::I8, MEMFLAGS, ptr, 0);
+            let g = parser.bd.ins().load(ir::types::I8, MEMFLAGS, ptr, 1);
+            let b = parser.bd.ins().load(ir::types::I8, MEMFLAGS, ptr, 2);
             let a = parser.bd.ins().iconst(ir::types::I8, 255);
 
             let r = parser.bd.ins().uextend(ir::types::I32, r);
@@ -175,11 +162,7 @@ fn read_rgba(format: ColorFormat, parser: &mut ParserBuilder) -> ir::Value {
         ColorFormat::Rgba4444 => todo!(),
         ColorFormat::Rgba6666 => todo!(),
         ColorFormat::Rgba8888 => {
-            let rgba = parser
-                .bd
-                .ins()
-                .load(ir::types::I8X4, MEMFLAGS, parser.vars.data_ptr, 0);
-
+            let rgba = parser.bd.ins().load(ir::types::I8X4, MEMFLAGS, ptr, 0);
             to_float(parser, rgba, 255)
         }
         _ => panic!("reserved color format"),
@@ -189,9 +172,8 @@ fn read_rgba(format: ColorFormat, parser: &mut ParserBuilder) -> ir::Value {
 impl AttributeExt for attributes::Diffuse {
     const ARRAY_OFFSET: usize = offset_of!(Arrays, diffuse);
 
-    fn parse(desc: &Self::Descriptor, parser: &mut ParserBuilder) -> u32 {
-        let rgba = read_rgba(desc.format(), parser);
-
+    fn parse(desc: &Self::Descriptor, parser: &mut ParserBuilder, ptr: ir::Value) -> u32 {
+        let rgba = read_rgba(desc.format(), parser, ptr);
         parser.bd.ins().store(
             MEMFLAGS,
             rgba,
@@ -206,9 +188,8 @@ impl AttributeExt for attributes::Diffuse {
 impl AttributeExt for attributes::Specular {
     const ARRAY_OFFSET: usize = offset_of!(Arrays, specular);
 
-    fn parse(desc: &Self::Descriptor, parser: &mut ParserBuilder) -> u32 {
-        let rgba = read_rgba(desc.format(), parser);
-
+    fn parse(desc: &Self::Descriptor, parser: &mut ParserBuilder, ptr: ir::Value) -> u32 {
+        let rgba = read_rgba(desc.format(), parser, ptr);
         parser.bd.ins().store(
             MEMFLAGS,
             rgba,
