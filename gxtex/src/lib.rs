@@ -1,5 +1,8 @@
+#![feature(portable_simd)]
+
 use bitut::BitUtils;
-use multiversion::multiversion;
+use seq_macro::seq;
+use std::simd::u16x4;
 use zerocopy::{FromBytes, Immutable, IntoBytes};
 
 // const DITHER: [[i8; 8]; 8] = [
@@ -496,6 +499,48 @@ impl Format for Rgb565 {
     }
 }
 
+pub struct SimdRgb565;
+
+impl Format for SimdRgb565 {
+    const NIBBLES_PER_TEXEL: usize = 4;
+    const TILE_WIDTH: usize = 4;
+    const TILE_HEIGHT: usize = 4;
+
+    type EncodeSettings = ();
+
+    fn encode_tile(
+        (): &Self::EncodeSettings,
+        data: &mut [u8],
+        get: impl Fn(usize, usize) -> Pixel,
+    ) {
+        for y in 0..Self::TILE_HEIGHT {
+            for x in 0..Self::TILE_WIDTH {
+                let pixel = get(x, y);
+                let [high, low] = pixel.to_rgb565().to_be_bytes();
+
+                let index = y * Self::TILE_WIDTH + x;
+                data[2 * index] = high;
+                data[2 * index + 1] = low;
+            }
+        }
+    }
+
+    fn decode_tile(data: &[u8], mut set: impl FnMut(usize, usize, Pixel)) {
+        let pixels: [u16; 16] =
+            std::array::from_fn(|i| u16::from_be_bytes([data[2 * i], data[2 * i + 1]]));
+        let conv = pixels.map(|p| Pixel::from_rgb565(p));
+        seq! {
+            Y in 0..4 {
+                seq! {
+                    X in 0..4 {
+                        set(X, Y, conv[X + 4 * Y]);
+                    }
+                }
+            }
+        }
+    }
+}
+
 pub struct Rgb5A3;
 
 impl Format for Rgb5A3 {
@@ -702,6 +747,11 @@ mod test {
         test_format::<Rgb565>(&(), "resources/waterfall.webp", "RGB565");
         test_format::<Rgb5A3>(&(), "resources/waterfall.webp", "RGB5A3");
         test_format::<Rgba8>(&(), "resources/waterfall.webp", "RGBA8");
+    }
+
+    #[test]
+    fn test_simd() {
+        test_format::<SimdRgb565>(&(), "resources/waterfall.webp", "SIMD_RGB565");
     }
 
     #[test]
