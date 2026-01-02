@@ -105,6 +105,12 @@ impl<'ctx> ParserBuilder<'ctx> {
         self.current_bb = bb;
     }
 
+    fn shift_mask(&mut self, value: ir::Value, shift: i64, mask: i64) -> ir::Value {
+        let shifted = self.bd.ins().ushr_imm(value, shift);
+        let masked = self.bd.ins().band_imm(shifted, mask);
+        masked
+    }
+
     fn include_matrix(&mut self, is_normal: bool, mat_idx: ir::Value) {
         let mat_idx = self.bd.ins().uextend(self.consts.ptr_type, mat_idx);
         let mat_full_idx = if is_normal {
