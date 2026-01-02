@@ -1141,10 +1141,12 @@ fn draw(sys: &mut System, topology: Topology, stream: &VertexAttributeStream) {
         }
     }
 
-    let attributes = self::extract_vertices(sys, stream);
+    let vertices = self::extract_vertices(sys, stream);
+    // dbg!(vertices.vertices());
+
     sys.modules
         .render
-        .exec(render::Action::Draw(topology, attributes));
+        .exec(render::Action::Draw(topology, vertices));
 }
 
 fn do_efb_copy(sys: &mut System, cmd: pix::CopyCmd) {
