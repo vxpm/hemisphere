@@ -81,13 +81,12 @@ impl VertexModule for Interpreter {
         let mut data = stream.data();
         let mut reader = data.reader();
         for i in 0..stream.count() {
-            let position_matrix =
+            let pos_norm_matrix =
                 read_attribute::<attributes::PosMatrixIndex>(ram, vcd, vat, arrays, &mut reader)
                     .unwrap_or(default_pos_matrix_idx) as u16;
-            let normal_matrix = position_matrix + 256;
 
-            matrix_set.include(position_matrix);
-            matrix_set.include(normal_matrix);
+            matrix_set.include(pos_norm_matrix);
+            matrix_set.include(pos_norm_matrix + 256);
 
             let mut tex_coords_matrix = [0; 8];
             seq! {
@@ -129,9 +128,8 @@ impl VertexModule for Interpreter {
 
             vertices[i as usize].write(Vertex {
                 position,
-                position_matrix,
                 normal,
-                normal_matrix,
+                pos_norm_matrix,
                 chan0,
                 chan1,
                 tex_coords,

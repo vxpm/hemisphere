@@ -392,10 +392,8 @@ pub type MatrixId = u16;
 #[derive(Debug, Default)]
 pub struct Vertex {
     pub position: Vec3,
-    pub position_matrix: MatrixId,
-
     pub normal: Vec3,
-    pub normal_matrix: MatrixId,
+    pub pos_norm_matrix: MatrixId,
 
     pub chan0: Rgba,
     pub chan1: Rgba,
