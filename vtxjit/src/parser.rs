@@ -12,6 +12,7 @@ pub struct Config {
 }
 
 impl Config {
+    #[inline(always)]
     pub fn canonicalize(self) -> Self {
         // TODO: canonicalize
         self
