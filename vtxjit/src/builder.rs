@@ -7,15 +7,18 @@ use hemisphere::system::gx::{
     cmd::attributes::{self, AttributeMode},
 };
 
+const MEMFLAGS: ir::MemFlags = ir::MemFlags::new().with_notrap().with_can_move();
+
 struct Consts {
     ptr_type: ir::Type,
 
     ram_ptr: ir::Value,
     arrays_ptr: ir::Value,
-    default_mtx_ptr: ir::Value,
     data_ptr: ir::Value,
+    default_pos: ir::Value,
+    default_tex: [ir::Value; 8],
     vertices_ptr: ir::Value,
-    mtx_map_ptr: ir::Value,
+    mtx_set_ptr: ir::Value,
     count: ir::Value,
 }
 
@@ -35,16 +38,16 @@ pub struct ParserBuilder<'ctx> {
 impl<'ctx> ParserBuilder<'ctx> {
     pub fn new(
         compiler: &'ctx Compiler,
-        mut builder: frontend::FunctionBuilder<'ctx>,
+        mut bd: frontend::FunctionBuilder<'ctx>,
         config: Config,
     ) -> Self {
-        let entry_bb = builder.create_block();
-        builder.append_block_params_for_function_params(entry_bb);
-        builder.switch_to_block(entry_bb);
-        builder.seal_block(entry_bb);
+        let entry_bb = bd.create_block();
+        bd.append_block_params_for_function_params(entry_bb);
+        bd.switch_to_block(entry_bb);
+        bd.seal_block(entry_bb);
 
         let ptr_type = compiler.isa.pointer_type();
-        let params = builder.block_params(entry_bb);
+        let params = bd.block_params(entry_bb);
         let ram_ptr = params[0];
         let arrays_ptr = params[1];
         let default_mtx_ptr = params[2];
@@ -53,15 +56,27 @@ impl<'ctx> ParserBuilder<'ctx> {
         let mtx_map_ptr = params[5];
         let count = params[6];
 
+        // extract default matrix indices
+        let default_mtx = bd.ins().load(ir::types::I64, MEMFLAGS, default_mtx_ptr, 0);
+        let mut extract_idx = |i: usize| {
+            let shifted = bd.ins().ushr_imm(default_mtx, i as i64 * 6);
+            let masked = bd.ins().band_imm(shifted, 0x3F);
+            masked
+        };
+
+        let default_pos = extract_idx(0);
+        let default_tex: [ir::Value; 8] = std::array::from_fn(|i| extract_idx(i + 1));
+
         let consts = Consts {
             ptr_type,
 
             ram_ptr,
             arrays_ptr,
-            default_mtx_ptr,
             data_ptr,
+            default_pos,
+            default_tex,
             vertices_ptr,
-            mtx_map_ptr,
+            mtx_set_ptr: mtx_map_ptr,
             count,
         };
 
@@ -71,7 +86,7 @@ impl<'ctx> ParserBuilder<'ctx> {
         };
 
         Self {
-            bd: builder,
+            bd,
             config,
             consts,
             vars,
@@ -84,8 +99,23 @@ impl<'ctx> ParserBuilder<'ctx> {
         self.current_bb = bb;
     }
 
-    fn get_matrix_idx(&mut self, is_normal: bool, index: ir::Value) -> ir::Value {
-        todo!()
+    fn include_matrix(&mut self, is_normal: bool, mat_idx: ir::Value) {
+        let mat_idx = self.bd.ins().uextend(self.consts.ptr_type, mat_idx);
+        let mat_full_idx = if is_normal {
+            self.bd.ins().iadd_imm(mat_idx, 256)
+        } else {
+            mat_idx
+        };
+
+        let byte_idx = self.bd.ins().udiv_imm(mat_full_idx, 8);
+        let bit_idx = self.bd.ins().urem_imm(mat_full_idx, 8);
+
+        let ptr = self.bd.ins().iadd(self.consts.mtx_set_ptr, byte_idx);
+        let curr = self.bd.ins().load(ir::types::I8, MEMFLAGS, ptr, 0);
+        let one = self.bd.ins().iconst(ir::types::I8, 1);
+        let bit = self.bd.ins().ishl(one, bit_idx);
+        let new = self.bd.ins().bor(curr, bit);
+        self.bd.ins().store(MEMFLAGS, new, ptr, 0);
     }
 
     fn parse_direct<A: AttributeExt>(&mut self) {
@@ -97,7 +127,7 @@ impl<'ctx> ParserBuilder<'ctx> {
     fn parse<A: AttributeExt>(&mut self) {
         let mode = A::get_mode(&self.config.vcd);
         match mode {
-            AttributeMode::None => (),
+            AttributeMode::None => A::set_default(self),
             AttributeMode::Direct => self.parse_direct::<A>(),
             AttributeMode::Index8 => todo!(),
             AttributeMode::Index16 => todo!(),
@@ -106,8 +136,11 @@ impl<'ctx> ParserBuilder<'ctx> {
 
     fn body(&mut self) {
         // emit code for parsing each attribute, in order
-        self.parse::<attributes::PosMatrixIndex>(); // TODO: if not present, needs to be default!
+        self.bd.set_srcloc(ir::SourceLoc::new(0));
+        self.parse::<attributes::PosMatrixIndex>();
+        self.bd.set_srcloc(ir::SourceLoc::new(1));
         self.parse::<attributes::Position>();
+        self.bd.set_srcloc(ir::SourceLoc::new(2));
         self.parse::<attributes::Diffuse>();
     }
 
