@@ -3,7 +3,7 @@ use cranelift::{codegen::ir, prelude::InstBuilder};
 use hemisphere::system::gx::{
     Vertex,
     cmd::{
-        Arrays,
+        ArrayDescriptor, Arrays,
         attributes::{
             self, Attribute, AttributeDescriptor, ColorFormat, CoordsFormat, PositionKind,
             TexCoordsKind,
@@ -165,6 +165,87 @@ impl AttributeExt for attributes::Position {
     }
 }
 
+impl AttributeExt for attributes::Normal {
+    const ARRAY_OFFSET: usize = offset_of!(Arrays, normal);
+
+    fn parse(desc: &Self::Descriptor, parser: &mut ParserBuilder, ptr: ir::Value) -> u32 {
+        let (ty, signed) = match desc.format() {
+            CoordsFormat::U8 => (ir::types::I8, false),
+            CoordsFormat::I8 => (ir::types::I8, true),
+            CoordsFormat::U16 => (ir::types::I16, false),
+            CoordsFormat::I16 => (ir::types::I16, true),
+            CoordsFormat::F32 => (ir::types::F32, true),
+            _ => panic!("reserved format"),
+        };
+
+        let exp = if ty.bytes() == 1 { 6 } else { 14 };
+        let shift = 1.0 / 2.0f32.powi(exp);
+        let shift = parser.bd.ins().f32const(shift);
+
+        let mut load_as_float = |index| {
+            let value = parser.bd.ins().load(
+                if ty.is_float() { ir::types::I32 } else { ty },
+                MEMFLAGS,
+                ptr,
+                index * ty.bytes() as i32,
+            );
+
+            let value = if ty.bytes() == 1 {
+                value
+            } else if ty.is_float() {
+                let value = parser.bd.ins().bswap(value);
+                parser
+                    .bd
+                    .ins()
+                    .bitcast(ir::types::F32, ir::MemFlags::new(), value)
+            } else {
+                parser.bd.ins().bswap(value)
+            };
+
+            let value = if ty.is_float() {
+                value
+            } else if signed {
+                parser.bd.ins().fcvt_from_sint(ir::types::F32, value)
+            } else {
+                parser.bd.ins().fcvt_from_uint(ir::types::F32, value)
+            };
+
+            if ty.is_float() {
+                value
+            } else {
+                parser.bd.ins().fmul(value, shift)
+            }
+        };
+
+        let x = load_as_float(0);
+        let y = load_as_float(1);
+        let z = load_as_float(2);
+
+        parser.bd.ins().store(
+            MEMFLAGS,
+            x,
+            parser.vars.vertex_ptr,
+            offset_of!(Vertex, normal.x) as i32,
+        );
+
+        parser.bd.ins().store(
+            MEMFLAGS,
+            y,
+            parser.vars.vertex_ptr,
+            offset_of!(Vertex, normal.y) as i32,
+        );
+
+        parser.bd.ins().store(
+            MEMFLAGS,
+            z,
+            parser.vars.vertex_ptr,
+            offset_of!(Vertex, normal.z) as i32,
+        );
+
+        desc.size()
+    }
+}
+
 fn read_rgba(format: ColorFormat, parser: &mut ParserBuilder, ptr: ir::Value) -> ir::Value {
     let to_float = |parser: &mut ParserBuilder, rgba, max: u8| {
         let rgba = parser.bd.ins().fcvt_from_uint(ir::types::F32X4, rgba);
@@ -237,7 +318,7 @@ impl AttributeExt for attributes::Chan1 {
 }
 
 impl<const N: usize> AttributeExt for attributes::TexCoords<N> {
-    const ARRAY_OFFSET: usize = offset_of!(Arrays, chan1);
+    const ARRAY_OFFSET: usize = offset_of!(Arrays, tex_coords) + size_of::<ArrayDescriptor>() * N;
 
     fn parse(desc: &Self::Descriptor, parser: &mut ParserBuilder, ptr: ir::Value) -> u32 {
         let shift = 1.0 / 2.0f32.powi(desc.shift().value() as i32);
