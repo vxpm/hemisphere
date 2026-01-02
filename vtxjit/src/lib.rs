@@ -91,6 +91,8 @@ impl Compiler {
         let builder = ParserBuilder::new(self, func_builder, config);
         builder.build();
 
+        println!("{}", func.display());
+
         code_ctx.clear();
         code_ctx.func = func;
         code_ctx

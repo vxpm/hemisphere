@@ -39,6 +39,7 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
+use vtxjit::JitVertexModule;
 
 use app_modules::{
     audio::CpalAudio,
@@ -144,7 +145,7 @@ impl App {
             disk: Box::new(iso),
             input: Box::new(GilrsInput::new()),
             render: Box::new(renderer.clone()),
-            vertex: Box::new(InterpreterVertexModule),
+            vertex: Box::new(JitVertexModule::new()),
         };
 
         let hemisphere = Hemisphere::new(
