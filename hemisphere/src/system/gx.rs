@@ -424,33 +424,67 @@ impl VertexStream {
 
 #[derive(Debug, Clone)]
 #[repr(transparent)]
-pub struct MatrixSet(pub [u8; 64]);
+pub struct MatrixSet([u64; 8]);
 
 impl Default for MatrixSet {
     fn default() -> Self {
-        Self([0; 64])
+        Self([0; 8])
     }
 }
 
 impl MatrixSet {
+    #[inline(always)]
     pub fn include(&mut self, index: u16) {
         let offset = index % 8;
         let index = index / 8;
         self.0[index as usize] |= 1 << offset;
     }
 
+    #[inline(always)]
     pub fn clear(&mut self) {
         self.0.fill(0);
     }
 
+    #[inline(always)]
     pub fn iter(&self) -> impl Iterator<Item = u16> {
-        self.0
+        let bytes = self.0.as_bytes();
+
+        // let mut byte = 0;
+        // let mut bit = 0;
+        // let mut idx = 0;
+        // std::iter::from_fn(move || {
+        //     loop {
+        //         if byte == 64 {
+        //             return None;
+        //         }
+        //
+        //         let value = if bytes[byte].bit(bit) {
+        //             Some(idx)
+        //         } else {
+        //             None
+        //         };
+        //
+        //         idx += 1;
+        //         bit += 1;
+        //         if bit == 8 {
+        //             bit = 0;
+        //             byte += 1;
+        //         }
+        //
+        //         if value.is_some() {
+        //             return value;
+        //         }
+        //     }
+        // })
+
+        bytes
             .iter()
             .flat_map(|x| (0..8).map(|i| x.bit(i)))
             .enumerate()
             .filter_map(|(i, v)| v.then_some(i as u16))
     }
 
+    #[inline(always)]
     pub fn len(&self) -> usize {
         self.0.iter().map(|x| x.count_ones() as usize).sum()
     }
@@ -1140,8 +1174,6 @@ fn draw(sys: &mut System, topology: Topology, stream: &VertexAttributeStream) {
     }
 
     let vertices = self::extract_vertices(sys, stream);
-    // dbg!(vertices.vertices());
-
     sys.modules
         .render
         .exec(render::Action::Draw(topology, vertices));
