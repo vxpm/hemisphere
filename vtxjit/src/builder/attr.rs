@@ -6,6 +6,7 @@ use hemisphere::system::gx::{
         Arrays,
         attributes::{
             self, Attribute, AttributeDescriptor, ColorFormat, CoordsFormat, PositionKind,
+            TexCoordsKind,
         },
     },
 };
@@ -23,6 +24,8 @@ impl AttributeExt for attributes::PosMatrixIndex {
 
     fn set_default(parser: &mut ParserBuilder) {
         parser.include_matrix(false, parser.consts.default_pos);
+        parser.include_matrix(true, parser.consts.default_pos);
+
         parser.bd.ins().store(
             MEMFLAGS,
             parser.consts.default_pos,
@@ -35,6 +38,8 @@ impl AttributeExt for attributes::PosMatrixIndex {
         let index = parser.bd.ins().load(ir::types::I8, MEMFLAGS, ptr, 0);
         let index = parser.bd.ins().uextend(ir::types::I16, index);
         parser.include_matrix(false, index);
+        parser.include_matrix(true, index);
+
         parser.bd.ins().store(
             MEMFLAGS,
             index,
@@ -67,7 +72,7 @@ impl AttributeExt for attributes::Position {
                 if ty.is_float() { ir::types::I32 } else { ty },
                 MEMFLAGS,
                 ptr,
-                dbg!(index * ty.bytes() as i32),
+                index * ty.bytes() as i32,
             );
 
             let value = if ty.bytes() == 1 {
@@ -195,6 +200,83 @@ impl AttributeExt for attributes::Chan1 {
             rgba,
             parser.vars.vertex_ptr,
             offset_of!(Vertex, chan0) as i32,
+        );
+
+        desc.size()
+    }
+}
+
+impl<const N: usize> AttributeExt for attributes::TexCoords<N> {
+    const ARRAY_OFFSET: usize = offset_of!(Arrays, chan1);
+
+    fn parse(desc: &Self::Descriptor, parser: &mut ParserBuilder, ptr: ir::Value) -> u32 {
+        let shift = 1.0 / 2.0f32.powi(desc.shift().value() as i32);
+        let shift = parser.bd.ins().f32const(shift);
+
+        let (ty, signed) = match desc.format() {
+            CoordsFormat::U8 => (ir::types::I8, false),
+            CoordsFormat::I8 => (ir::types::I8, true),
+            CoordsFormat::U16 => (ir::types::I16, false),
+            CoordsFormat::I16 => (ir::types::I16, true),
+            CoordsFormat::F32 => (ir::types::F32, true),
+            _ => panic!("reserved format"),
+        };
+
+        let mut load_as_float = |index| {
+            let value = parser.bd.ins().load(
+                if ty.is_float() { ir::types::I32 } else { ty },
+                MEMFLAGS,
+                ptr,
+                index * ty.bytes() as i32,
+            );
+
+            let value = if ty.bytes() == 1 {
+                value
+            } else if ty.is_float() {
+                let value = parser.bd.ins().bswap(value);
+                parser
+                    .bd
+                    .ins()
+                    .bitcast(ir::types::F32, ir::MemFlags::new(), value)
+            } else {
+                parser.bd.ins().bswap(value)
+            };
+
+            let value = if ty.is_float() {
+                value
+            } else if signed {
+                parser.bd.ins().fcvt_from_sint(ir::types::F32, value)
+            } else {
+                parser.bd.ins().fcvt_from_uint(ir::types::F32, value)
+            };
+
+            if ty.is_float() {
+                value
+            } else {
+                parser.bd.ins().fmul(value, shift)
+            }
+        };
+
+        let s = load_as_float(0);
+        let t = match desc.kind() {
+            TexCoordsKind::Vec1 => parser.bd.ins().f32const(0.0),
+            TexCoordsKind::Vec2 => load_as_float(1),
+        };
+
+        parser.bd.ins().store(
+            MEMFLAGS,
+            s,
+            parser.vars.vertex_ptr,
+            offset_of!(Vertex, tex_coords) as i32 + N as i32 * size_of::<[f32; 2]>() as i32,
+        );
+
+        parser.bd.ins().store(
+            MEMFLAGS,
+            t,
+            parser.vars.vertex_ptr,
+            offset_of!(Vertex, tex_coords) as i32
+                + N as i32 * size_of::<[f32; 2]>() as i32
+                + size_of::<f32>() as i32,
         );
 
         desc.size()

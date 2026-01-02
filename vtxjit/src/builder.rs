@@ -6,6 +6,7 @@ use hemisphere::system::gx::{
     Vertex,
     cmd::attributes::{self, AttributeMode},
 };
+use seq_macro::seq;
 
 const MEMFLAGS: ir::MemFlags = ir::MemFlags::new().with_notrap().with_can_move();
 
@@ -135,14 +136,30 @@ impl<'ctx> ParserBuilder<'ctx> {
         }
     }
 
+    fn increment_srcloc(&mut self) {
+        let curr = self.bd.srcloc().bits();
+        self.bd.set_srcloc(ir::SourceLoc::new(curr + 1));
+    }
+
     fn body(&mut self) {
-        // emit code for parsing each attribute, in order
         self.bd.set_srcloc(ir::SourceLoc::new(0));
+
+        // emit code for parsing each attribute, in order
         self.parse::<attributes::PosMatrixIndex>();
-        self.bd.set_srcloc(ir::SourceLoc::new(1));
+        self.increment_srcloc();
         self.parse::<attributes::Position>();
-        self.bd.set_srcloc(ir::SourceLoc::new(2));
+        self.increment_srcloc();
         self.parse::<attributes::Chan0>();
+        self.increment_srcloc();
+        self.parse::<attributes::Chan1>();
+        seq! {
+            N in 0..8 {
+                self.increment_srcloc();
+                self.parse::<attributes::TexCoords<N>>();
+            }
+        }
+
+        self.bd.set_srcloc(ir::SourceLoc::default());
     }
 
     pub fn build(mut self) {
