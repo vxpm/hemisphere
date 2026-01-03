@@ -19,6 +19,7 @@ wesl.workspace = true
 wesl-quote.workspace = true
 glam.workspace = true
 rustc-hash.workspace = true
+seq-macro.workspace = true
 
 flume = "0.12"
 
