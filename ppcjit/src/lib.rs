@@ -15,6 +15,7 @@ use crate::{
     module::Module,
     unwind::UnwindHandle,
 };
+use clif_incremental::RedbCache;
 use cranelift::{
     codegen::{self, ir},
     frontend, native,
@@ -195,6 +196,7 @@ pub struct Jit {
     compiler: Compiler,
     code_ctx: codegen::Context,
     func_ctx: frontend::FunctionBuilderContext,
+    cache: RedbCache,
     compiled_count: u64,
     trampoline: Trampoline,
 }
@@ -216,11 +218,13 @@ impl Jit {
         let mut func_ctx = frontend::FunctionBuilderContext::new();
 
         let trampoline = compiler.trampoline(&mut code_ctx, &mut func_ctx);
+        let cache = RedbCache::new("ppcjit", false);
 
         Self {
             compiler,
             code_ctx,
             func_ctx,
+            cache,
             compiled_count: 0,
             trampoline,
         }
@@ -257,7 +261,11 @@ impl Jit {
         self.code_ctx.clear();
         self.code_ctx.func = func;
         self.code_ctx
-            .compile(&*self.compiler.isa, &mut Default::default())
+            .compile_with_cache(
+                &*self.compiler.isa,
+                &mut self.cache,
+                &mut Default::default(),
+            )
             .unwrap();
 
         let compiled = self.code_ctx.compiled_code().unwrap();
