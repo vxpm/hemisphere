@@ -1,9 +1,9 @@
 use std::hint::black_box;
 
 use criterion::{Criterion, criterion_group, criterion_main};
-use gxtex::{AlphaSource, FastRgb565, Format, IA8, IntensitySource, Pixel, Rgb565, compute_size};
+use gxtex::{FastIntensity, FastRgb565, Format, IA8, Intensity, Pixel, Rgb565, compute_size};
 
-fn bench<F: Format>(c: &mut Criterion, settings: &F::EncodeSettings, name: &str) {
+fn bench<F: Format>(c: &mut Criterion, name: &str) {
     let img = image::open("resources/waterfall.webp").unwrap();
     let pixels = img
         .to_rgba8()
@@ -20,7 +20,6 @@ fn bench<F: Format>(c: &mut Criterion, settings: &F::EncodeSettings, name: &str)
     let required_height = (img.height() as usize).next_multiple_of(F::TILE_HEIGHT);
     let mut encoded = vec![0; compute_size::<F>(required_width, required_height)];
     gxtex::encode::<F>(
-        settings,
         required_width / F::TILE_WIDTH,
         img.width() as usize,
         img.height() as usize,
@@ -48,7 +47,6 @@ fn bench<F: Format>(c: &mut Criterion, settings: &F::EncodeSettings, name: &str)
     group.bench_function("Accurate", |b| {
         b.iter_with_large_drop(|| {
             gxtex::encode::<F>(
-                settings,
                 required_width / F::TILE_WIDTH,
                 img.width() as usize,
                 img.height() as usize,
@@ -60,11 +58,7 @@ fn bench<F: Format>(c: &mut Criterion, settings: &F::EncodeSettings, name: &str)
     group.finish();
 }
 
-fn bench_with_fast<Accurate: Format, Fast: Format<EncodeSettings = Accurate::EncodeSettings>>(
-    c: &mut Criterion,
-    settings: &Accurate::EncodeSettings,
-    name: &str,
-) {
+fn bench_with_fast<Accurate: Format, Fast: Format>(c: &mut Criterion, name: &str) {
     let img = image::open("resources/waterfall.webp").unwrap();
     let pixels = img
         .to_rgba8()
@@ -81,7 +75,6 @@ fn bench_with_fast<Accurate: Format, Fast: Format<EncodeSettings = Accurate::Enc
     let required_height = (img.height() as usize).next_multiple_of(Accurate::TILE_HEIGHT);
     let mut encoded = vec![0; compute_size::<Rgb565>(required_width, required_height)];
     gxtex::encode::<Accurate>(
-        settings,
         required_width / Rgb565::TILE_WIDTH,
         img.width() as usize,
         img.height() as usize,
@@ -119,7 +112,6 @@ fn bench_with_fast<Accurate: Format, Fast: Format<EncodeSettings = Accurate::Enc
     group.bench_function("Accurate", |b| {
         b.iter_with_large_drop(|| {
             gxtex::encode::<Accurate>(
-                settings,
                 required_width / Rgb565::TILE_WIDTH,
                 img.width() as usize,
                 img.height() as usize,
@@ -132,7 +124,6 @@ fn bench_with_fast<Accurate: Format, Fast: Format<EncodeSettings = Accurate::Enc
     group.bench_function("Fast", |b| {
         b.iter_with_large_drop(|| {
             gxtex::encode::<Fast>(
-                settings,
                 required_width / FastRgb565::TILE_WIDTH,
                 img.width() as usize,
                 img.height() as usize,
@@ -146,8 +137,8 @@ fn bench_with_fast<Accurate: Format, Fast: Format<EncodeSettings = Accurate::Enc
 }
 
 fn formats(c: &mut Criterion) {
-    bench_with_fast::<Rgb565, FastRgb565>(c, &(), "RGB565");
-    bench::<IA8>(c, &(IntensitySource::Y, AlphaSource::A), "IA8");
+    bench_with_fast::<Rgb565, FastRgb565>(c, "RGB565");
+    bench_with_fast::<IA8<Intensity, Intensity>, IA8<FastIntensity, FastIntensity>>(c, "IA8");
 }
 
 criterion_group!(benches, formats);

@@ -1,6 +1,7 @@
 use bitut::BitUtils;
 use multiversion::multiversion;
 use seq_macro::seq;
+use std::marker::PhantomData;
 use zerocopy::{FromBytes, Immutable, IntoBytes};
 
 // const DITHER: [[i8; 8]; 8] = [
@@ -161,6 +162,12 @@ impl Pixel {
         let (r, g, b) = (self.r as f32, self.g as f32, self.b as f32);
         (0.257 * r + 0.504 * g + 0.098 * b + 16.0) as u8
     }
+
+    #[inline(always)]
+    pub fn fast_y(self) -> u8 {
+        let (r, g, b) = (self.r as u16, self.g as u16, self.b as u16);
+        (r / 4 + g / 2 + b / 8 + 16).min(255) as u8
+    }
 }
 
 pub trait Format {
@@ -169,14 +176,7 @@ pub trait Format {
     const TILE_HEIGHT: usize;
     const BYTES_PER_TILE: usize = 32;
 
-    type EncodeSettings;
-
-    fn encode_tile(
-        settings: &Self::EncodeSettings,
-        data: &mut [u8],
-        get: impl Fn(usize, usize) -> Pixel,
-    );
-
+    fn encode_tile(data: &mut [u8], get: impl Fn(usize, usize) -> Pixel);
     fn decode_tile(data: &[u8], set: impl FnMut(usize, usize, Pixel));
 }
 
@@ -189,7 +189,6 @@ pub fn compute_size<F: Format>(width: usize, height: usize) -> usize {
 /// Stride is in cache lines.
 #[multiversion(targets = "simd")]
 pub fn encode<F: Format>(
-    settings: &F::EncodeSettings,
     stride: usize,
     width: usize,
     height: usize,
@@ -212,7 +211,7 @@ pub fn encode<F: Format>(
             // find pixels in this tile
             let base_x = tile_x * F::TILE_WIDTH;
             let base_y = tile_y * F::TILE_HEIGHT;
-            F::encode_tile(settings, out, |x, y| {
+            F::encode_tile(out, |x, y| {
                 assert!(x <= F::TILE_WIDTH);
                 assert!(y <= F::TILE_HEIGHT);
                 let x = base_x + x;
@@ -261,66 +260,76 @@ pub fn decode<F: Format>(width: usize, height: usize, data: &[u8]) -> Vec<Pixel>
     pixels
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum IntensitySource {
-    Y,
-    R,
-    G,
-    B,
-    A,
+pub trait ComponentSource {
+    fn get(pixel: Pixel) -> u8;
 }
 
-impl IntensitySource {
+pub struct RedChannel;
+
+impl ComponentSource for RedChannel {
     #[inline(always)]
-    pub fn get(&self, pixel: Pixel) -> u8 {
-        match self {
-            Self::Y => pixel.y(),
-            Self::R => pixel.r,
-            Self::G => pixel.g,
-            Self::B => pixel.b,
-            Self::A => pixel.a,
-        }
+    fn get(pixel: Pixel) -> u8 {
+        pixel.r
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AlphaSource {
-    R,
-    G,
-    B,
-    A,
-}
+pub struct BlueChannel;
 
-impl AlphaSource {
+impl ComponentSource for BlueChannel {
     #[inline(always)]
-    pub fn get(&self, pixel: Pixel) -> u8 {
-        match self {
-            Self::R => pixel.r,
-            Self::G => pixel.g,
-            Self::B => pixel.b,
-            Self::A => pixel.a,
-        }
+    fn get(pixel: Pixel) -> u8 {
+        pixel.b
     }
 }
 
-pub struct I4;
+pub struct GreenChannel;
 
-impl Format for I4 {
+impl ComponentSource for GreenChannel {
+    #[inline(always)]
+    fn get(pixel: Pixel) -> u8 {
+        pixel.g
+    }
+}
+
+pub struct AlphaChannel;
+
+impl ComponentSource for AlphaChannel {
+    #[inline(always)]
+    fn get(pixel: Pixel) -> u8 {
+        pixel.a
+    }
+}
+
+pub struct Intensity;
+
+impl ComponentSource for Intensity {
+    #[inline(always)]
+    fn get(pixel: Pixel) -> u8 {
+        pixel.y()
+    }
+}
+
+pub struct FastIntensity;
+
+impl ComponentSource for FastIntensity {
+    #[inline(always)]
+    fn get(pixel: Pixel) -> u8 {
+        pixel.fast_y()
+    }
+}
+
+pub struct I4<Source>(PhantomData<Source>);
+
+impl<Source: ComponentSource> Format for I4<Source> {
     const NIBBLES_PER_TEXEL: usize = 1;
     const TILE_WIDTH: usize = 8;
     const TILE_HEIGHT: usize = 8;
 
-    type EncodeSettings = IntensitySource;
-
-    fn encode_tile(
-        source: &Self::EncodeSettings,
-        data: &mut [u8],
-        get: impl Fn(usize, usize) -> Pixel,
-    ) {
+    fn encode_tile(data: &mut [u8], get: impl Fn(usize, usize) -> Pixel) {
         for y in 0..Self::TILE_HEIGHT {
             for x in 0..Self::TILE_WIDTH {
                 let pixel = get(x, y);
-                let intensity = range_conv::<255, 15>(source.get(pixel));
+                let intensity = range_conv::<255, 15>(Source::get(pixel));
 
                 let index = y * Self::TILE_WIDTH + x;
                 let current = data[index / 2];
@@ -362,25 +371,21 @@ impl Format for I4 {
     }
 }
 
-pub struct IA4;
+pub struct IA4<IntensitySource, AlphaSource>(PhantomData<(IntensitySource, AlphaSource)>);
 
-impl Format for IA4 {
+impl<IntensitySource: ComponentSource, AlphaSource: ComponentSource> Format
+    for IA4<IntensitySource, AlphaSource>
+{
     const NIBBLES_PER_TEXEL: usize = 2;
     const TILE_WIDTH: usize = 8;
     const TILE_HEIGHT: usize = 4;
 
-    type EncodeSettings = (IntensitySource, AlphaSource);
-
-    fn encode_tile(
-        (source_intensity, source_alpha): &Self::EncodeSettings,
-        data: &mut [u8],
-        get: impl Fn(usize, usize) -> Pixel,
-    ) {
+    fn encode_tile(data: &mut [u8], get: impl Fn(usize, usize) -> Pixel) {
         for y in 0..Self::TILE_HEIGHT {
             for x in 0..Self::TILE_WIDTH {
                 let pixel = get(x, y);
-                let intensity = range_conv::<255, 15>(source_intensity.get(pixel));
-                let alpha = range_conv::<255, 15>(source_alpha.get(pixel));
+                let intensity = range_conv::<255, 15>(IntensitySource::get(pixel));
+                let alpha = range_conv::<255, 15>(AlphaSource::get(pixel));
 
                 let index = y * Self::TILE_WIDTH + x;
                 data[index] = 0.with_bits(0, 4, intensity).with_bits(4, 8, alpha);
@@ -411,24 +416,18 @@ impl Format for IA4 {
     }
 }
 
-pub struct I8;
+pub struct I8<Source>(PhantomData<Source>);
 
-impl Format for I8 {
+impl<Source: ComponentSource> Format for I8<Source> {
     const NIBBLES_PER_TEXEL: usize = 2;
     const TILE_WIDTH: usize = 8;
     const TILE_HEIGHT: usize = 4;
 
-    type EncodeSettings = IntensitySource;
-
-    fn encode_tile(
-        source: &Self::EncodeSettings,
-        data: &mut [u8],
-        get: impl Fn(usize, usize) -> Pixel,
-    ) {
+    fn encode_tile(data: &mut [u8], get: impl Fn(usize, usize) -> Pixel) {
         for y in 0..Self::TILE_HEIGHT {
             for x in 0..Self::TILE_WIDTH {
                 let pixel = get(x, y);
-                let intensity = source.get(pixel);
+                let intensity = Source::get(pixel);
 
                 let index = y * Self::TILE_WIDTH + x;
                 data[index] = intensity;
@@ -457,25 +456,37 @@ impl Format for I8 {
     }
 }
 
-pub struct IA8;
+pub struct IA8<IntensitySource, AlphaSource>(PhantomData<(IntensitySource, AlphaSource)>);
 
-impl Format for IA8 {
+impl<IntensitySource: ComponentSource, AlphaSource: ComponentSource> Format
+    for IA8<IntensitySource, AlphaSource>
+{
     const NIBBLES_PER_TEXEL: usize = 4;
     const TILE_WIDTH: usize = 4;
     const TILE_HEIGHT: usize = 4;
 
-    type EncodeSettings = (IntensitySource, AlphaSource);
+    #[inline(always)]
+    fn encode_tile(data: &mut [u8], get: impl Fn(usize, usize) -> Pixel) {
+        // let pixels: [Pixel; 16] = std::array::from_fn(|i| get(i % 4, i / 4));
+        // let conv = pixels.map(|p| (AlphaSource::get(p), IntensitySource::get(p)));
+        // seq! {
+        //     Y in 0..4 {
+        //         seq! {
+        //             X in 0..4 {
+        //                 let index = X + 4 * Y;
+        //                 let value = conv[index];
+        //                 data[2 * index] = value.0;
+        //                 data[2 * index + 1] = value.1;
+        //             }
+        //         }
+        //     }
+        // }
 
-    fn encode_tile(
-        (source_intensity, source_alpha): &Self::EncodeSettings,
-        data: &mut [u8],
-        get: impl Fn(usize, usize) -> Pixel,
-    ) {
         for y in 0..Self::TILE_HEIGHT {
             for x in 0..Self::TILE_WIDTH {
                 let pixel = get(x, y);
-                let intensity = source_intensity.get(pixel);
-                let alpha = source_alpha.get(pixel);
+                let intensity = IntensitySource::get(pixel);
+                let alpha = AlphaSource::get(pixel);
 
                 let index = y * Self::TILE_WIDTH + x;
                 data[2 * index] = alpha;
@@ -484,6 +495,7 @@ impl Format for IA8 {
         }
     }
 
+    #[inline(always)]
     fn decode_tile(data: &[u8], mut set: impl FnMut(usize, usize, Pixel)) {
         for y in 0..Self::TILE_HEIGHT {
             for x in 0..Self::TILE_WIDTH {
@@ -513,14 +525,8 @@ impl Format for Rgb565 {
     const TILE_WIDTH: usize = 4;
     const TILE_HEIGHT: usize = 4;
 
-    type EncodeSettings = ();
-
     #[inline(always)]
-    fn encode_tile(
-        (): &Self::EncodeSettings,
-        data: &mut [u8],
-        get: impl Fn(usize, usize) -> Pixel,
-    ) {
+    fn encode_tile(data: &mut [u8], get: impl Fn(usize, usize) -> Pixel) {
         let pixels: [Pixel; 16] = std::array::from_fn(|i| get(i % 4, i / 4));
         let conv = pixels.map(|p| p.to_rgb565());
         seq! {
@@ -561,14 +567,8 @@ impl Format for FastRgb565 {
     const TILE_WIDTH: usize = 4;
     const TILE_HEIGHT: usize = 4;
 
-    type EncodeSettings = ();
-
     #[inline(always)]
-    fn encode_tile(
-        (): &Self::EncodeSettings,
-        data: &mut [u8],
-        get: impl Fn(usize, usize) -> Pixel,
-    ) {
+    fn encode_tile(data: &mut [u8], get: impl Fn(usize, usize) -> Pixel) {
         let pixels: [Pixel; 16] = std::array::from_fn(|i| get(i % 4, i / 4));
         let conv = pixels.map(|p| p.to_rgb565_fast());
         seq! {
@@ -609,13 +609,7 @@ impl Format for Rgb5A3 {
     const TILE_WIDTH: usize = 4;
     const TILE_HEIGHT: usize = 4;
 
-    type EncodeSettings = ();
-
-    fn encode_tile(
-        (): &Self::EncodeSettings,
-        data: &mut [u8],
-        get: impl Fn(usize, usize) -> Pixel,
-    ) {
+    fn encode_tile(data: &mut [u8], get: impl Fn(usize, usize) -> Pixel) {
         for y in 0..Self::TILE_HEIGHT {
             for x in 0..Self::TILE_WIDTH {
                 let pixel = get(x, y);
@@ -647,13 +641,7 @@ impl Format for Rgba8 {
     const TILE_HEIGHT: usize = 4;
     const BYTES_PER_TILE: usize = 64;
 
-    type EncodeSettings = ();
-
-    fn encode_tile(
-        (): &Self::EncodeSettings,
-        data: &mut [u8],
-        get: impl Fn(usize, usize) -> Pixel,
-    ) {
+    fn encode_tile(data: &mut [u8], get: impl Fn(usize, usize) -> Pixel) {
         for y in 0..Self::TILE_HEIGHT {
             for x in 0..Self::TILE_WIDTH {
                 let pixel = get(x, y);
@@ -696,9 +684,7 @@ impl Format for Cmpr {
     const TILE_WIDTH: usize = 8;
     const TILE_HEIGHT: usize = 8;
 
-    type EncodeSettings = ();
-
-    fn encode_tile((): &Self::EncodeSettings, _: &mut [u8], _: impl Fn(usize, usize) -> Pixel) {
+    fn encode_tile(_: &mut [u8], _: impl Fn(usize, usize) -> Pixel) {
         unimplemented!("cmpr encoding not implemented")
     }
 
@@ -750,7 +736,7 @@ impl Format for Cmpr {
 mod test {
     use super::*;
 
-    fn test_format<F: Format>(settings: &F::EncodeSettings, input: &str, name: &str) {
+    fn test_format<F: Format>(input: &str, name: &str) {
         let img = image::open(input).unwrap();
         let pixels = img
             .to_rgba8()
@@ -768,7 +754,6 @@ mod test {
         let mut encoded = vec![0; compute_size::<F>(required_width, required_height)];
 
         encode::<F>(
-            settings,
             required_width / F::TILE_WIDTH,
             img.width() as usize,
             img.height() as usize,
@@ -793,32 +778,25 @@ mod test {
 
     #[test]
     fn test_basic() {
-        test_format::<I4>(&IntensitySource::Y, "resources/waterfall.webp", "I4");
-        test_format::<IA4>(
-            &(IntensitySource::Y, AlphaSource::A),
-            "resources/waterfall.webp",
-            "IA4",
-        );
-        test_format::<I8>(&IntensitySource::Y, "resources/waterfall.webp", "I8");
-        test_format::<IA8>(
-            &(IntensitySource::Y, AlphaSource::A),
-            "resources/waterfall.webp",
-            "IA8",
-        );
-        test_format::<Rgb565>(&(), "resources/waterfall.webp", "RGB565");
-        test_format::<Rgb5A3>(&(), "resources/waterfall.webp", "RGB5A3");
-        test_format::<Rgba8>(&(), "resources/waterfall.webp", "RGBA8");
+        test_format::<I4<Intensity>>("resources/waterfall.webp", "I4");
+        test_format::<IA4<Intensity, AlphaChannel>>("resources/waterfall.webp", "IA4");
+        test_format::<I8<Intensity>>("resources/waterfall.webp", "I8");
+        test_format::<IA8<Intensity, AlphaChannel>>("resources/waterfall.webp", "IA8");
+        test_format::<Rgb565>("resources/waterfall.webp", "RGB565");
+        test_format::<Rgb5A3>("resources/waterfall.webp", "RGB5A3");
+        test_format::<Rgba8>("resources/waterfall.webp", "RGBA8");
     }
 
     #[test]
-    fn test_simd() {
-        test_format::<FastRgb565>(&(), "resources/waterfall.webp", "FAST_RGB565");
+    fn test_fast() {
+        test_format::<FastRgb565>("resources/waterfall.webp", "FAST_RGB565");
+        test_format::<IA8<FastIntensity, AlphaChannel>>("resources/waterfall.webp", "FAST_IA8");
     }
 
     #[test]
     fn test_bad() {
-        test_format::<Rgba8>(&(), "resources/bad.png", "bad");
-        test_format::<Rgba8>(&(), "resources/badbig.png", "bigbad");
+        test_format::<Rgba8>("resources/bad.png", "bad");
+        test_format::<Rgba8>("resources/badbig.png", "bigbad");
     }
 
     #[test]
@@ -842,7 +820,6 @@ mod test {
         let mut encoded = vec![0; compute_size::<Rgba8>(width, height)];
 
         encode::<Rgba8>(
-            &(),
             stride_cache,
             width / 2,
             height / 2,
@@ -851,7 +828,6 @@ mod test {
         );
 
         encode::<Rgba8>(
-            &(),
             stride_cache,
             width / 2,
             height / 2,
@@ -860,7 +836,6 @@ mod test {
         );
 
         encode::<Rgba8>(
-            &(),
             stride_cache,
             width / 2,
             height / 2,
@@ -869,7 +844,6 @@ mod test {
         );
 
         encode::<Rgba8>(
-            &(),
             stride_cache,
             width / 2,
             height / 2,
