@@ -28,6 +28,7 @@ oneshot.workspace = true
 ordered-float.workspace = true
 ring-arena.workspace = true
 seq-macro.workspace = true
+static_assertions.workspace = true
 strum.workspace = true
 tracing.workspace = true
 twox-hash.workspace = true

@@ -11,7 +11,7 @@ use hemisphere::{
     system::gx::{
         MatrixSet, Vertex,
         cmd::{Arrays, VertexAttributeStream, VertexDescriptor, attributes::VertexAttributeTable},
-        xf::MatrixIndices,
+        xf::DefaultMatrices,
     },
 };
 use jitalloc::{Allocator, Exec};
@@ -136,7 +136,7 @@ impl VertexModule for JitVertexModule {
         vcd: &VertexDescriptor,
         vat: &VertexAttributeTable,
         arrays: &Arrays,
-        default_matrices: &MatrixIndices,
+        default_matrices: &DefaultMatrices,
         stream: &VertexAttributeStream,
         vertices: &mut [std::mem::MaybeUninit<Vertex>],
         matrix_set: &mut MatrixSet,

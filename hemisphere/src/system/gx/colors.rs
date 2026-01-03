@@ -53,6 +53,21 @@ impl Abgr8 {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Immutable, IntoBytes, Default)]
+#[repr(C)]
+pub struct Rgba16 {
+    pub r: i16,
+    pub g: i16,
+    pub b: i16,
+    pub a: i16,
+}
+
+impl std::fmt::Debug for Rgba16 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Rgba::from(*self).fmt(f)
+    }
+}
+
 #[derive(Clone, Copy, Immutable, IntoBytes, Default)]
 #[repr(C)]
 pub struct Rgba {
@@ -88,8 +103,31 @@ impl std::hash::Hash for Rgba {
     }
 }
 
+impl From<Rgba8> for Rgba {
+    fn from(value: Rgba8) -> Self {
+        Self {
+            r: value.r as f32 / 255.0,
+            g: value.g as f32 / 255.0,
+            b: value.b as f32 / 255.0,
+            a: value.a as f32 / 255.0,
+        }
+    }
+}
+
 impl From<Abgr8> for Rgba {
     fn from(value: Abgr8) -> Self {
+        Self {
+            r: value.r as f32 / 255.0,
+            g: value.g as f32 / 255.0,
+            b: value.b as f32 / 255.0,
+            a: value.a as f32 / 255.0,
+        }
+    }
+}
+
+// NOTE: this is correct, RGBA16 is special
+impl From<Rgba16> for Rgba {
+    fn from(value: Rgba16) -> Self {
         Self {
             r: value.r as f32 / 255.0,
             g: value.g as f32 / 255.0,

@@ -9,7 +9,7 @@ use crate::{
                 self, Attribute, AttributeDescriptor, AttributeMode, VertexAttributeTable,
             },
         },
-        xf::MatrixIndices,
+        xf::DefaultMatrices,
     },
 };
 use glam::Vec2;
@@ -71,7 +71,7 @@ impl VertexModule for Interpreter {
         vcd: &VertexDescriptor,
         vat: &VertexAttributeTable,
         arrays: &Arrays,
-        default_matrices: &MatrixIndices,
+        default_matrices: &DefaultMatrices,
         stream: &VertexAttributeStream,
         vertices: &mut [MaybeUninit<Vertex>],
         matrix_set: &mut MatrixSet,

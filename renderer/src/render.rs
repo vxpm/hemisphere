@@ -195,7 +195,7 @@ impl Renderer {
             Action::SetDepthMode(mode) => self.set_depth_mode(mode),
             Action::SetAlphaFunction(func) => self.set_alpha_function(func),
             Action::SetConstantAlpha(mode) => self.set_constant_alpha_mode(mode),
-            Action::SetProjectionMatrix(mat) => self.set_projection_mat(mat),
+            Action::SetProjectionMatrix(mat) => self.set_projection_mat(mat.value()),
             Action::SetTexEnvConfig(config) => self.set_texenv_config(config),
             Action::SetTexGenConfig(config) => self.set_texgen_config(config),
             Action::LoadTexture {
@@ -463,7 +463,7 @@ impl Renderer {
         self.debug("changed texenv");
         self.flush("texenv changed");
         self.pipeline.settings.shader.texenv.stages = config.stages.to_vec();
-        self.current_config.consts = config.constants;
+        self.current_config.consts = config.constants.map(|x| Rgba::from(x));
         self.current_config_dirty = true;
     }
 

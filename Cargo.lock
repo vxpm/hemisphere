@@ -2119,6 +2119,7 @@ dependencies = [
  "ordered-float",
  "ring-arena",
  "seq-macro",
+ "static_assertions",
  "strum",
  "tracing",
  "twox-hash",
