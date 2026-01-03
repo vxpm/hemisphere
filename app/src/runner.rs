@@ -59,7 +59,11 @@ fn worker(state: Arc<Shared>) {
         let delta = timer.elapsed().saturating_sub(emulated);
 
         // wait until delta >= STEP
-        sleeper.sleep(STEP.saturating_sub(delta));
+        let to_sleep = STEP.saturating_sub(delta);
+        if !to_sleep.is_zero() {
+            sleeper.sleep(to_sleep);
+        }
+
         let now = timer.elapsed();
 
         // ignore slowdowns that are too large (~1 frame at 60fps)
