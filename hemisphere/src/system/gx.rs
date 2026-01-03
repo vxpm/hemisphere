@@ -32,7 +32,6 @@ use std::{
     sync::{LazyLock, Mutex},
 };
 use strum::FromRepr;
-use tinyvec::TinyVec;
 use zerocopy::IntoBytes;
 
 /// Maximum value for the 24-bit depth.
@@ -507,7 +506,7 @@ pub fn update_texenv(sys: &mut System) {
                 alpha_const,
             }
         })
-        .collect::<TinyVec<_>>();
+        .collect::<Vec<_>>();
 
     let config = render::TexEnvConfig {
         stages,

@@ -13,7 +13,6 @@ use bitos::{
 };
 use glam::{Mat3, Mat4, Vec3};
 use strum::FromRepr;
-use tinyvec::TinyVec;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, TryFromBytes};
 
 /// A transform unit register.
@@ -375,7 +374,7 @@ impl Interface {
 }
 
 pub fn update_texgen(sys: &mut System) {
-    let mut stages = TinyVec::new();
+    let mut stages = Vec::with_capacity(sys.gpu.transform.internal.active_texgens as usize);
     for texgen in sys
         .gpu
         .transform
