@@ -10,3 +10,6 @@ workspace = true
 [dependencies]
 cranelift.workspace = true
 cranelift-codegen.workspace = true
+
+fjall = "3"
+directories = "6"

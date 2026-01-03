@@ -139,6 +139,7 @@ iso = { path = "./iso" }
 gxtex = { path = "./gxtex" }
 jitalloc = { path = "./jitalloc" }
 hemisphere = { path = "./hemisphere" }
+clif-incremental = { path = "./clif-incremental" }
 ppcjit = { path = "./ppcjit" }
 dspint = { path = "./dspint" }
 vtxjit = { path = "./vtxjit" }
