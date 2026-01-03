@@ -894,8 +894,8 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
 
             let r = ((value.bits(0, 11) as i16) << 5) >> 5;
             let a = ((value.bits(12, 23) as i16) << 5) >> 5;
-            sys.gpu.environment.constants[3].a = a as f32 / 255.0;
-            sys.gpu.environment.constants[3].r = r as f32 / 255.0;
+            sys.gpu.environment.constants[3].a = a;
+            sys.gpu.environment.constants[3].r = r;
         }
         Reg::TevConstant3GB => {
             if mask != 0x00FF_FFFF {
@@ -904,8 +904,8 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
 
             let b = ((value.bits(0, 11) as i16) << 5) >> 5;
             let g = ((value.bits(12, 23) as i16) << 5) >> 5;
-            sys.gpu.environment.constants[3].b = b as f32 / 255.0;
-            sys.gpu.environment.constants[3].g = g as f32 / 255.0;
+            sys.gpu.environment.constants[3].b = b;
+            sys.gpu.environment.constants[3].g = g;
         }
         Reg::TevConstant0AR => {
             if mask != 0x00FF_FFFF {
@@ -914,8 +914,8 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
 
             let r = ((value.bits(0, 11) as i16) << 5) >> 5;
             let a = ((value.bits(12, 23) as i16) << 5) >> 5;
-            sys.gpu.environment.constants[0].a = a as f32 / 255.0;
-            sys.gpu.environment.constants[0].r = r as f32 / 255.0;
+            sys.gpu.environment.constants[0].a = a;
+            sys.gpu.environment.constants[0].r = r;
         }
         Reg::TevConstant0GB => {
             if mask != 0x00FF_FFFF {
@@ -924,8 +924,8 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
 
             let b = ((value.bits(0, 11) as i16) << 5) >> 5;
             let g = ((value.bits(12, 23) as i16) << 5) >> 5;
-            sys.gpu.environment.constants[0].b = b as f32 / 255.0;
-            sys.gpu.environment.constants[0].g = g as f32 / 255.0;
+            sys.gpu.environment.constants[0].b = b;
+            sys.gpu.environment.constants[0].g = g;
         }
         Reg::TevConstant1AR => {
             if mask != 0x00FF_FFFF {
@@ -934,8 +934,8 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
 
             let r = ((value.bits(0, 11) as i16) << 5) >> 5;
             let a = ((value.bits(12, 23) as i16) << 5) >> 5;
-            sys.gpu.environment.constants[1].a = a as f32 / 255.0;
-            sys.gpu.environment.constants[1].r = r as f32 / 255.0;
+            sys.gpu.environment.constants[1].a = a;
+            sys.gpu.environment.constants[1].r = r;
         }
         Reg::TevConstant1GB => {
             if mask != 0x00FF_FFFF {
@@ -944,8 +944,8 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
 
             let b = ((value.bits(0, 11) as i16) << 5) >> 5;
             let g = ((value.bits(12, 23) as i16) << 5) >> 5;
-            sys.gpu.environment.constants[1].b = b as f32 / 255.0;
-            sys.gpu.environment.constants[1].g = g as f32 / 255.0;
+            sys.gpu.environment.constants[1].b = b;
+            sys.gpu.environment.constants[1].g = g;
         }
         Reg::TevConstant2AR => {
             if mask != 0x00FF_FFFF {
@@ -954,8 +954,8 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
 
             let r = ((value.bits(0, 11) as i16) << 5) >> 5;
             let a = ((value.bits(12, 23) as i16) << 5) >> 5;
-            sys.gpu.environment.constants[2].a = a as f32 / 255.0;
-            sys.gpu.environment.constants[2].r = r as f32 / 255.0;
+            sys.gpu.environment.constants[2].a = a;
+            sys.gpu.environment.constants[2].r = r;
         }
         Reg::TevConstant2GB => {
             if mask != 0x00FF_FFFF {
@@ -964,8 +964,8 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
 
             let b = ((value.bits(0, 11) as i16) << 5) >> 5;
             let g = ((value.bits(12, 23) as i16) << 5) >> 5;
-            sys.gpu.environment.constants[2].b = b as f32 / 255.0;
-            sys.gpu.environment.constants[2].g = g as f32 / 255.0;
+            sys.gpu.environment.constants[2].b = b;
+            sys.gpu.environment.constants[2].g = g;
         }
         Reg::TevAlphaFunc => {
             write_masked!(sys.gpu.environment.alpha_function);
@@ -1052,7 +1052,7 @@ fn extract_vertices(sys: &mut System, stream: &VertexAttributeStream) -> VertexS
         &sys.gpu.command.internal.vertex_descriptor,
         &sys.gpu.command.internal.vertex_attr_tables[stream.table_index()],
         &sys.gpu.command.internal.arrays,
-        &sys.gpu.transform.internal.mat_indices,
+        &sys.gpu.transform.internal.default_matrices,
         stream,
         vertices_slice,
         &mut sys.gpu.matrix_set,

@@ -2,14 +2,15 @@
 
 use crate::system::gx::{
     Topology, VertexStream,
-    colors::{Abgr8, Rgba, Rgba8},
+    colors::{Abgr8, Rgba, Rgba8, Rgba16},
     pix::{BlendMode, BufferFormat, ConstantAlpha, DepthMode},
     tev::{AlphaFunction, Constant, StageOps, StageRefs},
-    xf::{BaseTexGen, ChannelControl, Light},
+    xf::{BaseTexGen, ChannelControl, Light, ProjectionMat},
 };
 use glam::Mat4;
 use oneshot::Sender;
 use ordered_float::OrderedFloat;
+use static_assertions::const_assert;
 
 pub use oneshot;
 
@@ -61,7 +62,7 @@ pub struct TexEnvStage {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct TexEnvConfig {
     pub stages: Vec<TexEnvStage>,
-    pub constants: [Rgba; 4],
+    pub constants: [Rgba16; 4],
 }
 
 #[derive(Debug, Clone, Default)]
@@ -103,7 +104,7 @@ pub enum Action {
     SetBlendMode(BlendMode),
     SetConstantAlpha(ConstantAlpha),
     SetAlphaFunction(AlphaFunction),
-    SetProjectionMatrix(Mat4),
+    SetProjectionMatrix(ProjectionMat),
     SetTexEnvConfig(TexEnvConfig),
     SetTexGenConfig(TexGenConfig),
     SetAmbient(u8, Abgr8),
@@ -144,6 +145,8 @@ pub enum Action {
         clear: bool,
     },
 }
+
+const_assert!(size_of::<Action>() <= 64);
 
 pub trait RenderModule: Send {
     fn exec(&mut self, action: Action);

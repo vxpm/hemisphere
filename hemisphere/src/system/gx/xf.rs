@@ -246,7 +246,7 @@ pub struct ChannelControl {
 
 #[bitos(64)]
 #[derive(Debug, Clone, Copy, Default)]
-pub struct MatrixIndices {
+pub struct DefaultMatrices {
     #[bits(0..6)]
     pub view: u6,
     #[bits(6..54)]
@@ -263,6 +263,34 @@ pub struct Viewport {
     pub far_minus_near: f32,
 }
 
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ProjectionMat {
+    pub params: [f32; 6],
+    pub orthographic: bool,
+}
+
+impl ProjectionMat {
+    pub fn value(&self) -> Mat4 {
+        let p = &self.params;
+        if self.orthographic {
+            Mat4::from_cols_array_2d(&[
+                [p[0], 0.0, 0.0, p[1]],
+                [0.0, p[2], 0.0, p[3]],
+                [0.0, 0.0, p[4], p[5]],
+                [0.0, 0.0, 0.0, 1.0],
+            ])
+        } else {
+            Mat4::from_cols_array_2d(&[
+                [p[0], 0.0, p[1], 0.0],
+                [0.0, p[2], p[3], 0.0],
+                [0.0, 0.0, p[4], p[5]],
+                [0.0, 0.0, -1.0, 0.0],
+            ])
+        }
+        .transpose()
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct Internal {
     pub ambient: [Abgr8; 2],
@@ -271,9 +299,8 @@ pub struct Internal {
     pub alpha_control: [ChannelControl; 2],
     pub viewport: Viewport,
     pub viewport_dirty: bool,
-    pub mat_indices: MatrixIndices,
-    pub projection_params: [f32; 6],
-    pub projection_orthographic: bool,
+    pub default_matrices: DefaultMatrices,
+    pub projection_mat: ProjectionMat,
     pub texgen: [TexGen; 8],
     pub post_texgen: [PostTexGen; 8],
     pub active_texgens: u8,
@@ -329,23 +356,7 @@ impl Interface {
     /// Returns the projection matrix.
     #[inline]
     pub fn projection_matrix(&self) -> Mat4 {
-        let p = &self.internal.projection_params;
-        if self.internal.projection_orthographic {
-            Mat4::from_cols_array_2d(&[
-                [p[0], 0.0, 0.0, p[1]],
-                [0.0, p[2], 0.0, p[3]],
-                [0.0, 0.0, p[4], p[5]],
-                [0.0, 0.0, 0.0, 1.0],
-            ])
-        } else {
-            Mat4::from_cols_array_2d(&[
-                [p[0], 0.0, p[1], 0.0],
-                [0.0, p[2], p[3], 0.0],
-                [0.0, 0.0, p[4], p[5]],
-                [0.0, 0.0, -1.0, 0.0],
-            ])
-        }
-        .transpose()
+        self.internal.projection_mat.value()
     }
 
     /// Returns the post matrix at `index` in internal memory.
@@ -408,8 +419,8 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
 
     let xf = &mut sys.gpu.transform.internal;
     match reg {
-        Reg::MatIndexLow => value.write_ne_bytes(&mut xf.mat_indices.as_mut_bytes()[0..4]),
-        Reg::MatIndexHigh => value.write_ne_bytes(&mut xf.mat_indices.as_mut_bytes()[4..8]),
+        Reg::MatIndexLow => value.write_ne_bytes(&mut xf.default_matrices.as_mut_bytes()[0..4]),
+        Reg::MatIndexHigh => value.write_ne_bytes(&mut xf.default_matrices.as_mut_bytes()[4..8]),
 
         Reg::Ambient0 => {
             xf.ambient[0] = Abgr8::from_u32(value);
@@ -469,13 +480,13 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
         Reg::ViewportOffsetY => xf.viewport.center_y = f32::from_bits(value) - 342.0,
         Reg::ViewportOffsetZ => xf.viewport.far = f32::from_bits(value) / DEPTH_24_BIT_MAX as f32,
 
-        Reg::ProjectionParam0 => xf.projection_params[0] = f32::from_bits(value),
-        Reg::ProjectionParam1 => xf.projection_params[1] = f32::from_bits(value),
-        Reg::ProjectionParam2 => xf.projection_params[2] = f32::from_bits(value),
-        Reg::ProjectionParam3 => xf.projection_params[3] = f32::from_bits(value),
-        Reg::ProjectionParam4 => xf.projection_params[4] = f32::from_bits(value),
-        Reg::ProjectionParam5 => xf.projection_params[5] = f32::from_bits(value),
-        Reg::ProjectionOrthographic => xf.projection_orthographic = value != 0,
+        Reg::ProjectionParam0 => xf.projection_mat.params[0] = f32::from_bits(value),
+        Reg::ProjectionParam1 => xf.projection_mat.params[1] = f32::from_bits(value),
+        Reg::ProjectionParam2 => xf.projection_mat.params[2] = f32::from_bits(value),
+        Reg::ProjectionParam3 => xf.projection_mat.params[3] = f32::from_bits(value),
+        Reg::ProjectionParam4 => xf.projection_mat.params[4] = f32::from_bits(value),
+        Reg::ProjectionParam5 => xf.projection_mat.params[5] = f32::from_bits(value),
+        Reg::ProjectionOrthographic => xf.projection_mat.orthographic = value != 0,
 
         Reg::TexGenCount => xf.active_texgens = value as u8,
         Reg::TexGen0 => xf.texgen[0].base = BaseTexGen::from_bits(value),
@@ -508,7 +519,7 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
 
     if reg.is_projection_param() {
         sys.modules.render.exec(render::Action::SetProjectionMatrix(
-            sys.gpu.transform.projection_matrix(),
+            sys.gpu.transform.internal.projection_mat,
         ));
     }
 }

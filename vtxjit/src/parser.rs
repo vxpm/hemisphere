@@ -1,7 +1,7 @@
 use hemisphere::system::gx::{
     MatrixSet, Vertex,
     cmd::{Arrays, VertexDescriptor, attributes::VertexAttributeTable},
-    xf::MatrixIndices,
+    xf::DefaultMatrices,
 };
 use jitalloc::{Allocation, Exec};
 
@@ -23,7 +23,7 @@ impl Config {
 pub type ParserFn = extern "sysv64" fn(
     *const u8,
     *const Arrays,
-    *const MatrixIndices,
+    *const DefaultMatrices,
     *const u8,
     *mut Vertex,
     *mut MatrixSet,

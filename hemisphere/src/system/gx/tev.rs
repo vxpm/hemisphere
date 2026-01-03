@@ -1,10 +1,9 @@
 //! Texture Environment (TEV).
+use crate::system::gx::colors::Rgba16;
 use bitos::{
     bitos,
     integer::{u2, u3},
 };
-
-use crate::system::gx::colors::Rgba;
 
 #[bitos(3)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -537,7 +536,7 @@ pub struct Interface {
     pub stage_ops: [StageOps; 16],
     pub stage_refs: [StageRefsPair; 8],
     pub stage_consts: [StageConstsPair; 8],
-    pub constants: [Rgba; 4],
+    pub constants: [Rgba16; 4],
     pub alpha_function: AlphaFunction,
     pub stages_dirty: bool,
 }

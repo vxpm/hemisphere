@@ -4,7 +4,7 @@ mod interpreter;
 use crate::system::gx::{
     MatrixSet, Vertex,
     cmd::{Arrays, VertexAttributeStream, VertexDescriptor, attributes::VertexAttributeTable},
-    xf::MatrixIndices,
+    xf::DefaultMatrices,
 };
 use std::mem::MaybeUninit;
 
@@ -16,7 +16,7 @@ pub trait VertexModule: Send {
         vcd: &VertexDescriptor,
         vat: &VertexAttributeTable,
         arrays: &Arrays,
-        default_matrices: &MatrixIndices,
+        default_matrices: &DefaultMatrices,
         stream: &VertexAttributeStream,
         vertices: &mut [MaybeUninit<Vertex>],
         matrix_set: &mut MatrixSet,

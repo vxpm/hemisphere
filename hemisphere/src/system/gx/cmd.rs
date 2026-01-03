@@ -566,8 +566,8 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
     let xf = &mut sys.gpu.transform.internal;
 
     match reg {
-        Reg::MatIndexLow => value.write_ne_bytes(&mut xf.mat_indices.as_mut_bytes()[0..4]),
-        Reg::MatIndexHigh => value.write_ne_bytes(&mut xf.mat_indices.as_mut_bytes()[4..8]),
+        Reg::MatIndexLow => value.write_ne_bytes(&mut xf.default_matrices.as_mut_bytes()[0..4]),
+        Reg::MatIndexHigh => value.write_ne_bytes(&mut xf.default_matrices.as_mut_bytes()[4..8]),
 
         Reg::VcdLow => value.write_ne_bytes(&mut cp.vertex_descriptor.as_mut_bytes()[0..4]),
         Reg::VcdHigh => value.write_ne_bytes(&mut cp.vertex_descriptor.as_mut_bytes()[4..8]),
