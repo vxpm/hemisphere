@@ -1,6 +1,7 @@
 #![feature(debug_closure_helpers)]
 
 mod builder;
+mod cache;
 mod module;
 mod sequence;
 mod unwind;
@@ -11,11 +12,11 @@ pub mod hooks;
 use crate::{
     block::{BlockFn, Info, Meta, Trampoline},
     builder::BlockBuilder,
+    cache::{Cache, FuncHash},
     hooks::{Context, Hooks},
     module::Module,
     unwind::UnwindHandle,
 };
-use clif_incremental::RedbCache;
 use cranelift::{
     codegen::{self, ir},
     frontend, native,
@@ -23,7 +24,7 @@ use cranelift::{
 };
 use easyerr::{Error, ResultExt};
 use gekko::disasm::Ins;
-use std::{ptr::NonNull, sync::Arc};
+use std::{path::PathBuf, ptr::NonNull, sync::Arc};
 
 pub use block::Block;
 pub use sequence::Sequence;
@@ -196,7 +197,7 @@ pub struct Jit {
     compiler: Compiler,
     code_ctx: codegen::Context,
     func_ctx: frontend::FunctionBuilderContext,
-    cache: RedbCache,
+    cache: Cache,
     compiled_count: u64,
     trampoline: Trampoline,
 }
@@ -212,13 +213,13 @@ pub enum BuildError {
 }
 
 impl Jit {
-    pub fn new(settings: Settings, hooks: Hooks) -> Self {
+    pub fn new(settings: Settings, hooks: Hooks, cache_path: PathBuf) -> Self {
         let mut compiler = Compiler::new(settings, hooks);
         let mut code_ctx = codegen::Context::new();
         let mut func_ctx = frontend::FunctionBuilderContext::new();
+        let cache = Cache::new(cache_path);
 
         let trampoline = compiler.trampoline(&mut code_ctx, &mut func_ctx);
-        let cache = RedbCache::new("ppcjit", false);
 
         Self {
             compiler,
@@ -249,7 +250,6 @@ impl Jit {
 
         // println!("{}", func.display());
 
-        // let ir = func.display().to_string();
         let ir = cfg!(debug_assertions).then(|| func.display().to_string());
         let meta = Meta {
             pattern: sequence.detect_idle_loop(),
@@ -258,31 +258,35 @@ impl Jit {
             seq: sequence,
         };
 
-        self.code_ctx.clear();
-        self.code_ctx.func = func;
-        self.code_ctx
-            .compile_with_cache(
-                &*self.compiler.isa,
-                &mut self.cache,
-                &mut Default::default(),
-            )
-            .unwrap();
+        let func_hash = FuncHash::new(&*self.compiler.isa, &func.stencil);
+        let owned_code;
+        let (code, unwind) = if let Some(cached) = self.cache.get(func_hash) {
+            owned_code = cached;
+            (&*owned_code, None)
+        } else {
+            self.code_ctx.clear();
+            self.code_ctx.func = func;
+            self.code_ctx
+                .compile(&*self.compiler.isa, &mut Default::default())
+                .unwrap();
 
-        let compiled = self.code_ctx.compiled_code().unwrap();
-        let alloc = self.compiler.module.allocate_code(compiled.code_buffer());
+            let compiled = self.code_ctx.compiled_code().unwrap();
+            let unwind = compiled
+                .create_unwind_info(&*self.compiler.isa)
+                .ok()
+                .flatten();
 
-        let unwind_handle =
-            if let Ok(Some(unwind_info)) = compiled.create_unwind_info(&*self.compiler.isa) {
-                unsafe {
-                    UnwindHandle::new(
-                        &*self.compiler.isa,
-                        alloc.as_ptr().addr().get(),
-                        &unwind_info,
-                    )
-                }
-            } else {
-                None
-            };
+            self.cache.insert(func_hash, compiled.code_buffer());
+
+            (compiled.code_buffer(), unwind)
+        };
+
+        let alloc = self.compiler.module.allocate_code(code);
+        let unwind_handle = if let Some(unwind) = unwind {
+            unsafe { UnwindHandle::new(&*self.compiler.isa, alloc.as_ptr().addr().get(), &unwind) }
+        } else {
+            None
+        };
 
         // TODO: remove this and deal with handles
         std::mem::forget(unwind_handle);

@@ -6,7 +6,7 @@ use gekko::{
 use std::ops::Deref;
 
 /// A sequence of PowerPC instructions.
-#[derive(Clone, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Hash)]
 pub struct Sequence(pub Vec<Ins>);
 
 impl Sequence {

@@ -24,10 +24,7 @@ use eyre_pretty::eyre::Result;
 use hemisphere::{
     Hemisphere,
     cores::Cores,
-    modules::{
-        debug::{DebugModule, NopDebugModule},
-        vertex::InterpreterVertexModule,
-    },
+    modules::debug::{DebugModule, NopDebugModule},
     system::{self, Modules, executable::Executable},
 };
 use nanorand::Rng;
@@ -127,6 +124,10 @@ impl App {
             wgpu_state.target_format,
         );
 
+        let dirs = directories::ProjectDirs::from("", "", "hemisphere").unwrap();
+        let cache_dir = dirs.cache_dir();
+        let jit_cache_path = cache_dir.join("ppcjit");
+
         let cores = Cores {
             cpu: Box::new(jitcore::JitCore::new(jitcore::Config {
                 instr_per_block: args.instr_per_block,
@@ -135,6 +136,7 @@ impl App {
                     force_fpu: args.force_fpu,
                     ignore_unimplemented: args.ignore_unimplemented_instr,
                 },
+                cache_path: jit_cache_path,
             })),
             dsp: Box::new(dspcore::InterpreterCore::default()),
         };
