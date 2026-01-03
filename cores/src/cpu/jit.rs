@@ -406,8 +406,11 @@ const CTX_HOOKS: Hooks = {
         size
     }
 
-    extern "sysv64-unwind" fn mark_written(ctx: &mut Context, addr: Address) {
-        ctx.blocks.invalidate(addr);
+    extern "sysv64-unwind" fn invalidate_icache(ctx: &mut Context, addr: Address) {
+        let aligned = Address(addr.value() & !0x1F);
+        for offset in 0..32 {
+            ctx.blocks.invalidate(aligned + offset);
+        }
     }
 
     extern "sysv64-unwind" fn cache_dma(ctx: &mut Context) {
@@ -524,9 +527,9 @@ const CTX_HOOKS: Hooks = {
         let write_quantized = transmute::<_, WriteQuantizedHook>(
             write_quantized as extern "sysv64-unwind" fn(_, _, _, _) -> _,
         );
-        let mark_written =
-            transmute::<_, MarkWrittenHook>(mark_written as extern "sysv64-unwind" fn(_, _));
 
+        let invalidate_icache =
+            transmute::<_, InvalidateICache>(invalidate_icache as extern "sysv64-unwind" fn(_, _));
         let cache_dma = transmute::<_, GenericHook>(cache_dma as extern "sysv64-unwind" fn(_));
 
         let msr_changed = transmute::<_, GenericHook>(msr_changed as extern "sysv64-unwind" fn(_));
@@ -559,8 +562,8 @@ const CTX_HOOKS: Hooks = {
             write_i64,
             read_quantized,
             write_quantized,
-            mark_written,
 
+            invalidate_icache,
             cache_dma,
 
             msr_changed,

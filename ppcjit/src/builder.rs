@@ -98,7 +98,7 @@ struct Signatures {
     write_i64_hook: SigRef,
     read_quant_hook: SigRef,
     write_quant_hook: SigRef,
-    mark_written_hook: SigRef,
+    invalidate_icache_hook: SigRef,
     generic_hook: SigRef,
 
     raise_exception: SigRef,
@@ -179,7 +179,8 @@ impl<'ctx> BlockBuilder<'ctx> {
             write_i64_hook: builder.import_signature(Hooks::write_sig(ptr_type, ir::types::I64)),
             read_quant_hook: builder.import_signature(Hooks::read_quantized_sig(ptr_type)),
             write_quant_hook: builder.import_signature(Hooks::write_quantized_sig(ptr_type)),
-            mark_written_hook: builder.import_signature(Hooks::mark_written_sig(ptr_type)),
+            invalidate_icache_hook: builder
+                .import_signature(Hooks::invalidate_icache_sig(ptr_type)),
             generic_hook: builder.import_signature(Hooks::generic_hook_sig(ptr_type)),
 
             raise_exception: builder.import_signature(exception::raise_exception_sig(ptr_type)),
@@ -574,7 +575,7 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Fsel => self.fsel(ins),
             Opcode::Fsub => self.fsub(ins),
             Opcode::Fsubs => self.fsubs(ins),
-            Opcode::Icbi => self.nop(Action::FlushAndPrologue),
+            Opcode::Icbi => self.icbi(ins),
             Opcode::Isync => self.nop(Action::FlushAndPrologue),
             Opcode::Lbz => self.lbz(ins),
             Opcode::Lbzu => self.lbzu(ins),

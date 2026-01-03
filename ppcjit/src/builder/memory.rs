@@ -245,18 +245,6 @@ impl BlockBuilder<'_> {
         self.bd
             .ins()
             .store(ir::MemFlags::trusted(), value_bswap, ptr, 0);
-
-        let mark_written_fn = self.bd.ins().iconst(
-            self.consts.ptr_type,
-            self.compiler.hooks.mark_written as usize as i64,
-        );
-
-        self.bd.ins().call_indirect(
-            self.consts.signatures.mark_written_hook,
-            mark_written_fn,
-            &[self.consts.ctx_ptr, addr],
-        );
-
         self.bd.ins().jump(continue_block, &[]);
 
         // slow

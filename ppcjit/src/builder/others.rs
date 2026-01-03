@@ -34,10 +34,16 @@ const TB_INFO: InstructionInfo = InstructionInfo {
     action: Action::Continue,
 };
 
-const CACHE_INFO: InstructionInfo = InstructionInfo {
+const DCACHE_INFO: InstructionInfo = InstructionInfo {
     cycles: 2,
     auto_pc: true,
     action: Action::Continue,
+};
+
+const INV_ICACHE_INFO: InstructionInfo = InstructionInfo {
+    cycles: 2,
+    auto_pc: true,
+    action: Action::FlushAndPrologue,
 };
 
 fn generate_mask(control: u8) -> u32 {
@@ -396,6 +402,29 @@ impl BlockBuilder<'_> {
             self.mem_write::<i32>(current, zero);
         }
 
-        CACHE_INFO
+        DCACHE_INFO
+    }
+
+    pub fn icbi(&mut self, ins: Ins) -> InstructionInfo {
+        let rb = self.get(ins.gpr_b());
+        let addr = if ins.field_ra() == 0 {
+            rb
+        } else {
+            let ra = self.get(ins.gpr_a());
+            self.bd.ins().iadd(ra, rb)
+        };
+
+        let invalidate_icache_fn = self.bd.ins().iconst(
+            self.consts.ptr_type,
+            self.compiler.hooks.invalidate_icache as usize as i64,
+        );
+
+        self.bd.ins().call_indirect(
+            self.consts.signatures.invalidate_icache_hook,
+            invalidate_icache_fn,
+            &[self.consts.ctx_ptr, addr],
+        );
+
+        INV_ICACHE_INFO
     }
 }
