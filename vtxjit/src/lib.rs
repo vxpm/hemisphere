@@ -28,7 +28,6 @@ struct Compiler {
 
 impl Compiler {
     fn new() -> Self {
-        let opt_level = "speed";
         let verifier = if cfg!(debug_assertions) {
             "true"
         } else {
@@ -38,12 +37,23 @@ impl Compiler {
         let mut codegen = codegen::settings::builder();
         codegen.set("preserve_frame_pointers", "true").unwrap();
         codegen.set("use_colocated_libcalls", "false").unwrap();
-        codegen.set("is_pic", "false").unwrap();
         codegen.set("stack_switch_model", "basic").unwrap();
-        codegen.set("unwind_info", "false").unwrap();
-        codegen.set("opt_level", opt_level).unwrap();
+        codegen.set("unwind_info", "true").unwrap();
+        codegen.set("is_pic", "false").unwrap();
+
+        // affect runtime performance
+        codegen.set("opt_level", "speed").unwrap();
         codegen.set("enable_verifier", verifier).unwrap();
-        codegen.enable("enable_alias_analysis").unwrap();
+        codegen.set("enable_alias_analysis", "true").unwrap();
+        codegen.set("regalloc_algorithm", "backtracking").unwrap();
+        codegen.set("regalloc_checker", "false").unwrap();
+        codegen.set("enable_pinned_reg", "false").unwrap();
+        codegen
+            .set("enable_heap_access_spectre_mitigation", "false")
+            .unwrap();
+        codegen
+            .set("enable_table_access_spectre_mitigation", "false")
+            .unwrap();
 
         let isa_builder = native::builder().unwrap_or_else(|msg| {
             panic!("host machine is not supported: {}", msg);
