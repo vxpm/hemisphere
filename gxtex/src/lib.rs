@@ -1,9 +1,6 @@
-#![feature(portable_simd)]
-
 use bitut::BitUtils;
 use multiversion::multiversion;
 use seq_macro::seq;
-use std::simd::u16x4;
 use zerocopy::{FromBytes, Immutable, IntoBytes};
 
 // const DITHER: [[i8; 8]; 8] = [
@@ -30,6 +27,30 @@ fn range_conv<const OLD_MAX: u32, const NEW_MAX: u32>(value: u8) -> u8 {
     ((value * NEW_MAX + OLD_MAX / 2) / OLD_MAX) as u8
 }
 
+#[inline(always)]
+fn fast_range_conv_31_to_255(value: u8) -> u8 {
+    // 255 / 31 is approx 8.25, so multiply value by 8 and divide by 4 then add them
+    (value << 3) | (value >> 2)
+}
+
+#[inline(always)]
+fn fast_range_conv_63_to_255(value: u8) -> u8 {
+    // 255 / 63 is approx 4.0625, so multiply value by 4 and divide by 16 then add them
+    (value << 2) | (value >> 4)
+}
+
+#[inline(always)]
+fn fast_range_conv_255_to_31(value: u8) -> u8 {
+    // 31 / 255 is approx 0.125, so divide by 8
+    value >> 3
+}
+
+#[inline(always)]
+fn fast_range_conv_255_to_63(value: u8) -> u8 {
+    // 63 / 255 is approx 0.25, so divide by 4
+    value >> 2
+}
+
 /// A single RGBA8 pixel.
 #[derive(Debug, Clone, Copy, Default, Immutable, IntoBytes, FromBytes)]
 #[repr(C)]
@@ -52,10 +73,30 @@ impl Pixel {
     }
 
     #[inline(always)]
+    pub fn from_rgb565_fast(value: u16) -> Self {
+        Self {
+            r: fast_range_conv_31_to_255(value.bits(11, 16) as u8),
+            g: fast_range_conv_63_to_255(value.bits(5, 11) as u8),
+            b: fast_range_conv_31_to_255(value.bits(0, 5) as u8),
+            a: 255,
+        }
+    }
+
+    #[inline(always)]
     pub fn to_rgb565(self) -> u16 {
         let r = range_conv::<255, 31>(self.r);
         let g = range_conv::<255, 63>(self.g);
         let b = range_conv::<255, 31>(self.b);
+        0u16.with_bits(0, 5, b as u16)
+            .with_bits(5, 11, g as u16)
+            .with_bits(11, 16, r as u16)
+    }
+
+    #[inline(always)]
+    pub fn to_rgb565_fast(self) -> u16 {
+        let r = fast_range_conv_255_to_31(self.r);
+        let g = fast_range_conv_255_to_63(self.g);
+        let b = fast_range_conv_255_to_31(self.b);
         0u16.with_bits(0, 5, b as u16)
             .with_bits(5, 11, g as u16)
             .with_bits(11, 16, r as u16)
@@ -474,6 +515,7 @@ impl Format for Rgb565 {
 
     type EncodeSettings = ();
 
+    #[inline(always)]
     fn encode_tile(
         (): &Self::EncodeSettings,
         data: &mut [u8],
@@ -491,26 +533,33 @@ impl Format for Rgb565 {
         }
     }
 
+    #[inline(always)]
     fn decode_tile(data: &[u8], mut set: impl FnMut(usize, usize, Pixel)) {
-        for y in 0..Self::TILE_HEIGHT {
-            for x in 0..Self::TILE_WIDTH {
-                let index = y * Self::TILE_WIDTH + x;
-                let value = u16::from_be_bytes([data[2 * index], data[2 * index + 1]]);
-                set(x, y, Pixel::from_rgb565(value))
+        let pixels: [u16; 16] =
+            std::array::from_fn(|i| u16::from_be_bytes([data[2 * i], data[2 * i + 1]]));
+        let conv = pixels.map(|p| Pixel::from_rgb565(p));
+        seq! {
+            Y in 0..4 {
+                seq! {
+                    X in 0..4 {
+                        set(X, Y, conv[X + 4 * Y]);
+                    }
+                }
             }
         }
     }
 }
 
-pub struct SimdRgb565;
+pub struct FastRgb565;
 
-impl Format for SimdRgb565 {
+impl Format for FastRgb565 {
     const NIBBLES_PER_TEXEL: usize = 4;
     const TILE_WIDTH: usize = 4;
     const TILE_HEIGHT: usize = 4;
 
     type EncodeSettings = ();
 
+    #[inline(always)]
     fn encode_tile(
         (): &Self::EncodeSettings,
         data: &mut [u8],
@@ -519,7 +568,7 @@ impl Format for SimdRgb565 {
         for y in 0..Self::TILE_HEIGHT {
             for x in 0..Self::TILE_WIDTH {
                 let pixel = get(x, y);
-                let [high, low] = pixel.to_rgb565().to_be_bytes();
+                let [high, low] = pixel.to_rgb565_fast().to_be_bytes();
 
                 let index = y * Self::TILE_WIDTH + x;
                 data[2 * index] = high;
@@ -528,10 +577,11 @@ impl Format for SimdRgb565 {
         }
     }
 
+    #[inline(always)]
     fn decode_tile(data: &[u8], mut set: impl FnMut(usize, usize, Pixel)) {
         let pixels: [u16; 16] =
             std::array::from_fn(|i| u16::from_be_bytes([data[2 * i], data[2 * i + 1]]));
-        let conv = pixels.map(|p| Pixel::from_rgb565(p));
+        let conv = pixels.map(|p| Pixel::from_rgb565_fast(p));
         seq! {
             Y in 0..4 {
                 seq! {
@@ -754,7 +804,7 @@ mod test {
 
     #[test]
     fn test_simd() {
-        test_format::<SimdRgb565>(&(), "resources/waterfall.webp", "SIMD_RGB565");
+        test_format::<FastRgb565>(&(), "resources/waterfall.webp", "FAST_RGB565");
     }
 
     #[test]

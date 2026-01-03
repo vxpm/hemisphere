@@ -1,7 +1,7 @@
 use std::hint::black_box;
 
-use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
-use gxtex::{Format, Pixel, Rgb565, SimdRgb565, compute_size};
+use criterion::{Criterion, criterion_group, criterion_main};
+use gxtex::{FastRgb565, Format, Pixel, Rgb565, compute_size};
 
 fn rgb565(c: &mut Criterion) {
     let img = image::open("resources/waterfall.webp").unwrap();
@@ -28,10 +28,10 @@ fn rgb565(c: &mut Criterion) {
         &mut encoded,
     );
 
-    let mut group = c.benchmark_group("RGB565");
+    let mut group = c.benchmark_group("RGB565 Decoding");
     group.throughput(criterion::Throughput::Bytes(encoded.len() as u64));
 
-    group.bench_function("Simple", |b| {
+    group.bench_function("Accurate", |b| {
         b.iter_with_large_drop(|| {
             gxtex::decode::<Rgb565>(
                 img.width() as usize,
@@ -41,13 +41,43 @@ fn rgb565(c: &mut Criterion) {
         })
     });
 
-    group.bench_function("SIMD", |b| {
+    group.bench_function("Fast", |b| {
         b.iter_with_large_drop(|| {
-            gxtex::decode::<SimdRgb565>(
+            gxtex::decode::<FastRgb565>(
                 img.width() as usize,
                 img.height() as usize,
                 black_box(&encoded),
             )
+        })
+    });
+    group.finish();
+
+    let mut group = c.benchmark_group("RGB565 Encoding");
+    group.throughput(criterion::Throughput::Bytes(encoded.len() as u64));
+
+    group.bench_function("Accurate", |b| {
+        b.iter_with_large_drop(|| {
+            gxtex::encode::<Rgb565>(
+                &(),
+                required_width / Rgb565::TILE_WIDTH,
+                img.width() as usize,
+                img.height() as usize,
+                black_box(&pixels),
+                &mut encoded,
+            );
+        })
+    });
+
+    group.bench_function("Fast", |b| {
+        b.iter_with_large_drop(|| {
+            gxtex::encode::<FastRgb565>(
+                &(),
+                required_width / FastRgb565::TILE_WIDTH,
+                img.width() as usize,
+                img.height() as usize,
+                black_box(&pixels),
+                &mut encoded,
+            );
         })
     });
 
