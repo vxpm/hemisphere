@@ -18,7 +18,8 @@ pub type ReadHook<T> = extern "sysv64-unwind" fn(*mut Context, Address, *mut T) 
 pub type WriteHook<T> = extern "sysv64-unwind" fn(*mut Context, Address, T) -> bool;
 pub type ReadQuantizedHook = extern "sysv64-unwind" fn(*mut Context, Address, u8, *mut f64) -> u8;
 pub type WriteQuantizedHook = extern "sysv64-unwind" fn(*mut Context, Address, u8, f64) -> u8;
-pub type MarkWrittenHook = extern "sysv64-unwind" fn(*mut Context, Address);
+
+pub type InvalidateICache = extern "sysv64-unwind" fn(*mut Context, Address);
 
 pub type GenericHook = extern "sysv64-unwind" fn(*mut Context);
 
@@ -46,9 +47,9 @@ pub struct Hooks {
     pub write_i64: WriteHook<i64>,
     pub read_quantized: ReadQuantizedHook,
     pub write_quantized: WriteQuantizedHook,
-    pub mark_written: MarkWrittenHook,
 
-    // cache dma
+    // cache
+    pub invalidate_icache: InvalidateICache,
     pub cache_dma: GenericHook,
 
     // msr
@@ -170,8 +171,8 @@ impl Hooks {
         }
     }
 
-    /// Returns the function signature for a mark written hook.
-    pub(crate) fn mark_written_sig(ptr_type: ir::Type) -> ir::Signature {
+    /// Returns the function signature for a invalidade icache hook.
+    pub(crate) fn invalidate_icache_sig(ptr_type: ir::Type) -> ir::Signature {
         ir::Signature {
             params: vec![
                 ir::AbiParam::new(ptr_type),       // ctx
