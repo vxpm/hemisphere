@@ -385,23 +385,20 @@ impl Interface {
 }
 
 pub fn update_texgen(sys: &mut System) {
-    let mut stages = Vec::with_capacity(sys.gpu.transform.internal.active_texgens as usize);
+    let mut stages = Vec::with_capacity(sys.gpu.xform.internal.active_texgens as usize);
     for texgen in sys
         .gpu
-        .transform
+        .xform
         .internal
         .texgen
         .iter()
-        .take(sys.gpu.transform.internal.active_texgens as usize)
+        .take(sys.gpu.xform.internal.active_texgens as usize)
         .cloned()
     {
         let stage = render::TexGenStage {
             base: texgen.base,
             normalize: texgen.post.normalize(),
-            post_matrix: sys
-                .gpu
-                .transform
-                .post_matrix(texgen.post.mat_index().value()),
+            post_matrix: sys.gpu.xform.post_matrix(texgen.post.mat_index().value()),
         };
 
         stages.push(stage);
@@ -417,7 +414,7 @@ pub fn update_texgen(sys: &mut System) {
 pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
     tracing::debug!("wrote {value:02X} to internal XF register {reg:?}");
 
-    let xf = &mut sys.gpu.transform.internal;
+    let xf = &mut sys.gpu.xform.internal;
     match reg {
         Reg::MatIndexLow => value.write_ne_bytes(&mut xf.default_matrices.as_mut_bytes()[0..4]),
         Reg::MatIndexHigh => value.write_ne_bytes(&mut xf.default_matrices.as_mut_bytes()[4..8]),
@@ -510,16 +507,16 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
     }
 
     if reg.is_texgen() {
-        sys.gpu.transform.internal.stages_dirty = true;
+        sys.gpu.xform.internal.stages_dirty = true;
     }
 
     if reg.is_viewport() {
-        sys.gpu.transform.internal.viewport_dirty = true;
+        sys.gpu.xform.internal.viewport_dirty = true;
     }
 
     if reg.is_projection_param() {
         sys.modules.render.exec(render::Action::SetProjectionMatrix(
-            sys.gpu.transform.internal.projection_mat,
+            sys.gpu.xform.internal.projection_mat,
         ));
     }
 }
@@ -527,20 +524,20 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
 /// Writes to transform unit memory.
 pub fn write(sys: &mut System, addr: u16, value: u32) {
     match addr {
-        0x0000..0x0400 => sys.gpu.transform.ram[addr as usize] = value,
-        0x0400..0x0460 => sys.gpu.transform.ram[addr as usize] = value.with_bits(0, 12, 0),
+        0x0000..0x0400 => sys.gpu.xform.ram[addr as usize] = value,
+        0x0400..0x0460 => sys.gpu.xform.ram[addr as usize] = value.with_bits(0, 12, 0),
         0x0500..0x0600 => {
-            sys.gpu.transform.ram[addr as usize] = value;
-            sys.gpu.transform.internal.stages_dirty = true;
+            sys.gpu.xform.ram[addr as usize] = value;
+            sys.gpu.xform.internal.stages_dirty = true;
         }
         0x0600..0x0680 => {
             if matches!(
                 addr,
                 0x603 | 0x613 | 0x623 | 0x633 | 0x643 | 0x653 | 0x663 | 0x673
             ) {
-                sys.gpu.transform.ram[addr as usize] = value;
+                sys.gpu.xform.ram[addr as usize] = value;
             } else {
-                sys.gpu.transform.ram[addr as usize] = value.with_bits(0, 12, 0);
+                sys.gpu.xform.ram[addr as usize] = value.with_bits(0, 12, 0);
             }
 
             if let Some(light_offset) = addr.checked_sub(0x0600) {
@@ -548,7 +545,7 @@ pub fn write(sys: &mut System, addr: u16, value: u32) {
                 if index < 7 {
                     sys.modules.render.exec(render::Action::SetLight(
                         index as u8,
-                        *sys.gpu.transform.light(index as u8),
+                        *sys.gpu.xform.light(index as u8),
                     ));
                 }
             }

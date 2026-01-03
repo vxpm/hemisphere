@@ -21,7 +21,7 @@ impl AppWindow for Window {
 
     fn prepare(&mut self, state: &mut State) {
         let emulator = &state.emulator;
-        let cp = &emulator.system.gpu.command;
+        let cp = &emulator.system.gpu.cmd;
 
         self.status = cp.status;
         self.control = cp.control;

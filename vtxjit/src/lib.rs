@@ -11,7 +11,7 @@ use hemisphere::{
     system::gx::{
         MatrixSet, Vertex,
         cmd::{Arrays, VertexAttributeStream, VertexDescriptor, attributes::VertexAttributeTable},
-        xf::DefaultMatrices,
+        xform::DefaultMatrices,
     },
 };
 use jitalloc::{Allocator, Exec};

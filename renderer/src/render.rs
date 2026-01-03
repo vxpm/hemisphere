@@ -23,7 +23,7 @@ use hemisphere::{
             self, BlendMode, CompareMode, ConstantAlpha, DepthMode, DstBlendFactor, SrcBlendFactor,
         },
         tev::AlphaFunction,
-        xf::ChannelControl,
+        xform::ChannelControl,
     },
 };
 use seq_macro::seq;
