@@ -521,14 +521,18 @@ impl Format for Rgb565 {
         data: &mut [u8],
         get: impl Fn(usize, usize) -> Pixel,
     ) {
-        for y in 0..Self::TILE_HEIGHT {
-            for x in 0..Self::TILE_WIDTH {
-                let pixel = get(x, y);
-                let [high, low] = pixel.to_rgb565().to_be_bytes();
-
-                let index = y * Self::TILE_WIDTH + x;
-                data[2 * index] = high;
-                data[2 * index + 1] = low;
+        let pixels: [Pixel; 16] = std::array::from_fn(|i| get(i % 4, i / 4));
+        let conv = pixels.map(|p| p.to_rgb565());
+        seq! {
+            Y in 0..4 {
+                seq! {
+                    X in 0..4 {
+                        let index = X + 4 * Y;
+                        let value = conv[index].to_be_bytes();
+                        data[2 * index] = value[0];
+                        data[2 * index + 1] = value[1];
+                    }
+                }
             }
         }
     }
@@ -565,14 +569,18 @@ impl Format for FastRgb565 {
         data: &mut [u8],
         get: impl Fn(usize, usize) -> Pixel,
     ) {
-        for y in 0..Self::TILE_HEIGHT {
-            for x in 0..Self::TILE_WIDTH {
-                let pixel = get(x, y);
-                let [high, low] = pixel.to_rgb565_fast().to_be_bytes();
-
-                let index = y * Self::TILE_WIDTH + x;
-                data[2 * index] = high;
-                data[2 * index + 1] = low;
+        let pixels: [Pixel; 16] = std::array::from_fn(|i| get(i % 4, i / 4));
+        let conv = pixels.map(|p| p.to_rgb565_fast());
+        seq! {
+            Y in 0..4 {
+                seq! {
+                    X in 0..4 {
+                        let index = X + 4 * Y;
+                        let value = conv[index].to_be_bytes();
+                        data[2 * index] = value[0];
+                        data[2 * index + 1] = value[1];
+                    }
+                }
             }
         }
     }
