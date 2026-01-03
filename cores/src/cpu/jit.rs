@@ -326,7 +326,6 @@ const CTX_HOOKS: Hooks = {
         value: P,
     ) -> bool {
         if ctx.sys.write_slow(addr, value) {
-            ctx.blocks.invalidate(addr);
             true
         } else {
             std::hint::cold_path();
@@ -400,10 +399,7 @@ const CTX_HOOKS: Hooks = {
             return 0;
         }
 
-        let size = ty.size();
-        ctx.blocks.invalidate(addr);
-
-        size
+        ty.size()
     }
 
     extern "sysv64-unwind" fn invalidate_icache(ctx: &mut Context, addr: Address) {
