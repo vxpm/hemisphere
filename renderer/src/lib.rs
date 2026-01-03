@@ -34,7 +34,9 @@ impl Renderer {
     pub fn new(device: wgpu::Device, queue: wgpu::Queue, format: wgpu::TextureFormat) -> Self {
         let blitter = XfbBlitter::new(&device, format);
         let (renderer, shared) = RendererInner::new(device.clone(), queue);
-        let (sender, receiver) = flume::bounded(4096);
+
+        const CAPACITY: usize = 1024 * 1024 / size_of::<Action>();
+        let (sender, receiver) = flume::bounded(CAPACITY);
 
         std::thread::Builder::new()
             .name("hemisphere wgpu renderer".into())

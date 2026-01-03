@@ -26,6 +26,7 @@ use hemisphere::{
         xf::ChannelControl,
     },
 };
+use seq_macro::seq;
 use std::{
     num::NonZero,
     sync::{
@@ -53,6 +54,8 @@ pub struct Renderer {
     textures: Textures,
     index_buffers: Buffers,
     storage_buffers: Buffers,
+    color_copy_buffer: wgpu::Buffer,
+    depth_copy_buffer: wgpu::Buffer,
 
     color_blitter: ColorBlitter,
     depth_blitter: DepthBlitter,
@@ -132,6 +135,20 @@ impl Renderer {
         let color_blitter = ColorBlitter::new(&device);
         let depth_blitter = DepthBlitter::new(&device);
 
+        let color_copy_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("color copy buffer"),
+            size: 640 * 528 * 4,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+
+        let depth_copy_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("depth copy buffer"),
+            size: 640 * 528 * 4,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+
         let mut value = Self {
             device,
             queue,
@@ -145,6 +162,8 @@ impl Renderer {
             textures,
             index_buffers,
             storage_buffers,
+            color_copy_buffer,
+            depth_copy_buffer,
 
             color_blitter,
             depth_blitter,
@@ -300,7 +319,11 @@ impl Renderer {
             chan1: vertex.chan1,
 
             tex_coord: vertex.tex_coords,
-            tex_coord_mat: vertex.tex_coords_matrix.map(|i| get_matrix(i).unwrap()),
+            tex_coord_mat: seq! {
+                N in 0..8 {
+                    [#(get_matrix(vertex.tex_coords_matrix[N]).unwrap(),)*]
+                }
+            },
         };
 
         let idx = self.vertices.len();
@@ -792,14 +815,6 @@ impl Renderer {
         let row_size = target_width * 4;
         let row_stride = row_size.next_multiple_of(256);
 
-        let size = row_stride as u64 * target_height as u64;
-        let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("color copy buffer"),
-            size,
-            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-            mapped_at_creation: false,
-        });
-
         let copy_target = self.device.create_texture(&wgpu::TextureDescriptor {
             label: Some("color copy texture"),
             dimension: wgpu::TextureDimension::D2,
@@ -847,7 +862,7 @@ impl Renderer {
                 aspect: wgpu::TextureAspect::default(),
             },
             wgpu::TexelCopyBufferInfo {
-                buffer: &buffer,
+                buffer: &self.color_copy_buffer,
                 layout: wgpu::TexelCopyBufferLayout {
                     offset: 0,
                     bytes_per_row: Some(row_stride),
@@ -862,20 +877,23 @@ impl Renderer {
         );
 
         let (sender, receiver) = oneshot::channel();
-        encoder.map_buffer_on_submit(&buffer, wgpu::MapMode::Read, .., |r| {
+        encoder.map_buffer_on_submit(&self.color_copy_buffer, wgpu::MapMode::Read, .., |r| {
             sender.send(r).unwrap()
         });
 
         let cmd = encoder.finish();
-        self.queue.submit([cmd]);
+        let submission = self.queue.submit([cmd]);
         self.device
-            .poll(wgpu::wgt::PollType::wait_indefinitely())
+            .poll(wgpu::wgt::PollType::Wait {
+                submission_index: Some(submission),
+                timeout: None,
+            })
             .unwrap();
 
         let result = receiver.recv().unwrap();
         result.unwrap();
 
-        let mapped = buffer.get_mapped_range(..);
+        let mapped = self.color_copy_buffer.get_mapped_range(..);
         let data = &*mapped;
 
         let mut pixels = Vec::with_capacity(target_width as usize * target_height as usize);
@@ -889,6 +907,9 @@ impl Renderer {
             }));
         }
 
+        std::mem::drop(mapped);
+        self.color_copy_buffer.unmap();
+
         pixels
     }
 
@@ -901,14 +922,6 @@ impl Renderer {
 
         let row_size = target_width * 4;
         let row_stride = row_size.next_multiple_of(256);
-
-        let size = row_stride as u64 * target_height as u64;
-        let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("depth copy buffer"),
-            size,
-            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-            mapped_at_creation: false,
-        });
 
         let copy_target = self.device.create_texture(&wgpu::TextureDescriptor {
             label: Some("depth copy texture"),
@@ -957,7 +970,7 @@ impl Renderer {
                 aspect: wgpu::TextureAspect::default(),
             },
             wgpu::TexelCopyBufferInfo {
-                buffer: &buffer,
+                buffer: &self.depth_copy_buffer,
                 layout: wgpu::TexelCopyBufferLayout {
                     offset: 0,
                     bytes_per_row: Some(row_stride),
@@ -972,20 +985,23 @@ impl Renderer {
         );
 
         let (sender, receiver) = oneshot::channel();
-        encoder.map_buffer_on_submit(&buffer, wgpu::MapMode::Read, .., |r| {
+        encoder.map_buffer_on_submit(&self.depth_copy_buffer, wgpu::MapMode::Read, .., |r| {
             sender.send(r).unwrap()
         });
 
         let cmd = encoder.finish();
-        self.queue.submit([cmd]);
+        let submission = self.queue.submit([cmd]);
         self.device
-            .poll(wgpu::wgt::PollType::wait_indefinitely())
+            .poll(wgpu::wgt::PollType::Wait {
+                submission_index: Some(submission),
+                timeout: None,
+            })
             .unwrap();
 
         let result = receiver.recv().unwrap();
         result.unwrap();
 
-        let mapped = buffer.get_mapped_range(..);
+        let mapped = self.depth_copy_buffer.get_mapped_range(..);
         let data = &*mapped;
 
         let mut depth = Vec::with_capacity(target_width as usize * target_height as usize);
@@ -1000,6 +1016,9 @@ impl Renderer {
                 (value * DEPTH_24_BIT_MAX as f32) as u32
             }));
         }
+
+        std::mem::drop(mapped);
+        self.depth_copy_buffer.unmap();
 
         depth
     }
