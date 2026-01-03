@@ -1,9 +1,9 @@
 use std::hint::black_box;
 
 use criterion::{Criterion, criterion_group, criterion_main};
-use gxtex::{FastRgb565, Format, Pixel, Rgb565, compute_size};
+use gxtex::{AlphaSource, FastRgb565, Format, IA8, IntensitySource, Pixel, Rgb565, compute_size};
 
-fn rgb565(c: &mut Criterion) {
+fn bench<F: Format>(c: &mut Criterion, settings: &F::EncodeSettings, name: &str) {
     let img = image::open("resources/waterfall.webp").unwrap();
     let pixels = img
         .to_rgba8()
@@ -16,11 +16,72 @@ fn rgb565(c: &mut Criterion) {
         })
         .collect::<Vec<_>>();
 
-    let required_width = (img.width() as usize).next_multiple_of(Rgb565::TILE_WIDTH);
-    let required_height = (img.height() as usize).next_multiple_of(Rgb565::TILE_HEIGHT);
+    let required_width = (img.width() as usize).next_multiple_of(F::TILE_WIDTH);
+    let required_height = (img.height() as usize).next_multiple_of(F::TILE_HEIGHT);
+    let mut encoded = vec![0; compute_size::<F>(required_width, required_height)];
+    gxtex::encode::<F>(
+        settings,
+        required_width / F::TILE_WIDTH,
+        img.width() as usize,
+        img.height() as usize,
+        black_box(&pixels),
+        &mut encoded,
+    );
+
+    let mut group = c.benchmark_group(format!("{name} Decoding"));
+    group.throughput(criterion::Throughput::Bytes(encoded.len() as u64));
+
+    group.bench_function("Accurate", |b| {
+        b.iter_with_large_drop(|| {
+            gxtex::decode::<F>(
+                img.width() as usize,
+                img.height() as usize,
+                black_box(&encoded),
+            )
+        })
+    });
+    group.finish();
+
+    let mut group = c.benchmark_group(format!("{name} Encoding"));
+    group.throughput(criterion::Throughput::Bytes(encoded.len() as u64));
+
+    group.bench_function("Accurate", |b| {
+        b.iter_with_large_drop(|| {
+            gxtex::encode::<F>(
+                settings,
+                required_width / F::TILE_WIDTH,
+                img.width() as usize,
+                img.height() as usize,
+                black_box(&pixels),
+                &mut encoded,
+            );
+        })
+    });
+    group.finish();
+}
+
+fn bench_with_fast<Accurate: Format, Fast: Format<EncodeSettings = Accurate::EncodeSettings>>(
+    c: &mut Criterion,
+    settings: &Accurate::EncodeSettings,
+    name: &str,
+) {
+    let img = image::open("resources/waterfall.webp").unwrap();
+    let pixels = img
+        .to_rgba8()
+        .pixels()
+        .map(|p| Pixel {
+            r: p.0[0],
+            g: p.0[1],
+            b: p.0[2],
+            a: p.0[3],
+        })
+        .collect::<Vec<_>>();
+
+    let required_width = (img.width() as usize).next_multiple_of(Accurate::TILE_WIDTH);
+    let required_height = (img.height() as usize).next_multiple_of(Accurate::TILE_HEIGHT);
     let mut encoded = vec![0; compute_size::<Rgb565>(required_width, required_height)];
-    gxtex::encode::<Rgb565>(
-        &(),
+    gxtex::encode::<Accurate>(
+        settings,
         required_width / Rgb565::TILE_WIDTH,
         img.width() as usize,
         img.height() as usize,
@@ -28,12 +89,12 @@ fn rgb565(c: &mut Criterion) {
         &mut encoded,
     );
 
-    let mut group = c.benchmark_group("RGB565 Decoding");
+    let mut group = c.benchmark_group(format!("{name} Decoding"));
     group.throughput(criterion::Throughput::Bytes(encoded.len() as u64));
 
     group.bench_function("Accurate", |b| {
         b.iter_with_large_drop(|| {
-            gxtex::decode::<Rgb565>(
+            gxtex::decode::<Accurate>(
                 img.width() as usize,
                 img.height() as usize,
                 black_box(&encoded),
@@ -43,7 +104,7 @@ fn rgb565(c: &mut Criterion) {
 
     group.bench_function("Fast", |b| {
         b.iter_with_large_drop(|| {
-            gxtex::decode::<FastRgb565>(
+            gxtex::decode::<Fast>(
                 img.width() as usize,
                 img.height() as usize,
                 black_box(&encoded),
@@ -52,13 +113,13 @@ fn rgb565(c: &mut Criterion) {
     });
     group.finish();
 
-    let mut group = c.benchmark_group("RGB565 Encoding");
+    let mut group = c.benchmark_group(format!("{name} Encoding"));
     group.throughput(criterion::Throughput::Bytes(encoded.len() as u64));
 
     group.bench_function("Accurate", |b| {
         b.iter_with_large_drop(|| {
-            gxtex::encode::<Rgb565>(
-                &(),
+            gxtex::encode::<Accurate>(
+                settings,
                 required_width / Rgb565::TILE_WIDTH,
                 img.width() as usize,
                 img.height() as usize,
@@ -70,8 +131,8 @@ fn rgb565(c: &mut Criterion) {
 
     group.bench_function("Fast", |b| {
         b.iter_with_large_drop(|| {
-            gxtex::encode::<FastRgb565>(
-                &(),
+            gxtex::encode::<Fast>(
+                settings,
                 required_width / FastRgb565::TILE_WIDTH,
                 img.width() as usize,
                 img.height() as usize,
@@ -84,5 +145,10 @@ fn rgb565(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, rgb565);
+fn formats(c: &mut Criterion) {
+    bench_with_fast::<Rgb565, FastRgb565>(c, &(), "RGB565");
+    bench::<IA8>(c, &(IntensitySource::Y, AlphaSource::A), "IA8");
+}
+
+criterion_group!(benches, formats);
 criterion_main!(benches);
