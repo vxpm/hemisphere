@@ -8,7 +8,6 @@ use bitos::{
     integer::{u2, u10, u11},
 };
 use gekko::Address;
-use gxtex::{AlphaSource, IntensitySource};
 use std::collections::HashMap;
 
 #[bitos(2)]
@@ -227,11 +226,15 @@ pub fn decode_texture(data: &[u8], format: Encoding) -> Vec<Rgba8> {
     let width = format.width() as usize;
     let height = format.height() as usize;
     let pixels = match format.format() {
-        Format::I4 => gxtex::decode::<gxtex::I4>(width, height, data),
-        Format::IA4 => gxtex::decode::<gxtex::IA4>(width, height, data),
-        Format::I8 => gxtex::decode::<gxtex::I8>(width, height, data),
-        Format::IA8 => gxtex::decode::<gxtex::IA8>(width, height, data),
-        Format::Rgb565 => gxtex::decode::<gxtex::Rgb565>(width, height, data),
+        Format::I4 => gxtex::decode::<gxtex::I4<gxtex::FastIntensity>>(width, height, data),
+        Format::IA4 => gxtex::decode::<gxtex::IA4<gxtex::FastIntensity, gxtex::AlphaChannel>>(
+            width, height, data,
+        ),
+        Format::I8 => gxtex::decode::<gxtex::I8<gxtex::FastIntensity>>(width, height, data),
+        Format::IA8 => gxtex::decode::<gxtex::IA8<gxtex::FastIntensity, gxtex::AlphaChannel>>(
+            width, height, data,
+        ),
+        Format::Rgb565 => gxtex::decode::<gxtex::FastRgb565>(width, height, data),
         Format::Rgb5A3 => gxtex::decode::<gxtex::Rgb5A3>(width, height, data),
         Format::Rgba8 => gxtex::decode::<gxtex::Rgba8>(width, height, data),
         Format::Cmp => gxtex::decode::<gxtex::Cmpr>(width, height, data),
@@ -280,11 +283,7 @@ pub fn encode_color_texture(
 
     macro_rules! encode {
         ($fmt:ty) => {
-            encode!($fmt => ())
-        };
-        ($fmt:ty => $settings:expr) => {
             gxtex::encode::<$fmt>(
-                &$settings,
                 stride as usize,
                 width as usize,
                 height as usize,
@@ -295,19 +294,19 @@ pub fn encode_color_texture(
     }
 
     match format {
-        ColorCopyFormat::R4 => encode!(gxtex::I4 => IntensitySource::R),
-        ColorCopyFormat::Y8 => encode!(gxtex::I8 => IntensitySource::Y),
-        ColorCopyFormat::RA4 => encode!(gxtex::IA4 => (IntensitySource::R, AlphaSource::A)),
-        ColorCopyFormat::RA8 => encode!(gxtex::IA8 => (IntensitySource::R, AlphaSource::A)),
-        ColorCopyFormat::RGB565 => encode!(gxtex::Rgb565),
+        ColorCopyFormat::R4 => encode!(gxtex::I4<gxtex::RedChannel>),
+        ColorCopyFormat::Y8 => encode!(gxtex::I8<gxtex::FastIntensity>),
+        ColorCopyFormat::RA4 => encode!(gxtex::IA4<gxtex::RedChannel, gxtex::AlphaChannel>),
+        ColorCopyFormat::RA8 => encode!(gxtex::IA8<gxtex::RedChannel, gxtex::AlphaChannel>),
+        ColorCopyFormat::RGB565 => encode!(gxtex::FastRgb565),
         ColorCopyFormat::RGB5A3 => encode!(gxtex::Rgb5A3),
         ColorCopyFormat::RGBA8 => encode!(gxtex::Rgba8),
-        ColorCopyFormat::A8 => encode!(gxtex::I8 => IntensitySource::A),
-        ColorCopyFormat::R8 => encode!(gxtex::I8 => IntensitySource::R),
-        ColorCopyFormat::G8 => encode!(gxtex::I8 => IntensitySource::G),
-        ColorCopyFormat::B8 => encode!(gxtex::I8 => IntensitySource::B),
-        ColorCopyFormat::RG8 => encode!(gxtex::IA8 => (IntensitySource::R, AlphaSource::G)),
-        ColorCopyFormat::GB8 => encode!(gxtex::IA8 => (IntensitySource::G, AlphaSource::B)),
+        ColorCopyFormat::A8 => encode!(gxtex::I8<gxtex::AlphaChannel>),
+        ColorCopyFormat::R8 => encode!(gxtex::I8<gxtex::RedChannel>),
+        ColorCopyFormat::G8 => encode!(gxtex::I8<gxtex::GreenChannel>),
+        ColorCopyFormat::B8 => encode!(gxtex::I8<gxtex::BlueChannel>),
+        ColorCopyFormat::RG8 => encode!(gxtex::IA8<gxtex::RedChannel, gxtex::GreenChannel>),
+        ColorCopyFormat::GB8 => encode!(gxtex::IA8<gxtex::GreenChannel, gxtex::BlueChannel>),
         _ => panic!("reserved color format"),
     }
 }
@@ -333,11 +332,7 @@ pub fn encode_depth_texture(
 
     macro_rules! encode {
         ($fmt:ty) => {
-            encode!($fmt => ())
-        };
-        ($fmt:ty => $settings:expr) => {
             gxtex::encode::<$fmt>(
-                &$settings,
                 stride as usize,
                 width as usize,
                 height as usize,
@@ -349,14 +344,14 @@ pub fn encode_depth_texture(
 
     match format {
         DepthCopyFormat::Z4 => todo!(),
-        DepthCopyFormat::Z8 => encode!(gxtex::I8 => IntensitySource::R), // not sure...
-        DepthCopyFormat::Z16C => encode!(gxtex::IA8 => (IntensitySource::R, AlphaSource::G)),
+        DepthCopyFormat::Z8 => encode!(gxtex::I8<gxtex::RedChannel>), // not sure...
+        DepthCopyFormat::Z16C => encode!(gxtex::IA8<gxtex::RedChannel, gxtex::GreenChannel>),
         DepthCopyFormat::Z24X8 => encode!(gxtex::Rgba8),
-        DepthCopyFormat::Z8H => encode!(gxtex::I8 => IntensitySource::B),
-        DepthCopyFormat::Z8M => encode!(gxtex::I8 => IntensitySource::G),
-        DepthCopyFormat::Z8L => encode!(gxtex::I8 => IntensitySource::R),
-        DepthCopyFormat::Z16A => encode!(gxtex::IA8 => (IntensitySource::G, AlphaSource::R)),
-        DepthCopyFormat::Z16B => encode!(gxtex::IA8 => (IntensitySource::G, AlphaSource::R)),
+        DepthCopyFormat::Z8H => encode!(gxtex::I8<gxtex::BlueChannel>),
+        DepthCopyFormat::Z8M => encode!(gxtex::I8<gxtex::GreenChannel>),
+        DepthCopyFormat::Z8L => encode!(gxtex::I8<gxtex::RedChannel>),
+        DepthCopyFormat::Z16A => encode!(gxtex::IA8<gxtex::GreenChannel, gxtex::RedChannel>),
+        DepthCopyFormat::Z16B => encode!(gxtex::IA8<gxtex::GreenChannel, gxtex::RedChannel>),
         _ => panic!("reserved depth format"),
     }
 }
