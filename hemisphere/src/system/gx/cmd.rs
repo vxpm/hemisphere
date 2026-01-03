@@ -409,7 +409,7 @@ impl Interface {
 impl Gpu {
     /// Reads a command from the command queue.
     pub fn read_command(&mut self) -> Option<Command> {
-        let mut reader = self.command.queue.reader();
+        let mut reader = self.cmd.queue.reader();
 
         let opcode = Opcode::from_bits(reader.read_be()?);
         let Some(operation) = opcode.operation() else {
@@ -520,10 +520,7 @@ impl Gpu {
             | Operation::DrawLineStrip
             | Operation::DrawPointList => {
                 let vertex_count = reader.read_be::<u16>()?;
-                let vertex_size = self
-                    .command
-                    .internal
-                    .vertex_size(opcode.vat_index().value());
+                let vertex_size = self.cmd.internal.vertex_size(opcode.vat_index().value());
 
                 let attribute_stream_size = vertex_count as usize * vertex_size as usize;
                 if reader.remaining() < attribute_stream_size {
@@ -562,8 +559,8 @@ impl Gpu {
 
 /// Sets the value of an internal command processor register.
 pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
-    let cp = &mut sys.gpu.command.internal;
-    let xf = &mut sys.gpu.transform.internal;
+    let cp = &mut sys.gpu.cmd.internal;
+    let xf = &mut sys.gpu.xform.internal;
 
     match reg {
         Reg::MatIndexLow => value.write_ne_bytes(&mut xf.default_matrices.as_mut_bytes()[0..4]),
@@ -651,13 +648,13 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
 
 /// Pops a value from the CP FIFO in memory.
 fn fifo_pop(sys: &mut System) -> u8 {
-    assert!(sys.gpu.command.fifo.count() > 0);
+    assert!(sys.gpu.cmd.fifo.count() > 0);
 
-    let data = sys.read_phys_slow::<u8>(sys.gpu.command.fifo.read_ptr);
-    sys.gpu.command.fifo.read_ptr += 1;
-    if sys.gpu.command.fifo.read_ptr > sys.gpu.command.fifo.end {
+    let data = sys.read_phys_slow::<u8>(sys.gpu.cmd.fifo.read_ptr);
+    sys.gpu.cmd.fifo.read_ptr += 1;
+    if sys.gpu.cmd.fifo.read_ptr > sys.gpu.cmd.fifo.end {
         std::hint::cold_path();
-        sys.gpu.command.fifo.read_ptr = sys.gpu.command.fifo.start;
+        sys.gpu.cmd.fifo.read_ptr = sys.gpu.cmd.fifo.start;
     }
 
     data
@@ -665,20 +662,20 @@ fn fifo_pop(sys: &mut System) -> u8 {
 
 /// Consumes commands available in the CP FIFO.
 pub fn consume(sys: &mut System) {
-    if !sys.gpu.command.control.fifo_read_enable() {
+    if !sys.gpu.cmd.control.fifo_read_enable() {
         return;
     }
 
-    while sys.gpu.command.fifo.count() > 0 {
+    while sys.gpu.cmd.fifo.count() > 0 {
         let data = self::fifo_pop(sys);
-        sys.gpu.command.queue.push_be(data);
+        sys.gpu.cmd.queue.push_be(data);
     }
 }
 
 /// Process consumed CP commands until the queue is either empty or incomplete.
 pub fn process(sys: &mut System) {
     loop {
-        if sys.gpu.command.queue.is_empty() {
+        if sys.gpu.cmd.queue.is_empty() {
             break;
         }
 
@@ -698,7 +695,7 @@ pub fn process(sys: &mut System) {
             Command::SetBP { register, value } => gx::set_register(sys, register, value),
             Command::SetXF { start, values } => {
                 for (offset, value) in values.into_iter().enumerate() {
-                    gx::xf::write(sys, start + offset as u16, value);
+                    gx::xform::write(sys, start + offset as u16, value);
                 }
             }
             Command::IndexedSetXFA {
@@ -706,32 +703,32 @@ pub fn process(sys: &mut System) {
                 length,
                 index,
             } => {
-                let array = sys.gpu.command.internal.arrays.general_purpose[0];
-                gx::xf::write_indexed(sys, array, base, length, index);
+                let array = sys.gpu.cmd.internal.arrays.general_purpose[0];
+                gx::xform::write_indexed(sys, array, base, length, index);
             }
             Command::IndexedSetXFB {
                 base,
                 length,
                 index,
             } => {
-                let array = sys.gpu.command.internal.arrays.general_purpose[1];
-                gx::xf::write_indexed(sys, array, base, length, index);
+                let array = sys.gpu.cmd.internal.arrays.general_purpose[1];
+                gx::xform::write_indexed(sys, array, base, length, index);
             }
             Command::IndexedSetXFC {
                 base,
                 length,
                 index,
             } => {
-                let array = sys.gpu.command.internal.arrays.general_purpose[2];
-                gx::xf::write_indexed(sys, array, base, length, index);
+                let array = sys.gpu.cmd.internal.arrays.general_purpose[2];
+                gx::xform::write_indexed(sys, array, base, length, index);
             }
             Command::IndexedSetXFD {
                 base,
                 length,
                 index,
             } => {
-                let array = sys.gpu.command.internal.arrays.general_purpose[3];
-                gx::xf::write_indexed(sys, array, base, length, index);
+                let array = sys.gpu.cmd.internal.arrays.general_purpose[3];
+                gx::xform::write_indexed(sys, array, base, length, index);
             }
             Command::Draw {
                 topology,
@@ -747,7 +744,7 @@ pub fn process(sys: &mut System) {
 
 /// Synchronizes the CP fifo to the PI fifo.
 pub fn sync_to_pi(sys: &mut System) {
-    sys.gpu.command.fifo.start = sys.processor.fifo_start;
-    sys.gpu.command.fifo.end = sys.processor.fifo_end;
-    sys.gpu.command.fifo.write_ptr = sys.processor.fifo_current.address();
+    sys.gpu.cmd.fifo.start = sys.processor.fifo_start;
+    sys.gpu.cmd.fifo.end = sys.processor.fifo_end;
+    sys.gpu.cmd.fifo.write_ptr = sys.processor.fifo_current.address();
 }

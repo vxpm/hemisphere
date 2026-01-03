@@ -9,7 +9,7 @@ use crate::{
                 self, Attribute, AttributeDescriptor, AttributeMode, VertexAttributeTable,
             },
         },
-        xf::DefaultMatrices,
+        xform::DefaultMatrices,
     },
 };
 use glam::Vec2;

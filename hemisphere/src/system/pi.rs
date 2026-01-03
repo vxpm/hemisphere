@@ -138,8 +138,8 @@ pub fn get_active_interrupts(sys: &System) -> InterruptSources {
     sources.set_video_interface(video);
 
     // PE
-    sources.set_pe_token(sys.gpu.pixel.interrupt.token());
-    sources.set_pe_finish(sys.gpu.pixel.interrupt.finish());
+    sources.set_pe_token(sys.gpu.pix.interrupt.token());
+    sources.set_pe_finish(sys.gpu.pix.interrupt.finish());
 
     // AI
     sources.set_audio_interface(
@@ -212,7 +212,7 @@ pub fn fifo_push<P: Primitive>(sys: &mut System, value: P) {
         .copy_within(32..sys.processor.fifo_queue_index, 0);
     sys.processor.fifo_queue_index -= 32;
 
-    if sys.gpu.command.control.linked_mode() {
+    if sys.gpu.cmd.control.linked_mode() {
         gx::cmd::sync_to_pi(sys);
         gx::cmd::consume(sys);
     }

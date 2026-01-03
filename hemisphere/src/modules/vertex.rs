@@ -4,7 +4,7 @@ mod interpreter;
 use crate::system::gx::{
     MatrixSet, Vertex,
     cmd::{Arrays, VertexAttributeStream, VertexDescriptor, attributes::VertexAttributeTable},
-    xf::DefaultMatrices,
+    xform::DefaultMatrices,
 };
 use std::mem::MaybeUninit;
 
