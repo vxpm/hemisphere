@@ -2120,7 +2120,6 @@ dependencies = [
  "ring-arena",
  "seq-macro",
  "strum",
- "tinyvec",
  "tracing",
  "twox-hash",
  "util",
