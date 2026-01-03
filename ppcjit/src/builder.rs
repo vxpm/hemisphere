@@ -27,6 +27,9 @@ use gekko::{
 use rustc_hash::FxHashMap;
 use std::mem::offset_of;
 
+const MEMFLAGS: ir::MemFlags = ir::MemFlags::trusted();
+const MEMFLAGS_READONLY: ir::MemFlags = MEMFLAGS.with_can_move().with_readonly();
+
 // NOTE: make sure to keep this up to date if anything else is not just 32 bits
 fn reg_ir_ty(reg: Reg) -> ir::Type {
     match reg {
@@ -228,21 +231,15 @@ impl<'ctx> BlockBuilder<'ctx> {
 
     fn load_reg(&mut self, reg: Reg) -> ir::Value {
         let reg_ty = reg_ir_ty(reg);
-        self.bd.ins().load(
-            reg_ty,
-            ir::MemFlags::trusted(),
-            self.consts.regs_ptr,
-            reg.offset() as i32,
-        )
+        self.bd
+            .ins()
+            .load(reg_ty, MEMFLAGS, self.consts.regs_ptr, reg.offset() as i32)
     }
 
     fn store_reg(&mut self, reg: Reg, value: ir::Value) {
-        self.bd.ins().store(
-            ir::MemFlags::trusted(),
-            value,
-            self.consts.regs_ptr,
-            reg.offset() as i32,
-        );
+        self.bd
+            .ins()
+            .store(MEMFLAGS, value, self.consts.regs_ptr, reg.offset() as i32);
     }
 
     /// Gets the current value of the given register.
@@ -398,7 +395,7 @@ impl<'ctx> BlockBuilder<'ctx> {
             }
 
             self.bd.ins().store(
-                ir::MemFlags::trusted(),
+                MEMFLAGS,
                 val.value,
                 self.consts.regs_ptr,
                 fpr.offset() as i32,
@@ -419,7 +416,7 @@ impl<'ctx> BlockBuilder<'ctx> {
             }
 
             self.bd.ins().store(
-                ir::MemFlags::trusted(),
+                MEMFLAGS,
                 val.value,
                 self.consts.regs_ptr,
                 reg.offset() as i32,
@@ -439,7 +436,7 @@ impl<'ctx> BlockBuilder<'ctx> {
 
         let instructions = self.bd.ins().load(
             ir::types::I32,
-            ir::MemFlags::trusted(),
+            MEMFLAGS,
             self.consts.info_ptr,
             offset_of!(Info, instructions) as i32,
         );
@@ -448,7 +445,7 @@ impl<'ctx> BlockBuilder<'ctx> {
             .ins()
             .iadd_imm(instructions, instruction_delta as i64);
         self.bd.ins().store(
-            ir::MemFlags::trusted(),
+            MEMFLAGS,
             instructions,
             self.consts.info_ptr,
             offset_of!(Info, instructions) as i32,
@@ -456,13 +453,13 @@ impl<'ctx> BlockBuilder<'ctx> {
 
         let cycles = self.bd.ins().load(
             ir::types::I32,
-            ir::MemFlags::trusted(),
+            MEMFLAGS,
             self.consts.info_ptr,
             offset_of!(Info, cycles) as i32,
         );
         let cycles = self.bd.ins().iadd_imm(cycles, cycles_delta as i64);
         self.bd.ins().store(
-            ir::MemFlags::trusted(),
+            MEMFLAGS,
             cycles,
             self.consts.info_ptr,
             offset_of!(Info, cycles) as i32,
