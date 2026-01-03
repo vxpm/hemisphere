@@ -1,4 +1,4 @@
-use crate::builder::{MEMFLAGS, ParserBuilder};
+use crate::builder::{MEMFLAGS, MEMFLAGS_READONLY, ParserBuilder};
 use cranelift::{codegen::ir, prelude::InstBuilder};
 use hemisphere::system::gx::{
     Vertex,
@@ -36,7 +36,10 @@ impl AttributeExt for attributes::PosMatrixIndex {
     }
 
     fn parse(_: &Self::Descriptor, parser: &mut ParserBuilder, ptr: ir::Value) -> u32 {
-        let index = parser.bd.ins().load(ir::types::I8, MEMFLAGS, ptr, 0);
+        let index = parser
+            .bd
+            .ins()
+            .load(ir::types::I8, MEMFLAGS_READONLY, ptr, 0);
         let index = parser.bd.ins().uextend(ir::types::I16, index);
         parser.include_matrix(false, index);
         parser.include_matrix(true, index);
@@ -66,7 +69,10 @@ impl<const N: usize> AttributeExt for attributes::TexMatrixIndex<N> {
     }
 
     fn parse(_: &Self::Descriptor, parser: &mut ParserBuilder, ptr: ir::Value) -> u32 {
-        let index = parser.bd.ins().load(ir::types::I8, MEMFLAGS, ptr, 0);
+        let index = parser
+            .bd
+            .ins()
+            .load(ir::types::I8, MEMFLAGS_READONLY, ptr, 0);
         let index = parser.bd.ins().uextend(ir::types::I16, index);
         parser.include_matrix(false, index);
         parser.include_matrix(true, index);
@@ -101,7 +107,7 @@ impl AttributeExt for attributes::Position {
         let mut load_as_float = |index| {
             let value = parser.bd.ins().load(
                 if ty.is_float() { ir::types::I32 } else { ty },
-                MEMFLAGS,
+                MEMFLAGS_READONLY,
                 ptr,
                 index * ty.bytes() as i32,
             );
@@ -186,7 +192,7 @@ impl AttributeExt for attributes::Normal {
         let mut load_as_float = |index| {
             let value = parser.bd.ins().load(
                 if ty.is_float() { ir::types::I32 } else { ty },
-                MEMFLAGS,
+                MEMFLAGS_READONLY,
                 ptr,
                 index * ty.bytes() as i32,
             );
@@ -255,7 +261,10 @@ fn read_rgba(format: ColorFormat, parser: &mut ParserBuilder, ptr: ir::Value) ->
 
     match format {
         ColorFormat::Rgb565 => {
-            let value = parser.bd.ins().load(ir::types::I16, MEMFLAGS, ptr, 0);
+            let value = parser
+                .bd
+                .ins()
+                .load(ir::types::I16, MEMFLAGS_READONLY, ptr, 0);
             let value = parser.bd.ins().bswap(value);
 
             let r = parser.shift_mask(value, 0, 0x1F);
@@ -285,7 +294,10 @@ fn read_rgba(format: ColorFormat, parser: &mut ParserBuilder, ptr: ir::Value) ->
             to_float(parser, rgba, recip)
         }
         ColorFormat::Rgb888 => {
-            let rg = parser.bd.ins().load(ir::types::I16, MEMFLAGS, ptr, 0);
+            let rg = parser
+                .bd
+                .ins()
+                .load(ir::types::I16, MEMFLAGS_READONLY, ptr, 0);
             let b = parser.bd.ins().load(ir::types::I8, MEMFLAGS, ptr, 2);
             let a = parser.bd.ins().iconst(ir::types::I8, 255);
 
@@ -311,7 +323,10 @@ fn read_rgba(format: ColorFormat, parser: &mut ParserBuilder, ptr: ir::Value) ->
         ColorFormat::Rgba4444 => todo!(),
         ColorFormat::Rgba6666 => todo!(),
         ColorFormat::Rgba8888 => {
-            let value = parser.bd.ins().load(ir::types::I32, MEMFLAGS, ptr, 0);
+            let value = parser
+                .bd
+                .ins()
+                .load(ir::types::I32, MEMFLAGS_READONLY, ptr, 0);
             let r = parser.shift_mask(value, 0, 255);
             let g = parser.shift_mask(value, 8, 255);
             let b = parser.shift_mask(value, 16, 255);
@@ -398,7 +413,7 @@ impl<const N: usize> AttributeExt for attributes::TexCoords<N> {
         let mut load_as_float = |index| {
             let value = parser.bd.ins().load(
                 if ty.is_float() { ir::types::I32 } else { ty },
-                MEMFLAGS,
+                MEMFLAGS_READONLY,
                 ptr,
                 index * ty.bytes() as i32,
             );

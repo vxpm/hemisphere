@@ -3,7 +3,7 @@ use std::alloc::Layout;
 use super::BlockBuilder;
 use crate::{
     block::LinkData,
-    builder::{Action, InstructionInfo, util::IntoIrValue},
+    builder::{Action, InstructionInfo, MEMFLAGS, util::IntoIrValue},
 };
 use bitos::{bitos, integer::u5};
 use cranelift::{codegen::ir, prelude::InstBuilder};
@@ -104,12 +104,10 @@ impl BlockBuilder<'_> {
         self.flush();
 
         // do we need to link?
-        let stored_link = self.bd.ins().load(
-            self.consts.ptr_type,
-            ir::MemFlags::trusted(),
-            link_data_ptr,
-            0,
-        );
+        let stored_link = self
+            .bd
+            .ins()
+            .load(self.consts.ptr_type, MEMFLAGS, link_data_ptr, 0);
 
         let call_linked = self.bd.create_block();
         let need_to_link = self.bd.create_block();
@@ -146,12 +144,10 @@ impl BlockBuilder<'_> {
         );
 
         // was the link successful?
-        let stored_link = self.bd.ins().load(
-            self.consts.ptr_type,
-            ir::MemFlags::trusted(),
-            link_data_ptr,
-            0,
-        );
+        let stored_link = self
+            .bd
+            .ins()
+            .load(self.consts.ptr_type, MEMFLAGS, link_data_ptr, 0);
 
         self.bd.ins().brif(
             stored_link,

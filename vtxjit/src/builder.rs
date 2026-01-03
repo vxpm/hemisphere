@@ -14,6 +14,10 @@ use seq_macro::seq;
 use util::offset_of;
 
 const MEMFLAGS: ir::MemFlags = ir::MemFlags::new().with_notrap().with_can_move();
+const MEMFLAGS_READONLY: ir::MemFlags = ir::MemFlags::new()
+    .with_notrap()
+    .with_can_move()
+    .with_readonly();
 
 struct Array {
     base: ir::Value,
@@ -69,7 +73,9 @@ impl<'ctx> ParserBuilder<'ctx> {
         let count = params[6];
 
         // extract default matrix indices
-        let default_mtx = bd.ins().load(ir::types::I64, MEMFLAGS, default_mtx_ptr, 0);
+        let default_mtx = bd
+            .ins()
+            .load(ir::types::I64, MEMFLAGS_READONLY, default_mtx_ptr, 0);
         let mut extract_idx = |i: usize| {
             let shifted = bd.ins().ushr_imm(default_mtx, i as i64 * 6);
             let masked = bd.ins().band_imm(shifted, 0x3F);
@@ -154,7 +160,7 @@ impl<'ctx> ParserBuilder<'ctx> {
         let index = self
             .bd
             .ins()
-            .load(index_ty, MEMFLAGS, self.vars.data_ptr, 0);
+            .load(index_ty, MEMFLAGS_READONLY, self.vars.data_ptr, 0);
 
         let index = if index_ty.bytes() == 1 {
             index
@@ -206,7 +212,7 @@ impl<'ctx> ParserBuilder<'ctx> {
         // load base
         let base = self.bd.ins().load(
             ir::types::I32,
-            MEMFLAGS,
+            MEMFLAGS_READONLY,
             self.consts.arrays_ptr,
             (A::ARRAY_OFFSET + offset_of!(ArrayDescriptor, address)) as i32,
         );
@@ -214,7 +220,7 @@ impl<'ctx> ParserBuilder<'ctx> {
         // load stride
         let stride = self.bd.ins().load(
             ir::types::I32,
-            MEMFLAGS,
+            MEMFLAGS_READONLY,
             self.consts.arrays_ptr,
             (A::ARRAY_OFFSET + offset_of!(ArrayDescriptor, stride)) as i32,
         );

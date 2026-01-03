@@ -1,6 +1,6 @@
 use super::BlockBuilder;
 use crate::{
-    builder::{Action, InstructionInfo},
+    builder::{Action, InstructionInfo, MEMFLAGS, MEMFLAGS_READONLY},
     hooks::{ReadHook, WriteHook},
 };
 use cranelift::{codegen::ir, prelude::InstBuilder};
@@ -168,7 +168,7 @@ impl BlockBuilder<'_> {
         let ptr = self
             .bd
             .ins()
-            .load(self.consts.ptr_type, ir::MemFlags::trusted(), lut_ptr, 0);
+            .load(self.consts.ptr_type, MEMFLAGS_READONLY, lut_ptr, 0);
 
         let fast_block = self.bd.create_block();
         let slow_block = self.bd.create_block();
@@ -185,10 +185,7 @@ impl BlockBuilder<'_> {
         let offset = self.bd.ins().band_imm(addr, (1 << 17) - 1);
         let offset = self.bd.ins().uextend(self.consts.ptr_type, offset);
         let ptr = self.bd.ins().iadd(ptr, offset);
-        let value = self
-            .bd
-            .ins()
-            .load(P::IR_TYPE, ir::MemFlags::trusted(), ptr, 0);
+        let value = self.bd.ins().load(P::IR_TYPE, MEMFLAGS, ptr, 0);
         let value = if P::IR_TYPE != ir::types::I8 {
             self.bd.ins().bswap(value)
         } else {
@@ -221,7 +218,7 @@ impl BlockBuilder<'_> {
         let ptr = self
             .bd
             .ins()
-            .load(self.consts.ptr_type, ir::MemFlags::trusted(), lut_ptr, 0);
+            .load(self.consts.ptr_type, MEMFLAGS_READONLY, lut_ptr, 0);
 
         let fast_block = self.bd.create_block();
         let slow_block = self.bd.create_block();
@@ -242,9 +239,7 @@ impl BlockBuilder<'_> {
         } else {
             value
         };
-        self.bd
-            .ins()
-            .store(ir::MemFlags::trusted(), value_bswap, ptr, 0);
+        self.bd.ins().store(MEMFLAGS, value_bswap, ptr, 0);
         self.bd.ins().jump(continue_block, &[]);
 
         // slow
