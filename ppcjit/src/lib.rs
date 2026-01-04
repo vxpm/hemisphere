@@ -12,7 +12,7 @@ pub mod hooks;
 use crate::{
     block::{BlockFn, Info, LinkData, Meta, Trampoline},
     builder::BlockBuilder,
-    cache::Cache,
+    cache::{Cache, CompiledKey},
     hooks::{Context, HookKind, Hooks},
     module::Module,
     unwind::UnwindHandle,
@@ -25,9 +25,14 @@ use cranelift::{
         isa::{TargetIsa, unwind::UnwindInfo},
     },
 };
-use cranelift_codegen::{FinalizedMachReloc, FinalizedRelocTarget};
+use cranelift_codegen::{
+    FinalizedMachReloc, FinalizedRelocTarget,
+    entity::PrimaryMap,
+    ir::{UserExternalName, UserExternalNameRef},
+};
 use easyerr::{Error, ResultExt};
 use gekko::disasm::Ins;
+use serde::{Deserialize, Serialize};
 use std::{alloc::Layout, path::PathBuf, ptr::NonNull, sync::Arc};
 
 pub use block::Block;
@@ -199,8 +204,10 @@ struct Translated {
     cycles: u32,
 }
 
+#[derive(Clone, Serialize, Deserialize)]
 struct Compiled {
     code: Vec<u8>,
+    user_named_funcs: PrimaryMap<UserExternalNameRef, UserExternalName>,
     relocs: Vec<FinalizedMachReloc>,
     unwind: Option<UnwindInfo>,
 }
@@ -260,11 +267,7 @@ impl Jit {
     /// Compiles a cranelift function in the code context.
     fn compile(&mut self) -> Result<Compiled, BuildError> {
         self.code_ctx
-            .compile_with_cache(
-                &*self.compiler.isa,
-                &mut self.cache,
-                &mut Default::default(),
-            )
+            .compile(&*self.compiler.isa, &mut Default::default())
             .unwrap();
 
         let code = self.code_ctx.take_compiled_code().unwrap();
@@ -272,6 +275,7 @@ impl Jit {
 
         Ok(Compiled {
             code: code.code_buffer().to_owned(),
+            user_named_funcs: self.code_ctx.func.params.user_named_funcs().clone(),
             relocs: code.buffer.relocs().to_owned(),
             unwind,
         })
@@ -290,10 +294,19 @@ impl Jit {
             seq: translated.sequence.clone(),
         };
 
-        self.code_ctx.clear();
-        self.code_ctx.func = translated.func;
+        let key = CompiledKey::new(&*self.compiler.isa, &translated.sequence);
+        let compiled = if let Some(compiled) = self.cache.get(key) {
+            compiled
+        } else {
+            self.code_ctx.clear();
+            self.code_ctx.func = translated.func;
 
-        let compiled = self.compile()?;
+            let compiled = self.compile()?;
+            self.cache.insert(key, &compiled);
+
+            compiled
+        };
+
         let mut code = compiled.code;
 
         // patch relocations
@@ -306,7 +319,7 @@ impl Jit {
                 unreachable!()
             };
 
-            let mapping = self.code_ctx.func.params.user_named_funcs();
+            let mapping = &compiled.user_named_funcs;
             let name = mapping.get(name_ref).unwrap();
 
             match name.namespace {

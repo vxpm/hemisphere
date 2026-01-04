@@ -152,7 +152,7 @@ bitvec = "1.0"
 bytesize = "2"
 clap = { version = "4.5", features = ["derive"] }
 cranelift = { version = "0.127", features = ["frontend", "native"] }
-cranelift-codegen = { version = "0.127", features = ["incremental-cache"] }
+cranelift-codegen = { version = "0.127", features = ["enable-serde"] }
 easyerr = "0.1"
 eyre-pretty = { git = "https://github.com/vxpm/eyre-pretty.git" }
 glam = { version = "0.30", features = ["zerocopy"] }
@@ -164,6 +164,7 @@ powerpc = "0.4"
 ring-arena = { git = "https://github.com/vxpm/ring-arena.git" }
 rustc-hash = "2"
 seq-macro = "0.3"
+serde = { version = "1", features = ["derive"] }
 static_assertions = "1.1"
 strum = { version = "0.27", features = ["derive"] }
 tinyvec = { version = "1.10", features = ["alloc"] }
@@ -177,6 +178,8 @@ tracing-subscriber = { version = "0.3", default-features = false, features = [
 ] }
 twox-hash = { version = "2.1", default-features = false, features = [
     "xxhash3_64",
+    "xxhash3_128",
+    "std",
 ] }
 wesl = { version = "0.3", default-features = false, features = ["eval"] }
 wesl-quote = { version = "0.3" }

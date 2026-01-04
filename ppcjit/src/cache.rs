@@ -1,12 +1,49 @@
-use cranelift_codegen::incremental_cache::CacheKvStore;
+use crate::{Compiled, Sequence};
+use cranelift_codegen::isa::TargetIsa;
 use fjall::{Database, KeyspaceCreateOptions};
-use std::{borrow::Cow, cell::Cell, path::Path};
+use std::{
+    cell::Cell,
+    hash::{Hash, Hasher},
+    io::Cursor,
+    path::Path,
+};
+use zerocopy::IntoBytes;
+
+struct Hash128(twox_hash::XxHash3_128);
+
+impl Hasher for Hash128 {
+    fn finish(&self) -> u64 {
+        unimplemented!()
+    }
+
+    fn write(&mut self, bytes: &[u8]) {
+        self.0.write(bytes);
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct CompiledKey(u128);
+
+impl CompiledKey {
+    pub fn new(isa: &dyn TargetIsa, seq: &Sequence) -> Self {
+        let mut hasher = Hash128(twox_hash::XxHash3_128::with_seed(0));
+        isa.name().hash(&mut hasher);
+        isa.triple().hash(&mut hasher);
+        isa.flags().hash(&mut hasher);
+        isa.isa_flags_hash_key().hash(&mut hasher);
+        seq.hash(&mut hasher);
+        Self(hasher.0.finish_128())
+    }
+}
 
 pub struct Cache {
     db: Database,
     queries: Cell<u64>,
     hits: Cell<u64>,
     pending: u16,
+    temp_buffer: Vec<u8>,
+    compressor: zstd::bulk::Compressor<'static>,
+    decompressor: zstd::bulk::Decompressor<'static>,
 }
 
 impl Cache {
@@ -14,7 +51,7 @@ impl Cache {
         _ = std::fs::create_dir(&path);
 
         let db = Database::builder(&path)
-            .journal_compression(fjall::CompressionType::Lz4)
+            .journal_compression(fjall::CompressionType::None)
             .manual_journal_persist(true)
             .open()
             .unwrap();
@@ -24,38 +61,55 @@ impl Cache {
             pending: 0,
             queries: Cell::new(0),
             hits: Cell::new(0),
+            temp_buffer: vec![0; 512 * 1024],
+            compressor: zstd::bulk::Compressor::new(5).unwrap(),
+            decompressor: zstd::bulk::Decompressor::new().unwrap(),
         }
     }
-}
 
-impl CacheKvStore for Cache {
-    fn get(&self, key: &[u8]) -> Option<std::borrow::Cow<'_, [u8]>> {
+    pub fn get(&mut self, key: CompiledKey) -> Option<Compiled> {
         self.queries.update(|x| x + 1);
         let artifacts = self
             .db
             .keyspace("artifacts", KeyspaceCreateOptions::default)
             .unwrap();
 
-        let artifact = artifacts.get(key).unwrap();
-        if artifact.is_some() {
-            self.hits.update(|x| x + 1);
-        }
+        let artifact = artifacts.get(key.0.as_bytes()).unwrap()?;
 
+        self.hits.update(|x| x + 1);
         println!(
             "rate: {}",
             self.hits.get() as f32 / self.queries.get() as f32
         );
 
-        artifact.map(|x| Cow::Owned(x.to_vec()))
+        // decompress
+        let count = self
+            .decompressor
+            .decompress_to_buffer(&artifact, &mut self.temp_buffer)
+            .unwrap();
+        let decompressed = self.temp_buffer[..count].to_owned();
+
+        // deserialize
+        let cursor = Cursor::new(decompressed);
+        let deserialized =
+            ciborium::from_reader_with_buffer(cursor, &mut self.temp_buffer).unwrap();
+
+        Some(deserialized)
     }
 
-    fn insert(&mut self, key: &[u8], val: Vec<u8>) {
+    pub fn insert(&mut self, key: CompiledKey, compiled: &Compiled) {
         let artifacts = self
             .db
             .keyspace("artifacts", KeyspaceCreateOptions::default)
             .unwrap();
 
-        artifacts.insert(key, val).unwrap();
+        // serialize
+        let mut serialized = vec![];
+        ciborium::into_writer(&compiled, &mut serialized).unwrap();
+
+        // compress
+        let compressed = self.compressor.compress(&serialized).unwrap();
+        artifacts.insert(key.0.as_bytes(), compressed).unwrap();
 
         self.pending += 1;
         if self.pending >= 256 {
