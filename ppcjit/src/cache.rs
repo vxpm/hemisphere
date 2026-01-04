@@ -7,6 +7,8 @@ use std::{
 use twox_hash::XxHash3_128;
 use zerocopy::IntoBytes;
 
+use crate::Compiled;
+
 struct Hash128(XxHash3_128);
 
 impl Hasher for Hash128 {
@@ -21,9 +23,9 @@ impl Hasher for Hash128 {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct FuncHash(u128);
+pub struct CompiledHash(u128);
 
-impl FuncHash {
+impl CompiledHash {
     pub fn new(isa: &dyn TargetIsa, stencil: &ir::function::FunctionStencil) -> Self {
         let mut hasher = Hash128(twox_hash::XxHash3_128::with_seed(0));
         isa.name().hash(&mut hasher);
@@ -65,7 +67,7 @@ impl Cache {
         }
     }
 
-    pub fn get(&mut self, hash: FuncHash) -> Option<Vec<u8>> {
+    pub fn get(&mut self, hash: CompiledHash) -> Option<Compiled> {
         self.queries += 1;
         let artifacts = self
             .db
@@ -84,17 +86,18 @@ impl Cache {
         }
 
         println!("rate: {}", self.hits as f32 / self.queries as f32);
-
-        artifact.map(|x| x.to_vec())
+        let artifact = artifact?;
+        postcard::from_bytes(&artifact).unwrap()
     }
 
-    pub fn insert(&mut self, hash: FuncHash, code: &[u8]) {
+    pub fn insert(&mut self, hash: CompiledHash, compiled: Compiled) {
         let artifacts = self
             .db
             .keyspace("artifacts", KeyspaceCreateOptions::default)
             .unwrap();
 
-        artifacts.insert(hash.0.as_bytes(), code).unwrap();
+        let serialized = postcard::to_stdvec(&compiled).unwrap();
+        artifacts.insert(hash.0.as_bytes(), serialized).unwrap();
         println!("inserted {hash:?}");
 
         self.inserted += 1;

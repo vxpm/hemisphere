@@ -139,6 +139,7 @@ pub struct BlockBuilder<'ctx> {
     executed_cycles: u32,
     executed_instructions: u32,
 
+    link_index: u32,
     last_updated_cycles: u32,
     last_updated_instructions: u32,
 
@@ -210,6 +211,7 @@ impl<'ctx> BlockBuilder<'ctx> {
             consts,
             current_bb: entry_bb,
 
+            link_index: 0,
             executed_cycles: 0,
             executed_instructions: 0,
 
