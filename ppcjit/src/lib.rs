@@ -325,9 +325,39 @@ impl Jit {
             match name.namespace {
                 0 => {
                     // hooks
-                    // let ptr = match name.index {
-                    //     0 =>
-                    // }
+                    let addr = match name.index {
+                        0 => self.compiler.hooks.follow_link as usize,
+                        1 => self.compiler.hooks.try_link as usize,
+                        2 => self.compiler.hooks.read_i8 as usize,
+                        3 => self.compiler.hooks.read_i16 as usize,
+                        4 => self.compiler.hooks.read_i32 as usize,
+                        5 => self.compiler.hooks.read_i64 as usize,
+                        6 => self.compiler.hooks.write_i8 as usize,
+                        7 => self.compiler.hooks.write_i16 as usize,
+                        8 => self.compiler.hooks.write_i32 as usize,
+                        9 => self.compiler.hooks.write_i64 as usize,
+                        10 => self.compiler.hooks.read_quantized as usize,
+                        11 => self.compiler.hooks.write_quantized as usize,
+                        12 => self.compiler.hooks.invalidate_icache as usize,
+                        13 => self.compiler.hooks.cache_dma as usize,
+                        14 => self.compiler.hooks.msr_changed as usize,
+                        15 => self.compiler.hooks.ibat_changed as usize,
+                        16 => self.compiler.hooks.dbat_changed as usize,
+                        17 => self.compiler.hooks.tb_read as usize,
+                        18 => self.compiler.hooks.tb_changed as usize,
+                        19 => self.compiler.hooks.dec_read as usize,
+                        20 => self.compiler.hooks.dec_changed as usize,
+                        _ => unreachable!(),
+                    };
+
+                    match reloc.kind {
+                        Reloc::Abs8 => {
+                            let base = reloc.offset;
+                            code[base as usize..][..size_of::<usize>()]
+                                .copy_from_slice(&addr.to_ne_bytes());
+                        }
+                        _ => todo!("relocation kind {:?}", reloc.kind),
+                    }
                 }
                 1 => {
                     // link data
@@ -347,7 +377,7 @@ impl Jit {
                             code[base as usize..][..size_of::<usize>()]
                                 .copy_from_slice(&link_data_addr.to_ne_bytes());
                         }
-                        _ => todo!("relocation kind"),
+                        _ => todo!("relocation kind {:?}", reloc.kind),
                     }
                 }
                 _ => unreachable!(),
