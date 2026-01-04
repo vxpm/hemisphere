@@ -21,5 +21,3 @@ cranelift-codegen.workspace = true
 twox-hash.workspace = true
 
 fjall = "3"
-postcard = { version = "1", features = ["use-std"] }
-serde = { version = "1", features = ["derive"] }

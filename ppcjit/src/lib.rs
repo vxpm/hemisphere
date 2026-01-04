@@ -12,7 +12,7 @@ pub mod hooks;
 use crate::{
     block::{BlockFn, Info, LinkData, Meta, Trampoline},
     builder::BlockBuilder,
-    cache::{Cache, CompiledHash},
+    cache::Cache,
     hooks::{Context, Hooks},
     module::Module,
     unwind::UnwindHandle,
@@ -28,7 +28,6 @@ use cranelift::{
 use cranelift_codegen::FinalizedMachReloc;
 use easyerr::{Error, ResultExt};
 use gekko::disasm::Ins;
-use serde::{Deserialize, Serialize};
 use std::{alloc::Layout, path::PathBuf, ptr::NonNull, sync::Arc};
 
 pub use block::Block;
@@ -213,7 +212,6 @@ struct Translated {
     cycles: u32,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
 struct Compiled {
     code: Vec<u8>,
     relocs: Vec<FinalizedMachReloc>,
@@ -272,28 +270,26 @@ impl Jit {
         })
     }
 
-    fn compile_or_get_cached(&mut self, func: ir::Function) -> Result<Compiled, BuildError> {
-        let func_hash = CompiledHash::new(&*self.compiler.isa, &func.stencil);
-        if let Some(cached) = self.cache.get(func_hash) {
-            return Ok(cached);
-        }
-
+    /// Compiles a cranelift function.
+    fn compile(&mut self, func: ir::Function) -> Result<Compiled, BuildError> {
         self.code_ctx.clear();
         self.code_ctx.func = func;
         self.code_ctx
-            .compile(&*self.compiler.isa, &mut Default::default())
+            .compile_with_cache(
+                &*self.compiler.isa,
+                &mut self.cache,
+                &mut Default::default(),
+            )
             .unwrap();
 
         let code = self.code_ctx.take_compiled_code().unwrap();
         let unwind = code.create_unwind_info(&*self.compiler.isa).ok().flatten();
-        let compiled = Compiled {
+
+        Ok(Compiled {
             code: code.code_buffer().to_owned(),
             relocs: code.buffer.relocs().to_owned(),
             unwind,
-        };
-        self.cache.insert(func_hash, compiled.clone());
-
-        Ok(compiled)
+        })
     }
 
     /// Builds a block with the given instructions (up until a terminal instruction or the end of
@@ -309,8 +305,7 @@ impl Jit {
             seq: translated.sequence.clone(),
         };
 
-        // compile or get from cache
-        let compiled = self.compile_or_get_cached(translated.func)?;
+        let compiled = self.compile(translated.func)?;
         let mut code = compiled.code;
 
         // patch relocations
