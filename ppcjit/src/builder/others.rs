@@ -81,7 +81,7 @@ impl BlockBuilder<'_> {
         match spr {
             SPR::DEC => self.call_generic_hook(self.hooks.dec_changed),
             SPR::TBL | SPR::TBU => self.call_generic_hook(self.hooks.tb_changed),
-            SPR::DMAL | SPR::DMAU => self.call_generic_hook(self.hooks.cache_dma),
+            SPR::DMAL | SPR::DMAU => self.call_generic_hook(self.hooks.dcache_dma),
             SPR::WPAR => tracing::warn!("write to WPAR"),
             spr if spr.is_data_bat() => self.dbat_changed = true,
             spr if spr.is_instr_bat() => self.ibat_changed = true,
@@ -416,7 +416,7 @@ impl BlockBuilder<'_> {
 
         self.bd
             .ins()
-            .call(self.hooks.invalidate_icache, &[self.consts.ctx_ptr, addr]);
+            .call(self.hooks.inv_icache, &[self.consts.ctx_ptr, addr]);
 
         INV_ICACHE_INFO
     }

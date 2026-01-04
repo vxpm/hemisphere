@@ -13,7 +13,7 @@ use crate::{
     block::{BlockFn, Info, LinkData, Meta, Trampoline},
     builder::BlockBuilder,
     cache::Cache,
-    hooks::{Context, Hooks},
+    hooks::{Context, HookKind, Hooks},
     module::Module,
     unwind::UnwindHandle,
 };
@@ -45,19 +45,6 @@ pub struct Settings {
 
 pub const FASTMEM_LUT_COUNT: usize = 1 << 15;
 pub type FastmemLut = [Option<NonNull<u8>>; FASTMEM_LUT_COUNT];
-
-// fn empty_fastmem() -> NonNull<FastmemLut> {
-//     #[derive(Clone, Copy)]
-//     #[repr(transparent)]
-//     struct SendSyncWrapper(*mut u8);
-//     unsafe impl Send for SendSyncWrapper {}
-//     unsafe impl Sync for SendSyncWrapper {}
-//
-//     static EMPTY_FASTMEM_LUT: [SendSyncWrapper; FASTMEM_LUT_COUNT] =
-//         [SendSyncWrapper(std::ptr::null_mut()); FASTMEM_LUT_COUNT];
-//
-//     NonNull::new((&raw const EMPTY_FASTMEM_LUT).cast_mut().cast()).unwrap()
-// }
 
 struct Compiler {
     settings: Settings,
@@ -325,29 +312,31 @@ impl Jit {
             match name.namespace {
                 0 => {
                     // hooks
-                    let addr = match name.index {
-                        0 => self.compiler.hooks.follow_link as usize,
-                        1 => self.compiler.hooks.try_link as usize,
-                        2 => self.compiler.hooks.read_i8 as usize,
-                        3 => self.compiler.hooks.read_i16 as usize,
-                        4 => self.compiler.hooks.read_i32 as usize,
-                        5 => self.compiler.hooks.read_i64 as usize,
-                        6 => self.compiler.hooks.write_i8 as usize,
-                        7 => self.compiler.hooks.write_i16 as usize,
-                        8 => self.compiler.hooks.write_i32 as usize,
-                        9 => self.compiler.hooks.write_i64 as usize,
-                        10 => self.compiler.hooks.read_quantized as usize,
-                        11 => self.compiler.hooks.write_quantized as usize,
-                        12 => self.compiler.hooks.invalidate_icache as usize,
-                        13 => self.compiler.hooks.cache_dma as usize,
-                        14 => self.compiler.hooks.msr_changed as usize,
-                        15 => self.compiler.hooks.ibat_changed as usize,
-                        16 => self.compiler.hooks.dbat_changed as usize,
-                        17 => self.compiler.hooks.tb_read as usize,
-                        18 => self.compiler.hooks.tb_changed as usize,
-                        19 => self.compiler.hooks.dec_read as usize,
-                        20 => self.compiler.hooks.dec_changed as usize,
-                        _ => unreachable!(),
+                    let hook_kind = HookKind::from_repr(name.index).unwrap();
+                    let addr = match hook_kind {
+                        HookKind::GetRegisters => self.compiler.hooks.get_registers as usize,
+                        HookKind::GetFastmem => self.compiler.hooks.get_fastmem as usize,
+                        HookKind::FollowLink => self.compiler.hooks.follow_link as usize,
+                        HookKind::TryLink => self.compiler.hooks.try_link as usize,
+                        HookKind::ReadI8 => self.compiler.hooks.read_i8 as usize,
+                        HookKind::ReadI16 => self.compiler.hooks.read_i16 as usize,
+                        HookKind::ReadI32 => self.compiler.hooks.read_i32 as usize,
+                        HookKind::ReadI64 => self.compiler.hooks.read_i64 as usize,
+                        HookKind::WriteI8 => self.compiler.hooks.write_i8 as usize,
+                        HookKind::WriteI16 => self.compiler.hooks.write_i16 as usize,
+                        HookKind::WriteI32 => self.compiler.hooks.write_i32 as usize,
+                        HookKind::WriteI64 => self.compiler.hooks.write_i64 as usize,
+                        HookKind::ReadQuant => self.compiler.hooks.read_quantized as usize,
+                        HookKind::WriteQuant => self.compiler.hooks.write_quantized as usize,
+                        HookKind::InvICache => self.compiler.hooks.invalidate_icache as usize,
+                        HookKind::DCacheDma => self.compiler.hooks.dcache_dma as usize,
+                        HookKind::MsrChanged => self.compiler.hooks.msr_changed as usize,
+                        HookKind::IBatChanged => self.compiler.hooks.ibat_changed as usize,
+                        HookKind::DBatChanged => self.compiler.hooks.dbat_changed as usize,
+                        HookKind::TbRead => self.compiler.hooks.tb_read as usize,
+                        HookKind::TbChanged => self.compiler.hooks.tb_changed as usize,
+                        HookKind::DecRead => self.compiler.hooks.dec_read as usize,
+                        HookKind::DecChanged => self.compiler.hooks.dec_changed as usize,
                     };
 
                     match reloc.kind {

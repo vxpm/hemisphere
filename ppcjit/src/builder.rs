@@ -8,7 +8,12 @@ mod memory;
 mod others;
 mod util;
 
-use crate::{Compiler, Sequence, block::Info, builder::util::IntoIrValue, hooks::Hooks};
+use crate::{
+    Compiler, Sequence,
+    block::Info,
+    builder::util::IntoIrValue,
+    hooks::{HookKind, Hooks},
+};
 use cranelift::{codegen::ir, frontend, prelude::InstBuilder};
 use easyerr::Error;
 use gekko::{
@@ -111,10 +116,10 @@ struct HookFuncs {
     write_i64: ir::FuncRef,
     read_quant: ir::FuncRef,
     write_quant: ir::FuncRef,
-    invalidate_icache: ir::FuncRef,
+    inv_icache: ir::FuncRef,
 
     // generic
-    cache_dma: ir::FuncRef,
+    dcache_dma: ir::FuncRef,
     msr_changed: ir::FuncRef,
     ibat_changed: ir::FuncRef,
     dbat_changed: ir::FuncRef,
@@ -207,10 +212,10 @@ impl<'ctx> BlockBuilder<'ctx> {
             raise_exception: builder.import_signature(exception::raise_exception_sig(ptr_type)),
         };
 
-        let mut hook = |sig, id| {
+        let mut hook = |sig, kind| {
             let name = builder
                 .func
-                .declare_imported_user_function(ir::UserExternalName::new(0, id));
+                .declare_imported_user_function(ir::UserExternalName::new(0, kind as u32));
 
             builder.import_function(ir::ExtFuncData {
                 name: ir::ExternalName::User(name),
@@ -220,27 +225,27 @@ impl<'ctx> BlockBuilder<'ctx> {
         };
 
         let hooks = HookFuncs {
-            follow_link: hook(sigs.follow_link_hook, 0),
-            try_link: hook(sigs.try_link_hook, 1),
-            read_i8: hook(sigs.read_i8_hook, 2),
-            read_i16: hook(sigs.read_i16_hook, 3),
-            read_i32: hook(sigs.read_i32_hook, 4),
-            read_i64: hook(sigs.read_i64_hook, 5),
-            write_i8: hook(sigs.write_i8_hook, 6),
-            write_i16: hook(sigs.write_i16_hook, 7),
-            write_i32: hook(sigs.write_i32_hook, 8),
-            write_i64: hook(sigs.write_i64_hook, 9),
-            read_quant: hook(sigs.read_quant_hook, 10),
-            write_quant: hook(sigs.write_quant_hook, 11),
-            invalidate_icache: hook(sigs.invalidate_icache_hook, 12),
-            cache_dma: hook(sigs.generic_hook, 13),
-            msr_changed: hook(sigs.generic_hook, 14),
-            ibat_changed: hook(sigs.generic_hook, 15),
-            dbat_changed: hook(sigs.generic_hook, 16),
-            tb_read: hook(sigs.generic_hook, 17),
-            tb_changed: hook(sigs.generic_hook, 18),
-            dec_read: hook(sigs.generic_hook, 19),
-            dec_changed: hook(sigs.generic_hook, 20),
+            follow_link: hook(sigs.follow_link_hook, HookKind::FollowLink),
+            try_link: hook(sigs.try_link_hook, HookKind::TryLink),
+            read_i8: hook(sigs.read_i8_hook, HookKind::ReadI8),
+            read_i16: hook(sigs.read_i16_hook, HookKind::ReadI16),
+            read_i32: hook(sigs.read_i32_hook, HookKind::ReadI32),
+            read_i64: hook(sigs.read_i64_hook, HookKind::ReadI64),
+            write_i8: hook(sigs.write_i8_hook, HookKind::WriteI8),
+            write_i16: hook(sigs.write_i16_hook, HookKind::WriteI16),
+            write_i32: hook(sigs.write_i32_hook, HookKind::WriteI32),
+            write_i64: hook(sigs.write_i64_hook, HookKind::WriteI64),
+            read_quant: hook(sigs.read_quant_hook, HookKind::ReadQuant),
+            write_quant: hook(sigs.write_quant_hook, HookKind::WriteQuant),
+            inv_icache: hook(sigs.invalidate_icache_hook, HookKind::InvICache),
+            dcache_dma: hook(sigs.generic_hook, HookKind::DCacheDma),
+            msr_changed: hook(sigs.generic_hook, HookKind::MsrChanged),
+            ibat_changed: hook(sigs.generic_hook, HookKind::IBatChanged),
+            dbat_changed: hook(sigs.generic_hook, HookKind::DBatChanged),
+            tb_read: hook(sigs.generic_hook, HookKind::TbRead),
+            tb_changed: hook(sigs.generic_hook, HookKind::TbChanged),
+            dec_read: hook(sigs.generic_hook, HookKind::DecRead),
+            dec_changed: hook(sigs.generic_hook, HookKind::DecChanged),
         };
 
         let consts = Consts {

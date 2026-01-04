@@ -411,7 +411,7 @@ const CTX_HOOKS: Hooks = {
         }
     }
 
-    extern "sysv64-unwind" fn cache_dma(ctx: &mut Context) {
+    extern "sysv64-unwind" fn dcache_dma(ctx: &mut Context) {
         let dma = ctx.sys.cpu.supervisor.config.dma.clone();
 
         if dma.lower.trigger() {
@@ -528,7 +528,7 @@ const CTX_HOOKS: Hooks = {
 
         let invalidate_icache =
             transmute::<_, InvalidateICache>(invalidate_icache as extern "sysv64-unwind" fn(_, _));
-        let cache_dma = transmute::<_, GenericHook>(cache_dma as extern "sysv64-unwind" fn(_));
+        let dcache_dma = transmute::<_, GenericHook>(dcache_dma as extern "sysv64-unwind" fn(_));
 
         let msr_changed = transmute::<_, GenericHook>(msr_changed as extern "sysv64-unwind" fn(_));
 
@@ -562,7 +562,7 @@ const CTX_HOOKS: Hooks = {
             write_quantized,
 
             invalidate_icache,
-            cache_dma,
+            dcache_dma,
 
             msr_changed,
 

@@ -4,6 +4,7 @@ use crate::{
 };
 use cranelift::{codegen::ir, prelude::isa};
 use gekko::{Address, Cpu};
+use strum::FromRepr;
 
 pub type Context = std::ffi::c_void;
 
@@ -22,6 +23,34 @@ pub type WriteQuantizedHook = extern "sysv64-unwind" fn(*mut Context, Address, u
 pub type InvalidateICache = extern "sysv64-unwind" fn(*mut Context, Address);
 
 pub type GenericHook = extern "sysv64-unwind" fn(*mut Context);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, FromRepr)]
+#[repr(u32)]
+pub enum HookKind {
+    GetRegisters,
+    GetFastmem,
+    FollowLink,
+    TryLink,
+    ReadI8,
+    ReadI16,
+    ReadI32,
+    ReadI64,
+    WriteI8,
+    WriteI16,
+    WriteI32,
+    WriteI64,
+    ReadQuant,
+    WriteQuant,
+    InvICache,
+    DCacheDma,
+    MsrChanged,
+    IBatChanged,
+    DBatChanged,
+    TbRead,
+    TbChanged,
+    DecRead,
+    DecChanged,
+}
 
 /// External functions that JITed code calls.
 pub struct Hooks {
@@ -50,7 +79,7 @@ pub struct Hooks {
 
     // cache
     pub invalidate_icache: InvalidateICache,
-    pub cache_dma: GenericHook,
+    pub dcache_dma: GenericHook,
 
     // msr
     pub msr_changed: GenericHook,

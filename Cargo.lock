@@ -3815,6 +3815,7 @@ dependencies = [
  "gekko",
  "jitalloc",
  "rustc-hash 2.1.1",
+ "strum",
  "tracing",
  "twox-hash",
  "zerocopy",
