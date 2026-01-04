@@ -1,108 +1,75 @@
 use super::BlockBuilder;
-use crate::{
-    builder::{Action, InstructionInfo, MEMFLAGS, MEMFLAGS_READONLY},
-    hooks::{ReadHook, WriteHook},
-};
+use crate::builder::{Action, InstructionInfo, MEMFLAGS, MEMFLAGS_READONLY};
 use cranelift::{codegen::ir, prelude::InstBuilder};
 use gekko::{Exception, GPR, InsExt, Reg, SPR, disasm::Ins};
 
 pub trait ReadWriteAble {
     const IR_TYPE: ir::Type;
-    fn read_hook(builder: &BlockBuilder) -> (ir::SigRef, ReadHook<Self>);
-    fn write_hook(builder: &BlockBuilder) -> (ir::SigRef, WriteHook<Self>);
+    fn read_hook(builder: &BlockBuilder) -> ir::FuncRef;
+    fn write_hook(builder: &BlockBuilder) -> ir::FuncRef;
 }
 
 impl ReadWriteAble for i8 {
     const IR_TYPE: ir::Type = ir::types::I8;
 
-    fn read_hook(builder: &BlockBuilder) -> (ir::SigRef, ReadHook<Self>) {
-        (
-            builder.consts.signatures.read_i8_hook,
-            builder.compiler.hooks.read_i8,
-        )
+    fn read_hook(builder: &BlockBuilder) -> ir::FuncRef {
+        builder.hooks.read_i8
     }
 
-    fn write_hook(builder: &BlockBuilder) -> (ir::SigRef, WriteHook<Self>) {
-        (
-            builder.consts.signatures.write_i8_hook,
-            builder.compiler.hooks.write_i8,
-        )
+    fn write_hook(builder: &BlockBuilder) -> ir::FuncRef {
+        builder.hooks.write_i8
     }
 }
 
 impl ReadWriteAble for i16 {
     const IR_TYPE: ir::Type = ir::types::I16;
 
-    fn read_hook(builder: &BlockBuilder) -> (ir::SigRef, ReadHook<Self>) {
-        (
-            builder.consts.signatures.read_i16_hook,
-            builder.compiler.hooks.read_i16,
-        )
+    fn read_hook(builder: &BlockBuilder) -> ir::FuncRef {
+        builder.hooks.read_i16
     }
 
-    fn write_hook(builder: &BlockBuilder) -> (ir::SigRef, WriteHook<Self>) {
-        (
-            builder.consts.signatures.write_i16_hook,
-            builder.compiler.hooks.write_i16,
-        )
+    fn write_hook(builder: &BlockBuilder) -> ir::FuncRef {
+        builder.hooks.write_i16
     }
 }
 
 impl ReadWriteAble for i32 {
     const IR_TYPE: ir::Type = ir::types::I32;
 
-    fn read_hook(builder: &BlockBuilder) -> (ir::SigRef, ReadHook<Self>) {
-        (
-            builder.consts.signatures.read_i32_hook,
-            builder.compiler.hooks.read_i32,
-        )
+    fn read_hook(builder: &BlockBuilder) -> ir::FuncRef {
+        builder.hooks.read_i32
     }
 
-    fn write_hook(builder: &BlockBuilder) -> (ir::SigRef, WriteHook<Self>) {
-        (
-            builder.consts.signatures.write_i32_hook,
-            builder.compiler.hooks.write_i32,
-        )
+    fn write_hook(builder: &BlockBuilder) -> ir::FuncRef {
+        builder.hooks.write_i32
     }
 }
 
 impl ReadWriteAble for i64 {
     const IR_TYPE: ir::Type = ir::types::I64;
 
-    fn read_hook(builder: &BlockBuilder) -> (ir::SigRef, ReadHook<Self>) {
-        (
-            builder.consts.signatures.read_i64_hook,
-            builder.compiler.hooks.read_i64,
-        )
+    fn read_hook(builder: &BlockBuilder) -> ir::FuncRef {
+        builder.hooks.read_i64
     }
 
-    fn write_hook(builder: &BlockBuilder) -> (ir::SigRef, WriteHook<Self>) {
-        (
-            builder.consts.signatures.write_i64_hook,
-            builder.compiler.hooks.write_i64,
-        )
+    fn write_hook(builder: &BlockBuilder) -> ir::FuncRef {
+        builder.hooks.write_i64
     }
 }
 
 /// Helpers
 impl BlockBuilder<'_> {
     pub fn slow_mem_read<P: ReadWriteAble>(&mut self, addr: ir::Value) -> ir::Value {
-        let (sig, func) = P::read_hook(self);
-        let read_fn = self
-            .bd
-            .ins()
-            .iconst(self.consts.ptr_type, func as usize as i64);
-
+        let func = P::read_hook(self);
         let stack_slot_addr =
             self.bd
                 .ins()
                 .stack_addr(self.consts.ptr_type, self.consts.read_stack_slot, 0);
 
-        let inst = self.bd.ins().call_indirect(
-            sig,
-            read_fn,
-            &[self.consts.ctx_ptr, addr, stack_slot_addr],
-        );
+        let inst = self
+            .bd
+            .ins()
+            .call(func, &[self.consts.ctx_ptr, addr, stack_slot_addr]);
 
         let success = self.bd.inst_results(inst)[0];
         let exit_block = self.bd.create_block();
@@ -128,16 +95,11 @@ impl BlockBuilder<'_> {
     }
 
     pub fn slow_mem_write<P: ReadWriteAble>(&mut self, addr: ir::Value, value: ir::Value) {
-        let (sig, func) = P::write_hook(self);
-        let write_fn = self
-            .bd
-            .ins()
-            .iconst(self.consts.ptr_type, func as usize as i64);
-
+        let func = P::write_hook(self);
         let inst = self
             .bd
             .ins()
-            .call_indirect(sig, write_fn, &[self.consts.ctx_ptr, addr, value]);
+            .call(func, &[self.consts.ctx_ptr, addr, value]);
 
         let success = self.bd.inst_results(inst)[0];
         let exit_block = self.bd.create_block();
@@ -254,20 +216,14 @@ impl BlockBuilder<'_> {
 
     /// Reads a quantized value. Returns the value and the type size.
     fn read_quantized(&mut self, addr: ir::Value, gqr: ir::Value) -> (ir::Value, ir::Value) {
-        let read_fn = self.bd.ins().iconst(
-            self.consts.ptr_type,
-            self.compiler.hooks.read_quantized as usize as i64,
-        );
-
         let stack_slot_addr =
             self.bd
                 .ins()
                 .stack_addr(self.consts.ptr_type, self.consts.read_stack_slot, 0);
 
         // NOTE: maybe flush to ensure GQRs are up to date?
-        let inst = self.bd.ins().call_indirect(
-            self.consts.signatures.read_quant_hook,
-            read_fn,
+        let inst = self.bd.ins().call(
+            self.hooks.read_quant,
             &[self.consts.ctx_ptr, addr, gqr, stack_slot_addr],
         );
 
@@ -299,15 +255,9 @@ impl BlockBuilder<'_> {
 
     /// Writes a quantized value. Returns the type size.
     fn write_quantized(&mut self, addr: ir::Value, gqr: ir::Value, value: ir::Value) -> ir::Value {
-        let write_fn = self.bd.ins().iconst(
-            self.consts.ptr_type,
-            self.compiler.hooks.write_quantized as usize as i64,
-        );
-
         // NOTE: maybe flush to ensure GQRs are up to date?
-        let inst = self.bd.ins().call_indirect(
-            self.consts.signatures.write_quant_hook,
-            write_fn,
+        let inst = self.bd.ins().call(
+            self.hooks.write_quant,
             &[self.consts.ctx_ptr, addr, gqr, value],
         );
 

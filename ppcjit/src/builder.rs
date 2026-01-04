@@ -8,17 +8,8 @@ mod memory;
 mod others;
 mod util;
 
-use crate::{
-    Compiler, Sequence,
-    block::Info,
-    builder::util::IntoIrValue,
-    hooks::{GenericHook, Hooks},
-};
-use cranelift::{
-    codegen::ir::{self, SigRef},
-    frontend,
-    prelude::InstBuilder,
-};
+use crate::{Compiler, Sequence, block::Info, builder::util::IntoIrValue, hooks::Hooks};
+use cranelift::{codegen::ir, frontend, prelude::InstBuilder};
 use easyerr::Error;
 use gekko::{
     FPR, Reg, SPR,
@@ -87,24 +78,50 @@ pub(crate) struct InstructionInfo {
 }
 
 struct Signatures {
-    block: SigRef,
+    block: ir::SigRef,
 
-    follow_link_hook: SigRef,
-    try_link_hook: SigRef,
-    read_i8_hook: SigRef,
-    read_i16_hook: SigRef,
-    read_i32_hook: SigRef,
-    read_i64_hook: SigRef,
-    write_i8_hook: SigRef,
-    write_i16_hook: SigRef,
-    write_i32_hook: SigRef,
-    write_i64_hook: SigRef,
-    read_quant_hook: SigRef,
-    write_quant_hook: SigRef,
-    invalidate_icache_hook: SigRef,
-    generic_hook: SigRef,
+    follow_link_hook: ir::SigRef,
+    try_link_hook: ir::SigRef,
+    read_i8_hook: ir::SigRef,
+    read_i16_hook: ir::SigRef,
+    read_i32_hook: ir::SigRef,
+    read_i64_hook: ir::SigRef,
+    write_i8_hook: ir::SigRef,
+    write_i16_hook: ir::SigRef,
+    write_i32_hook: ir::SigRef,
+    write_i64_hook: ir::SigRef,
+    read_quant_hook: ir::SigRef,
+    write_quant_hook: ir::SigRef,
+    invalidate_icache_hook: ir::SigRef,
+    generic_hook: ir::SigRef,
 
-    raise_exception: SigRef,
+    raise_exception: ir::SigRef,
+}
+
+struct HookFuncs {
+    follow_link: ir::FuncRef,
+    try_link: ir::FuncRef,
+    read_i8: ir::FuncRef,
+    read_i16: ir::FuncRef,
+    read_i32: ir::FuncRef,
+    read_i64: ir::FuncRef,
+    write_i8: ir::FuncRef,
+    write_i16: ir::FuncRef,
+    write_i32: ir::FuncRef,
+    write_i64: ir::FuncRef,
+    read_quant: ir::FuncRef,
+    write_quant: ir::FuncRef,
+    invalidate_icache: ir::FuncRef,
+
+    // generic
+    cache_dma: ir::FuncRef,
+    msr_changed: ir::FuncRef,
+    ibat_changed: ir::FuncRef,
+    dbat_changed: ir::FuncRef,
+    tb_read: ir::FuncRef,
+    tb_changed: ir::FuncRef,
+    dec_read: ir::FuncRef,
+    dec_changed: ir::FuncRef,
 }
 
 /// Constants used through block building.
@@ -117,7 +134,6 @@ struct Consts {
     fmem_ptr: ir::Value,
 
     read_stack_slot: ir::StackSlot,
-
     signatures: Signatures,
 }
 
@@ -134,6 +150,7 @@ pub struct BlockBuilder<'ctx> {
     cache: FxHashMap<Reg, CachedValue>,
     ps_cache: FxHashMap<FPR, CachedValue>,
     consts: Consts,
+    hooks: HookFuncs,
     current_bb: ir::Block,
 
     executed_cycles: u32,
@@ -168,7 +185,7 @@ impl<'ctx> BlockBuilder<'ctx> {
         let regs_ptr = params[2];
         let fmem_ptr = params[3];
 
-        let signatures = Signatures {
+        let sigs = Signatures {
             block: builder.import_signature(builder.func.signature.clone()),
 
             follow_link_hook: builder.import_signature(Hooks::follow_link_sig(ptr_type)),
@@ -190,6 +207,42 @@ impl<'ctx> BlockBuilder<'ctx> {
             raise_exception: builder.import_signature(exception::raise_exception_sig(ptr_type)),
         };
 
+        let mut hook = |sig, id| {
+            let name = builder
+                .func
+                .declare_imported_user_function(ir::UserExternalName::new(0, id));
+
+            builder.import_function(ir::ExtFuncData {
+                name: ir::ExternalName::User(name),
+                signature: sig,
+                colocated: false,
+            })
+        };
+
+        let hooks = HookFuncs {
+            follow_link: hook(sigs.follow_link_hook, 0),
+            try_link: hook(sigs.try_link_hook, 1),
+            read_i8: hook(sigs.read_i8_hook, 2),
+            read_i16: hook(sigs.read_i16_hook, 3),
+            read_i32: hook(sigs.read_i32_hook, 4),
+            read_i64: hook(sigs.read_i64_hook, 5),
+            write_i8: hook(sigs.write_i8_hook, 6),
+            write_i16: hook(sigs.write_i16_hook, 7),
+            write_i32: hook(sigs.write_i32_hook, 8),
+            write_i64: hook(sigs.write_i64_hook, 9),
+            read_quant: hook(sigs.read_quant_hook, 10),
+            write_quant: hook(sigs.write_quant_hook, 11),
+            invalidate_icache: hook(sigs.invalidate_icache_hook, 12),
+            cache_dma: hook(sigs.generic_hook, 13),
+            msr_changed: hook(sigs.generic_hook, 14),
+            ibat_changed: hook(sigs.generic_hook, 15),
+            dbat_changed: hook(sigs.generic_hook, 16),
+            tb_read: hook(sigs.generic_hook, 17),
+            tb_changed: hook(sigs.generic_hook, 18),
+            dec_read: hook(sigs.generic_hook, 19),
+            dec_changed: hook(sigs.generic_hook, 20),
+        };
+
         let consts = Consts {
             ptr_type,
 
@@ -200,7 +253,7 @@ impl<'ctx> BlockBuilder<'ctx> {
 
             read_stack_slot,
 
-            signatures,
+            signatures: sigs,
         };
 
         Self {
@@ -209,6 +262,7 @@ impl<'ctx> BlockBuilder<'ctx> {
             cache: FxHashMap::default(),
             ps_cache: FxHashMap::default(),
             consts,
+            hooks,
             current_bb: entry_bb,
 
             link_index: 0,
@@ -375,17 +429,8 @@ impl<'ctx> BlockBuilder<'ctx> {
     }
 
     /// Calls a generic context hook.
-    fn call_generic_hook(&mut self, hook: GenericHook) {
-        let hook = self
-            .bd
-            .ins()
-            .iconst(self.consts.ptr_type, hook as usize as i64);
-
-        self.bd.ins().call_indirect(
-            self.consts.signatures.generic_hook,
-            hook,
-            &[self.consts.ctx_ptr],
-        );
+    fn call_generic_hook(&mut self, hook: ir::FuncRef) {
+        self.bd.ins().call(hook, &[self.consts.ctx_ptr]);
     }
 
     /// Flushes the register cache to the registers struct. This does not invalidate the register
@@ -478,11 +523,11 @@ impl<'ctx> BlockBuilder<'ctx> {
         self.update_info();
 
         if self.dbat_changed {
-            self.call_generic_hook(self.compiler.hooks.dbat_changed);
+            self.call_generic_hook(self.hooks.dbat_changed);
         }
 
         if self.ibat_changed {
-            self.call_generic_hook(self.compiler.hooks.ibat_changed);
+            self.call_generic_hook(self.hooks.ibat_changed);
         }
 
         self.bd.ins().return_(&[]);

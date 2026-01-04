@@ -25,7 +25,7 @@ use cranelift::{
         isa::{TargetIsa, unwind::UnwindInfo},
     },
 };
-use cranelift_codegen::FinalizedMachReloc;
+use cranelift_codegen::{FinalizedMachReloc, FinalizedRelocTarget};
 use easyerr::{Error, ResultExt};
 use gekko::disasm::Ins;
 use std::{alloc::Layout, path::PathBuf, ptr::NonNull, sync::Arc};
@@ -270,10 +270,8 @@ impl Jit {
         })
     }
 
-    /// Compiles a cranelift function.
-    fn compile(&mut self, func: ir::Function) -> Result<Compiled, BuildError> {
-        self.code_ctx.clear();
-        self.code_ctx.func = func;
+    /// Compiles a cranelift function in the code context.
+    fn compile(&mut self) -> Result<Compiled, BuildError> {
         self.code_ctx
             .compile_with_cache(
                 &*self.compiler.isa,
@@ -305,28 +303,54 @@ impl Jit {
             seq: translated.sequence.clone(),
         };
 
-        let compiled = self.compile(translated.func)?;
+        self.code_ctx.clear();
+        self.code_ctx.func = translated.func;
+
+        let compiled = self.compile()?;
         let mut code = compiled.code;
 
         // patch relocations
         for reloc in compiled.relocs {
-            match reloc.kind {
-                Reloc::Abs8 => {
-                    let base = reloc.offset;
-                    let link_data = self
-                        .compiler
-                        .module
-                        .allocate_data(Layout::new::<Option<LinkData>>());
+            let FinalizedRelocTarget::ExternalName(ext_name) = reloc.target else {
+                unreachable!()
+            };
 
-                    unsafe {
-                        link_data.as_ptr().cast::<Option<LinkData>>().write(None);
-                    }
+            let ir::ExternalName::User(name_ref) = ext_name else {
+                unreachable!()
+            };
 
-                    let link_data_addr = unsafe { link_data.as_ptr().addr().get() };
-                    code[base as usize..][..size_of::<usize>()]
-                        .copy_from_slice(&link_data_addr.to_ne_bytes());
+            let mapping = self.code_ctx.func.params.user_named_funcs();
+            let name = mapping.get(name_ref).unwrap();
+
+            match name.namespace {
+                0 => {
+                    // hooks
+                    // let ptr = match name.index {
+                    //     0 =>
+                    // }
                 }
-                _ => todo!("relocation kind"),
+                1 => {
+                    // link data
+                    match reloc.kind {
+                        Reloc::Abs8 => {
+                            let base = reloc.offset;
+                            let link_data = self
+                                .compiler
+                                .module
+                                .allocate_data(Layout::new::<Option<LinkData>>());
+
+                            unsafe {
+                                link_data.as_ptr().cast::<Option<LinkData>>().write(None);
+                            }
+
+                            let link_data_addr = unsafe { link_data.as_ptr().addr().get() };
+                            code[base as usize..][..size_of::<usize>()]
+                                .copy_from_slice(&link_data_addr.to_ne_bytes());
+                        }
+                        _ => todo!("relocation kind"),
+                    }
+                }
+                _ => unreachable!(),
             }
         }
 

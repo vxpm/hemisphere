@@ -52,7 +52,7 @@ impl BlockBuilder<'_> {
         let link_data_name = self
             .bd
             .func
-            .declare_imported_user_function(ir::UserExternalName::new(0, self.link_index));
+            .declare_imported_user_function(ir::UserExternalName::new(1, self.link_index));
         self.link_index += 1;
 
         let link_data = self.bd.create_global_value(ir::GlobalValueData::Symbol {
@@ -66,14 +66,8 @@ impl BlockBuilder<'_> {
         self.flush();
 
         let link_data_ptr = self.bd.ins().global_value(self.consts.ptr_type, link_data);
-        let follow_link_hook = self.bd.ins().iconst(
-            self.consts.ptr_type,
-            self.compiler.hooks.follow_link as usize as i64,
-        );
-
-        let inst = self.bd.ins().call_indirect(
-            self.consts.signatures.follow_link_hook,
-            follow_link_hook,
+        let inst = self.bd.ins().call(
+            self.hooks.follow_link,
             &[self.consts.info_ptr, self.consts.ctx_ptr, link_data_ptr],
         );
 
@@ -129,14 +123,8 @@ impl BlockBuilder<'_> {
         self.switch_to_bb(need_to_link);
 
         // call try link hook
-        let try_link_hook = self.bd.ins().iconst(
-            self.consts.ptr_type,
-            self.compiler.hooks.try_link as usize as i64,
-        );
-
-        self.bd.ins().call_indirect(
-            self.consts.signatures.try_link_hook,
-            try_link_hook,
+        self.bd.ins().call(
+            self.hooks.try_link,
             &[self.consts.ctx_ptr, destination, link_data_ptr],
         );
 

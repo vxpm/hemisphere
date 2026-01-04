@@ -115,7 +115,7 @@ impl BlockBuilder<'_> {
         self.set(Reg::PC, new_pc);
         self.set(Reg::MSR, new_msr);
 
-        self.call_generic_hook(self.compiler.hooks.msr_changed);
+        self.call_generic_hook(self.hooks.msr_changed);
 
         RFI_INFO
     }

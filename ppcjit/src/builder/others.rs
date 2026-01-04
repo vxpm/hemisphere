@@ -61,8 +61,8 @@ impl BlockBuilder<'_> {
     pub fn mfspr(&mut self, ins: Ins) -> InstructionInfo {
         let spr = ins.spr();
         match spr {
-            SPR::DEC => self.call_generic_hook(self.compiler.hooks.dec_read),
-            SPR::TBL | SPR::TBU => self.call_generic_hook(self.compiler.hooks.tb_read),
+            SPR::DEC => self.call_generic_hook(self.hooks.dec_read),
+            SPR::TBL | SPR::TBU => self.call_generic_hook(self.hooks.tb_read),
             SPR::WPAR => tracing::warn!("read from WPAR"),
             _ => (),
         }
@@ -79,9 +79,9 @@ impl BlockBuilder<'_> {
         self.set(spr, value);
 
         match spr {
-            SPR::DEC => self.call_generic_hook(self.compiler.hooks.dec_changed),
-            SPR::TBL | SPR::TBU => self.call_generic_hook(self.compiler.hooks.tb_changed),
-            SPR::DMAL | SPR::DMAU => self.call_generic_hook(self.compiler.hooks.cache_dma),
+            SPR::DEC => self.call_generic_hook(self.hooks.dec_changed),
+            SPR::TBL | SPR::TBU => self.call_generic_hook(self.hooks.tb_changed),
+            SPR::DMAL | SPR::DMAU => self.call_generic_hook(self.hooks.cache_dma),
             SPR::WPAR => tracing::warn!("write to WPAR"),
             spr if spr.is_data_bat() => self.dbat_changed = true,
             spr if spr.is_instr_bat() => self.ibat_changed = true,
@@ -120,7 +120,7 @@ impl BlockBuilder<'_> {
         let value = self.get(ins.gpr_s());
         self.set(Reg::MSR, value);
 
-        self.call_generic_hook(self.compiler.hooks.msr_changed);
+        self.call_generic_hook(self.hooks.msr_changed);
 
         MSR_INFO
     }
@@ -168,7 +168,7 @@ impl BlockBuilder<'_> {
     }
 
     pub fn mftb(&mut self, ins: Ins) -> InstructionInfo {
-        self.call_generic_hook(self.compiler.hooks.tb_read);
+        self.call_generic_hook(self.hooks.tb_read);
 
         let tb = match ins.field_tbr() {
             268 => SPR::TBL,
@@ -414,16 +414,9 @@ impl BlockBuilder<'_> {
             self.bd.ins().iadd(ra, rb)
         };
 
-        let invalidate_icache_fn = self.bd.ins().iconst(
-            self.consts.ptr_type,
-            self.compiler.hooks.invalidate_icache as usize as i64,
-        );
-
-        self.bd.ins().call_indirect(
-            self.consts.signatures.invalidate_icache_hook,
-            invalidate_icache_fn,
-            &[self.consts.ctx_ptr, addr],
-        );
+        self.bd
+            .ins()
+            .call(self.hooks.invalidate_icache, &[self.consts.ctx_ptr, addr]);
 
         INV_ICACHE_INFO
     }
