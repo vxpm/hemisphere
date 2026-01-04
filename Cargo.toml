@@ -152,6 +152,7 @@ bitvec = "1.0"
 bytesize = "2"
 clap = { version = "4.5", features = ["derive"] }
 cranelift = { version = "0.127", features = ["frontend", "native"] }
+cranelift-codegen = { version = "0.127", features = ["enable-serde"] }
 easyerr = "0.1"
 eyre-pretty = { git = "https://github.com/vxpm/eyre-pretty.git" }
 glam = { version = "0.30", features = ["zerocopy"] }

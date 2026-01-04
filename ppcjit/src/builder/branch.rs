@@ -1,12 +1,10 @@
-use std::alloc::Layout;
-
 use super::BlockBuilder;
-use crate::{
-    block::LinkData,
-    builder::{Action, InstructionInfo, MEMFLAGS, util::IntoIrValue},
-};
+use crate::builder::{Action, InstructionInfo, MEMFLAGS, util::IntoIrValue};
 use bitos::{bitos, integer::u5};
-use cranelift::{codegen::ir, prelude::InstBuilder};
+use cranelift::{
+    codegen::ir,
+    prelude::{Imm64, InstBuilder},
+};
 use gekko::{Reg, SPR, disasm::Ins};
 
 const UNCONDITIONAL_BRANCH_INFO: InstructionInfo = InstructionInfo {
@@ -51,24 +49,23 @@ impl BranchOptions {
 
 impl BlockBuilder<'_> {
     fn jump_with_block_link(&mut self, destination: ir::Value) {
-        // allocate some storage for the link data
-        let link_data = self
-            .compiler
-            .module
-            .allocate_data(Layout::new::<Option<LinkData>>());
+        let link_data_name = self
+            .bd
+            .func
+            .declare_imported_user_function(ir::UserExternalName::new(0, self.link_index));
+        self.link_index += 1;
 
-        // SAFETY: pointer is valid
-        unsafe { link_data.as_ptr().cast::<Option<LinkData>>().write(None) };
+        let link_data = self.bd.create_global_value(ir::GlobalValueData::Symbol {
+            name: ir::ExternalName::User(link_data_name),
+            offset: Imm64::new(0),
+            colocated: false,
+            tls: false,
+        });
 
         self.update_info();
         self.flush();
 
-        // call follow link hook
-        // SAFETY: allocator safety enforced by the contract of blocks
-        let link_data_ptr = self.bd.ins().iconst(self.consts.ptr_type, unsafe {
-            link_data.as_ptr().addr().get() as i64
-        });
-
+        let link_data_ptr = self.bd.ins().global_value(self.consts.ptr_type, link_data);
         let follow_link_hook = self.bd.ins().iconst(
             self.consts.ptr_type,
             self.compiler.hooks.follow_link as usize as i64,

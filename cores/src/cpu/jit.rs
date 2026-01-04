@@ -646,7 +646,7 @@ impl JitCore {
             Some(ins)
         });
 
-        let block = match self.compiler.compile(instructions) {
+        let block = match self.compiler.build(instructions) {
             Ok(b) => b,
             Err(e) => match &e {
                 ppcjit::BuildError::EmptyBlock => panic!("built empty block at pc {}", sys.cpu.pc),

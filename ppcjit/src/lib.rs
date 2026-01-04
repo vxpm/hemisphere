@@ -10,21 +10,26 @@ pub mod block;
 pub mod hooks;
 
 use crate::{
-    block::{BlockFn, Info, Meta, Trampoline},
+    block::{BlockFn, Info, LinkData, Meta, Trampoline},
     builder::BlockBuilder,
-    cache::{Cache, FuncHash},
+    cache::{Cache, CompiledHash},
     hooks::{Context, Hooks},
     module::Module,
     unwind::UnwindHandle,
 };
 use cranelift::{
-    codegen::{self, ir},
+    codegen::{self, binemit::Reloc, ir},
     frontend, native,
-    prelude::{Configurable, InstBuilder, isa::TargetIsa},
+    prelude::{
+        Configurable, InstBuilder,
+        isa::{TargetIsa, unwind::UnwindInfo},
+    },
 };
+use cranelift_codegen::FinalizedMachReloc;
 use easyerr::{Error, ResultExt};
 use gekko::disasm::Ins;
-use std::{path::PathBuf, ptr::NonNull, sync::Arc};
+use serde::{Deserialize, Serialize};
+use std::{alloc::Layout, path::PathBuf, ptr::NonNull, sync::Arc};
 
 pub use block::Block;
 pub use sequence::Sequence;
@@ -202,6 +207,19 @@ pub struct Jit {
     trampoline: Trampoline,
 }
 
+struct Translated {
+    func: ir::Function,
+    sequence: Sequence,
+    cycles: u32,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+struct Compiled {
+    code: Vec<u8>,
+    relocs: Vec<FinalizedMachReloc>,
+    unwind: Option<UnwindInfo>,
+}
+
 #[derive(Debug, Error)]
 pub enum BuildError {
     #[error("block contains no instructions")]
@@ -231,12 +249,11 @@ impl Jit {
         }
     }
 
-    /// Compiles a block with the given instructions (up until a terminal instruction or the end of
-    /// the iterator).
-    pub fn compile(
+    /// Translates a sequence of instructions into a cranelift function.
+    fn translate(
         &mut self,
         instructions: impl Iterator<Item = Ins>,
-    ) -> Result<Block, BuildError> {
+    ) -> Result<Translated, BuildError> {
         let mut func = ir::Function::new();
         func.signature = self.compiler.block_signature();
 
@@ -248,41 +265,78 @@ impl Jit {
             return Err(BuildError::EmptyBlock);
         }
 
-        // println!("{}", func.display());
-
-        let ir = cfg!(debug_assertions).then(|| func.display().to_string());
-        let meta = Meta {
-            pattern: sequence.detect_idle_loop(),
-            clir: ir,
+        Ok(Translated {
+            func,
+            sequence,
             cycles,
-            seq: sequence,
+        })
+    }
+
+    fn compile_or_get_cached(&mut self, func: ir::Function) -> Result<Compiled, BuildError> {
+        let func_hash = CompiledHash::new(&*self.compiler.isa, &func.stencil);
+        if let Some(cached) = self.cache.get(func_hash) {
+            return Ok(cached);
+        }
+
+        self.code_ctx.clear();
+        self.code_ctx.func = func;
+        self.code_ctx
+            .compile(&*self.compiler.isa, &mut Default::default())
+            .unwrap();
+
+        let code = self.code_ctx.take_compiled_code().unwrap();
+        let unwind = code.create_unwind_info(&*self.compiler.isa).ok().flatten();
+        let compiled = Compiled {
+            code: code.code_buffer().to_owned(),
+            relocs: code.buffer.relocs().to_owned(),
+            unwind,
+        };
+        self.cache.insert(func_hash, compiled.clone());
+
+        Ok(compiled)
+    }
+
+    /// Builds a block with the given instructions (up until a terminal instruction or the end of
+    /// the iterator).
+    pub fn build(&mut self, instructions: impl Iterator<Item = Ins>) -> Result<Block, BuildError> {
+        let translated = self.translate(instructions)?;
+
+        let ir = cfg!(debug_assertions).then(|| translated.func.display().to_string());
+        let meta = Meta {
+            pattern: translated.sequence.detect_idle_loop(),
+            clir: ir,
+            cycles: translated.cycles,
+            seq: translated.sequence.clone(),
         };
 
-        let func_hash = FuncHash::new(&*self.compiler.isa, &func.stencil);
-        let owned_code;
-        let (code, unwind) = if let Some(cached) = self.cache.get(func_hash) {
-            owned_code = cached;
-            (&*owned_code, None)
-        } else {
-            self.code_ctx.clear();
-            self.code_ctx.func = func;
-            self.code_ctx
-                .compile(&*self.compiler.isa, &mut Default::default())
-                .unwrap();
+        // compile or get from cache
+        let compiled = self.compile_or_get_cached(translated.func)?;
+        let mut code = compiled.code;
 
-            let compiled = self.code_ctx.compiled_code().unwrap();
-            let unwind = compiled
-                .create_unwind_info(&*self.compiler.isa)
-                .ok()
-                .flatten();
+        // patch relocations
+        for reloc in compiled.relocs {
+            match reloc.kind {
+                Reloc::Abs8 => {
+                    let base = reloc.offset;
+                    let link_data = self
+                        .compiler
+                        .module
+                        .allocate_data(Layout::new::<Option<LinkData>>());
 
-            self.cache.insert(func_hash, compiled.code_buffer());
+                    unsafe {
+                        link_data.as_ptr().cast::<Option<LinkData>>().write(None);
+                    }
 
-            (compiled.code_buffer(), unwind)
-        };
+                    let link_data_addr = unsafe { link_data.as_ptr().addr().get() };
+                    code[base as usize..][..size_of::<usize>()]
+                        .copy_from_slice(&link_data_addr.to_ne_bytes());
+                }
+                _ => todo!("relocation kind"),
+            }
+        }
 
-        let alloc = self.compiler.module.allocate_code(code);
-        let unwind_handle = if let Some(unwind) = unwind {
+        let alloc = self.compiler.module.allocate_code(&code);
+        let unwind_handle = if let Some(unwind) = compiled.unwind {
             unsafe { UnwindHandle::new(&*self.compiler.isa, alloc.as_ptr().addr().get(), &unwind) }
         } else {
             None
