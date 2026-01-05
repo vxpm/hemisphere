@@ -128,6 +128,10 @@ impl App {
         let cache_dir = dirs.cache_dir();
         let jit_cache_path = cache_dir.join("ppcjit");
 
+        if args.clear_cache {
+            _ = std::fs::remove_dir_all(&jit_cache_path);
+        }
+
         let cores = Cores {
             cpu: Box::new(jitcore::JitCore::new(jitcore::Config {
                 instr_per_block: args.instr_per_block,

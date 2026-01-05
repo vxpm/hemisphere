@@ -40,4 +40,7 @@ pub struct Args {
     /// Whether to ignore unimplemented instructions
     #[arg(long, default_value_t = false)]
     pub ignore_unimplemented_instr: bool,
+    /// Whether to clear the JIT block cache
+    #[arg(long, default_value_t = false)]
+    pub clear_cache: bool,
 }
