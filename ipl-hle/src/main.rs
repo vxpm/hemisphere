@@ -1,6 +1,11 @@
 #![no_std]
 #![no_main]
 #![feature(asm_experimental_arch)]
+#![expect(clippy::missing_safety_doc, reason = "this is the wild west")]
+#![expect(
+    improper_ctypes_definitions,
+    reason = "extern C is used to make it easier to debug generated code"
+)]
 
 use core::{
     arch::global_asm,
@@ -26,6 +31,7 @@ type ApploaderInitFn = extern "C" fn(OsReportCallbackFn);
 type ApploaderMainFn = extern "C" fn(*mut *mut c_void, *mut usize, *mut usize) -> bool;
 type ApploaderCloseFn = extern "C" fn() -> AppEntryFn;
 
+#[expect(clippy::not_unsafe_ptr_arg_deref, reason = "writing to MMIO")]
 #[unsafe(no_mangle)]
 #[inline(never)]
 pub extern "C" fn stdout_write(mut message: *const c_char) {
@@ -75,6 +81,7 @@ pub extern "C" fn os_report_callback(message: *const c_char) {
     stdout_write(message);
 }
 
+#[expect(clippy::not_unsafe_ptr_arg_deref, reason = "writing to MMIO")]
 #[unsafe(no_mangle)]
 #[inline(never)]
 pub extern "C" fn disk_load(address: *mut c_void, length: usize, offset: usize) {
@@ -100,7 +107,7 @@ pub extern "C" fn disk_load(address: *mut c_void, length: usize, offset: usize) 
 
 #[unsafe(no_mangle)]
 #[inline(never)]
-pub extern "C" fn main(entry: ApploaderEntryFn) {
+pub unsafe extern "C" fn main(entry: ApploaderEntryFn) {
     println(c"[IPL] Executing apploader entry...");
 
     let mut init = MaybeUninit::uninit();
@@ -114,11 +121,11 @@ pub extern "C" fn main(entry: ApploaderEntryFn) {
 
     println(c"[IPL] Entry executed:");
     print(c"  Init: 0x");
-    println_hex(init as u32);
+    println_hex(init as usize as u32);
     print(c"  Main: 0x");
-    println_hex(main as u32);
+    println_hex(main as usize as u32);
     print(c"  Close: 0x");
-    println_hex(close as u32);
+    println_hex(close as usize as u32);
 
     println(c"[IPL] Running apploader init...");
     init(os_report_callback);
@@ -139,7 +146,7 @@ pub extern "C" fn main(entry: ApploaderEntryFn) {
 
         println(c"[IPL] Loading disk data:");
         print(c"  Target: 0x");
-        println_hex(address as u32);
+        println_hex(address as usize as u32);
         print(c"  Offset: 0x");
         println_hex(offset as u32);
         print(c"  Length: 0x");
