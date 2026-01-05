@@ -1,15 +1,14 @@
 use crate::{
-    modules::vertex::VertexModule,
+    modules::vertex::{Ctx, VertexModule},
     stream::{BinReader, BinaryStream},
     system::gx::{
         MatrixSet, Vertex,
         cmd::{
-            ArrayDescriptor, Arrays, VertexAttributeStream, VertexDescriptor,
+            ArrayDescriptor, VertexAttributeStream, VertexDescriptor,
             attributes::{
                 self, Attribute, AttributeDescriptor, AttributeMode, VertexAttributeTable,
             },
         },
-        xform::DefaultMatrices,
     },
 };
 use glam::Vec2;
@@ -33,10 +32,9 @@ fn read_attribute_from_array<D: AttributeDescriptor>(
 
 #[inline(always)]
 fn read_attribute<A: Attribute>(
-    ram: &[u8],
+    ctx: Ctx,
     vcd: &VertexDescriptor,
     vat: &VertexAttributeTable,
-    arrays: &Arrays,
     reader: &mut BinReader,
 ) -> Option<<A::Descriptor as AttributeDescriptor>::Value> {
     let mode = A::get_mode(vcd);
@@ -51,13 +49,23 @@ fn read_attribute<A: Attribute>(
         ),
         AttributeMode::Index8 => {
             let index = reader.read_be::<u8>().unwrap() as u16;
-            let array = A::get_array(arrays).unwrap();
-            Some(read_attribute_from_array(ram, &descriptor, array, index))
+            let array = A::get_array(ctx.arrays).unwrap();
+            Some(read_attribute_from_array(
+                ctx.ram,
+                &descriptor,
+                array,
+                index,
+            ))
         }
         AttributeMode::Index16 => {
             let index = reader.read_be::<u16>().unwrap();
-            let array = A::get_array(arrays).unwrap();
-            Some(read_attribute_from_array(ram, &descriptor, array, index))
+            let array = A::get_array(ctx.arrays).unwrap();
+            Some(read_attribute_from_array(
+                ctx.ram,
+                &descriptor,
+                array,
+                index,
+            ))
         }
     }
 }
@@ -67,22 +75,20 @@ pub struct Interpreter;
 impl VertexModule for Interpreter {
     fn parse(
         &mut self,
-        ram: &[u8],
+        ctx: Ctx,
         vcd: &VertexDescriptor,
         vat: &VertexAttributeTable,
-        arrays: &Arrays,
-        default_matrices: &DefaultMatrices,
         stream: &VertexAttributeStream,
         vertices: &mut [MaybeUninit<Vertex>],
         matrix_set: &mut MatrixSet,
     ) {
-        let default_pos_matrix_idx = default_matrices.view().value();
+        let default_pos_matrix_idx = ctx.default_matrices.view().value();
 
         let mut data = stream.data();
         let mut reader = data.reader();
         for i in 0..stream.count() {
             let pos_norm_matrix =
-                read_attribute::<attributes::PosMatrixIndex>(ram, vcd, vat, arrays, &mut reader)
+                read_attribute::<attributes::PosMatrixIndex>(ctx, vcd, vat, &mut reader)
                     .unwrap_or(default_pos_matrix_idx) as u16;
 
             matrix_set.include(pos_norm_matrix);
@@ -91,37 +97,38 @@ impl VertexModule for Interpreter {
             let mut tex_coords_matrix = [0; 8];
             seq! {
                 N in 0..8 {
-                    let default = default_matrices
+                    let default = ctx
+                        .default_matrices
                         .tex_at(N)
                         .unwrap()
                         .value();
 
                     let tex_matrix_index =
-                        read_attribute::<attributes::TexMatrixIndex<N>>(ram, vcd, vat, arrays, &mut reader)
-                        .unwrap_or(default) as u16;
+                        read_attribute::<attributes::TexMatrixIndex<N>>(ctx, vcd, vat, &mut reader)
+                            .unwrap_or(default) as u16;
+
                     matrix_set.include(tex_matrix_index);
                     tex_coords_matrix[N] = tex_matrix_index;
                 }
             }
 
-            let position =
-                read_attribute::<attributes::Position>(ram, vcd, vat, arrays, &mut reader)
-                    .unwrap_or_default();
-
-            let normal = read_attribute::<attributes::Normal>(ram, vcd, vat, arrays, &mut reader)
+            let position = read_attribute::<attributes::Position>(ctx, vcd, vat, &mut reader)
                 .unwrap_or_default();
 
-            let chan0 = read_attribute::<attributes::Chan0>(ram, vcd, vat, arrays, &mut reader)
+            let normal = read_attribute::<attributes::Normal>(ctx, vcd, vat, &mut reader)
                 .unwrap_or_default();
 
-            let chan1 = read_attribute::<attributes::Chan1>(ram, vcd, vat, arrays, &mut reader)
-                .unwrap_or_default();
+            let chan0 =
+                read_attribute::<attributes::Chan0>(ctx, vcd, vat, &mut reader).unwrap_or_default();
+
+            let chan1 =
+                read_attribute::<attributes::Chan1>(ctx, vcd, vat, &mut reader).unwrap_or_default();
 
             let mut tex_coords = [Vec2::ZERO; 8];
             seq! {
                 N in 0..8 {
                     tex_coords[N] =
-                        read_attribute::<attributes::TexCoords<N>>(ram, vcd, vat, arrays, &mut reader)
+                        read_attribute::<attributes::TexCoords<N>>(ctx, vcd, vat, &mut reader)
                         .unwrap_or_default();
                 }
             }

@@ -9,7 +9,7 @@ pub mod xform;
 
 use crate::{
     Primitive, System,
-    modules::render,
+    modules::{render, vertex},
     system::{
         gx::{
             cmd::VertexAttributeStream,
@@ -1047,12 +1047,17 @@ fn extract_vertices(sys: &mut System, stream: &VertexAttributeStream) -> VertexS
     let vertices_slice = unsafe { vertices.as_mut_slice() };
 
     sys.gpu.matrix_set.clear();
+
+    let ctx = vertex::Ctx {
+        ram: sys.mem.ram(),
+        arrays: &sys.gpu.cmd.internal.arrays,
+        default_matrices: &sys.gpu.xform.internal.default_matrices,
+    };
+
     sys.modules.vertex.parse(
-        sys.mem.ram(),
+        ctx,
         &sys.gpu.cmd.internal.vertex_descriptor,
         &sys.gpu.cmd.internal.vertex_attr_tables[stream.table_index()],
-        &sys.gpu.cmd.internal.arrays,
-        &sys.gpu.xform.internal.default_matrices,
         stream,
         vertices_slice,
         &mut sys.gpu.matrix_set,

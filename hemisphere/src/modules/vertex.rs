@@ -8,15 +8,20 @@ use crate::system::gx::{
 };
 use std::mem::MaybeUninit;
 
+#[derive(Clone, Copy)]
+pub struct Ctx<'ctx> {
+    pub ram: &'ctx [u8],
+    pub arrays: &'ctx Arrays,
+    pub default_matrices: &'ctx DefaultMatrices,
+}
+
 /// Trait for vertex parsing modules.
 pub trait VertexModule: Send {
     fn parse(
         &mut self,
-        ram: &[u8],
+        ctx: Ctx,
         vcd: &VertexDescriptor,
         vat: &VertexAttributeTable,
-        arrays: &Arrays,
-        default_matrices: &DefaultMatrices,
         stream: &VertexAttributeStream,
         vertices: &mut [MaybeUninit<Vertex>],
         matrix_set: &mut MatrixSet,

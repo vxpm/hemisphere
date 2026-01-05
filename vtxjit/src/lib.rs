@@ -7,11 +7,10 @@ use cranelift::{
     prelude::{Configurable, isa::TargetIsa},
 };
 use hemisphere::{
-    modules::vertex::VertexModule,
+    modules::vertex::{Ctx, VertexModule},
     system::gx::{
         MatrixSet, Vertex,
-        cmd::{Arrays, VertexAttributeStream, VertexDescriptor, attributes::VertexAttributeTable},
-        xform::DefaultMatrices,
+        cmd::{VertexAttributeStream, VertexDescriptor, attributes::VertexAttributeTable},
     },
 };
 use jitalloc::{Allocator, Exec};
@@ -142,11 +141,9 @@ impl JitVertexModule {
 impl VertexModule for JitVertexModule {
     fn parse(
         &mut self,
-        ram: &[u8],
+        ctx: Ctx,
         vcd: &VertexDescriptor,
         vat: &VertexAttributeTable,
-        arrays: &Arrays,
-        default_matrices: &DefaultMatrices,
         stream: &VertexAttributeStream,
         vertices: &mut [std::mem::MaybeUninit<Vertex>],
         matrix_set: &mut MatrixSet,
@@ -170,9 +167,9 @@ impl VertexModule for JitVertexModule {
 
         let parser = parser.as_ptr();
         parser(
-            ram.as_ptr(),
-            arrays,
-            default_matrices,
+            ctx.ram.as_ptr(),
+            ctx.arrays,
+            ctx.default_matrices,
             stream.data().as_ptr(),
             vertices.as_mut_ptr().cast(),
             matrix_set,

@@ -1,3 +1,6 @@
+#![expect(clippy::identity_op, reason = "seq expanded code")]
+#![expect(clippy::erasing_op, reason = "seq expanded code")]
+
 use bitut::BitUtils;
 use multiversion::multiversion;
 use seq_macro::seq;
