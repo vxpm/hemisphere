@@ -19,10 +19,12 @@ pub use gekko::{self, Address, Cycles};
 pub use iso;
 pub use primitive::Primitive;
 
-/// How many DSP cycles to execute per step.
-const DSP_STEP: u32 = 512;
 /// How many DSP instructions to execute per cycle.
 const DSP_INST_PER_CYCLE: f64 = 7.0 / 8.0;
+/// How many DSP cycles to execute per step.
+const DSP_STEP: u32 = 512;
+/// How many DSP instructions to execute per step.
+const DSP_INST_PER_STEP: u32 = (DSP_STEP as f64 * DSP_INST_PER_CYCLE) as u32;
 
 /// The Hemisphere emulator.
 pub struct Hemisphere {
@@ -66,8 +68,7 @@ impl Hemisphere {
             // execute DSP
             self.dsp_pending += e.cycles.to_dsp_cycles();
             while self.dsp_pending >= DSP_STEP as f64 {
-                let instructions = (DSP_STEP as f64 * DSP_INST_PER_CYCLE) as u32;
-                self.cores.dsp.exec(&mut self.system, instructions);
+                self.cores.dsp.exec(&mut self.system, DSP_INST_PER_STEP);
                 self.dsp_pending -= DSP_STEP as f64;
             }
 
@@ -90,7 +91,7 @@ impl Hemisphere {
 
         // execute DSP
         while self.dsp_pending >= DSP_STEP as f64 {
-            self.cores.dsp.exec(&mut self.system, DSP_STEP);
+            self.cores.dsp.exec(&mut self.system, DSP_INST_PER_STEP);
             self.dsp_pending -= DSP_STEP as f64;
         }
 
