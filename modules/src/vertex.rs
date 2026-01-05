@@ -1,4 +1,4 @@
-use crate::{
+use hemisphere::{
     modules::vertex::{Ctx, VertexModule},
     stream::{BinReader, BinaryStream},
     system::gx::{
@@ -9,9 +9,9 @@ use crate::{
                 self, Attribute, AttributeDescriptor, AttributeMode, VertexAttributeTable,
             },
         },
+        glam::Vec2,
     },
 };
-use glam::Vec2;
 use seq_macro::seq;
 use std::mem::MaybeUninit;
 

@@ -1,5 +1,5 @@
 [package]
-name = "app-modules"
+name = "modules"
 version = "0.1.0"
 edition = "2024"
 
@@ -10,6 +10,7 @@ workspace = true
 hemisphere.workspace = true
 tracing.workspace = true
 zerocopy.workspace = true
+seq-macro.workspace = true
 
 gilrs = "0.11"
 cpal = "0.17"

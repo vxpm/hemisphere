@@ -34,6 +34,8 @@ use std::{
 use strum::FromRepr;
 use zerocopy::IntoBytes;
 
+pub use glam;
+
 /// Maximum value for the 24-bit depth.
 pub const DEPTH_24_BIT_MAX: u32 = (1 << 24) - 1;
 

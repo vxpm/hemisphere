@@ -14,7 +14,7 @@ members = [
     "vtxjit",
     "cores",
     "renderer",
-    "app-modules",
+    "modules",
 
     # binaries
     "ipl-hle",
@@ -35,7 +35,7 @@ default-members = [
     "vtxjit",
     "cores",
     "renderer",
-    "app-modules",
+    "modules",
 
     # binaries
     "app",
@@ -115,7 +115,7 @@ opt-level = 2
 [profile.dev.package."cores"]
 opt-level = 2
 
-[profile.dev.package."app-modules"]
+[profile.dev.package."modules"]
 opt-level = 2
 
 [profile.dev.package."hemisphere"]
@@ -142,7 +142,7 @@ dspint = { path = "./dspint" }
 vtxjit = { path = "./vtxjit" }
 cores = { path = "./cores" }
 renderer = { path = "./renderer" }
-app-modules = { path = "./app-modules" }
+modules = { path = "./modules" }
 
 # actual dependencies
 binrw = { version = "0.15", features = ["std"], default-features = false }

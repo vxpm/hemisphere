@@ -1,6 +1,4 @@
 //! Vertex parsing module interface.
-mod interpreter;
-
 use crate::system::gx::{
     MatrixSet, Vertex,
     cmd::{Arrays, VertexAttributeStream, VertexDescriptor, attributes::VertexAttributeTable},
@@ -27,6 +25,3 @@ pub trait VertexModule: Send {
         matrix_set: &mut MatrixSet,
     );
 }
-
-/// The default vertex module.
-pub use interpreter::Interpreter as InterpreterVertexModule;

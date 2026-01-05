@@ -1,7 +1,7 @@
 #![feature(cold_path)]
 
-mod primitive;
-mod stream;
+pub mod primitive;
+pub mod stream;
 
 pub mod cores;
 pub mod modules;

@@ -210,7 +210,6 @@ checksum = "a23eb6b1614318a8071c9b2521f36b424b2c83db5eb3a0fead4a6c0809af6e61"
 name = "app"
 version = "0.1.0"
 dependencies = [
- "app-modules",
  "clap",
  "cores",
  "directories",
@@ -218,6 +217,7 @@ dependencies = [
  "egui_extras",
  "eyre-pretty",
  "hemisphere",
+ "modules",
  "nanorand",
  "renderdoc",
  "renderer",
@@ -230,22 +230,6 @@ dependencies = [
  "typetag",
  "vtxjit",
  "wgpu",
-]
-
-[[package]]
-name = "app-modules"
-version = "0.1.0"
-dependencies = [
- "addr2line",
- "cpal",
- "cwdemangle",
- "gilrs",
- "hemisphere",
- "hound",
- "mapfile_parser",
- "resampler",
- "tracing",
- "zerocopy",
 ]
 
 [[package]]
@@ -2935,6 +2919,23 @@ checksum = "1fa76a2c86f704bdb222d66965fb3d63269ce38518b83cb0575fca855ebb6316"
 dependencies = [
  "adler2",
  "simd-adler32",
+]
+
+[[package]]
+name = "modules"
+version = "0.1.0"
+dependencies = [
+ "addr2line",
+ "cpal",
+ "cwdemangle",
+ "gilrs",
+ "hemisphere",
+ "hound",
+ "mapfile_parser",
+ "resampler",
+ "seq-macro",
+ "tracing",
+ "zerocopy",
 ]
 
 [[package]]

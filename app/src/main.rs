@@ -22,10 +22,10 @@ use eframe::{
 };
 use eyre_pretty::eyre::Result;
 use hemisphere::{
-    Hemisphere,
     cores::Cores,
     modules::debug::{DebugModule, NopDebugModule},
-    system::{self, Modules, executable::Executable},
+    system::{self, executable::Executable, Modules},
+    Hemisphere,
 };
 use nanorand::Rng;
 use renderer::Renderer;
@@ -38,14 +38,14 @@ use std::{
 };
 use vtxjit::JitVertexModule;
 
-use app_modules::{
+use cores::cpu::jit as jitcore;
+use cores::dsp::interpreter as dspcore;
+use modules::{
     audio::CpalAudio,
     debug::{Addr2LineDebug, MapFileDebug},
     disk::IsoDisk,
     input::GilrsInput,
 };
-use cores::cpu::jit as jitcore;
-use cores::dsp::interpreter as dspcore;
 
 struct Ctx<'a> {
     step: bool,
@@ -331,7 +331,7 @@ impl eframe::App for App {
 }
 
 fn setup_tracing() -> tracing_appender::non_blocking::WorkerGuard {
-    use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
+    use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
     let file = std::fs::File::options()
         .truncate(true)

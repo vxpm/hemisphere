@@ -10,7 +10,7 @@ workspace = true
 hemisphere.workspace = true
 cores.workspace = true
 renderer.workspace = true
-app-modules.workspace = true
+modules.workspace = true
 vtxjit.workspace = true
 
 eyre-pretty.workspace = true
