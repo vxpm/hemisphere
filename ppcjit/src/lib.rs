@@ -51,6 +51,10 @@ pub struct Settings {
 pub const FASTMEM_LUT_COUNT: usize = 1 << 15;
 pub type FastmemLut = [Option<NonNull<u8>>; FASTMEM_LUT_COUNT];
 
+const NAMESPACE_USER_HOOKS: u32 = 0;
+const NAMESPACE_HARD_HOOKS: u32 = 1;
+const NAMESPACE_LINK_DATA: u32 = 2;
+
 struct Compiler {
     settings: Settings,
     hooks: Hooks,
@@ -204,8 +208,7 @@ impl Compiler {
 
             let name = mapping.get(*name_ref).unwrap();
             match name.namespace {
-                0 => {
-                    // hooks
+                NAMESPACE_USER_HOOKS => {
                     let hook_kind = HookKind::from_repr(name.index).unwrap();
                     let addr = match hook_kind {
                         HookKind::GetRegisters => self.hooks.get_registers as usize,
@@ -242,8 +245,7 @@ impl Compiler {
                         _ => todo!("relocation kind {:?}", reloc.kind),
                     }
                 }
-                1 => {
-                    // hardcoded hooks
+                NAMESPACE_HARD_HOOKS => {
                     assert_eq!(name.index, 0);
                     extern "sysv64-unwind" fn raise_exception(
                         regs: &mut Cpu,
@@ -262,7 +264,7 @@ impl Compiler {
                         _ => todo!("relocation kind {:?}", reloc.kind),
                     }
                 }
-                2 => {
+                NAMESPACE_LINK_DATA => {
                     // link data
                     match reloc.kind {
                         Reloc::Abs8 => {

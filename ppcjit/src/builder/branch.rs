@@ -1,5 +1,8 @@
 use super::BlockBuilder;
-use crate::builder::{Action, InstructionInfo, MEMFLAGS, util::IntoIrValue};
+use crate::{
+    NAMESPACE_LINK_DATA,
+    builder::{Action, InstructionInfo, MEMFLAGS, util::IntoIrValue},
+};
 use bitos::{bitos, integer::u5};
 use cranelift::{
     codegen::ir,
@@ -49,10 +52,14 @@ impl BranchOptions {
 
 impl BlockBuilder<'_> {
     fn jump_with_block_link(&mut self, destination: ir::Value) {
-        let link_data_name = self
-            .bd
-            .func
-            .declare_imported_user_function(ir::UserExternalName::new(2, self.link_index));
+        let link_data_name =
+            self.bd
+                .func
+                .declare_imported_user_function(ir::UserExternalName::new(
+                    NAMESPACE_LINK_DATA,
+                    self.link_index,
+                ));
+
         self.link_index += 1;
 
         let link_data = self.bd.create_global_value(ir::GlobalValueData::Symbol {
