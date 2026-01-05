@@ -613,7 +613,6 @@ fn closest_breakpoint(pc: Address, breakpoints: &[Address]) -> Address {
 
 impl JitCore {
     pub fn new(config: Config) -> Self {
-        assert!(config.instr_per_block <= TABLE_BLOCKS_COUNT as u32);
         let compiler = ppcjit::Jit::new(
             config.jit_settings.clone(),
             CTX_HOOKS,
@@ -648,10 +647,10 @@ impl JitCore {
 
         let block = match self.compiler.build(instructions) {
             Ok(b) => b,
-            Err(e) => match &e {
+            Err(e) => match e {
                 ppcjit::BuildError::EmptyBlock => panic!("built empty block at pc {}", sys.cpu.pc),
-                ppcjit::BuildError::Builder { .. } => panic!("block builder error: {}", e),
-                ppcjit::BuildError::Codegen { .. } => panic!("block codegen error: {}", e),
+                ppcjit::BuildError::Builder { source } => panic!("block builder error: {}", source),
+                ppcjit::BuildError::Codegen { source } => panic!("block codegen error: {}", source),
             },
         };
 

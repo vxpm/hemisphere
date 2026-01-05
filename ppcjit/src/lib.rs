@@ -186,6 +186,105 @@ impl Compiler {
 
         Trampoline(alloc)
     }
+
+    fn apply_relocations(
+        &mut self,
+        code: &mut [u8],
+        mapping: &PrimaryMap<UserExternalNameRef, UserExternalName>,
+        relocs: &[FinalizedMachReloc],
+    ) {
+        for reloc in relocs {
+            let FinalizedRelocTarget::ExternalName(ext_name) = &reloc.target else {
+                unreachable!()
+            };
+
+            let ir::ExternalName::User(name_ref) = ext_name else {
+                unreachable!()
+            };
+
+            let name = mapping.get(*name_ref).unwrap();
+            match name.namespace {
+                0 => {
+                    // hooks
+                    let hook_kind = HookKind::from_repr(name.index).unwrap();
+                    let addr = match hook_kind {
+                        HookKind::GetRegisters => self.hooks.get_registers as usize,
+                        HookKind::GetFastmem => self.hooks.get_fastmem as usize,
+                        HookKind::FollowLink => self.hooks.follow_link as usize,
+                        HookKind::TryLink => self.hooks.try_link as usize,
+                        HookKind::ReadI8 => self.hooks.read_i8 as usize,
+                        HookKind::ReadI16 => self.hooks.read_i16 as usize,
+                        HookKind::ReadI32 => self.hooks.read_i32 as usize,
+                        HookKind::ReadI64 => self.hooks.read_i64 as usize,
+                        HookKind::WriteI8 => self.hooks.write_i8 as usize,
+                        HookKind::WriteI16 => self.hooks.write_i16 as usize,
+                        HookKind::WriteI32 => self.hooks.write_i32 as usize,
+                        HookKind::WriteI64 => self.hooks.write_i64 as usize,
+                        HookKind::ReadQuant => self.hooks.read_quantized as usize,
+                        HookKind::WriteQuant => self.hooks.write_quantized as usize,
+                        HookKind::InvICache => self.hooks.invalidate_icache as usize,
+                        HookKind::DCacheDma => self.hooks.dcache_dma as usize,
+                        HookKind::MsrChanged => self.hooks.msr_changed as usize,
+                        HookKind::IBatChanged => self.hooks.ibat_changed as usize,
+                        HookKind::DBatChanged => self.hooks.dbat_changed as usize,
+                        HookKind::TbRead => self.hooks.tb_read as usize,
+                        HookKind::TbChanged => self.hooks.tb_changed as usize,
+                        HookKind::DecRead => self.hooks.dec_read as usize,
+                        HookKind::DecChanged => self.hooks.dec_changed as usize,
+                    };
+
+                    match reloc.kind {
+                        Reloc::Abs8 => {
+                            let base = reloc.offset;
+                            code[base as usize..][..size_of::<usize>()]
+                                .copy_from_slice(&addr.to_ne_bytes());
+                        }
+                        _ => todo!("relocation kind {:?}", reloc.kind),
+                    }
+                }
+                1 => {
+                    // hardcoded hooks
+                    assert_eq!(name.index, 0);
+                    extern "sysv64-unwind" fn raise_exception(
+                        regs: &mut Cpu,
+                        exception: Exception,
+                    ) {
+                        regs.raise_exception(exception);
+                    }
+
+                    let addr = raise_exception as extern "sysv64-unwind" fn(_, _) as usize;
+                    match reloc.kind {
+                        Reloc::Abs8 => {
+                            let base = reloc.offset;
+                            code[base as usize..][..size_of::<usize>()]
+                                .copy_from_slice(&addr.to_ne_bytes());
+                        }
+                        _ => todo!("relocation kind {:?}", reloc.kind),
+                    }
+                }
+                2 => {
+                    // link data
+                    match reloc.kind {
+                        Reloc::Abs8 => {
+                            let base = reloc.offset;
+                            let link_data =
+                                self.module.allocate_data(Layout::new::<Option<LinkData>>());
+
+                            unsafe {
+                                link_data.as_ptr().cast::<Option<LinkData>>().write(None);
+                            }
+
+                            let link_data_addr = unsafe { link_data.as_ptr().addr().get() };
+                            code[base as usize..][..size_of::<usize>()]
+                                .copy_from_slice(&link_data_addr.to_ne_bytes());
+                        }
+                        _ => todo!("relocation kind {:?}", reloc.kind),
+                    }
+                }
+                _ => unreachable!(),
+            }
+        }
+    }
 }
 
 /// A JIT context, producing [`Block`]s.
@@ -268,7 +367,8 @@ impl Jit {
     fn compile(&mut self) -> Result<Compiled, BuildError> {
         self.code_ctx
             .compile(&*self.compiler.isa, &mut Default::default())
-            .unwrap();
+            .map_err(|e| e.inner)
+            .context(BuildCtx::Codegen)?;
 
         let code = self.code_ctx.take_compiled_code().unwrap();
         let unwind = code.create_unwind_info(&*self.compiler.isa).ok().flatten();
@@ -308,104 +408,10 @@ impl Jit {
         };
 
         let mut code = compiled.code;
+        self.compiler
+            .apply_relocations(&mut code, &compiled.user_named_funcs, &compiled.relocs);
 
         // patch relocations
-        for reloc in compiled.relocs {
-            let FinalizedRelocTarget::ExternalName(ext_name) = reloc.target else {
-                unreachable!()
-            };
-
-            let ir::ExternalName::User(name_ref) = ext_name else {
-                unreachable!()
-            };
-
-            let mapping = &compiled.user_named_funcs;
-            let name = mapping.get(name_ref).unwrap();
-
-            match name.namespace {
-                0 => {
-                    // hooks
-                    let hook_kind = HookKind::from_repr(name.index).unwrap();
-                    let addr = match hook_kind {
-                        HookKind::GetRegisters => self.compiler.hooks.get_registers as usize,
-                        HookKind::GetFastmem => self.compiler.hooks.get_fastmem as usize,
-                        HookKind::FollowLink => self.compiler.hooks.follow_link as usize,
-                        HookKind::TryLink => self.compiler.hooks.try_link as usize,
-                        HookKind::ReadI8 => self.compiler.hooks.read_i8 as usize,
-                        HookKind::ReadI16 => self.compiler.hooks.read_i16 as usize,
-                        HookKind::ReadI32 => self.compiler.hooks.read_i32 as usize,
-                        HookKind::ReadI64 => self.compiler.hooks.read_i64 as usize,
-                        HookKind::WriteI8 => self.compiler.hooks.write_i8 as usize,
-                        HookKind::WriteI16 => self.compiler.hooks.write_i16 as usize,
-                        HookKind::WriteI32 => self.compiler.hooks.write_i32 as usize,
-                        HookKind::WriteI64 => self.compiler.hooks.write_i64 as usize,
-                        HookKind::ReadQuant => self.compiler.hooks.read_quantized as usize,
-                        HookKind::WriteQuant => self.compiler.hooks.write_quantized as usize,
-                        HookKind::InvICache => self.compiler.hooks.invalidate_icache as usize,
-                        HookKind::DCacheDma => self.compiler.hooks.dcache_dma as usize,
-                        HookKind::MsrChanged => self.compiler.hooks.msr_changed as usize,
-                        HookKind::IBatChanged => self.compiler.hooks.ibat_changed as usize,
-                        HookKind::DBatChanged => self.compiler.hooks.dbat_changed as usize,
-                        HookKind::TbRead => self.compiler.hooks.tb_read as usize,
-                        HookKind::TbChanged => self.compiler.hooks.tb_changed as usize,
-                        HookKind::DecRead => self.compiler.hooks.dec_read as usize,
-                        HookKind::DecChanged => self.compiler.hooks.dec_changed as usize,
-                    };
-
-                    match reloc.kind {
-                        Reloc::Abs8 => {
-                            let base = reloc.offset;
-                            code[base as usize..][..size_of::<usize>()]
-                                .copy_from_slice(&addr.to_ne_bytes());
-                        }
-                        _ => todo!("relocation kind {:?}", reloc.kind),
-                    }
-                }
-                1 => {
-                    // hardcoded hooks
-                    assert_eq!(name.index, 0);
-                    extern "sysv64-unwind" fn raise_exception(
-                        regs: &mut Cpu,
-                        exception: Exception,
-                    ) {
-                        regs.raise_exception(exception);
-                    }
-
-                    let addr = raise_exception as extern "sysv64-unwind" fn(_, _) as usize;
-                    match reloc.kind {
-                        Reloc::Abs8 => {
-                            let base = reloc.offset;
-                            code[base as usize..][..size_of::<usize>()]
-                                .copy_from_slice(&addr.to_ne_bytes());
-                        }
-                        _ => todo!("relocation kind {:?}", reloc.kind),
-                    }
-                }
-                2 => {
-                    // link data
-                    match reloc.kind {
-                        Reloc::Abs8 => {
-                            let base = reloc.offset;
-                            let link_data = self
-                                .compiler
-                                .module
-                                .allocate_data(Layout::new::<Option<LinkData>>());
-
-                            unsafe {
-                                link_data.as_ptr().cast::<Option<LinkData>>().write(None);
-                            }
-
-                            let link_data_addr = unsafe { link_data.as_ptr().addr().get() };
-                            code[base as usize..][..size_of::<usize>()]
-                                .copy_from_slice(&link_data_addr.to_ne_bytes());
-                        }
-                        _ => todo!("relocation kind {:?}", reloc.kind),
-                    }
-                }
-                _ => unreachable!(),
-            }
-        }
-
         let alloc = self.compiler.module.allocate_code(&code);
         let unwind_handle = if let Some(unwind) = compiled.unwind {
             unsafe { UnwindHandle::new(&*self.compiler.isa, alloc.as_ptr().addr().get(), &unwind) }

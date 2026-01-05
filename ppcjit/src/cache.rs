@@ -2,7 +2,6 @@ use crate::{Compiled, Sequence};
 use cranelift_codegen::isa::TargetIsa;
 use fjall::{Database, KeyspaceCreateOptions};
 use std::{
-    cell::Cell,
     hash::{Hash, Hasher},
     io::Cursor,
     path::Path,
@@ -16,6 +15,7 @@ impl Hasher for Hash128 {
         unimplemented!()
     }
 
+    #[inline(always)]
     fn write(&mut self, bytes: &[u8]) {
         self.0.write(bytes);
     }
@@ -38,8 +38,6 @@ impl CompiledKey {
 
 pub struct Cache {
     db: Database,
-    queries: Cell<u64>,
-    hits: Cell<u64>,
     pending: u16,
     compressor: zstd::bulk::Compressor<'static>,
     decompressor: zstd::bulk::Decompressor<'static>,
@@ -60,8 +58,6 @@ impl Cache {
         Self {
             db,
             pending: 0,
-            queries: Cell::new(0),
-            hits: Cell::new(0),
             compressor: zstd::bulk::Compressor::new(5).unwrap(),
             decompressor: zstd::bulk::Decompressor::new().unwrap(),
             deser_buffer: vec![0; 512 * 1024],
@@ -70,19 +66,12 @@ impl Cache {
     }
 
     pub fn get(&mut self, key: CompiledKey) -> Option<Compiled> {
-        self.queries.update(|x| x + 1);
         let artifacts = self
             .db
             .keyspace("artifacts", KeyspaceCreateOptions::default)
             .unwrap();
 
         let artifact = artifacts.get(key.0.as_bytes()).unwrap()?;
-
-        self.hits.update(|x| x + 1);
-        println!(
-            "rate: {}",
-            self.hits.get() as f32 / self.queries.get() as f32
-        );
 
         // decompress
         let count = self
