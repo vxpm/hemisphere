@@ -39,13 +39,21 @@ pub use block::Block;
 pub use sequence::Sequence;
 
 #[derive(Debug, Clone, Default)]
-pub struct Settings {
+pub struct CompilerSettings {
     /// Whether to treat `sc` instructions as no-ops.
     pub nop_syscalls: bool,
     /// Whether to ignore the FPU enabled bit in MSR.
     pub force_fpu: bool,
     /// Whether to ignore unimplemented instructions instead of panicking.
     pub ignore_unimplemented: bool,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct Settings {
+    /// Compiler settings
+    pub compiler: CompilerSettings,
+    /// Path to the block cache directory
+    pub cache_path: PathBuf,
 }
 
 pub const FASTMEM_LUT_COUNT: usize = 1 << 15;
@@ -56,14 +64,14 @@ const NAMESPACE_HARD_HOOKS: u32 = 1;
 const NAMESPACE_LINK_DATA: u32 = 2;
 
 struct Compiler {
-    settings: Settings,
+    settings: CompilerSettings,
     hooks: Hooks,
     isa: Arc<dyn TargetIsa>,
     module: Module,
 }
 
 impl Compiler {
-    fn new(settings: Settings, hooks: Hooks) -> Self {
+    fn new(settings: CompilerSettings, hooks: Hooks) -> Self {
         let verifier = if cfg!(debug_assertions) {
             "true"
         } else {
@@ -324,12 +332,11 @@ pub enum BuildError {
 }
 
 impl Jit {
-    pub fn new(settings: Settings, hooks: Hooks, cache_path: PathBuf) -> Self {
-        let mut compiler = Compiler::new(settings, hooks);
+    pub fn new(settings: Settings, hooks: Hooks) -> Self {
+        let mut compiler = Compiler::new(settings.compiler, hooks);
         let mut code_ctx = codegen::Context::new();
         let mut func_ctx = frontend::FunctionBuilderContext::new();
-        let cache = Cache::new(cache_path);
-
+        let cache = Cache::new(settings.cache_path);
         let trampoline = compiler.trampoline(&mut code_ctx, &mut func_ctx);
 
         Self {
@@ -413,7 +420,6 @@ impl Jit {
         self.compiler
             .apply_relocations(&mut code, &compiled.user_named_funcs, &compiled.relocs);
 
-        // patch relocations
         let alloc = self.compiler.module.allocate_code(&code);
         let unwind_handle = if let Some(unwind) = compiled.unwind {
             unsafe { UnwindHandle::new(&*self.compiler.isa, alloc.as_ptr().addr().get(), &unwind) }

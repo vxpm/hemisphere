@@ -1,7 +1,5 @@
 mod table;
 
-use std::path::PathBuf;
-
 use hemisphere::{
     Address, Cycles, Primitive,
     cores::{CpuCore, Executed},
@@ -584,8 +582,6 @@ pub struct Config {
     pub instr_per_block: u32,
     /// Code generation settings.
     pub jit_settings: ppcjit::Settings,
-    /// Path to block cache.
-    pub cache_path: PathBuf,
 }
 
 pub struct JitCore {
@@ -613,11 +609,7 @@ fn closest_breakpoint(pc: Address, breakpoints: &[Address]) -> Address {
 
 impl JitCore {
     pub fn new(config: Config) -> Self {
-        let compiler = ppcjit::Jit::new(
-            config.jit_settings.clone(),
-            CTX_HOOKS,
-            config.cache_path.clone(),
-        );
+        let compiler = ppcjit::Jit::new(config.jit_settings.clone(), CTX_HOOKS);
 
         Self {
             config,

@@ -132,11 +132,13 @@ impl App {
             cpu: Box::new(jitcore::JitCore::new(jitcore::Config {
                 instr_per_block: args.instr_per_block,
                 jit_settings: jitcore::ppcjit::Settings {
-                    nop_syscalls: args.nop_syscalls,
-                    force_fpu: args.force_fpu,
-                    ignore_unimplemented: args.ignore_unimplemented_instr,
+                    compiler: jitcore::ppcjit::CompilerSettings {
+                        nop_syscalls: args.nop_syscalls,
+                        force_fpu: args.force_fpu,
+                        ignore_unimplemented: args.ignore_unimplemented_instr,
+                    },
+                    cache_path: jit_cache_path,
                 },
-                cache_path: jit_cache_path,
             })),
             dsp: Box::new(dspcore::InterpreterCore::default()),
         };
