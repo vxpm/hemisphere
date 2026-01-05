@@ -14,7 +14,7 @@ jobs:
     name: Check latest commit is recent enough
     runs-on: ubuntu-slim
     outputs:
-      should_run: ${{ steps.check_date.outputs.should_run }}
+      should_run: ${{ steps.should_run.outputs.should_run }}
     steps:
       - uses: actions/checkout@v5
       - name: Print latest commit
