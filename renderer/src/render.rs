@@ -299,12 +299,7 @@ impl Renderer {
     }
 
     fn insert_vertex(&mut self, vertex: &Vertex, matrices: &[(u16, Mat4)]) -> u32 {
-        let get_matrix = |idx| {
-            matrices
-                .iter()
-                .find_map(|(i, m)| (*i == idx).then(|| *m))
-        };
-
+        let get_matrix = |idx| matrices.iter().find_map(|(i, m)| (*i == idx).then_some(*m));
         let vertex = data::Vertex {
             position: vertex.position,
             config_idx: self.configs.len() as u32 - 1,
@@ -462,7 +457,12 @@ impl Renderer {
     pub fn set_texenv_config(&mut self, config: TexEnvConfig) {
         self.debug("changed texenv");
         self.flush("texenv changed");
-        self.pipeline.settings.shader.texenv.stages = config.stages.clone();
+        self.pipeline
+            .settings
+            .shader
+            .texenv
+            .stages
+            .clone_from(&config.stages);
         self.current_config.consts = config.constants.map(Rgba::from);
         self.current_config_dirty = true;
     }

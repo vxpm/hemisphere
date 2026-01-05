@@ -17,11 +17,13 @@ impl Timer {
         }
     }
 
+    #[expect(dead_code, reason = "will be used to impl freq scaling later")]
     #[inline(always)]
     pub fn scale(&self) -> f64 {
         self.scale
     }
 
+    #[expect(dead_code, reason = "will be used to impl freq scaling later")]
     #[inline(always)]
     pub fn set_scale(&mut self, value: f64) {
         if self.running {
