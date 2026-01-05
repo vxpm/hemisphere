@@ -12,9 +12,7 @@ util.workspace = true
 jitalloc.workspace = true
 hemisphere.workspace = true
 
-bitos.workspace = true
 rustc-hash.workspace = true
 zerocopy.workspace = true
-tracing.workspace = true
 cranelift.workspace = true
 seq-macro.workspace = true
