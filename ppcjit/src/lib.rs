@@ -31,7 +31,7 @@ use cranelift_codegen::{
     ir::{UserExternalName, UserExternalNameRef},
 };
 use easyerr::{Error, ResultExt};
-use gekko::disasm::Ins;
+use gekko::{Cpu, Exception, disasm::Ins};
 use serde::{Deserialize, Serialize};
 use std::{alloc::Layout, path::PathBuf, ptr::NonNull, sync::Arc};
 
@@ -362,6 +362,26 @@ impl Jit {
                     }
                 }
                 1 => {
+                    // hardcoded hooks
+                    assert_eq!(name.index, 0);
+                    extern "sysv64-unwind" fn raise_exception(
+                        regs: &mut Cpu,
+                        exception: Exception,
+                    ) {
+                        regs.raise_exception(exception);
+                    }
+
+                    let addr = raise_exception as extern "sysv64-unwind" fn(_, _) as usize;
+                    match reloc.kind {
+                        Reloc::Abs8 => {
+                            let base = reloc.offset;
+                            code[base as usize..][..size_of::<usize>()]
+                                .copy_from_slice(&addr.to_ne_bytes());
+                        }
+                        _ => todo!("relocation kind {:?}", reloc.kind),
+                    }
+                }
+                2 => {
                     // link data
                     match reloc.kind {
                         Reloc::Abs8 => {

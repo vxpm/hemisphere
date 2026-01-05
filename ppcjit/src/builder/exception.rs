@@ -29,20 +29,11 @@ pub fn raise_exception_sig(ptr_type: ir::Type) -> ir::Signature {
     }
 }
 
-extern "sysv64-unwind" fn raise_exception(regs: &mut Cpu, exception: Exception) {
-    regs.raise_exception(exception);
-}
-
 impl BlockBuilder<'_> {
     /// # Warning
     /// You should _always_ exit after raising an exception.
     pub fn raise_exception(&mut self, exception: Exception) {
-        let func = raise_exception as extern "sysv64-unwind" fn(_, _);
-        let ptr = self
-            .bd
-            .ins()
-            .iconst(self.consts.ptr_type, func as usize as i64);
-
+        // let func = raise_exception as extern "sysv64-unwind" fn(_, _);
         let exception = self
             .bd
             .ins()
@@ -50,9 +41,8 @@ impl BlockBuilder<'_> {
 
         self.flush();
 
-        self.bd.ins().call_indirect(
-            self.consts.signatures.raise_exception,
-            ptr,
+        self.bd.ins().call(
+            self.hooks.raise_exception,
             &[self.consts.regs_ptr, exception],
         );
     }

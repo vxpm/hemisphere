@@ -52,7 +52,7 @@ impl BlockBuilder<'_> {
         let link_data_name = self
             .bd
             .func
-            .declare_imported_user_function(ir::UserExternalName::new(1, self.link_index));
+            .declare_imported_user_function(ir::UserExternalName::new(2, self.link_index));
         self.link_index += 1;
 
         let link_data = self.bd.create_global_value(ir::GlobalValueData::Symbol {

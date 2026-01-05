@@ -127,6 +127,9 @@ struct HookFuncs {
     tb_changed: ir::FuncRef,
     dec_read: ir::FuncRef,
     dec_changed: ir::FuncRef,
+
+    // special
+    raise_exception: ir::FuncRef,
 }
 
 /// Constants used through block building.
@@ -212,6 +215,18 @@ impl<'ctx> BlockBuilder<'ctx> {
             raise_exception: builder.import_signature(exception::raise_exception_sig(ptr_type)),
         };
 
+        let raise_exception = {
+            let name = builder
+                .func
+                .declare_imported_user_function(ir::UserExternalName::new(1, 0));
+
+            builder.import_function(ir::ExtFuncData {
+                name: ir::ExternalName::User(name),
+                signature: sigs.raise_exception,
+                colocated: false,
+            })
+        };
+
         let mut hook = |sig, kind| {
             let name = builder
                 .func
@@ -246,6 +261,7 @@ impl<'ctx> BlockBuilder<'ctx> {
             tb_changed: hook(sigs.generic_hook, HookKind::TbChanged),
             dec_read: hook(sigs.generic_hook, HookKind::DecRead),
             dec_changed: hook(sigs.generic_hook, HookKind::DecChanged),
+            raise_exception,
         };
 
         let consts = Consts {

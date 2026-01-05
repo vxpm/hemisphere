@@ -41,9 +41,10 @@ pub struct Cache {
     queries: Cell<u64>,
     hits: Cell<u64>,
     pending: u16,
-    temp_buffer: Vec<u8>,
     compressor: zstd::bulk::Compressor<'static>,
     decompressor: zstd::bulk::Decompressor<'static>,
+    deser_buffer: Vec<u8>,
+    decompress_buffer: Vec<u8>,
 }
 
 impl Cache {
@@ -61,9 +62,10 @@ impl Cache {
             pending: 0,
             queries: Cell::new(0),
             hits: Cell::new(0),
-            temp_buffer: vec![0; 512 * 1024],
             compressor: zstd::bulk::Compressor::new(5).unwrap(),
             decompressor: zstd::bulk::Decompressor::new().unwrap(),
+            deser_buffer: vec![0; 512 * 1024],
+            decompress_buffer: vec![0; 4 * 1024 * 1024],
         }
     }
 
@@ -85,14 +87,13 @@ impl Cache {
         // decompress
         let count = self
             .decompressor
-            .decompress_to_buffer(&artifact, &mut self.temp_buffer)
+            .decompress_to_buffer(&artifact, &mut self.decompress_buffer)
             .unwrap();
-        let decompressed = self.temp_buffer[..count].to_owned();
 
         // deserialize
-        let cursor = Cursor::new(decompressed);
+        let cursor = Cursor::new(&self.decompress_buffer[..count]);
         let deserialized =
-            ciborium::from_reader_with_buffer(cursor, &mut self.temp_buffer).unwrap();
+            ciborium::from_reader_with_buffer(cursor, &mut self.deser_buffer).unwrap();
 
         Some(deserialized)
     }
