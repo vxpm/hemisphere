@@ -78,6 +78,8 @@ impl BlockBuilder<'_> {
             &[self.consts.info_ptr, self.consts.ctx_ptr, link_data_ptr],
         );
 
+        self.store_reg(Reg::PC, destination);
+
         let should_follow_link = self.bd.inst_results(inst)[0];
         let follow_link = self.bd.create_block();
         let exit = self.bd.create_block();
@@ -92,14 +94,10 @@ impl BlockBuilder<'_> {
 
         // => dont follow link, exit
         self.switch_to_bb(exit);
-        self.set(Reg::PC, destination);
-        self.flush();
         self.prologue();
 
         // => follow link
         self.switch_to_bb(follow_link);
-        self.set(Reg::PC, destination);
-        self.flush();
 
         // do we need to link?
         let stored_link = self

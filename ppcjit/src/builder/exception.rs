@@ -33,7 +33,6 @@ impl BlockBuilder<'_> {
     /// # Warning
     /// You should _always_ exit after raising an exception.
     pub fn raise_exception(&mut self, exception: Exception) {
-        // let func = raise_exception as extern "sysv64-unwind" fn(_, _);
         let exception = self
             .bd
             .ins()
