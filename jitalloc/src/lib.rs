@@ -29,7 +29,7 @@ impl Region {
         let region = unsafe {
             mman::mmap_anonymous(
                 addr_hint
-                    .map(|x| std::ptr::without_provenance_mut(x))
+                    .map(std::ptr::without_provenance_mut)
                     .unwrap_or_default(),
                 len,
                 ProtFlags::empty(),

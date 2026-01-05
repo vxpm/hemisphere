@@ -4,7 +4,7 @@ use cranelift::{
     codegen::ir,
     prelude::{InstBuilder, isa},
 };
-use gekko::{Cpu, Exception, Reg, SPR, disasm::Ins};
+use gekko::{Exception, Reg, SPR, disasm::Ins};
 
 const RFI_INFO: InstructionInfo = InstructionInfo {
     cycles: 2,

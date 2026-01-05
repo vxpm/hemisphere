@@ -547,7 +547,7 @@ impl Format for Rgb565 {
     fn decode_tile(data: &[u8], mut set: impl FnMut(usize, usize, Pixel)) {
         let pixels: [u16; 16] =
             std::array::from_fn(|i| u16::from_be_bytes([data[2 * i], data[2 * i + 1]]));
-        let conv = pixels.map(|p| Pixel::from_rgb565(p));
+        let conv = pixels.map(Pixel::from_rgb565);
         seq! {
             Y in 0..4 {
                 seq! {
@@ -589,7 +589,7 @@ impl Format for FastRgb565 {
     fn decode_tile(data: &[u8], mut set: impl FnMut(usize, usize, Pixel)) {
         let pixels: [u16; 16] =
             std::array::from_fn(|i| u16::from_be_bytes([data[2 * i], data[2 * i + 1]]));
-        let conv = pixels.map(|p| Pixel::from_rgb565_fast(p));
+        let conv = pixels.map(Pixel::from_rgb565_fast);
         seq! {
             Y in 0..4 {
                 seq! {

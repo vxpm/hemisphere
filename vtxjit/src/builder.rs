@@ -79,8 +79,8 @@ impl<'ctx> ParserBuilder<'ctx> {
         let mut extract_idx = |i: usize| {
             let shifted = bd.ins().ushr_imm(default_mtx, i as i64 * 6);
             let masked = bd.ins().band_imm(shifted, 0x3F);
-            let reduced = bd.ins().ireduce(ir::types::I16, masked);
-            reduced
+            
+            bd.ins().ireduce(ir::types::I16, masked)
         };
 
         let default_pos = extract_idx(0);
@@ -122,8 +122,8 @@ impl<'ctx> ParserBuilder<'ctx> {
 
     fn shift_mask(&mut self, value: ir::Value, shift: i64, mask: i64) -> ir::Value {
         let shifted = self.bd.ins().ushr_imm(value, shift);
-        let masked = self.bd.ins().band_imm(shifted, mask);
-        masked
+        
+        self.bd.ins().band_imm(shifted, mask)
     }
 
     fn include_matrix(&mut self, is_normal: bool, mat_idx: ir::Value) {

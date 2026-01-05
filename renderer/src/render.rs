@@ -302,7 +302,7 @@ impl Renderer {
         let get_matrix = |idx| {
             matrices
                 .iter()
-                .find_map(|(i, m)| (*i == idx).then(|| m.clone()))
+                .find_map(|(i, m)| (*i == idx).then(|| *m))
         };
 
         let vertex = data::Vertex {
@@ -462,8 +462,8 @@ impl Renderer {
     pub fn set_texenv_config(&mut self, config: TexEnvConfig) {
         self.debug("changed texenv");
         self.flush("texenv changed");
-        self.pipeline.settings.shader.texenv.stages = config.stages.to_vec();
-        self.current_config.consts = config.constants.map(|x| Rgba::from(x));
+        self.pipeline.settings.shader.texenv.stages = config.stages.clone();
+        self.current_config.consts = config.constants.map(Rgba::from);
         self.current_config_dirty = true;
     }
 

@@ -152,8 +152,8 @@ impl VertexModule for JitVertexModule {
         matrix_set: &mut MatrixSet,
     ) {
         let config = Config {
-            vcd: vcd.clone(),
-            vat: vat.clone(),
+            vcd: *vcd,
+            vat: *vat,
         }
         .canonicalize();
 
