@@ -1,42 +1,41 @@
 [workspace]
 resolver = "3"
 members = [
-    # libraries
-    "util/util",
-    "util/jitalloc",
-    "formats/*",
-    "gekko",
-    "gxtex",
-    "hemisphere",
-    "ppcjit",
-    "dspint",
-    "vtxjit",
-    "cores",
-    "renderer",
-    "modules",
+    "crates/formats/*",
+    "crates/util",
+    "crates/gekko",
+    "crates/gxtex",
+    "crates/jitalloc",
+    "crates/hemisphere",
+    "crates/ppcjit",
+    "crates/dspint",
+    "crates/vtxjit",
+    "crates/cores",
+    "crates/renderer",
+    "crates/modules",
 
     # binaries
-    "util/cubetool",
-    "ipl-hle",
-    "app",
+    "crates/cubetool",
+    "crates/ipl-hle",
+    "crates/app",
 ]
 default-members = [
     # libraries
-    "util/util",
-    "util/jitalloc",
-    "formats/*",
-    "gekko",
-    "gxtex",
-    "hemisphere",
-    "ppcjit",
-    "dspint",
-    "vtxjit",
-    "cores",
-    "renderer",
-    "modules",
+    "crates/formats/*",
+    "crates/util",
+    "crates/gekko",
+    "crates/gxtex",
+    "crates/jitalloc",
+    "crates/hemisphere",
+    "crates/ppcjit",
+    "crates/dspint",
+    "crates/vtxjit",
+    "crates/cores",
+    "crates/renderer",
+    "crates/modules",
 
     # binaries
-    "app",
+    "crates/app",
 ]
 
 [profile.dev]
@@ -128,19 +127,19 @@ wgpu = { git = "https://github.com/vxpm/wgpu", branch = "v27" }
 
 [workspace.dependencies]
 # workspace crates
-util = { path = "./util/util" }
-gekko = { path = "./gekko" }
-dol = { path = "./formats/dol" }
-iso = { path = "./formats/iso" }
-gxtex = { path = "./gxtex" }
-jitalloc = { path = "./util/jitalloc" }
-hemisphere = { path = "./hemisphere" }
-ppcjit = { path = "./ppcjit" }
-dspint = { path = "./dspint" }
-vtxjit = { path = "./vtxjit" }
-cores = { path = "./cores" }
-renderer = { path = "./renderer" }
-modules = { path = "./modules" }
+util = { path = "./crates/util" }
+gekko = { path = "./crates/gekko" }
+dol = { path = "./crates/formats/dol" }
+iso = { path = "./crates/formats/iso" }
+gxtex = { path = "./crates/gxtex" }
+jitalloc = { path = "./crates/jitalloc" }
+hemisphere = { path = "./crates/hemisphere" }
+ppcjit = { path = "./crates/ppcjit" }
+dspint = { path = "./crates/dspint" }
+vtxjit = { path = "./crates/vtxjit" }
+cores = { path = "./crates/cores" }
+renderer = { path = "./crates/renderer" }
+modules = { path = "./crates/modules" }
 
 # actual dependencies
 binrw = { version = "0.15", features = ["std"], default-features = false }

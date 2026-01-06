@@ -18,7 +18,7 @@ const fn convert_to_dsp_words<const N: usize>(bytes: &[u8]) -> [u16; N] {
 }
 
 pub static DSP_ROM: [u16; 4096] =
-    convert_to_dsp_words(include_bytes!("../../resources/dsp_rom.bin"));
+    convert_to_dsp_words(include_bytes!("../../../resources/dsp_rom.bin"));
 
 pub static DSP_COEF: [u16; 2048] =
-    convert_to_dsp_words(include_bytes!("../../resources/dsp_coef.bin"));
+    convert_to_dsp_words(include_bytes!("../../../resources/dsp_coef.bin"));

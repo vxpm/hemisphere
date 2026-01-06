@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 fn main() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let ipl_hle_dol = manifest_dir.join("../local/ipl-hle.dol");
+    let ipl_hle_dol = manifest_dir.join("../../local/ipl-hle.dol");
     println!("cargo::rerun-if-changed={}", ipl_hle_dol.display());
 
     if !std::fs::exists(ipl_hle_dol).unwrap_or_default() {
