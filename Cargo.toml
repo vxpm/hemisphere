@@ -2,12 +2,11 @@
 resolver = "3"
 members = [
     # libraries
-    "util",
+    "util/util",
+    "util/jitalloc",
+    "formats/*",
     "gekko",
-    "dol",
-    "iso",
     "gxtex",
-    "jitalloc",
     "hemisphere",
     "ppcjit",
     "dspint",
@@ -17,18 +16,17 @@ members = [
     "modules",
 
     # binaries
+    "util/cubetool",
     "ipl-hle",
-    "cubetool",
     "app",
 ]
 default-members = [
     # libraries
-    "util",
+    "util/util",
+    "util/jitalloc",
+    "formats/*",
     "gekko",
-    "dol",
-    "iso",
     "gxtex",
-    "jitalloc",
     "hemisphere",
     "ppcjit",
     "dspint",
@@ -130,12 +128,12 @@ wgpu = { git = "https://github.com/vxpm/wgpu", branch = "v27" }
 
 [workspace.dependencies]
 # workspace crates
-util = { path = "./util" }
+util = { path = "./util/util" }
 gekko = { path = "./gekko" }
-dol = { path = "./dol" }
-iso = { path = "./iso" }
+dol = { path = "./formats/dol" }
+iso = { path = "./formats/iso" }
 gxtex = { path = "./gxtex" }
-jitalloc = { path = "./jitalloc" }
+jitalloc = { path = "./util/jitalloc" }
 hemisphere = { path = "./hemisphere" }
 ppcjit = { path = "./ppcjit" }
 dspint = { path = "./dspint" }

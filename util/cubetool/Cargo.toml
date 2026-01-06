@@ -8,8 +8,8 @@ edition = "2024"
 workspace = true
 
 [dependencies]
-dol = { path = "../dol" }
-iso = { path = "../iso" }
+dol.workspace = true
+iso.workspace = true
 bytesize.workspace = true
 clap.workspace = true
 eyre-pretty.workspace = true
