@@ -185,7 +185,10 @@ impl System {
         let entry = self.load_apploader().unwrap();
 
         // load ipl-hle
-        let mut cursor = Cursor::new(include_bytes!("../../../local/ipl-hle.dol"));
+        let mut cursor = Cursor::new(include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../local/ipl-hle.dol"
+        )));
         let ipl = dol::Dol::read(&mut cursor).unwrap();
         self.config.sideload = Some(Executable::Dol(ipl));
         self.load_executable();
