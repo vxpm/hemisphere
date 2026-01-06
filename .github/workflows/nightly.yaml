@@ -115,12 +115,12 @@ jobs:
       - name: Build hemisphere
         run: cargo build --release
       - name: Rename executable
-        run: mv ./target/x86_64-pc-windows-msvc/release/app.exe ./target/x86_64-pc-windows-msvc/release/${{ needs.generate_name.outputs.name_windows }}
+        run: mv ./target/release/app.exe ./target/release/${{ needs.generate_name.outputs.name_windows }}
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ needs.generate_name.outputs.name_windows }}
-          path: ./target/x86_64-pc-windows-msvc/release/${{ needs.generate_name.outputs.name_windows }}
+          path: ./target/release/${{ needs.generate_name.outputs.name_windows }}
 
   release:
     name: Create nightly release
