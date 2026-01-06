@@ -25,3 +25,20 @@ pub trait VertexModule: Send {
         matrix_set: &mut MatrixSet,
     );
 }
+
+/// An implementation of [`VertexModule`] that panics when used to parse a vertex stream.
+pub struct NopVertexModule;
+
+impl VertexModule for NopVertexModule {
+    fn parse(
+        &mut self,
+        _: Ctx,
+        _: &VertexDescriptor,
+        _: &VertexAttributeTable,
+        _: &VertexAttributeStream,
+        _: &mut [MaybeUninit<Vertex>],
+        _: &mut MatrixSet,
+    ) {
+        unimplemented!()
+    }
+}

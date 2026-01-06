@@ -4,7 +4,10 @@ mod file;
 
 use dspint::{Interpreter, Registers};
 use hemisphere::{
-    modules::{audio::NopAudioModule, input::NopInputModule, render::NopRenderModule},
+    modules::{
+        audio::NopAudioModule, debug::NopDebugModule, disk::NopDiskModule, input::NopInputModule,
+        render::NopRenderModule, vertex::NopVertexModule,
+    },
     system::{self, Modules, System},
 };
 use libtest_mimic::{Arguments, Failed, Trial};
@@ -38,8 +41,8 @@ fn run_case(sys: &mut System, case: file::TestCase) -> Result<(), FailedCase> {
 
     // setup
     sys.dsp.control.set_halt(false);
+    dsp.pc = 62;
     dsp.regs = case.initial_regs();
-    dsp.regs.pc = 62;
     dsp.mem.iram[62..][..case.instructions.len()].copy_from_slice(&case.instructions);
     dsp.mem.iram[62 + case.instructions.len()] = 0x21; // HALT
 
@@ -89,18 +92,20 @@ fn run_test(file: file::TestFile, quiet: bool) -> Result<(), Failed> {
     let mut failures = vec![];
 
     let modules = Modules {
-        render: Box::new(NopRenderModule),
         audio: Box::new(NopAudioModule),
+        debug: Box::new(NopDebugModule),
+        disk: Box::new(NopDiskModule),
         input: Box::new(NopInputModule),
+        render: Box::new(NopRenderModule),
+        vertex: Box::new(NopVertexModule),
     };
 
     let mut system = System::new(
         modules,
         system::Config {
             ipl: None,
-            iso: None,
             sideload: None,
-            debug_info: None,
+            force_ipl: false,
         },
     );
 
