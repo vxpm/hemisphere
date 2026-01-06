@@ -1,5 +1,5 @@
-mod ipl-hle
-mod dspint
+mod ipl-hle "crates/ipl-hle"
+mod dspint "crates/dspint"
 
 export RUSTDOCFLAGS := "-Zunstable-options --show-type-layout --generate-link-to-definition --default-theme dark"
 
