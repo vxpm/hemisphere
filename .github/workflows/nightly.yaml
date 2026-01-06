@@ -2,6 +2,12 @@ name: Nightly build
 
 on:
   workflow_dispatch:
+    inputs:
+      release:
+        description: 'Generate a github release for this build'
+        type: boolean
+        required: true
+        default: false
   schedule:
      - cron: "0 0 * * *"
 
@@ -85,7 +91,10 @@ jobs:
 
   build_windows:
     name: Build nightly (windows)
-    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    runs-on: windows-latest
     needs: [check_date, generate_name]
     if: ${{ needs.check_date.outputs.should_run != 'false' }}
     steps:
@@ -101,16 +110,10 @@ jobs:
         uses: taiki-e/install-action@v2
         with:
           tool: just
-      - name: Install cargo-xwin
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-xwin
-      - name: Add x86_64-pc-windows-msvc target
-        run: rustup target add x86_64-pc-windows-msvc
       - name: Build ipl-hle
         run: just ipl-hle build
       - name: Build hemisphere
-        run: cargo xwin build --target x86_64-pc-windows-msvc --release
+        run: cargo build --release
       - name: Rename executable
         run: mv ./target/x86_64-pc-windows-msvc/release/app.exe ./target/x86_64-pc-windows-msvc/release/${{ needs.generate_name.outputs.name_windows }}
       - name: Upload build artifact
@@ -123,7 +126,7 @@ jobs:
     name: Create nightly release
     runs-on: ubuntu-slim
     needs: [check_date, generate_name, build_linux, build_windows]
-    if: ${{ needs.check_date.outputs.should_run != 'false' }}
+    if: ${{ needs.check_date.outputs.should_run != 'false' && inputs.release }}
     permissions:
       contents: write
     steps:
