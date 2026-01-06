@@ -391,7 +391,7 @@ pub struct GenMode {
 pub type MatrixId = u16;
 
 /// A vertex extracted from a [`VertexAttributeStream`].
-#[derive(Debug, Default)]
+#[derive(Debug, PartialEq, Default)]
 pub struct Vertex {
     pub position: Vec3,
     pub normal: Vec3,

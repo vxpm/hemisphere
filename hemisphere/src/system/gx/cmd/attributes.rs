@@ -145,11 +145,13 @@ impl AttributeDescriptor for NormalDescriptor {
 
     fn read(&self, reader: &mut BinReader) -> Option<Vec3> {
         let mut component = || {
+            let shift_6 = 2.0f32.powi(6);
+            let shift_14 = 2.0f32.powi(14);
             Some(match self.format() {
-                CoordsFormat::U8 => reader.read_be::<u8>()? as f32,
-                CoordsFormat::I8 => reader.read_be::<i8>()? as f32,
-                CoordsFormat::U16 => reader.read_be::<u16>()? as f32,
-                CoordsFormat::I16 => reader.read_be::<i16>()? as f32,
+                CoordsFormat::U8 => reader.read_be::<u8>()? as f32 / shift_6,
+                CoordsFormat::I8 => reader.read_be::<i8>()? as f32 / shift_6,
+                CoordsFormat::U16 => reader.read_be::<u16>()? as f32 / shift_14,
+                CoordsFormat::I16 => reader.read_be::<i16>()? as f32 / shift_14,
                 CoordsFormat::F32 => f32::from_bits(reader.read_be::<u32>()?),
                 _ => panic!("reserved format"),
             })

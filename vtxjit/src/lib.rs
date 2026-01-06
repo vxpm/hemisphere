@@ -16,7 +16,7 @@ use hemisphere::{
 use jitalloc::{Allocator, Exec};
 use parser::VertexParser;
 use rustc_hash::FxHashMap;
-use std::{collections::hash_map::Entry, sync::Arc};
+use std::{collections::hash_map::Entry, mem::MaybeUninit, sync::Arc};
 
 use crate::{builder::ParserBuilder, parser::Config};
 
@@ -145,7 +145,7 @@ impl VertexModule for JitVertexModule {
         vcd: &VertexDescriptor,
         vat: &VertexAttributeTable,
         stream: &VertexAttributeStream,
-        vertices: &mut [std::mem::MaybeUninit<Vertex>],
+        vertices: &mut [MaybeUninit<Vertex>],
         matrix_set: &mut MatrixSet,
     ) {
         let config = Config {
