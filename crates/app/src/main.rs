@@ -152,7 +152,7 @@ impl App {
         let windows: Option<Vec<AppWindowState>> = cc
             .storage
             .as_ref()
-            .and_then(|s| s.get_string("windows-test"))
+            .and_then(|s| s.get_string("windows"))
             .and_then(|s| ron::from_str(&s).ok());
 
         let (windows, create_default) = if let Some(windows) = windows {
