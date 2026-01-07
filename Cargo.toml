@@ -147,6 +147,7 @@ bitos = { git = "https://github.com/vxpm/bitos.git", features = ["zerocopy"] }
 bitut = { git = "https://github.com/vxpm/bitut.git" }
 bitvec = "1.0"
 bytesize = "2"
+ciborium = "0.2"
 clap = { version = "4.5", features = ["derive"] }
 cranelift = { version = "0.127", features = ["frontend", "native"] }
 cranelift-codegen = { version = "0.127", features = ["enable-serde"] }

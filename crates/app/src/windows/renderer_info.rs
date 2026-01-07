@@ -1,4 +1,7 @@
-use crate::{Ctx, State, windows::AppWindow};
+use crate::{
+    State,
+    windows::{AppWindow, Ctx},
+};
 use eframe::egui;
 use serde::{Deserialize, Serialize};
 use std::cell::Cell;

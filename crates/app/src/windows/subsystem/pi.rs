@@ -1,4 +1,7 @@
-use crate::{AppWindow, Ctx, State, subsystem::mmio_dbg};
+use crate::{
+    AppWindow, State,
+    windows::{Ctx, subsystem::mmio_dbg},
+};
 use eframe::egui;
 use hemisphere::Address;
 use serde::{Deserialize, Serialize};

@@ -2,11 +2,11 @@ use super::{DSP_COEF, DSP_ROM};
 use dspint::Interpreter;
 use hemisphere::{cores::DspCore, system::System};
 
-pub struct InterpreterCore {
+pub struct Core {
     interpreter: Interpreter,
 }
 
-impl Default for InterpreterCore {
+impl Default for Core {
     fn default() -> Self {
         let mut interpreter = Interpreter::default();
         interpreter.mem.irom.copy_from_slice(&DSP_ROM[..]);
@@ -16,7 +16,7 @@ impl Default for InterpreterCore {
     }
 }
 
-impl DspCore for InterpreterCore {
+impl DspCore for Core {
     fn exec(&mut self, sys: &mut System, instructions: u32) -> u32 {
         self.interpreter.do_dma(sys);
         self.interpreter.check_reset(sys);

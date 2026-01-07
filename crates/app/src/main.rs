@@ -2,19 +2,12 @@
 
 mod cli;
 mod runner;
-
-mod control;
-mod debug;
-mod disasm;
-mod efb;
-mod registers;
-mod renderer_info;
-mod subsystem;
-mod variables;
 mod windows;
-mod xfb;
 
-use crate::{runner::Runner, windows::AppWindow};
+use crate::{
+    runner::Runner,
+    windows::{AppWindow, AppWindowState},
+};
 use clap::Parser;
 use eframe::{
     egui,
@@ -22,15 +15,14 @@ use eframe::{
 };
 use eyre_pretty::eyre::Result;
 use hemisphere::{
+    Hemisphere,
     cores::Cores,
     modules::debug::{DebugModule, NopDebugModule},
-    system::{self, executable::Executable, Modules},
-    Hemisphere,
+    system::{self, Modules, executable::Executable},
 };
 use nanorand::Rng;
 use renderer::Renderer;
 use runner::State;
-use serde::{Deserialize, Serialize};
 use std::{
     io::BufReader,
     sync::Arc,
@@ -38,27 +30,12 @@ use std::{
 };
 use vtxjit::JitVertexModule;
 
-use cores::cpu::jit as jitcore;
-use cores::dsp::interpreter as dspcore;
 use modules::{
     audio::CpalAudio,
     debug::{Addr2LineDebug, MapFileDebug},
     disk::IsoDisk,
     input::GilrsInput,
 };
-
-struct Ctx<'a> {
-    step: bool,
-    running: bool,
-    renderer: &'a mut Renderer,
-}
-
-#[derive(Serialize, Deserialize)]
-struct AppWindowState {
-    id: egui::Id,
-    open: bool,
-    window: Box<dyn AppWindow>,
-}
 
 struct App {
     last_update: Instant,
@@ -70,16 +47,16 @@ struct App {
 
 impl App {
     #[allow(clippy::default_constructed_unit_structs)]
-    fn new(cc: &eframe::CreationContext<'_>, args: &cli::Args) -> Result<Self> {
-        tracing::info!("loading executable");
+    fn new(cc: &eframe::CreationContext<'_>, cfg: &cli::Config) -> Result<Self> {
+        tracing::info!("starting app setup");
 
-        let ipl = if let Some(path) = &args.ipl {
+        let ipl = if let Some(path) = &cfg.ipl {
             Some(std::fs::read(path)?)
         } else {
             None
         };
 
-        let iso = IsoDisk(if let Some(path) = &args.iso {
+        let iso = IsoDisk(if let Some(path) = &cfg.iso {
             let file = std::fs::File::open(path)?;
             let reader = BufReader::new(file);
             Some(reader)
@@ -87,14 +64,14 @@ impl App {
             None
         });
 
-        let executable = if let Some(path) = &args.exec {
+        let executable = if let Some(path) = &cfg.exec {
             Some(Executable::open(path)?)
         } else {
             None
         };
 
         // this is a mess lol
-        let debug_module = if let Some(path) = args.debug.as_deref() {
+        let debug_module = if let Some(path) = cfg.debug.as_deref() {
             match path
                 .extension()
                 .and_then(|e| e.to_str())
@@ -128,23 +105,23 @@ impl App {
         let cache_dir = dirs.cache_dir();
         let jit_cache_path = cache_dir.join("ppcjit");
 
-        if args.clear_cache {
+        if cfg.ppcjit.clear_cache {
             _ = std::fs::remove_dir_all(&jit_cache_path);
         }
 
         let cores = Cores {
-            cpu: Box::new(jitcore::JitCore::new(jitcore::Config {
-                instr_per_block: args.instr_per_block,
-                jit_settings: jitcore::ppcjit::Settings {
-                    compiler: jitcore::ppcjit::CompilerSettings {
-                        nop_syscalls: args.nop_syscalls,
-                        force_fpu: args.force_fpu,
-                        ignore_unimplemented: args.ignore_unimplemented_instr,
+            dsp: Box::new(cores::dsp::interpreter::Core::default()),
+            cpu: Box::new(cores::cpu::jit::Core::new(cores::cpu::jit::Config {
+                instr_per_block: cfg.ppcjit.instr_per_block,
+                jit_settings: cores::cpu::jit::ppcjit::Settings {
+                    compiler: cores::cpu::jit::ppcjit::CompilerSettings {
+                        nop_syscalls: cfg.ppcjit.nop_syscalls,
+                        force_fpu: cfg.ppcjit.force_fpu,
+                        ignore_unimplemented: cfg.ppcjit.ignore_unimplemented_inst,
                     },
                     cache_path: jit_cache_path,
                 },
             })),
-            dsp: Box::new(dspcore::InterpreterCore::default()),
         };
 
         let modules = Modules {
@@ -160,14 +137,14 @@ impl App {
             cores,
             modules,
             system::Config {
-                force_ipl: args.force_ipl,
+                force_ipl: cfg.force_ipl,
                 ipl,
                 sideload: executable,
             },
         );
 
         let mut runner = runner::Runner::new(hemisphere);
-        if args.run {
+        if cfg.run {
             runner.start();
         }
 
@@ -208,44 +185,44 @@ impl eframe::App for App {
                 ui.label("Hemisphere");
                 ui.menu_button("🗖 View", |ui| {
                     if ui.button("Control").clicked() {
-                        self.create_window(control::Window::default());
+                        self.create_window(windows::control());
                     }
 
                     if ui.button("Disassembly").clicked() {
-                        self.create_window(disasm::Window::default());
+                        self.create_window(windows::disasm());
                     }
 
                     if ui.button("Registers").clicked() {
-                        self.create_window(registers::Window::default());
+                        self.create_window(windows::registers());
                     }
 
                     if ui.button("Call Stack").clicked() {
-                        self.create_window(debug::Window::default());
+                        self.create_window(windows::debug());
                     }
 
                     if ui.button("Variables").clicked() {
-                        self.create_window(variables::Window::default());
+                        self.create_window(windows::variables());
                     }
 
                     if ui.button("XFB").clicked() {
-                        self.create_window(xfb::Window::default());
+                        self.create_window(windows::xfb());
                     }
 
                     if ui.button("EFB").clicked() {
-                        self.create_window(efb::Window);
+                        self.create_window(windows::efb());
                     }
 
                     if ui.button("Renderer").clicked() {
-                        self.create_window(renderer_info::Window::default());
+                        self.create_window(windows::renderer());
                     }
 
                     ui.menu_button("Subsystems", |ui| {
                         if ui.button("Command Processor").clicked() {
-                            self.create_window(subsystem::cp::Window::default());
+                            self.create_window(windows::subsystem_cp());
                         }
 
                         if ui.button("Processor Interface").clicked() {
-                            self.create_window(subsystem::pi::Window::default());
+                            self.create_window(windows::subsystem_pi());
                         }
                     });
                 });
@@ -278,7 +255,7 @@ impl eframe::App for App {
             self.runner.start();
         }
 
-        let mut context = Ctx {
+        let mut context = windows::Ctx {
             step: false,
             running,
             renderer: &mut self.renderer,
@@ -331,7 +308,7 @@ impl eframe::App for App {
 }
 
 fn setup_tracing() -> tracing_appender::non_blocking::WorkerGuard {
-    use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+    use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
     let file = std::fs::File::options()
         .truncate(true)
@@ -358,25 +335,20 @@ fn setup_tracing() -> tracing_appender::non_blocking::WorkerGuard {
 fn main() -> Result<()> {
     eyre_pretty::install()?;
     let _tracing_guard = setup_tracing();
+    let cfg = cli::Config::parse();
 
-    let args = cli::Args::parse();
+    let device_descriptor = Arc::new(|_: &wgpu::Adapter| {
+        let mut required_features = wgpu::Features::empty();
+        required_features |= wgpu::Features::DUAL_SOURCE_BLENDING;
+        required_features |= wgpu::Features::FLOAT32_FILTERABLE;
 
-    let device_descriptor = Arc::new(|adapter: &wgpu::Adapter| {
-        let base_limits = if adapter.get_info().backend == wgpu::Backend::Gl {
-            wgpu::Limits::downlevel_defaults()
-        } else {
-            wgpu::Limits::defaults()
-        };
+        let mut required_limits = wgpu::Limits::defaults();
+        required_limits.max_texture_dimension_2d = 8192;
 
         wgpu::DeviceDescriptor {
-            label: Some("hemisphere-egui wgpu device"),
-            required_features: wgpu::Features::DUAL_SOURCE_BLENDING
-                | wgpu::Features::FLOAT32_FILTERABLE,
-            required_limits: wgpu::Limits {
-                // required by egui
-                max_texture_dimension_2d: 8192,
-                ..base_limits
-            },
+            label: Some("hemisphere wgpu device"),
+            required_features,
+            required_limits,
             ..Default::default()
         }
     });
@@ -386,7 +358,6 @@ fn main() -> Result<()> {
         wgpu_options: WgpuConfiguration {
             wgpu_setup: WgpuSetup::CreateNew(WgpuSetupCreateNew {
                 instance_descriptor: wgpu::InstanceDescriptor {
-                    // flags: wgpu::InstanceFlags::debugging(),
                     backends: wgpu::Backends::PRIMARY,
                     ..Default::default()
                 },
@@ -396,7 +367,7 @@ fn main() -> Result<()> {
             }),
             ..Default::default()
         },
-
+        vsync: false,
         ..Default::default()
     };
 
@@ -404,7 +375,7 @@ fn main() -> Result<()> {
         "Hemisphere",
         options,
         Box::new(|cc| {
-            let app = App::new(cc, &args)?;
+            let app = App::new(cc, &cfg)?;
             Ok(Box::new(app))
         }),
     )?;

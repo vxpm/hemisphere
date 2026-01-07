@@ -1,9 +1,74 @@
-use crate::{Ctx, runner::State};
+mod control;
+mod debug;
+mod disasm;
+mod efb;
+mod registers;
+mod renderer_info;
+mod subsystem;
+mod variables;
+mod xfb;
+
+use crate::runner::State;
 use eframe::egui;
+use renderer::Renderer;
+use serde::{Deserialize, Serialize};
+
+pub struct Ctx<'a> {
+    pub step: bool,
+    pub running: bool,
+    pub renderer: &'a mut Renderer,
+}
 
 #[typetag::serde]
 pub(crate) trait AppWindow: 'static {
     fn title(&self) -> &str;
     fn prepare(&mut self, state: &mut State);
     fn show(&mut self, ui: &mut egui::Ui, ctx: &mut Ctx);
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct AppWindowState {
+    pub id: egui::Id,
+    pub open: bool,
+    pub window: Box<dyn AppWindow>,
+}
+
+pub fn control() -> control::Window {
+    Default::default()
+}
+
+pub fn disasm() -> disasm::Window {
+    Default::default()
+}
+
+pub fn registers() -> registers::Window {
+    Default::default()
+}
+
+pub fn debug() -> debug::Window {
+    Default::default()
+}
+
+pub fn variables() -> variables::Window {
+    Default::default()
+}
+
+pub fn xfb() -> xfb::Window {
+    Default::default()
+}
+
+pub fn efb() -> efb::Window {
+    Default::default()
+}
+
+pub fn renderer() -> renderer_info::Window {
+    Default::default()
+}
+
+pub fn subsystem_cp() -> subsystem::cp::Window {
+    Default::default()
+}
+
+pub fn subsystem_pi() -> subsystem::pi::Window {
+    Default::default()
 }

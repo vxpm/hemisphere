@@ -1,4 +1,7 @@
-use crate::{Ctx, State, windows::AppWindow};
+use crate::{
+    State,
+    windows::{AppWindow, Ctx},
+};
 use eframe::egui;
 use hemisphere::system;
 use serde::{Deserialize, Serialize};
@@ -31,7 +34,7 @@ pub struct Window {
 #[typetag::serde(name = "xfb")]
 impl AppWindow for Window {
     fn title(&self) -> &str {
-        "🖵 XFB"
+        "XFB"
     }
 
     fn prepare(&mut self, state: &mut State) {

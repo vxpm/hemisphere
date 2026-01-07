@@ -584,7 +584,7 @@ pub struct Config {
     pub jit_settings: ppcjit::Settings,
 }
 
-pub struct JitCore {
+pub struct Core {
     pub config: Config,
     pub compiler: ppcjit::Jit,
     pub blocks: Blocks,
@@ -607,7 +607,7 @@ fn closest_breakpoint(pc: Address, breakpoints: &[Address]) -> Address {
     closest_breakpoint
 }
 
-impl JitCore {
+impl Core {
     pub fn new(config: Config) -> Self {
         let compiler = ppcjit::Jit::new(config.jit_settings.clone(), CTX_HOOKS);
 
@@ -781,7 +781,7 @@ impl JitCore {
     }
 }
 
-impl CpuCore for JitCore {
+impl CpuCore for Core {
     fn exec(&mut self, sys: &mut System, cycles: Cycles, breakpoints: &[Address]) -> Executed {
         if breakpoints.is_empty() {
             self.exec_inner::<false>(sys, cycles, &[])
