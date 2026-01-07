@@ -8,10 +8,9 @@ use crate::ins::{ExtensionOpcode, Opcode};
 use bitos::integer::{u3, u4};
 use bitos::{BitUtils, bitos, integer::u15};
 use hemisphere::Primitive;
-use hemisphere::system::{
-    System,
-    dspi::{DspDmaControl, DspDmaDirection, DspDmaTarget, Mailbox},
-};
+use hemisphere::system::dspi::Dsp;
+use hemisphere::system::dspi::{DspDmaControl, DspDmaDirection, DspDmaTarget, Mailbox};
+use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use strum::FromRepr;
 use tinyvec::ArrayVec;
 use util::boxed_array;
@@ -479,6 +478,25 @@ struct CachedIns {
     extension: Option<ExtensionFn>,
 }
 
+#[derive(Clone)]
+pub struct Mmio(Arc<RwLock<Dsp>>);
+
+impl Mmio {
+    pub fn new() -> Self {
+        Self(Arc::new(RwLock::new(Dsp::new())))
+    }
+
+    #[inline(always)]
+    pub fn get(&self) -> RwLockReadGuard<'_, Dsp> {
+        self.0.read().unwrap()
+    }
+
+    #[inline(always)]
+    pub fn get_mut(&self) -> RwLockWriteGuard<'_, Dsp> {
+        self.0.write().unwrap()
+    }
+}
+
 pub struct Interpreter {
     pub pc: u16,
     pub regs: Registers,
@@ -486,6 +504,7 @@ pub struct Interpreter {
     pub accel: Accelerator,
     pub loop_counter: Option<u16>,
     pub old_reset_high: bool,
+    pub mmio: Mmio,
 
     cached: Box<[Option<CachedIns>; 1 << 16]>,
 }
@@ -499,15 +518,16 @@ impl Default for Interpreter {
             accel: Default::default(),
             loop_counter: Default::default(),
             old_reset_high: Default::default(),
+            mmio: Mmio::new(),
             cached: util::boxed_array(None),
         }
     }
 }
 
-type OpcodeFn = for<'a, 'b> fn(&'a mut Interpreter, &'b mut System, Ins);
+type OpcodeFn = for<'a> fn(&'a mut Interpreter, Ins);
 
 static OPCODE_EXEC_LUT: [OpcodeFn; 1 << 8] = {
-    fn nop(_: &mut Interpreter, _: &mut System, _: Ins) {}
+    fn nop(_: &mut Interpreter, _: Ins) {}
     let mut lut = [nop as OpcodeFn; 1 << 8];
 
     lut[Opcode::Abs as usize] = Interpreter::abs as OpcodeFn;
@@ -637,10 +657,10 @@ static OPCODE_EXEC_LUT: [OpcodeFn; 1 << 8] = {
     lut
 };
 
-type ExtensionFn = for<'a, 'b, 'c> fn(&'a mut Interpreter, &'b mut System, Ins, &'c Registers);
+type ExtensionFn = for<'a, 'b> fn(&'a mut Interpreter, Ins, &'b Registers);
 
 static EXTENSION_EXEC_LUT: [ExtensionFn; 1 << 8] = {
-    fn nop(_: &mut Interpreter, _: &mut System, _: Ins, _: &Registers) {}
+    fn nop(_: &mut Interpreter, _: Ins, _: &Registers) {}
     let mut lut = [nop as ExtensionFn; 1 << 8];
 
     lut[ExtensionOpcode::Dr as usize] = Interpreter::ext_dr as ExtensionFn;
@@ -680,7 +700,7 @@ impl Interpreter {
     }
 
     #[inline(always)]
-    pub fn check_interrupts(&mut self, sys: &mut System) {
+    pub fn check_interrupts(&mut self) {
         if self.loop_counter.is_some() {
             return;
         }
@@ -694,10 +714,17 @@ impl Interpreter {
         }
 
         // external interrupt does not care about status interrupt enable
-        if self.regs.status.external_interrupt_enable() && sys.dsp.control.interrupt() {
+        let mmio = self.mmio.get();
+        if self.regs.status.external_interrupt_enable() && mmio.control.interrupt() {
             std::hint::cold_path();
+            std::mem::drop(mmio);
             tracing::warn!("DSP external interrupt raised");
-            sys.dsp.control.set_interrupt(false);
+
+            {
+                let mut mmio = self.mmio.get_mut();
+                mmio.control.set_interrupt(false);
+            }
+
             self.raise_interrupt(Interrupt::External);
         }
     }
@@ -723,7 +750,7 @@ impl Interpreter {
     }
 
     /// Soft resets the DSP.
-    pub fn reset(&mut self, sys: &mut System) {
+    pub fn reset(&mut self) {
         self.loop_counter = None;
 
         self.regs.wrapping = [0xFFFF; 4];
@@ -732,10 +759,11 @@ impl Interpreter {
         self.regs.loop_stack.clear();
         self.regs.loop_count.clear();
 
-        sys.dsp.dsp_mailbox = Mailbox::from_bits(0);
-        sys.dsp.cpu_mailbox = Mailbox::from_bits(0);
+        let mut mmio = self.mmio.get_mut();
+        mmio.dsp_mailbox = Mailbox::from_bits(0);
+        mmio.cpu_mailbox = Mailbox::from_bits(0);
 
-        self.pc = if sys.dsp.control.reset_high() {
+        self.pc = if mmio.control.reset_high() {
             tracing::debug!("resetting at IROM (0x8000)");
             0x8000
         } else {
@@ -745,44 +773,51 @@ impl Interpreter {
     }
 
     /// Checks for reset.
-    pub fn check_reset(&mut self, sys: &mut System) {
-        if sys.dsp.control.reset() || (sys.dsp.control.reset_high() != self.old_reset_high) {
-            std::hint::cold_path();
+    pub fn check_reset(&mut self, ram: &mut [u8]) {
+        {
+            let mmio = self.mmio.get();
+            if mmio.control.reset() || (mmio.control.reset_high() != self.old_reset_high) {
+                std::hint::cold_path();
 
-            // DMA from main memory if resetting at low
-            if !sys.dsp.control.reset_high() {
-                tracing::debug!("DSP DMA stub from main memory");
-                let data = sys.mem.ram()[0x0100_0000..][..1024]
-                    .chunks_exact(2)
-                    .map(|c| u16::from_be_bytes([c[0], c[1]]));
+                // DMA from main memory if resetting at low
+                if !mmio.control.reset_high() {
+                    tracing::debug!("DSP DMA stub from main memory");
+                    let data = ram[0x0100_0000..][..1024]
+                        .chunks_exact(2)
+                        .map(|c| u16::from_be_bytes([c[0], c[1]]));
 
-                for (word, data) in self.mem.iram[..512].iter_mut().zip(data) {
-                    *word = data;
+                    for (word, data) in self.mem.iram[..512].iter_mut().zip(data) {
+                        *word = data;
+                    }
                 }
-            }
 
-            tracing::debug!("DSP reset");
-            self.reset(sys);
+                std::mem::drop(mmio);
+                tracing::debug!("DSP reset");
+                self.reset();
+            }
         }
 
-        sys.dsp.control.set_reset(false);
-        self.old_reset_high = sys.dsp.control.reset_high();
+        let mut mmio = self.mmio.get_mut();
+        mmio.control.set_reset(false);
+        self.old_reset_high = mmio.control.reset_high();
     }
 
     /// Performs the DSP DMA if the transfer is ongoing.
-    pub fn do_dma(&mut self, sys: &mut System) {
-        if sys.dsp.dsp_dma.control.transfer_ongoing() {
+    pub fn do_dma(&mut self, ram: &mut [u8]) {
+        let mmio = self.mmio.get();
+        if mmio.dsp_dma.control.transfer_ongoing() {
             std::hint::cold_path();
 
-            let ram_base = sys.dsp.dsp_dma.ram_base.with_bits(26, 32, 0);
-            let dsp_base = sys.dsp.dsp_dma.dsp_base;
-            let length = sys.dsp.dsp_dma.length;
+            let ram_base = mmio.dsp_dma.ram_base.with_bits(26, 32, 0);
+            let dsp_base = mmio.dsp_dma.dsp_base;
+            let length = mmio.dsp_dma.length;
 
             let (target, direction) = (
-                sys.dsp.dsp_dma.control.dsp_target(),
-                sys.dsp.dsp_dma.control.direction(),
+                mmio.dsp_dma.control.dsp_target(),
+                mmio.dsp_dma.control.direction(),
             );
 
+            std::mem::drop(mmio);
             match (target, direction) {
                 (DspDmaTarget::Dmem, DspDmaDirection::FromRamToDsp) => {
                     tracing::debug!(
@@ -790,11 +825,10 @@ impl Interpreter {
                     );
 
                     for word in 0..(length / 2) {
-                        let data = u16::read_be_bytes(
-                            &sys.mem.ram()[(ram_base + 2 * word as u32) as usize..],
-                        );
+                        let data =
+                            u16::read_be_bytes(&ram[(ram_base + 2 * word as u32) as usize..]);
 
-                        self.write_dmem(sys, dsp_base + word, data);
+                        self.write_dmem(dsp_base + word, data);
                     }
                 }
                 (DspDmaTarget::Dmem, DspDmaDirection::FromDspToRam) => {
@@ -803,10 +837,8 @@ impl Interpreter {
                     );
 
                     for word in 0..(length / 2) {
-                        let data = self.read_dmem(sys, dsp_base + word);
-                        data.write_be_bytes(
-                            &mut sys.mem.ram_mut()[(ram_base + 2 * word as u32) as usize..],
-                        );
+                        let data = self.read_dmem(dsp_base + word);
+                        data.write_be_bytes(&mut ram[(ram_base + 2 * word as u32) as usize..]);
                     }
                 }
                 (DspDmaTarget::Imem, DspDmaDirection::FromRamToDsp) => {
@@ -817,9 +849,8 @@ impl Interpreter {
                     );
 
                     for word in 0..(length / 2) {
-                        let data = u16::read_be_bytes(
-                            &sys.mem.ram()[(ram_base + 2 * word as u32) as usize..],
-                        );
+                        let data =
+                            u16::read_be_bytes(&ram[(ram_base + 2 * word as u32) as usize..]);
 
                         self.write_imem(dsp_base + word, data);
                     }
@@ -830,9 +861,10 @@ impl Interpreter {
                 (DspDmaTarget::Imem, DspDmaDirection::FromDspToRam) => unimplemented!(),
             };
 
-            sys.dsp.dsp_dma.length = 0;
-            sys.dsp.dsp_dma.control.set_transfer_ongoing(false);
-            sys.dsp.control.set_dsp_dma_ongoing(false);
+            let mut mmio = self.mmio.get_mut();
+            mmio.dsp_dma.length = 0;
+            mmio.dsp_dma.control.set_transfer_ongoing(false);
+            mmio.control.set_dsp_dma_ongoing(false);
         }
     }
 
@@ -846,23 +878,24 @@ impl Interpreter {
         }
     }
 
-    fn read_aram_raw(&mut self, sys: &mut System, wrap: Option<AccelWrap>) -> u16 {
+    fn read_aram_raw(&mut self, wrap: Option<AccelWrap>) -> u16 {
+        let mmio = self.mmio.get();
         let format = self.accel.format;
         let index = self.accel.aram_curr.with_bit(31, false);
         let value = match format.sample() {
             SampleSize::Nibble => {
                 let address = index / 2;
-                let byte = u8::read_be_bytes(&sys.dsp.aram[address as usize..]) as u16;
+                let byte = u8::read_be_bytes(&mmio.aram[address as usize..]) as u16;
                 if index.is_multiple_of(2) {
                     byte >> 4
                 } else {
                     byte & 0xF
                 }
             }
-            SampleSize::Byte => u8::read_be_bytes(&sys.dsp.aram[index as usize..]) as u16,
+            SampleSize::Byte => u8::read_be_bytes(&mmio.aram[index as usize..]) as u16,
             SampleSize::Word => {
                 let address = index * 2;
-                u16::read_be_bytes(&sys.dsp.aram[address as usize..])
+                u16::read_be_bytes(&mmio.aram[address as usize..])
             }
             _ => panic!("reserved format"),
         };
@@ -873,12 +906,13 @@ impl Interpreter {
             self.accel.aram_end
         );
 
+        std::mem::drop(mmio);
         self.increment_aram_curr(wrap);
         value
     }
 
-    fn read_accelerator_raw(&mut self, sys: &mut System) -> u16 {
-        self.read_aram_raw(sys, Some(AccelWrap::RawRead))
+    fn read_accelerator_raw(&mut self) -> u16 {
+        self.read_aram_raw(Some(AccelWrap::RawRead))
     }
 
     fn pcm_gain(&self, value: i32) -> i32 {
@@ -897,12 +931,12 @@ impl Interpreter {
         self.accel.format.divisor().apply(acc) as i16
     }
 
-    fn adpcm_decode(&mut self, sys: &mut System) -> i16 {
+    fn adpcm_decode(&mut self) -> i16 {
         assert_eq!(self.accel.format.sample(), SampleSize::Nibble);
 
         if self.accel.aram_curr.is_multiple_of(16) {
-            let coeff_idx = self.read_aram_raw(sys, None) as u8;
-            let scale = self.read_aram_raw(sys, None) as u8;
+            let coeff_idx = self.read_aram_raw(None) as u8;
+            let scale = self.read_aram_raw(None) as u8;
             self.accel.predictor.set_coefficients(u3::new(coeff_idx));
             self.accel.predictor.set_scale_log2(u4::new(scale));
         }
@@ -913,7 +947,7 @@ impl Interpreter {
         let coeffs = self.accel.coefficients[coeff_idx as usize];
         let scale = 1 << predictor.scale_log2().value();
 
-        let data = ((self.read_aram_raw(sys, None) as i8) << 4) >> 4;
+        let data = ((self.read_aram_raw(None) as i8) << 4) >> 4;
         let value = scale * data as i32;
 
         let prediction = coeffs.a as i32 * self.accel.previous_samples[0] as i32
@@ -923,16 +957,16 @@ impl Interpreter {
         result.clamp(i16::MIN as i32, i16::MAX as i32) as i16
     }
 
-    fn read_accelerator_sample(&mut self, sys: &mut System) -> i16 {
+    fn read_accelerator_sample(&mut self) -> i16 {
         if !self.accel.has_data {
             return 0;
         }
 
         let value = match self.accel.format.decoding() {
-            SampleDecoding::AramAdpcm => self.adpcm_decode(sys),
+            SampleDecoding::AramAdpcm => self.adpcm_decode(),
             SampleDecoding::AcinPcm => self.pcm_decode(self.accel.input as i32),
             SampleDecoding::AramPcm => {
-                let value = self.read_aram_raw(sys, Some(AccelWrap::SampleRead)) as i16;
+                let value = self.read_aram_raw(Some(AccelWrap::SampleRead)) as i16;
                 self.pcm_decode(value as i32)
             }
             SampleDecoding::AcinPcmInc => {
@@ -947,7 +981,7 @@ impl Interpreter {
         value
     }
 
-    pub fn read_mmio(&mut self, sys: &mut System, offset: u8) -> u16 {
+    pub fn read_mmio(&mut self, offset: u8) -> u16 {
         match offset {
             // Coefficients
             0xA0..=0xAF => {
@@ -960,14 +994,14 @@ impl Interpreter {
             }
 
             // DMA
-            0xC9 => sys.dsp.dsp_dma.control.to_bits(),
-            0xCB => sys.dsp.dsp_dma.length,
-            0xCD => sys.dsp.dsp_dma.dsp_base,
-            0xCE => (sys.dsp.dsp_dma.ram_base >> 16) as u16,
-            0xCF => sys.dsp.dsp_dma.ram_base as u16,
+            0xC9 => self.mmio.get().dsp_dma.control.to_bits(),
+            0xCB => self.mmio.get().dsp_dma.length,
+            0xCD => self.mmio.get().dsp_dma.dsp_base,
+            0xCE => (self.mmio.get().dsp_dma.ram_base >> 16) as u16,
+            0xCF => self.mmio.get().dsp_dma.ram_base as u16,
 
             // Accelerator
-            0xD3 => self.read_accelerator_raw(sys),
+            0xD3 => self.read_accelerator_raw(),
             0xD4 => self.accel.aram_start.bits(16, 32) as u16,
             0xD5 => self.accel.aram_start.bits(0, 16) as u16,
             0xD6 => self.accel.aram_end.bits(16, 32) as u16,
@@ -977,30 +1011,31 @@ impl Interpreter {
             0xDA => self.accel.predictor.to_bits(),
             0xDB => self.accel.previous_samples[0] as u16,
             0xDC => self.accel.previous_samples[1] as u16,
-            0xDD => self.read_accelerator_sample(sys) as u16,
+            0xDD => self.read_accelerator_sample() as u16,
             0xDE => self.accel.gain as u16,
             0xDF => self.accel.input as u16,
 
             // Mailboxes
-            0xFC => sys.dsp.dsp_mailbox.high_and_status(),
-            0xFD => sys.dsp.dsp_mailbox.low(),
-            0xFE => sys.dsp.cpu_mailbox.high_and_status(),
+            0xFC => self.mmio.get().dsp_mailbox.high_and_status(),
+            0xFD => self.mmio.get().dsp_mailbox.low(),
+            0xFE => self.mmio.get().cpu_mailbox.high_and_status(),
             0xFF => {
-                if sys.dsp.cpu_mailbox.status() {
+                let mut mmio = self.mmio.get_mut();
+                if mmio.cpu_mailbox.status() {
                     tracing::trace!(
                         "received from CPU mailbox: 0x{:08X}",
-                        sys.dsp.cpu_mailbox.data().value()
+                        mmio.cpu_mailbox.data().value()
                     );
-                    sys.dsp.cpu_mailbox.set_status(false);
+                    mmio.cpu_mailbox.set_status(false);
                 }
 
-                sys.dsp.cpu_mailbox.low()
+                mmio.cpu_mailbox.low()
             }
             _ => unimplemented!("read from {offset:02X}"),
         }
     }
 
-    pub fn write_mmio(&mut self, sys: &mut System, offset: u8, value: u16) {
+    pub fn write_mmio(&mut self, offset: u8, value: u16) {
         match offset {
             // Coefficients
             0xA0..=0xAF => {
@@ -1013,24 +1048,30 @@ impl Interpreter {
             }
 
             // DMA
-            0xC9 => sys.dsp.dsp_dma.control = DspDmaControl::from_bits(value),
+            0xC9 => self.mmio.get_mut().dsp_dma.control = DspDmaControl::from_bits(value),
             0xCB => {
-                sys.dsp.dsp_dma.length = value;
-                sys.dsp.dsp_dma.control.set_transfer_ongoing(true);
-                sys.dsp.control.set_dsp_dma_ongoing(true);
+                self.mmio.get_mut().dsp_dma.length = value;
+                self.mmio
+                    .get_mut()
+                    .dsp_dma
+                    .control
+                    .set_transfer_ongoing(true);
+                self.mmio.get_mut().control.set_dsp_dma_ongoing(true);
             }
-            0xCD => sys.dsp.dsp_dma.dsp_base = value,
+            0xCD => self.mmio.get_mut().dsp_dma.dsp_base = value,
             0xCE => {
-                sys.dsp.dsp_dma.ram_base = sys.dsp.dsp_dma.ram_base.with_bits(16, 32, value as u32)
+                let mut mmio = self.mmio.get_mut();
+                mmio.dsp_dma.ram_base = mmio.dsp_dma.ram_base.with_bits(16, 32, value as u32)
             }
             0xCF => {
-                sys.dsp.dsp_dma.ram_base = sys.dsp.dsp_dma.ram_base.with_bits(0, 16, value as u32)
+                let mut mmio = self.mmio.get_mut();
+                mmio.dsp_dma.ram_base = mmio.dsp_dma.ram_base.with_bits(0, 16, value as u32)
             }
 
             // Interrupt
             0xFB => {
                 if value > 0 {
-                    sys.dsp.control.set_dsp_interrupt(true);
+                    self.mmio.get_mut().control.set_dsp_interrupt(true);
                 }
             }
 
@@ -1044,7 +1085,7 @@ impl Interpreter {
                 );
 
                 value.write_be_bytes(
-                    sys.dsp.aram[self.accel.aram_curr.with_bit(31, false) as usize..]
+                    self.mmio.get_mut().aram[self.accel.aram_curr.with_bit(31, false) as usize..]
                         .as_mut_bytes(),
                 );
 
@@ -1072,22 +1113,23 @@ impl Interpreter {
 
             // Mailboxes
             0xFC => {
-                sys.dsp.dsp_mailbox.set_high(u15::new(value));
+                self.mmio.get_mut().dsp_mailbox.set_high(u15::new(value));
             }
             0xFD => {
-                sys.dsp.dsp_mailbox.set_low(value);
-                sys.dsp.dsp_mailbox.set_status(true);
+                let mut mmio = self.mmio.get_mut();
+                mmio.dsp_mailbox.set_low(value);
+                mmio.dsp_mailbox.set_status(true);
             }
             _ => unimplemented!("write to {offset:02X}"),
         }
     }
 
     /// Reads from data memory.
-    pub fn read_dmem(&mut self, sys: &mut System, addr: u16) -> u16 {
+    pub fn read_dmem(&mut self, addr: u16) -> u16 {
         match addr {
             0x0000..0x1000 => self.mem.dram[addr as usize],
             0x1000..0x1800 => self.mem.coef[addr as usize - 0x1000],
-            0xFF00.. => self.read_mmio(sys, addr as u8),
+            0xFF00.. => self.read_mmio(addr as u8),
             _ => {
                 std::hint::cold_path();
                 0
@@ -1096,21 +1138,21 @@ impl Interpreter {
     }
 
     /// Writes to data memory.
-    pub fn write_dmem(&mut self, sys: &mut System, addr: u16, value: u16) {
+    pub fn write_dmem(&mut self, addr: u16, value: u16) {
         match addr {
             0x0000..0x1000 => self.mem.dram[addr as usize] = value,
             0x1000..0x1800 => {
                 std::hint::cold_path();
                 tracing::warn!("writing to coefficient data");
             }
-            0xFF00.. => self.write_mmio(sys, addr as u8, value),
+            0xFF00.. => self.write_mmio(addr as u8, value),
             _ => (),
         }
     }
 
     /// Reads from instruction memory.
     #[inline(always)]
-    pub fn read_imem(&mut self, addr: u16) -> u16 {
+    pub fn read_imem(&self, addr: u16) -> u16 {
         match addr {
             0x0000..0x1000 => self.mem.iram[addr as usize],
             0x8000..0x9000 => {
@@ -1132,7 +1174,7 @@ impl Interpreter {
         }
     }
 
-    fn is_waiting_for_cpu_mail_inner(&mut self, offset: i16) -> bool {
+    fn is_waiting_for_cpu_mail_inner(&self, offset: i16) -> bool {
         let start = self.pc.wrapping_add_signed(offset);
         let pattern_a = [
             // lrs   $ACM0, @cmbh
@@ -1168,13 +1210,13 @@ impl Interpreter {
     }
 
     #[inline(always)]
-    pub fn is_waiting_for_cpu_mail(&mut self) -> bool {
+    pub fn is_waiting_for_cpu_mail(&self) -> bool {
         self.is_waiting_for_cpu_mail_inner(0)
             || self.is_waiting_for_cpu_mail_inner(-1)
             || self.is_waiting_for_cpu_mail_inner(-3)
     }
 
-    fn is_waiting_for_dsp_mail_inner(&mut self, offset: i16) -> bool {
+    fn is_waiting_for_dsp_mail_inner(&self, offset: i16) -> bool {
         let start = self.pc.wrapping_add_signed(offset);
         let pattern_a = [
             // lrs   $ACM0, @dmbh
@@ -1210,7 +1252,7 @@ impl Interpreter {
     }
 
     #[inline(always)]
-    pub fn is_waiting_for_dsp_mail(&mut self) -> bool {
+    pub fn is_waiting_for_dsp_mail(&self) -> bool {
         self.is_waiting_for_dsp_mail_inner(0)
             || self.is_waiting_for_dsp_mail_inner(-1)
             || self.is_waiting_for_dsp_mail_inner(-3)
@@ -1250,15 +1292,15 @@ impl Interpreter {
         cached
     }
 
-    pub fn exec(&mut self, sys: &mut System, instructions: u32) {
+    pub fn exec(&mut self, instructions: u32) {
         let mut i = 0;
         while i < instructions {
-            if sys.dsp.control.halt() {
+            if self.mmio.get().control.halt() {
                 std::hint::cold_path();
                 break;
             }
 
-            self.check_interrupts(sys);
+            self.check_interrupts();
             self.check_stacks();
 
             // have we cached this instruction already?
@@ -1272,10 +1314,10 @@ impl Interpreter {
             // execute
             if let Some(extension) = ins.extension {
                 let regs_previous = self.regs.clone();
-                (ins.main)(self, sys, ins.ins);
-                (extension)(self, sys, ins.ins, &regs_previous);
+                (ins.main)(self, ins.ins);
+                (extension)(self, ins.ins, &regs_previous);
             } else {
-                (ins.main)(self, sys, ins.ins);
+                (ins.main)(self, ins.ins);
             }
 
             if let Some(loop_counter) = &mut self.loop_counter {
@@ -1294,7 +1336,7 @@ impl Interpreter {
         }
     }
 
-    pub fn step(&mut self, sys: &mut System) {
-        self.exec(sys, 1);
+    pub fn step(&mut self) {
+        self.exec(1);
     }
 }

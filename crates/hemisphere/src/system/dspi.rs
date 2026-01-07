@@ -150,53 +150,50 @@ impl Dsp {
 }
 
 pub fn write_control(sys: &mut System, value: Control) {
-    sys.dsp.control.set_reset(value.reset());
-    sys.dsp.control.set_halt(value.halt());
+    let mut dsp = sys.modules.dsp.state_mut();
+    let dsp = &mut *dsp;
+
+    dsp.control.set_reset(value.reset());
+    dsp.control.set_halt(value.halt());
 
     // DSP external interrupt
-    sys.dsp.control.set_interrupt(value.interrupt());
+    dsp.control.set_interrupt(value.interrupt());
 
     // PI DMA interrupts
-    sys.dsp
-        .control
-        .set_ai_interrupt(sys.dsp.control.ai_interrupt() & !value.ai_interrupt());
-    sys.dsp
-        .control
-        .set_ai_interrupt_mask(value.ai_interrupt_mask());
+    dsp.control
+        .set_ai_interrupt(dsp.control.ai_interrupt() & !value.ai_interrupt());
+    dsp.control.set_ai_interrupt_mask(value.ai_interrupt_mask());
 
-    sys.dsp
-        .control
-        .set_aram_interrupt(sys.dsp.control.aram_interrupt() & !value.aram_interrupt());
-    sys.dsp
-        .control
+    dsp.control
+        .set_aram_interrupt(dsp.control.aram_interrupt() & !value.aram_interrupt());
+    dsp.control
         .set_aram_interrupt_mask(value.aram_interrupt_mask());
 
-    sys.dsp
-        .control
-        .set_dsp_interrupt(sys.dsp.control.dsp_interrupt() & !value.dsp_interrupt());
-    sys.dsp
-        .control
+    dsp.control
+        .set_dsp_interrupt(dsp.control.dsp_interrupt() & !value.dsp_interrupt());
+    dsp.control
         .set_dsp_interrupt_mask(value.dsp_interrupt_mask());
 
-    sys.dsp.control.set_unknown(value.unknown());
-    sys.dsp.control.set_reset_high(value.reset_high());
+    dsp.control.set_unknown(value.unknown());
+    dsp.control.set_reset_high(value.reset_high());
 }
 
 /// Performs the ARAM DMA if length is not zero.
 pub fn aram_dma(sys: &mut System) {
-    let length = sys.dsp.aram_dma.control.length().value() as usize;
+    let mut dsp = sys.modules.dsp.state_mut();
+    let length = dsp.aram_dma.control.length().value() as usize;
     if length != 0 {
-        let ram_base = sys.dsp.aram_dma.ram_base.value().with_bits(26, 32, 0);
-        let aram_base = sys.dsp.aram_dma.aram_base & 0x00FF_FFFF;
+        let ram_base = dsp.aram_dma.ram_base.value().with_bits(26, 32, 0);
+        let aram_base = dsp.aram_dma.aram_base & 0x00FF_FFFF;
 
-        match sys.dsp.aram_dma.control.direction() {
+        match dsp.aram_dma.control.direction() {
             AramDmaDirection::FromRamToAram => {
                 tracing::debug!(
                     "ARAM DMA {length} bytes from RAM {} to ARAM {aram_base:08X}",
                     Address(ram_base)
                 );
 
-                let aram = &mut sys.dsp.aram[aram_base as usize..][..length];
+                let aram = &mut dsp.aram[aram_base as usize..][..length];
                 aram.copy_from_slice(&sys.mem.ram()[ram_base as usize..][..length]);
             }
             AramDmaDirection::FromAramToRam => {
@@ -206,11 +203,11 @@ pub fn aram_dma(sys: &mut System) {
                 );
 
                 sys.mem.ram_mut()[ram_base as usize..][..length]
-                    .copy_from_slice(&sys.dsp.aram[aram_base as usize..][..length]);
+                    .copy_from_slice(&dsp.aram[aram_base as usize..][..length]);
             }
         }
 
-        sys.dsp.aram_dma.control.set_length(u31::new(0));
-        sys.dsp.control.set_aram_interrupt(true);
+        dsp.aram_dma.control.set_length(u31::new(0));
+        dsp.control.set_aram_interrupt(true);
     }
 }

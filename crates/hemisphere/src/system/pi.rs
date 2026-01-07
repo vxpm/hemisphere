@@ -147,7 +147,10 @@ pub fn get_active_interrupts(sys: &System) -> InterruptSources {
     );
 
     // DSP
-    sources.set_dsp_interface(sys.dsp.control.any_interrupt());
+    {
+        let dsp = sys.modules.dsp.state();
+        sources.set_dsp_interface(dsp.control.any_interrupt());
+    }
 
     // DI
     sources.set_dvd_interface(sys.disk.status.any_interrupt());

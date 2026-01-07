@@ -749,7 +749,7 @@ impl JitCore {
 
                 if let Some(func_block) = self.blocks.get(dest)
                     && func_block.inner.meta().pattern == Pattern::GetMailboxStatusFunc
-                    && sys.dsp.cpu_mailbox.status()
+                    && sys.modules.dsp.state().cpu_mailbox.status()
                 {
                     std::hint::cold_path();
                     executed.cycles = cycles;

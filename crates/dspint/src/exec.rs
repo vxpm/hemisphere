@@ -1,6 +1,5 @@
 use crate::{Acc40, Ins, Interpreter, Reg, Registers, Status, ins::CondCode};
 use bitos::BitUtils;
-use hemisphere::system::System;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum MultiplyMode {
@@ -127,7 +126,7 @@ impl Interpreter {
             .set_overflow_fused(self.regs.status.overflow() || self.regs.status.overflow_fused());
     }
 
-    pub fn abs(&mut self, _: &mut System, ins: Ins) {
+    pub fn abs(&mut self, ins: Ins) {
         let idx = ins.base.bit(11) as usize;
         let old = self.regs.acc40[idx].get();
         let new = self.regs.acc40[idx].set(old.abs());
@@ -138,7 +137,7 @@ impl Interpreter {
         self.base_flags(new);
     }
 
-    pub fn add(&mut self, _: &mut System, ins: Ins) {
+    pub fn add(&mut self, ins: Ins) {
         let d = ins.base.bit(8) as usize;
 
         let lhs = self.regs.acc40[d].get();
@@ -151,7 +150,7 @@ impl Interpreter {
         self.base_flags(new);
     }
 
-    pub fn addarn(&mut self, _: &mut System, ins: Ins) {
+    pub fn addarn(&mut self, ins: Ins) {
         let d = ins.base.bits(0, 2) as usize;
         let s = ins.base.bits(2, 4) as usize;
 
@@ -162,7 +161,7 @@ impl Interpreter {
         self.regs.addressing[d] = add_to_addr_reg(ar, wr, ix as i16);
     }
 
-    pub fn addax(&mut self, _: &mut System, ins: Ins) {
+    pub fn addax(&mut self, ins: Ins) {
         let d = ins.base.bit(8) as usize;
         let s = ins.base.bit(9) as usize;
 
@@ -176,7 +175,7 @@ impl Interpreter {
         self.base_flags(new);
     }
 
-    pub fn addaxl(&mut self, _: &mut System, ins: Ins) {
+    pub fn addaxl(&mut self, ins: Ins) {
         let d = ins.base.bit(8) as usize;
         let s = ins.base.bit(9) as usize;
 
@@ -190,7 +189,7 @@ impl Interpreter {
         self.base_flags(new);
     }
 
-    pub fn addi(&mut self, _: &mut System, ins: Ins) {
+    pub fn addi(&mut self, ins: Ins) {
         let d = ins.base.bit(8) as usize;
 
         let lhs = self.regs.acc40[d].get();
@@ -203,7 +202,7 @@ impl Interpreter {
         self.base_flags(new);
     }
 
-    pub fn addis(&mut self, _: &mut System, ins: Ins) {
+    pub fn addis(&mut self, ins: Ins) {
         let d = ins.base.bit(8) as usize;
 
         let lhs = self.regs.acc40[d].get();
@@ -216,7 +215,7 @@ impl Interpreter {
         self.base_flags(new);
     }
 
-    pub fn addp(&mut self, _: &mut System, ins: Ins) {
+    pub fn addp(&mut self, ins: Ins) {
         let d = ins.base.bit(8) as usize;
 
         let lhs = self.regs.acc40[d].get();
@@ -231,7 +230,7 @@ impl Interpreter {
         self.base_flags(new);
     }
 
-    pub fn addpaxz(&mut self, _: &mut System, ins: Ins) {
+    pub fn addpaxz(&mut self, ins: Ins) {
         let d = ins.base.bit(8) as usize;
         let s = ins.base.bit(9) as usize;
 
@@ -249,7 +248,7 @@ impl Interpreter {
         self.base_flags(new);
     }
 
-    pub fn addr(&mut self, _: &mut System, ins: Ins) {
+    pub fn addr(&mut self, ins: Ins) {
         let d = ins.base.bit(8) as usize;
         let s = ins.base.bits(9, 11) as u8;
 
@@ -263,7 +262,7 @@ impl Interpreter {
         self.base_flags(new);
     }
 
-    pub fn andc(&mut self, _: &mut System, ins: Ins) {
+    pub fn andc(&mut self, ins: Ins) {
         let d = ins.base.bit(8) as usize;
 
         self.regs.acc40[d].mid &= self.regs.acc40[1 - d].mid;
@@ -282,21 +281,21 @@ impl Interpreter {
             .set_sign((self.regs.acc40[d].mid as i16) < 0);
     }
 
-    pub fn andcf(&mut self, _: &mut System, ins: Ins) {
+    pub fn andcf(&mut self, ins: Ins) {
         let d = ins.base.bit(8) as usize;
 
         let is_equal = self.regs.acc40[d].mid & ins.extra == ins.extra;
         self.regs.status.set_logic_zero(is_equal);
     }
 
-    pub fn andf(&mut self, _: &mut System, ins: Ins) {
+    pub fn andf(&mut self, ins: Ins) {
         let d = ins.base.bit(8) as usize;
 
         let is_equal = self.regs.acc40[d].mid & ins.extra == 0;
         self.regs.status.set_logic_zero(is_equal);
     }
 
-    pub fn andi(&mut self, _: &mut System, ins: Ins) {
+    pub fn andi(&mut self, ins: Ins) {
         let d = ins.base.bit(8) as usize;
 
         self.regs.acc40[d].mid &= ins.extra;
@@ -315,7 +314,7 @@ impl Interpreter {
             .set_sign((self.regs.acc40[d].mid as i16) < 0);
     }
 
-    pub fn andr(&mut self, _: &mut System, ins: Ins) {
+    pub fn andr(&mut self, ins: Ins) {
         let d = ins.base.bit(8) as usize;
         let s = ins.base.bit(9) as usize;
 
@@ -335,7 +334,7 @@ impl Interpreter {
             .set_sign((self.regs.acc40[d].mid as i16) < 0);
     }
 
-    pub fn asl(&mut self, _: &mut System, ins: Ins) {
+    pub fn asl(&mut self, ins: Ins) {
         let r = ins.base.bit(8) as usize;
         let imm = ins.base.bits(0, 6) as u8;
 
@@ -348,7 +347,7 @@ impl Interpreter {
         self.base_flags(new);
     }
 
-    pub fn asr(&mut self, _: &mut System, ins: Ins) {
+    pub fn asr(&mut self, ins: Ins) {
         let r = ins.base.bit(8) as usize;
         let imm = ins.base.bits(0, 6);
 
@@ -362,7 +361,7 @@ impl Interpreter {
         self.base_flags(new);
     }
 
-    pub fn asrn(&mut self, _: &mut System, _: Ins) {
+    pub fn asrn(&mut self, _: Ins) {
         let lhs = self.regs.acc40[0].get();
         let signed_shift = self.regs.acc40[1].mid;
         let rhs = signed_shift.bits(0, 6);
@@ -380,7 +379,7 @@ impl Interpreter {
         self.base_flags(new);
     }
 
-    pub fn asrnr(&mut self, _: &mut System, ins: Ins) {
+    pub fn asrnr(&mut self, ins: Ins) {
         let d = ins.base.bit(8) as usize;
 
         let lhs = self.regs.acc40[d].get();
@@ -400,7 +399,7 @@ impl Interpreter {
         self.base_flags(new);
     }
 
-    pub fn asrnrx(&mut self, _: &mut System, ins: Ins) {
+    pub fn asrnrx(&mut self, ins: Ins) {
         let d = ins.base.bit(8) as usize;
         let s = ins.base.bit(9) as usize;
 
@@ -421,7 +420,7 @@ impl Interpreter {
         self.base_flags(new);
     }
 
-    pub fn asr16(&mut self, _: &mut System, ins: Ins) {
+    pub fn asr16(&mut self, ins: Ins) {
         let r = ins.base.bit(11) as usize;
 
         let old = self.regs.acc40[r].get();
@@ -433,11 +432,11 @@ impl Interpreter {
         self.base_flags(new);
     }
 
-    pub fn clr15(&mut self, _: &mut System, _: Ins) {
+    pub fn clr15(&mut self, _: Ins) {
         self.regs.status.set_unsigned_mul(false);
     }
 
-    pub fn clr(&mut self, _: &mut System, ins: Ins) {
+    pub fn clr(&mut self, ins: Ins) {
         let r = ins.base.bit(11) as usize;
 
         let new = self.regs.acc40[r].set(0);
@@ -448,7 +447,7 @@ impl Interpreter {
         self.base_flags(new);
     }
 
-    pub fn clrl(&mut self, _: &mut System, ins: Ins) {
+    pub fn clrl(&mut self, ins: Ins) {
         let r = ins.base.bit(8) as usize;
 
         let old = self.regs.acc40[r].get();
@@ -460,14 +459,14 @@ impl Interpreter {
         self.base_flags(new);
     }
 
-    pub fn clrp(&mut self, _: &mut System, _: Ins) {
+    pub fn clrp(&mut self, _: Ins) {
         self.regs.product.low = 0x0000;
         self.regs.product.mid1 = 0xFFF0;
         self.regs.product.mid2 = 0x0010;
         self.regs.product.high = 0x00FF;
     }
 
-    pub fn cmp(&mut self, _: &mut System, _: Ins) {
+    pub fn cmp(&mut self, _: Ins) {
         let lhs = self.regs.acc40[0].get();
         let rhs = self.regs.acc40[1].get();
         let diff = Acc40::from(lhs - rhs).get();
@@ -480,7 +479,7 @@ impl Interpreter {
         self.base_flags(diff);
     }
 
-    pub fn cmpaxh(&mut self, _: &mut System, ins: Ins) {
+    pub fn cmpaxh(&mut self, ins: Ins) {
         let s = ins.base.bit(11) as usize;
         let r = ins.base.bit(12) as usize;
 
@@ -496,7 +495,7 @@ impl Interpreter {
         self.base_flags(diff);
     }
 
-    pub fn cmpi(&mut self, _: &mut System, ins: Ins) {
+    pub fn cmpi(&mut self, ins: Ins) {
         let d = ins.base.bit(8) as usize;
 
         let lhs = self.regs.acc40[d].get();
@@ -511,7 +510,7 @@ impl Interpreter {
         self.base_flags(diff);
     }
 
-    pub fn cmpis(&mut self, _: &mut System, ins: Ins) {
+    pub fn cmpis(&mut self, ins: Ins) {
         let d = ins.base.bit(8) as usize;
 
         let lhs = self.regs.acc40[d].get();
@@ -526,7 +525,7 @@ impl Interpreter {
         self.base_flags(diff);
     }
 
-    pub fn dar(&mut self, _: &mut System, ins: Ins) {
+    pub fn dar(&mut self, ins: Ins) {
         let d = ins.base.bits(0, 2) as usize;
 
         let ar = self.regs.addressing[d];
@@ -535,7 +534,7 @@ impl Interpreter {
         self.regs.addressing[d] = sub_from_addr_reg(ar, wr, 1i16);
     }
 
-    pub fn dec(&mut self, _: &mut System, ins: Ins) {
+    pub fn dec(&mut self, ins: Ins) {
         let d = ins.base.bit(8) as usize;
 
         let old = self.regs.acc40[d].get();
@@ -547,7 +546,7 @@ impl Interpreter {
         self.base_flags(new);
     }
 
-    pub fn decm(&mut self, _: &mut System, ins: Ins) {
+    pub fn decm(&mut self, ins: Ins) {
         let d = ins.base.bit(8) as usize;
 
         let old = self.regs.acc40[d].get();
@@ -561,11 +560,11 @@ impl Interpreter {
         self.base_flags(new);
     }
 
-    pub fn halt(&mut self, sys: &mut System, _: Ins) {
-        sys.dsp.control.set_halt(true);
+    pub fn halt(&mut self, _: Ins) {
+        self.mmio.get_mut().control.set_halt(true);
     }
 
-    pub fn iar(&mut self, _: &mut System, ins: Ins) {
+    pub fn iar(&mut self, ins: Ins) {
         let r = ins.base.bits(0, 2) as usize;
 
         let ar = self.regs.addressing[r];
@@ -601,14 +600,14 @@ impl Interpreter {
         }
     }
 
-    pub fn ifcc(&mut self, _: &mut System, ins: Ins) {
+    pub fn ifcc(&mut self, ins: Ins) {
         let code = CondCode::new(ins.base.bits(0, 4) as u8);
         if !self.condition(code) {
             self.pc += 1;
         }
     }
 
-    pub fn inc(&mut self, _: &mut System, ins: Ins) {
+    pub fn inc(&mut self, ins: Ins) {
         let d = ins.base.bit(8) as usize;
 
         let old = self.regs.acc40[d].get();
@@ -620,7 +619,7 @@ impl Interpreter {
         self.base_flags(new);
     }
 
-    pub fn incm(&mut self, _: &mut System, ins: Ins) {
+    pub fn incm(&mut self, ins: Ins) {
         let d = ins.base.bit(8) as usize;
 
         let old = self.regs.acc40[d].get();
@@ -634,7 +633,7 @@ impl Interpreter {
         self.base_flags(new);
     }
 
-    pub fn lsl(&mut self, _: &mut System, ins: Ins) {
+    pub fn lsl(&mut self, ins: Ins) {
         let r = ins.base.bit(8) as usize;
         let shift = ins.base.bits(0, 6);
 
@@ -647,7 +646,7 @@ impl Interpreter {
         self.base_flags(new);
     }
 
-    pub fn lsl16(&mut self, _: &mut System, ins: Ins) {
+    pub fn lsl16(&mut self, ins: Ins) {
         let r = ins.base.bit(8) as usize;
 
         let old = self.regs.acc40[r].get();
@@ -659,7 +658,7 @@ impl Interpreter {
         self.base_flags(new);
     }
 
-    pub fn lsr(&mut self, _: &mut System, ins: Ins) {
+    pub fn lsr(&mut self, ins: Ins) {
         let r = ins.base.bit(8) as usize;
         let shift = ins.base.bits(0, 6);
 
@@ -673,7 +672,7 @@ impl Interpreter {
         self.base_flags(new);
     }
 
-    pub fn lsrn(&mut self, _: &mut System, _: Ins) {
+    pub fn lsrn(&mut self, _: Ins) {
         let lhs = (self.regs.acc40[0].get()) & ((1 << 40) - 1);
         let signed_shift = self.regs.acc40[1].mid;
         let rhs = signed_shift.bits(0, 6);
@@ -691,7 +690,7 @@ impl Interpreter {
         self.base_flags(new);
     }
 
-    pub fn lsrnr(&mut self, _: &mut System, ins: Ins) {
+    pub fn lsrnr(&mut self, ins: Ins) {
         let d = ins.base.bit(8) as usize;
 
         let lhs = (self.regs.acc40[d].get()) & ((1 << 40) - 1);
@@ -711,7 +710,7 @@ impl Interpreter {
         self.base_flags(new);
     }
 
-    pub fn lsrnrx(&mut self, _: &mut System, ins: Ins) {
+    pub fn lsrnrx(&mut self, ins: Ins) {
         let d = ins.base.bit(8) as usize;
         let s = ins.base.bit(9) as usize;
 
@@ -732,7 +731,7 @@ impl Interpreter {
         self.base_flags(new);
     }
 
-    pub fn lsr16(&mut self, _: &mut System, ins: Ins) {
+    pub fn lsr16(&mut self, ins: Ins) {
         let r = ins.base.bit(8) as usize;
 
         let old = (self.regs.acc40[r].get() as u64) & ((1 << 40) - 1);
@@ -744,16 +743,16 @@ impl Interpreter {
         self.base_flags(new);
     }
 
-    pub fn m0(&mut self, _: &mut System, _: Ins) {
+    pub fn m0(&mut self, _: Ins) {
         self.regs.status.set_dont_double_result(true);
     }
 
-    pub fn m2(&mut self, _: &mut System, _: Ins) {
+    pub fn m2(&mut self, _: Ins) {
         self.regs.status.set_dont_double_result(false);
     }
 
     // NOTE: carry flag issue
-    pub fn madd(&mut self, _: &mut System, ins: Ins) {
+    pub fn madd(&mut self, ins: Ins) {
         let s = ins.base.bit(8) as usize;
 
         let acc = self.regs.acc32[s];
@@ -771,7 +770,7 @@ impl Interpreter {
     }
 
     // NOTE: carry flag issue
-    pub fn maddc(&mut self, _: &mut System, ins: Ins) {
+    pub fn maddc(&mut self, ins: Ins) {
         let t = ins.base.bit(8) as usize;
         let s = ins.base.bit(9) as usize;
 
@@ -789,7 +788,7 @@ impl Interpreter {
     }
 
     // NOTE: carry flag issue
-    pub fn maddx(&mut self, _: &mut System, ins: Ins) {
+    pub fn maddx(&mut self, ins: Ins) {
         let t = ins.base.bit(8) as u8;
         let s = ins.base.bit(9) as u8;
 
@@ -806,7 +805,7 @@ impl Interpreter {
         self.regs.product.set(prod + result);
     }
 
-    pub fn mov(&mut self, _: &mut System, ins: Ins) {
+    pub fn mov(&mut self, ins: Ins) {
         let d = ins.base.bit(8) as usize;
 
         let new = self.regs.acc40[d].set(self.regs.acc40[1 - d].get());
@@ -817,7 +816,7 @@ impl Interpreter {
         self.base_flags(new);
     }
 
-    pub fn movax(&mut self, _: &mut System, ins: Ins) {
+    pub fn movax(&mut self, ins: Ins) {
         let d = ins.base.bit(8) as usize;
         let s = ins.base.bit(9) as usize;
 
@@ -829,7 +828,7 @@ impl Interpreter {
         self.base_flags(new);
     }
 
-    pub fn movnp(&mut self, _: &mut System, ins: Ins) {
+    pub fn movnp(&mut self, ins: Ins) {
         let d = ins.base.bit(8) as usize;
 
         let (carry, overflow, prod) = self.regs.product.get();
@@ -841,7 +840,7 @@ impl Interpreter {
         self.base_flags(new);
     }
 
-    pub fn movp(&mut self, _: &mut System, ins: Ins) {
+    pub fn movp(&mut self, ins: Ins) {
         let d = ins.base.bit(8) as usize;
 
         let (carry, overflow, prod) = self.regs.product.get();
@@ -854,7 +853,7 @@ impl Interpreter {
     }
 
     // TODO: carry flag
-    pub fn movpz(&mut self, _: &mut System, ins: Ins) {
+    pub fn movpz(&mut self, ins: Ins) {
         let d = ins.base.bit(8) as usize;
 
         let (carry, overflow, prod) = self.regs.product.get();
@@ -866,7 +865,7 @@ impl Interpreter {
         self.base_flags(new);
     }
 
-    pub fn movr(&mut self, _: &mut System, ins: Ins) {
+    pub fn movr(&mut self, ins: Ins) {
         let d = ins.base.bit(8) as usize;
         let s = ins.base.bits(9, 11) as u8;
 
@@ -879,7 +878,7 @@ impl Interpreter {
         self.base_flags(new);
     }
 
-    pub fn mrr(&mut self, _: &mut System, ins: Ins) {
+    pub fn mrr(&mut self, ins: Ins) {
         let s = ins.base.bits(0, 5) as u8;
         let d = ins.base.bits(5, 10) as u8;
 
@@ -888,7 +887,7 @@ impl Interpreter {
     }
 
     // NOTE: carry flag issue
-    pub fn msub(&mut self, _: &mut System, ins: Ins) {
+    pub fn msub(&mut self, ins: Ins) {
         let s = ins.base.bit(8) as usize;
 
         let acc = self.regs.acc32[s];
@@ -906,7 +905,7 @@ impl Interpreter {
     }
 
     // NOTE: carry flag issue
-    pub fn msubc(&mut self, _: &mut System, ins: Ins) {
+    pub fn msubc(&mut self, ins: Ins) {
         let t = ins.base.bit(8) as usize;
         let s = ins.base.bit(9) as usize;
 
@@ -924,7 +923,7 @@ impl Interpreter {
     }
 
     // NOTE: carry flag issue
-    pub fn msubx(&mut self, _: &mut System, ins: Ins) {
+    pub fn msubx(&mut self, ins: Ins) {
         let t = ins.base.bit(8) as u8;
         let s = ins.base.bit(9) as u8;
 
@@ -942,7 +941,7 @@ impl Interpreter {
     }
 
     // NOTE: carry flag issue
-    pub fn mul(&mut self, _: &mut System, ins: Ins) {
+    pub fn mul(&mut self, ins: Ins) {
         let s = ins.base.bit(11) as usize;
 
         let acc = self.regs.acc32[s];
@@ -959,7 +958,7 @@ impl Interpreter {
     }
 
     // NOTE: carry flag issue
-    pub fn mulac(&mut self, _: &mut System, ins: Ins) {
+    pub fn mulac(&mut self, ins: Ins) {
         let r = ins.base.bit(8) as usize;
         let s = ins.base.bit(11) as usize;
 
@@ -983,7 +982,7 @@ impl Interpreter {
     }
 
     // NOTE: carry flag issue
-    pub fn mulaxh(&mut self, _: &mut System, _: Ins) {
+    pub fn mulaxh(&mut self, _: Ins) {
         let val = (self.regs.acc32[0] >> 16) as i64;
         let mul = val * val;
         let result = if self.regs.status.dont_double_result() {
@@ -996,7 +995,7 @@ impl Interpreter {
     }
 
     // NOTE: carry flag issue
-    pub fn mulc(&mut self, _: &mut System, ins: Ins) {
+    pub fn mulc(&mut self, ins: Ins) {
         let t = ins.base.bit(11) as usize;
         let s = ins.base.bit(12) as usize;
 
@@ -1013,7 +1012,7 @@ impl Interpreter {
     }
 
     // NOTE: carry flag issue
-    pub fn mulcac(&mut self, _: &mut System, ins: Ins) {
+    pub fn mulcac(&mut self, ins: Ins) {
         let r = ins.base.bit(8) as usize;
         let t = ins.base.bit(11) as usize;
         let s = ins.base.bit(12) as usize;
@@ -1038,7 +1037,7 @@ impl Interpreter {
     }
 
     // NOTE: carry flag issue
-    pub fn mulcmv(&mut self, _: &mut System, ins: Ins) {
+    pub fn mulcmv(&mut self, ins: Ins) {
         let r = ins.base.bit(8) as usize;
         let t = ins.base.bit(11) as usize;
         let s = ins.base.bit(12) as usize;
@@ -1062,7 +1061,7 @@ impl Interpreter {
     }
 
     // NOTE: carry flag issue
-    pub fn mulcmvz(&mut self, _: &mut System, ins: Ins) {
+    pub fn mulcmvz(&mut self, ins: Ins) {
         let r = ins.base.bit(8) as usize;
         let t = ins.base.bit(11) as usize;
         let s = ins.base.bit(12) as usize;
@@ -1086,7 +1085,7 @@ impl Interpreter {
     }
 
     // NOTE: carry flag issue
-    pub fn mulmv(&mut self, _: &mut System, ins: Ins) {
+    pub fn mulmv(&mut self, ins: Ins) {
         let r = ins.base.bit(8) as usize;
         let s = ins.base.bit(11) as usize;
 
@@ -1109,7 +1108,7 @@ impl Interpreter {
     }
 
     // NOTE: carry flag issue
-    pub fn mulmvz(&mut self, _: &mut System, ins: Ins) {
+    pub fn mulmvz(&mut self, ins: Ins) {
         let r = ins.base.bit(8) as usize;
         let s = ins.base.bit(11) as usize;
 
@@ -1152,7 +1151,7 @@ impl Interpreter {
         a * b * factor
     }
 
-    pub fn mulx(&mut self, _: &mut System, ins: Ins) {
+    pub fn mulx(&mut self, ins: Ins) {
         let t = ins.base.bit(11);
         let s = ins.base.bit(12);
 
@@ -1179,7 +1178,7 @@ impl Interpreter {
         self.regs.product.set(result);
     }
 
-    pub fn mulxac(&mut self, _: &mut System, ins: Ins) {
+    pub fn mulxac(&mut self, ins: Ins) {
         let r = ins.base.bit(8) as usize;
         let t = ins.base.bit(11);
         let s = ins.base.bit(12);
@@ -1211,7 +1210,7 @@ impl Interpreter {
         self.regs.product.set(result);
     }
 
-    pub fn mulxmv(&mut self, _: &mut System, ins: Ins) {
+    pub fn mulxmv(&mut self, ins: Ins) {
         let r = ins.base.bit(8) as usize;
         let t = ins.base.bit(11);
         let s = ins.base.bit(12);
@@ -1242,7 +1241,7 @@ impl Interpreter {
         self.regs.product.set(result);
     }
 
-    pub fn mulxmvz(&mut self, _: &mut System, ins: Ins) {
+    pub fn mulxmvz(&mut self, ins: Ins) {
         let r = ins.base.bit(8) as usize;
         let t = ins.base.bit(11);
         let s = ins.base.bit(12);
@@ -1273,7 +1272,7 @@ impl Interpreter {
         self.regs.product.set(result);
     }
 
-    pub fn neg(&mut self, _: &mut System, ins: Ins) {
+    pub fn neg(&mut self, ins: Ins) {
         let d = ins.base.bit(8) as usize;
 
         let old = self.regs.acc40[d].get();
@@ -1285,7 +1284,7 @@ impl Interpreter {
         self.base_flags(new);
     }
 
-    pub fn not(&mut self, _: &mut System, ins: Ins) {
+    pub fn not(&mut self, ins: Ins) {
         let d = ins.base.bit(8) as usize;
 
         self.regs.acc40[d].mid ^= 0xFFFF;
@@ -1304,7 +1303,7 @@ impl Interpreter {
             .set_sign((self.regs.acc40[d].mid as i16) < 0);
     }
 
-    pub fn orc(&mut self, _: &mut System, ins: Ins) {
+    pub fn orc(&mut self, ins: Ins) {
         let d = ins.base.bit(8) as usize;
 
         self.regs.acc40[d].mid |= self.regs.acc40[1 - d].mid;
@@ -1323,7 +1322,7 @@ impl Interpreter {
             .set_sign((self.regs.acc40[d].mid as i16) < 0);
     }
 
-    pub fn ori(&mut self, _: &mut System, ins: Ins) {
+    pub fn ori(&mut self, ins: Ins) {
         let d = ins.base.bit(8) as usize;
 
         self.regs.acc40[d].mid |= ins.extra;
@@ -1342,7 +1341,7 @@ impl Interpreter {
             .set_sign((self.regs.acc40[d].mid as i16) < 0);
     }
 
-    pub fn orr(&mut self, _: &mut System, ins: Ins) {
+    pub fn orr(&mut self, ins: Ins) {
         let d = ins.base.bit(8) as usize;
         let s = ins.base.bit(9) as usize;
 
@@ -1362,7 +1361,7 @@ impl Interpreter {
             .set_sign((self.regs.acc40[d].mid as i16) < 0);
     }
 
-    pub fn sbclr(&mut self, _: &mut System, ins: Ins) {
+    pub fn sbclr(&mut self, ins: Ins) {
         let i = ins.base.bits(0, 3) as u8;
 
         let idx = 6 + i;
@@ -1376,7 +1375,7 @@ impl Interpreter {
         self.regs.status = Status::from_bits(new);
     }
 
-    pub fn sbset(&mut self, _: &mut System, ins: Ins) {
+    pub fn sbset(&mut self, ins: Ins) {
         let i = ins.base.bits(0, 3) as u8;
 
         let idx = 6 + i;
@@ -1390,19 +1389,19 @@ impl Interpreter {
         self.regs.status = Status::from_bits(new);
     }
 
-    pub fn set15(&mut self, _: &mut System, _: Ins) {
+    pub fn set15(&mut self, _: Ins) {
         self.regs.status.set_unsigned_mul(true);
     }
 
-    pub fn set16(&mut self, _: &mut System, _: Ins) {
+    pub fn set16(&mut self, _: Ins) {
         self.regs.status.set_sign_extend_to_40(false);
     }
 
-    pub fn set40(&mut self, _: &mut System, _: Ins) {
+    pub fn set40(&mut self, _: Ins) {
         self.regs.status.set_sign_extend_to_40(true);
     }
 
-    pub fn sub(&mut self, _: &mut System, ins: Ins) {
+    pub fn sub(&mut self, ins: Ins) {
         let d = ins.base.bit(8) as usize;
 
         let lhs = self.regs.acc40[d].get();
@@ -1415,7 +1414,7 @@ impl Interpreter {
         self.base_flags(new);
     }
 
-    pub fn subarn(&mut self, _: &mut System, ins: Ins) {
+    pub fn subarn(&mut self, ins: Ins) {
         let d = ins.base.bits(0, 2) as usize;
 
         let ix = self.regs.indexing[d];
@@ -1425,7 +1424,7 @@ impl Interpreter {
         self.regs.addressing[d] = sub_from_addr_reg(ar, wr, ix as i16);
     }
 
-    pub fn subax(&mut self, _: &mut System, ins: Ins) {
+    pub fn subax(&mut self, ins: Ins) {
         let d = ins.base.bit(8) as usize;
         let s = ins.base.bit(9) as usize;
 
@@ -1439,7 +1438,7 @@ impl Interpreter {
         self.base_flags(new);
     }
 
-    pub fn subp(&mut self, _: &mut System, ins: Ins) {
+    pub fn subp(&mut self, ins: Ins) {
         let d = ins.base.bit(8) as usize;
 
         let lhs = self.regs.acc40[d].get();
@@ -1454,7 +1453,7 @@ impl Interpreter {
         self.base_flags(new);
     }
 
-    pub fn subr(&mut self, _: &mut System, ins: Ins) {
+    pub fn subr(&mut self, ins: Ins) {
         let d = ins.base.bit(8) as usize;
         let s = ins.base.bits(9, 11) as u8;
 
@@ -1468,7 +1467,7 @@ impl Interpreter {
         self.base_flags(new);
     }
 
-    pub fn tst(&mut self, _: &mut System, ins: Ins) {
+    pub fn tst(&mut self, ins: Ins) {
         let r = ins.base.bit(11) as usize;
 
         let acc = self.regs.acc40[r].get();
@@ -1479,7 +1478,7 @@ impl Interpreter {
         self.base_flags(acc);
     }
 
-    pub fn tstaxh(&mut self, _: &mut System, ins: Ins) {
+    pub fn tstaxh(&mut self, ins: Ins) {
         let r = ins.base.bit(8) as usize;
 
         let acc = self.regs.acc32[r] >> 16;
@@ -1494,7 +1493,7 @@ impl Interpreter {
             .set_top_two_bits_eq(acc.bit(15) == acc.bit(14));
     }
 
-    pub fn tstprod(&mut self, _: &mut System, _: Ins) {
+    pub fn tstprod(&mut self, _: Ins) {
         let (carry, overflow, prod) = self.regs.product.get();
 
         self.regs.status.set_carry(carry);
@@ -1503,7 +1502,7 @@ impl Interpreter {
         self.base_flags(prod);
     }
 
-    pub fn xorc(&mut self, _: &mut System, ins: Ins) {
+    pub fn xorc(&mut self, ins: Ins) {
         let d = ins.base.bit(8) as usize;
 
         self.regs.acc40[d].mid ^= self.regs.acc40[1 - d].mid;
@@ -1522,7 +1521,7 @@ impl Interpreter {
             .set_sign((self.regs.acc40[d].mid as i16) < 0);
     }
 
-    pub fn xori(&mut self, _: &mut System, ins: Ins) {
+    pub fn xori(&mut self, ins: Ins) {
         let d = ins.base.bit(8) as usize;
 
         self.regs.acc40[d].mid ^= ins.extra;
@@ -1541,7 +1540,7 @@ impl Interpreter {
             .set_sign((self.regs.acc40[d].mid as i16) < 0);
     }
 
-    pub fn xorr(&mut self, _: &mut System, ins: Ins) {
+    pub fn xorr(&mut self, ins: Ins) {
         let d = ins.base.bit(8) as usize;
         let s = ins.base.bit(9) as usize;
 
@@ -1561,7 +1560,7 @@ impl Interpreter {
             .set_sign((self.regs.acc40[d].mid as i16) < 0);
     }
 
-    pub fn bloop(&mut self, _: &mut System, ins: Ins) {
+    pub fn bloop(&mut self, ins: Ins) {
         let r = ins.base.bits(0, 5) as u8;
 
         let counter = self.regs.get(Reg::new(r));
@@ -1575,7 +1574,7 @@ impl Interpreter {
         }
     }
 
-    pub fn bloopi(&mut self, _: &mut System, ins: Ins) {
+    pub fn bloopi(&mut self, ins: Ins) {
         let counter = ins.base.bits(0, 8);
 
         if counter != 0 {
@@ -1587,7 +1586,7 @@ impl Interpreter {
         }
     }
 
-    pub fn call(&mut self, _: &mut System, ins: Ins) {
+    pub fn call(&mut self, ins: Ins) {
         let code = CondCode::new(ins.base.bits(0, 4) as u8);
         if self.condition(code) {
             self.regs.call_stack.push(self.pc.wrapping_add(2));
@@ -1595,7 +1594,7 @@ impl Interpreter {
         }
     }
 
-    pub fn callr(&mut self, _: &mut System, ins: Ins) {
+    pub fn callr(&mut self, ins: Ins) {
         let r = ins.base.bits(5, 8) as u8;
 
         let code = CondCode::new(ins.base.bits(0, 4) as u8);
@@ -1607,14 +1606,14 @@ impl Interpreter {
         }
     }
 
-    pub fn jmp(&mut self, _: &mut System, ins: Ins) {
+    pub fn jmp(&mut self, ins: Ins) {
         let code = CondCode::new(ins.base.bits(0, 4) as u8);
         if self.condition(code) {
             self.pc = ins.extra - 2;
         }
     }
 
-    pub fn jmpr(&mut self, _: &mut System, ins: Ins) {
+    pub fn jmpr(&mut self, ins: Ins) {
         let r = ins.base.bits(5, 8) as u8;
 
         let code = CondCode::new(ins.base.bits(0, 4) as u8);
@@ -1625,7 +1624,7 @@ impl Interpreter {
         }
     }
 
-    pub fn ret(&mut self, _: &mut System, ins: Ins) {
+    pub fn ret(&mut self, ins: Ins) {
         let code = CondCode::new(ins.base.bits(0, 4) as u8);
         if self.condition(code) {
             let addr = self.regs.call_stack.pop().unwrap();
@@ -1633,79 +1632,79 @@ impl Interpreter {
         }
     }
 
-    pub fn lr(&mut self, sys: &mut System, ins: Ins) {
+    pub fn lr(&mut self, ins: Ins) {
         let d = ins.base.bits(0, 5) as u8;
-        let data = self.read_dmem(sys, ins.extra);
+        let data = self.read_dmem(ins.extra);
         self.regs.set_saturate(Reg::new(d), data);
     }
 
-    pub fn lri(&mut self, _: &mut System, ins: Ins) {
+    pub fn lri(&mut self, ins: Ins) {
         let d = ins.base.bits(0, 5) as u8;
         self.regs.set_saturate(Reg::new(d), ins.extra);
     }
 
-    pub fn lris(&mut self, _: &mut System, ins: Ins) {
+    pub fn lris(&mut self, ins: Ins) {
         let d = ins.base.bits(8, 11) as u8;
         let imm = ins.base.bits(0, 8) as i8 as i16;
         self.regs.set_saturate(Reg::new(0x18 + d), imm as u16);
     }
 
-    pub fn lrr(&mut self, sys: &mut System, ins: Ins) {
+    pub fn lrr(&mut self, ins: Ins) {
         let d = ins.base.bits(0, 5) as u8;
         let s = ins.base.bits(5, 7) as usize;
 
         let ar = self.regs.addressing[s];
-        let data = self.read_dmem(sys, ar);
+        let data = self.read_dmem(ar);
         self.regs.set_saturate(Reg::new(d), data);
     }
 
-    pub fn lrrd(&mut self, sys: &mut System, ins: Ins) {
+    pub fn lrrd(&mut self, ins: Ins) {
         let d = ins.base.bits(0, 5) as u8;
         let s = ins.base.bits(5, 7) as usize;
 
         let ar = self.regs.addressing[s];
         let wr = self.regs.wrapping[s];
-        let data = self.read_dmem(sys, ar);
+        let data = self.read_dmem(ar);
         self.regs.addressing[s] = sub_from_addr_reg(ar, wr, 1);
 
         self.regs.set_saturate(Reg::new(d), data);
     }
 
-    pub fn lrri(&mut self, sys: &mut System, ins: Ins) {
+    pub fn lrri(&mut self, ins: Ins) {
         let d = ins.base.bits(0, 5) as u8;
         let s = ins.base.bits(5, 7) as usize;
 
         let ar = self.regs.addressing[s];
         let wr = self.regs.wrapping[s];
-        let data = self.read_dmem(sys, ar);
+        let data = self.read_dmem(ar);
         self.regs.addressing[s] = add_to_addr_reg(ar, wr, 1);
 
         self.regs.set_saturate(Reg::new(d), data);
     }
 
-    pub fn lrrn(&mut self, sys: &mut System, ins: Ins) {
+    pub fn lrrn(&mut self, ins: Ins) {
         let d = ins.base.bits(0, 5) as u8;
         let s = ins.base.bits(5, 7) as usize;
 
         let ar = self.regs.addressing[s];
         let wr = self.regs.wrapping[s];
         let ix = self.regs.indexing[s];
-        let data = self.read_dmem(sys, ar);
+        let data = self.read_dmem(ar);
         self.regs.addressing[s] = add_to_addr_reg(ar, wr, ix as i16);
 
         self.regs.set_saturate(Reg::new(d), data);
     }
 
-    pub fn lrs(&mut self, sys: &mut System, ins: Ins) {
+    pub fn lrs(&mut self, ins: Ins) {
         let imm = ins.base.bits(0, 8) as u8;
         let d = ins.base.bits(8, 11) as u8;
 
         let addr = u16::from_le_bytes([imm, self.regs.config]);
-        let data = self.read_dmem(sys, addr);
+        let data = self.read_dmem(addr);
         self.regs.set_saturate(Reg::new(0x18 + d), data);
     }
 
-    pub fn ilrr(&mut self, _: &mut System, ins: Ins) {
+    pub fn ilrr(&mut self, ins: Ins) {
         let s = ins.base.bits(0, 2) as usize;
         let d = ins.base.bit(8);
 
@@ -1716,7 +1715,7 @@ impl Interpreter {
         self.regs.set_saturate(reg, data);
     }
 
-    pub fn ilrrd(&mut self, _: &mut System, ins: Ins) {
+    pub fn ilrrd(&mut self, ins: Ins) {
         let s = ins.base.bits(0, 2) as usize;
         let d = ins.base.bit(8);
 
@@ -1730,7 +1729,7 @@ impl Interpreter {
         self.regs.addressing[s] = sub_from_addr_reg(ar, wr, 1);
     }
 
-    pub fn ilrri(&mut self, _: &mut System, ins: Ins) {
+    pub fn ilrri(&mut self, ins: Ins) {
         let s = ins.base.bits(0, 2) as usize;
         let d = ins.base.bit(8);
 
@@ -1744,7 +1743,7 @@ impl Interpreter {
         self.regs.addressing[s] = add_to_addr_reg(ar, wr, 1);
     }
 
-    pub fn ilrrn(&mut self, _: &mut System, ins: Ins) {
+    pub fn ilrrn(&mut self, ins: Ins) {
         let s = ins.base.bits(0, 2) as usize;
         let d = ins.base.bit(8);
 
@@ -1759,60 +1758,60 @@ impl Interpreter {
         self.regs.addressing[s] = add_to_addr_reg(ar, wr, ix as i16);
     }
 
-    pub fn si(&mut self, sys: &mut System, ins: Ins) {
+    pub fn si(&mut self, ins: Ins) {
         let offset = ins.base.bits(0, 8) as u8;
         let addr = u16::from_le_bytes([offset, 0xFF]);
-        self.write_dmem(sys, addr, ins.extra);
+        self.write_dmem(addr, ins.extra);
     }
 
-    pub fn sr(&mut self, sys: &mut System, ins: Ins) {
+    pub fn sr(&mut self, ins: Ins) {
         let s = ins.base.bits(0, 5) as u8;
         let data = self.regs.get(Reg::new(s));
-        self.write_dmem(sys, ins.extra, data);
+        self.write_dmem(ins.extra, data);
     }
 
-    pub fn srr(&mut self, sys: &mut System, ins: Ins) {
+    pub fn srr(&mut self, ins: Ins) {
         let s = ins.base.bits(0, 5) as u8;
         let d = ins.base.bits(5, 7) as usize;
 
         let data = self.regs.get(Reg::new(s));
         let addr = self.regs.addressing[d];
-        self.write_dmem(sys, addr, data);
+        self.write_dmem(addr, data);
     }
 
-    pub fn srrd(&mut self, sys: &mut System, ins: Ins) {
+    pub fn srrd(&mut self, ins: Ins) {
         let s = ins.base.bits(0, 5) as u8;
         let d = ins.base.bits(5, 7) as usize;
 
         let data = self.regs.get(Reg::new(s));
         let ar = self.regs.addressing[d];
-        self.write_dmem(sys, ar, data);
+        self.write_dmem(ar, data);
 
         let ar = self.regs.addressing[d];
         let wr = self.regs.wrapping[d];
         self.regs.addressing[d] = sub_from_addr_reg(ar, wr, 1);
     }
 
-    pub fn srri(&mut self, sys: &mut System, ins: Ins) {
+    pub fn srri(&mut self, ins: Ins) {
         let s = ins.base.bits(0, 5) as u8;
         let d = ins.base.bits(5, 7) as usize;
 
         let data = self.regs.get(Reg::new(s));
         let ar = self.regs.addressing[d];
-        self.write_dmem(sys, ar, data);
+        self.write_dmem(ar, data);
 
         let ar = self.regs.addressing[d];
         let wr = self.regs.wrapping[d];
         self.regs.addressing[d] = add_to_addr_reg(ar, wr, 1);
     }
 
-    pub fn srrn(&mut self, sys: &mut System, ins: Ins) {
+    pub fn srrn(&mut self, ins: Ins) {
         let s = ins.base.bits(0, 5) as u8;
         let d = ins.base.bits(5, 7) as usize;
 
         let data = self.regs.get(Reg::new(s));
         let ar = self.regs.addressing[d];
-        self.write_dmem(sys, ar, data);
+        self.write_dmem(ar, data);
 
         let ar = self.regs.addressing[d];
         let wr = self.regs.wrapping[d];
@@ -1820,25 +1819,25 @@ impl Interpreter {
         self.regs.addressing[d] = add_to_addr_reg(ar, wr, ix as i16);
     }
 
-    pub fn srs(&mut self, sys: &mut System, ins: Ins) {
+    pub fn srs(&mut self, ins: Ins) {
         let imm = ins.base.bits(0, 8) as u8;
         let s = ins.base.bits(8, 10) as u8;
 
         let addr = u16::from_le_bytes([imm, self.regs.config]);
         let data = self.regs.get(Reg::new(0x1C + s));
-        self.write_dmem(sys, addr, data);
+        self.write_dmem(addr, data);
     }
 
-    pub fn srsh(&mut self, sys: &mut System, ins: Ins) {
+    pub fn srsh(&mut self, ins: Ins) {
         let imm = ins.base.bits(0, 8) as u8;
         let s = ins.base.bit(8) as usize;
 
         let addr = u16::from_le_bytes([imm, self.regs.config]);
         let data = self.regs.acc40[s].high as i8 as i16 as u16;
-        self.write_dmem(sys, addr, data);
+        self.write_dmem(addr, data);
     }
 
-    pub fn loop_(&mut self, _: &mut System, ins: Ins) {
+    pub fn loop_(&mut self, ins: Ins) {
         let r = ins.base.bits(0, 5) as u8;
 
         let counter = self.regs.get(Reg::new(r));
@@ -1846,13 +1845,13 @@ impl Interpreter {
         self.pc += 1;
     }
 
-    pub fn loopi(&mut self, _: &mut System, ins: Ins) {
+    pub fn loopi(&mut self, ins: Ins) {
         let imm = ins.base.bits(0, 8) as u8;
         self.loop_counter = Some(imm as u16);
         self.pc += 1;
     }
 
-    pub fn rti(&mut self, _: &mut System, ins: Ins) {
+    pub fn rti(&mut self, ins: Ins) {
         let code = CondCode::new(ins.base.bits(0, 4) as u8);
         if self.condition(code) {
             let sr = self.regs.data_stack.pop().unwrap();
@@ -1864,7 +1863,7 @@ impl Interpreter {
 }
 
 impl Interpreter {
-    pub fn ext_dr(&mut self, _: &mut System, ins: Ins, regs: &Registers) {
+    pub fn ext_dr(&mut self, ins: Ins, regs: &Registers) {
         let r = ins.base.bits(0, 2) as usize;
 
         let ar = regs.addressing[r];
@@ -1873,7 +1872,7 @@ impl Interpreter {
         self.regs.addressing[r] = sub_from_addr_reg(ar, wr, 1i16);
     }
 
-    pub fn ext_ir(&mut self, _: &mut System, ins: Ins, regs: &Registers) {
+    pub fn ext_ir(&mut self, ins: Ins, regs: &Registers) {
         let r = ins.base.bits(0, 2) as usize;
 
         let ar = regs.addressing[r];
@@ -1882,7 +1881,7 @@ impl Interpreter {
         self.regs.addressing[r] = add_to_addr_reg(ar, wr, 1i16);
     }
 
-    pub fn ext_nr(&mut self, _: &mut System, ins: Ins, regs: &Registers) {
+    pub fn ext_nr(&mut self, ins: Ins, regs: &Registers) {
         let r = ins.base.bits(0, 2) as usize;
 
         let ar = regs.addressing[r];
@@ -1892,7 +1891,7 @@ impl Interpreter {
         self.regs.addressing[r] = add_to_addr_reg(ar, wr, ir as i16);
     }
 
-    pub fn ext_mv(&mut self, _: &mut System, ins: Ins, regs: &Registers) {
+    pub fn ext_mv(&mut self, ins: Ins, regs: &Registers) {
         let s = ins.base.bits(0, 2) as u8;
         let d = ins.base.bits(2, 4) as u8;
 
@@ -1900,12 +1899,12 @@ impl Interpreter {
             .set(Reg::new(0x18 + d), regs.get(Reg::new(0x1C + s)));
     }
 
-    pub fn ext_l(&mut self, sys: &mut System, ins: Ins, regs: &Registers) {
+    pub fn ext_l(&mut self, ins: Ins, regs: &Registers) {
         let s = ins.base.bits(0, 2) as usize;
         let d = ins.base.bits(3, 6) as u8;
 
         let ar = regs.addressing[s];
-        let data = self.read_dmem(sys, ar);
+        let data = self.read_dmem(ar);
         self.regs.set_saturate(Reg::new(0x18 + d), data);
 
         let ar = regs.addressing[s];
@@ -1913,12 +1912,12 @@ impl Interpreter {
         self.regs.addressing[s] = add_to_addr_reg(ar, wr, 1);
     }
 
-    pub fn ext_ln(&mut self, sys: &mut System, ins: Ins, regs: &Registers) {
+    pub fn ext_ln(&mut self, ins: Ins, regs: &Registers) {
         let s = ins.base.bits(0, 2) as usize;
         let d = ins.base.bits(3, 6) as u8;
 
         let ar = regs.addressing[s];
-        let data = self.read_dmem(sys, ar);
+        let data = self.read_dmem(ar);
         self.regs.set_saturate(Reg::new(0x18 + d), data);
 
         let ar = regs.addressing[s];
@@ -1927,10 +1926,10 @@ impl Interpreter {
         self.regs.addressing[s] = add_to_addr_reg(ar, wr, ix as i16);
     }
 
-    pub fn ext_ld(&mut self, sys: &mut System, ins: Ins, regs: &Registers) {
+    pub fn ext_ld(&mut self, ins: Ins, regs: &Registers) {
         let s = ins.base.bits(0, 2) as usize;
         if s == 3 {
-            self.ext_ldax(sys, ins, regs);
+            self.ext_ldax(ins, regs);
             return;
         }
 
@@ -1939,7 +1938,7 @@ impl Interpreter {
 
         let d = if d { Reg::Acc32High0 } else { Reg::Acc32Low0 };
         let ar = regs.addressing[s];
-        let data = self.read_dmem(sys, ar);
+        let data = self.read_dmem(ar);
         self.regs.set_saturate(d, data);
 
         let ar = if (regs.addressing[3] >> 10) == (regs.addressing[s] >> 10) {
@@ -1948,7 +1947,7 @@ impl Interpreter {
             regs.addressing[3]
         };
         let r = if r { Reg::Acc32High1 } else { Reg::Acc32Low1 };
-        let data = self.read_dmem(sys, ar);
+        let data = self.read_dmem(ar);
         self.regs.set_saturate(r, data);
 
         let ar = regs.addressing[s];
@@ -1960,18 +1959,18 @@ impl Interpreter {
         self.regs.addressing[3] = add_to_addr_reg(ar, wr, 1);
     }
 
-    pub fn ext_ldax(&mut self, sys: &mut System, ins: Ins, regs: &Registers) {
+    pub fn ext_ldax(&mut self, ins: Ins, regs: &Registers) {
         let s = ins.base.bit(5) as usize;
         let r = ins.base.bit(4) as usize;
 
         let ar = regs.addressing[s];
-        let high = self.read_dmem(sys, ar);
+        let high = self.read_dmem(ar);
         let ar = if (regs.addressing[3] >> 10) == (regs.addressing[s] >> 10) {
             regs.addressing[s]
         } else {
             regs.addressing[3]
         };
-        let low = self.read_dmem(sys, ar);
+        let low = self.read_dmem(ar);
 
         self.regs.acc32[r] = (((high as u32) << 16) | low as u32) as i32;
 
@@ -1984,10 +1983,10 @@ impl Interpreter {
         self.regs.addressing[3] = add_to_addr_reg(ar, wr, 1);
     }
 
-    pub fn ext_ldm(&mut self, sys: &mut System, ins: Ins, regs: &Registers) {
+    pub fn ext_ldm(&mut self, ins: Ins, regs: &Registers) {
         let s = ins.base.bits(0, 2) as usize;
         if s == 3 {
-            self.ext_ldaxm(sys, ins, regs);
+            self.ext_ldaxm(ins, regs);
             return;
         }
 
@@ -1996,7 +1995,7 @@ impl Interpreter {
 
         let d = if d { Reg::Acc32High0 } else { Reg::Acc32Low0 };
         let ar = regs.addressing[s];
-        let data = self.read_dmem(sys, ar);
+        let data = self.read_dmem(ar);
         self.regs.set_saturate(d, data);
 
         let r = if r { Reg::Acc32High1 } else { Reg::Acc32Low1 };
@@ -2005,7 +2004,7 @@ impl Interpreter {
         } else {
             regs.addressing[3]
         };
-        let data = self.read_dmem(sys, ar);
+        let data = self.read_dmem(ar);
         self.regs.set_saturate(r, data);
 
         let ar = regs.addressing[s];
@@ -2018,18 +2017,18 @@ impl Interpreter {
         self.regs.addressing[3] = add_to_addr_reg(ar, wr, ix as i16);
     }
 
-    pub fn ext_ldaxm(&mut self, sys: &mut System, ins: Ins, regs: &Registers) {
+    pub fn ext_ldaxm(&mut self, ins: Ins, regs: &Registers) {
         let s = ins.base.bit(5) as usize;
         let r = ins.base.bit(4) as usize;
 
         let ar = regs.addressing[s];
-        let high = self.read_dmem(sys, ar);
+        let high = self.read_dmem(ar);
         let ar = if (regs.addressing[3] >> 10) == (regs.addressing[s] >> 10) {
             regs.addressing[s]
         } else {
             regs.addressing[3]
         };
-        let low = self.read_dmem(sys, ar);
+        let low = self.read_dmem(ar);
 
         self.regs.acc32[r] = (((high as u32) << 16) | low as u32) as i32;
 
@@ -2043,10 +2042,10 @@ impl Interpreter {
         self.regs.addressing[3] = add_to_addr_reg(ar, wr, ix as i16);
     }
 
-    pub fn ext_ldnm(&mut self, sys: &mut System, ins: Ins, regs: &Registers) {
+    pub fn ext_ldnm(&mut self, ins: Ins, regs: &Registers) {
         let s = ins.base.bits(0, 2) as usize;
         if s == 3 {
-            self.ext_ldaxnm(sys, ins, regs);
+            self.ext_ldaxnm(ins, regs);
             return;
         }
 
@@ -2055,7 +2054,7 @@ impl Interpreter {
 
         let d = if d { Reg::Acc32High0 } else { Reg::Acc32Low0 };
         let ar = regs.addressing[s];
-        let data = self.read_dmem(sys, ar);
+        let data = self.read_dmem(ar);
         self.regs.set_saturate(d, data);
 
         let r = if r { Reg::Acc32High1 } else { Reg::Acc32Low1 };
@@ -2064,7 +2063,7 @@ impl Interpreter {
         } else {
             regs.addressing[3]
         };
-        let data = self.read_dmem(sys, ar);
+        let data = self.read_dmem(ar);
         self.regs.set_saturate(r, data);
 
         let ar = regs.addressing[s];
@@ -2078,18 +2077,18 @@ impl Interpreter {
         self.regs.addressing[3] = add_to_addr_reg(ar, wr, ix as i16);
     }
 
-    pub fn ext_ldaxnm(&mut self, sys: &mut System, ins: Ins, regs: &Registers) {
+    pub fn ext_ldaxnm(&mut self, ins: Ins, regs: &Registers) {
         let s = ins.base.bit(5) as usize;
         let r = ins.base.bit(4) as usize;
 
         let ar = regs.addressing[s];
-        let high = self.read_dmem(sys, ar);
+        let high = self.read_dmem(ar);
         let ar = if (regs.addressing[3] >> 10) == (regs.addressing[s] >> 10) {
             regs.addressing[s]
         } else {
             regs.addressing[3]
         };
-        let low = self.read_dmem(sys, ar);
+        let low = self.read_dmem(ar);
 
         self.regs.acc32[r] = (((high as u32) << 16) | low as u32) as i32;
 
@@ -2104,10 +2103,10 @@ impl Interpreter {
         self.regs.addressing[3] = add_to_addr_reg(ar, wr, ix as i16);
     }
 
-    pub fn ext_ldn(&mut self, sys: &mut System, ins: Ins, regs: &Registers) {
+    pub fn ext_ldn(&mut self, ins: Ins, regs: &Registers) {
         let s = ins.base.bits(0, 2) as usize;
         if s == 3 {
-            self.ext_ldaxn(sys, ins, regs);
+            self.ext_ldaxn(ins, regs);
             return;
         }
 
@@ -2116,7 +2115,7 @@ impl Interpreter {
 
         let d = if d { Reg::Acc32High0 } else { Reg::Acc32Low0 };
         let ar = regs.addressing[s];
-        let data = self.read_dmem(sys, ar);
+        let data = self.read_dmem(ar);
         self.regs.set_saturate(d, data);
 
         let r = if r { Reg::Acc32High1 } else { Reg::Acc32Low1 };
@@ -2125,7 +2124,7 @@ impl Interpreter {
         } else {
             regs.addressing[3]
         };
-        let data = self.read_dmem(sys, ar);
+        let data = self.read_dmem(ar);
         self.regs.set_saturate(r, data);
 
         let ar = regs.addressing[s];
@@ -2138,18 +2137,18 @@ impl Interpreter {
         self.regs.addressing[3] = add_to_addr_reg(ar, wr, 1);
     }
 
-    pub fn ext_ldaxn(&mut self, sys: &mut System, ins: Ins, regs: &Registers) {
+    pub fn ext_ldaxn(&mut self, ins: Ins, regs: &Registers) {
         let s = ins.base.bit(5) as usize;
         let r = ins.base.bit(4) as usize;
 
         let ar = regs.addressing[s];
-        let high = self.read_dmem(sys, ar);
+        let high = self.read_dmem(ar);
         let ar = if (regs.addressing[3] >> 10) == (regs.addressing[s] >> 10) {
             regs.addressing[s]
         } else {
             regs.addressing[3]
         };
-        let low = self.read_dmem(sys, ar);
+        let low = self.read_dmem(ar);
 
         self.regs.acc32[r] = (((high as u32) << 16) | low as u32) as i32;
 
@@ -2163,26 +2162,26 @@ impl Interpreter {
         self.regs.addressing[3] = add_to_addr_reg(ar, wr, 1);
     }
 
-    pub fn ext_s(&mut self, sys: &mut System, ins: Ins, regs: &Registers) {
+    pub fn ext_s(&mut self, ins: Ins, regs: &Registers) {
         let d = ins.base.bits(0, 2) as usize;
         let s = ins.base.bits(3, 5) as u8;
 
         let ar = regs.addressing[d];
         let data = regs.get(Reg::new(0x1C + s));
-        self.write_dmem(sys, ar, data);
+        self.write_dmem(ar, data);
 
         let ar = regs.addressing[d];
         let wr = regs.wrapping[d];
         self.regs.addressing[d] = add_to_addr_reg(ar, wr, 1);
     }
 
-    pub fn ext_sn(&mut self, sys: &mut System, ins: Ins, regs: &Registers) {
+    pub fn ext_sn(&mut self, ins: Ins, regs: &Registers) {
         let d = ins.base.bits(0, 2) as usize;
         let s = ins.base.bits(3, 5) as u8;
 
         let ar = regs.addressing[d];
         let data = regs.get(Reg::new(0x1C + s));
-        self.write_dmem(sys, ar, data);
+        self.write_dmem(ar, data);
 
         let ar = regs.addressing[d];
         let wr = regs.wrapping[d];
@@ -2190,17 +2189,17 @@ impl Interpreter {
         self.regs.addressing[d] = add_to_addr_reg(ar, wr, ix as i16);
     }
 
-    pub fn ext_ls(&mut self, sys: &mut System, ins: Ins, regs: &Registers) {
+    pub fn ext_ls(&mut self, ins: Ins, regs: &Registers) {
         let s = ins.base.bit(0) as usize;
         let d = ins.base.bits(4, 6) as u8;
 
         let ar = regs.addressing[0];
-        let data = self.read_dmem(sys, ar);
+        let data = self.read_dmem(ar);
         self.regs.set(Reg::new(0x18 + d), data);
 
         let ar = regs.addressing[3];
         let data = regs.acc40[s].mid;
-        self.write_dmem(sys, ar, data);
+        self.write_dmem(ar, data);
 
         let ar = regs.addressing[0];
         let wr = regs.wrapping[0];
@@ -2211,17 +2210,17 @@ impl Interpreter {
         self.regs.addressing[3] = add_to_addr_reg(ar, wr, 1);
     }
 
-    pub fn ext_lsm(&mut self, sys: &mut System, ins: Ins, regs: &Registers) {
+    pub fn ext_lsm(&mut self, ins: Ins, regs: &Registers) {
         let s = ins.base.bit(0) as usize;
         let d = ins.base.bits(4, 6) as u8;
 
         let ar = regs.addressing[0];
-        let data = self.read_dmem(sys, ar);
+        let data = self.read_dmem(ar);
         self.regs.set(Reg::new(0x18 + d), data);
 
         let ar = regs.addressing[3];
         let data = regs.acc40[s].mid;
-        self.write_dmem(sys, ar, data);
+        self.write_dmem(ar, data);
 
         let ar = regs.addressing[0];
         let wr = regs.wrapping[0];
@@ -2233,17 +2232,17 @@ impl Interpreter {
         self.regs.addressing[3] = add_to_addr_reg(ar, wr, ix as i16);
     }
 
-    pub fn ext_lsnm(&mut self, sys: &mut System, ins: Ins, regs: &Registers) {
+    pub fn ext_lsnm(&mut self, ins: Ins, regs: &Registers) {
         let s = ins.base.bit(0) as usize;
         let d = ins.base.bits(4, 6) as u8;
 
         let ar = regs.addressing[0];
-        let data = self.read_dmem(sys, ar);
+        let data = self.read_dmem(ar);
         self.regs.set(Reg::new(0x18 + d), data);
 
         let ar = regs.addressing[3];
         let data = regs.acc40[s].mid;
-        self.write_dmem(sys, ar, data);
+        self.write_dmem(ar, data);
 
         let ar = regs.addressing[0];
         let wr = regs.wrapping[0];
@@ -2256,17 +2255,17 @@ impl Interpreter {
         self.regs.addressing[3] = add_to_addr_reg(ar, wr, ix as i16);
     }
 
-    pub fn ext_lsn(&mut self, sys: &mut System, ins: Ins, regs: &Registers) {
+    pub fn ext_lsn(&mut self, ins: Ins, regs: &Registers) {
         let s = ins.base.bit(0) as usize;
         let d = ins.base.bits(4, 6) as u8;
 
         let ar = regs.addressing[0];
-        let data = self.read_dmem(sys, ar);
+        let data = self.read_dmem(ar);
         self.regs.set(Reg::new(0x18 + d), data);
 
         let ar = regs.addressing[3];
         let data = regs.acc40[s].mid;
-        self.write_dmem(sys, ar, data);
+        self.write_dmem(ar, data);
 
         let ar = regs.addressing[0];
         let wr = regs.wrapping[0];
@@ -2278,16 +2277,16 @@ impl Interpreter {
         self.regs.addressing[3] = add_to_addr_reg(ar, wr, 1);
     }
 
-    pub fn ext_sl(&mut self, sys: &mut System, ins: Ins, regs: &Registers) {
+    pub fn ext_sl(&mut self, ins: Ins, regs: &Registers) {
         let s = ins.base.bit(0) as usize;
         let d = ins.base.bits(4, 6) as u8;
 
         let ar = regs.addressing[0];
         let data = regs.acc40[s].mid;
-        self.write_dmem(sys, ar, data);
+        self.write_dmem(ar, data);
 
         let ar = regs.addressing[3];
-        let data = self.read_dmem(sys, ar);
+        let data = self.read_dmem(ar);
         self.regs.set(Reg::new(0x18 + d), data);
 
         let ar = regs.addressing[0];
@@ -2299,16 +2298,16 @@ impl Interpreter {
         self.regs.addressing[3] = add_to_addr_reg(ar, wr, 1);
     }
 
-    pub fn ext_slm(&mut self, sys: &mut System, ins: Ins, regs: &Registers) {
+    pub fn ext_slm(&mut self, ins: Ins, regs: &Registers) {
         let s = ins.base.bit(0) as usize;
         let d = ins.base.bits(4, 6) as u8;
 
         let ar = regs.addressing[0];
         let data = regs.acc40[s].mid;
-        self.write_dmem(sys, ar, data);
+        self.write_dmem(ar, data);
 
         let ar = regs.addressing[3];
-        let data = self.read_dmem(sys, ar);
+        let data = self.read_dmem(ar);
         self.regs.set(Reg::new(0x18 + d), data);
 
         let ar = regs.addressing[0];
@@ -2321,16 +2320,16 @@ impl Interpreter {
         self.regs.addressing[3] = add_to_addr_reg(ar, wr, ix as i16);
     }
 
-    pub fn ext_slnm(&mut self, sys: &mut System, ins: Ins, regs: &Registers) {
+    pub fn ext_slnm(&mut self, ins: Ins, regs: &Registers) {
         let s = ins.base.bit(0) as usize;
         let d = ins.base.bits(4, 6) as u8;
 
         let ar = regs.addressing[0];
         let data = regs.acc40[s].mid;
-        self.write_dmem(sys, ar, data);
+        self.write_dmem(ar, data);
 
         let ar = regs.addressing[3];
-        let data = self.read_dmem(sys, ar);
+        let data = self.read_dmem(ar);
         self.regs.set(Reg::new(0x18 + d), data);
 
         let ar = regs.addressing[0];
@@ -2344,16 +2343,16 @@ impl Interpreter {
         self.regs.addressing[3] = add_to_addr_reg(ar, wr, ix as i16);
     }
 
-    pub fn ext_sln(&mut self, sys: &mut System, ins: Ins, regs: &Registers) {
+    pub fn ext_sln(&mut self, ins: Ins, regs: &Registers) {
         let s = ins.base.bit(0) as usize;
         let d = ins.base.bits(4, 6) as u8;
 
         let ar = regs.addressing[0];
         let data = regs.acc40[s].mid;
-        self.write_dmem(sys, ar, data);
+        self.write_dmem(ar, data);
 
         let ar = regs.addressing[3];
-        let data = self.read_dmem(sys, ar);
+        let data = self.read_dmem(ar);
         self.regs.set(Reg::new(0x18 + d), data);
 
         let ar = regs.addressing[0];

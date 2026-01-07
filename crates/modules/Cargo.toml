@@ -8,6 +8,7 @@ workspace = true
 
 [dependencies]
 hemisphere.workspace = true
+dspint.workspace = true
 tracing.workspace = true
 zerocopy.workspace = true
 seq-macro.workspace = true
@@ -22,3 +23,4 @@ addr2line = { version = "0.25", features = [
 ], default-features = false }
 mapfile_parser = "2.12"
 cwdemangle = "1"
+atomic-wait = "1"

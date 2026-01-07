@@ -172,27 +172,43 @@ impl System {
             Mmio::ProcessorFifoCurrent => ne!(self.processor.fifo_current.as_bytes()),
 
             // === DSP Interface ===
-            Mmio::DspSendMailbox => ne!(self.dsp.cpu_mailbox.as_bytes()),
+            Mmio::DspSendMailbox => {
+                let dsp = self.modules.dsp.state();
+                ne!(dsp.cpu_mailbox.as_bytes())
+            }
             Mmio::DspRecvMailbox => {
-                let data = ne!(self.dsp.dsp_mailbox.as_bytes());
-                let status = self.dsp.dsp_mailbox.status();
+                let mut dsp = self.modules.dsp.state_mut();
+                let data = ne!(dsp.dsp_mailbox.as_bytes());
+                let status = dsp.dsp_mailbox.status();
 
                 if range_overlap(mmio_range.clone(), 0..2) && status {
                     tracing::debug!(
                         "received from DSP mailbox: 0x{:08X}",
-                        self.dsp.dsp_mailbox.data().value()
+                        dsp.dsp_mailbox.data().value()
                     );
 
-                    self.dsp.dsp_mailbox.set_status(false);
+                    dsp.dsp_mailbox.set_status(false);
                 }
 
                 data
             }
-            Mmio::DspControl => ne!(self.dsp.control.as_bytes()),
+            Mmio::DspControl => {
+                let dsp = self.modules.dsp.state();
+                ne!(dsp.control.as_bytes())
+            }
             Mmio::DspAramMode => ne!((!0u64).as_mut_bytes()), // TODO: figure out this register
-            Mmio::DspAramDmaRamBase => ne!(self.dsp.aram_dma.ram_base.as_bytes()),
-            Mmio::DspAramDmaAramBase => ne!(self.dsp.aram_dma.aram_base.as_bytes()),
-            Mmio::DspAramDmaControl => ne!(self.dsp.aram_dma.control.as_bytes()),
+            Mmio::DspAramDmaRamBase => {
+                let dsp = self.modules.dsp.state();
+                ne!(dsp.aram_dma.ram_base.as_bytes())
+            }
+            Mmio::DspAramDmaAramBase => {
+                let dsp = self.modules.dsp.state();
+                ne!(dsp.aram_dma.aram_base.as_bytes())
+            }
+            Mmio::DspAramDmaControl => {
+                let dsp = self.modules.dsp.state();
+                ne!(dsp.aram_dma.control.as_bytes())
+            }
             Mmio::AudioDmaBase => ne!(self.audio.dma_base.as_bytes()),
             Mmio::AudioDmaControl => ne!(self.audio.dma_control.as_bytes()),
 
@@ -502,25 +518,41 @@ impl System {
 
             // === DSP Interface ===
             Mmio::DspSendMailbox => {
-                let status = self.dsp.cpu_mailbox.status();
-                ne!(self.dsp.cpu_mailbox.as_mut_bytes());
+                let mut dsp = self.modules.dsp.state_mut();
+                let status = dsp.cpu_mailbox.status();
+                ne!(dsp.cpu_mailbox.as_mut_bytes());
 
                 if range_overlap(mmio_range, 0..2) {
-                    self.dsp.cpu_mailbox.set_status(true);
+                    dsp.cpu_mailbox.set_status(true);
                 } else {
-                    self.dsp.cpu_mailbox.set_status(status);
+                    dsp.cpu_mailbox.set_status(status);
                 }
             }
             Mmio::DspRecvMailbox => todo!("shouldnt be writing to recv mailbox"),
             Mmio::DspControl => {
-                let mut written = self.dsp.control;
-                ne!(written.as_mut_bytes());
+                let mut written;
+                {
+                    let dsp = self.modules.dsp.state();
+                    written = dsp.control;
+                    ne!(written.as_mut_bytes());
+                }
+
                 dspi::write_control(self, written);
             }
-            Mmio::DspAramDmaRamBase => ne!(self.dsp.aram_dma.ram_base.as_mut_bytes()),
-            Mmio::DspAramDmaAramBase => ne!(self.dsp.aram_dma.aram_base.as_mut_bytes()),
+            Mmio::DspAramDmaRamBase => {
+                let mut dsp = self.modules.dsp.state_mut();
+                ne!(dsp.aram_dma.ram_base.as_mut_bytes())
+            }
+            Mmio::DspAramDmaAramBase => {
+                let mut dsp = self.modules.dsp.state_mut();
+                ne!(dsp.aram_dma.aram_base.as_mut_bytes())
+            }
             Mmio::DspAramDmaControl => {
-                ne!(self.dsp.aram_dma.control.as_mut_bytes());
+                {
+                    let mut dsp = self.modules.dsp.state_mut();
+                    ne!(dsp.aram_dma.control.as_mut_bytes());
+                }
+
                 dspi::aram_dma(self);
             }
             Mmio::AudioDmaBase => ne!(self.audio.dma_base.as_mut_bytes()),

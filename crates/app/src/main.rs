@@ -22,10 +22,10 @@ use eframe::{
 };
 use eyre_pretty::eyre::Result;
 use hemisphere::{
+    Hemisphere,
     cores::Cores,
     modules::debug::{DebugModule, NopDebugModule},
-    system::{self, executable::Executable, Modules},
-    Hemisphere,
+    system::{self, Modules, executable::Executable},
 };
 use nanorand::Rng;
 use renderer::Renderer;
@@ -39,7 +39,6 @@ use std::{
 use vtxjit::JitVertexModule;
 
 use cores::cpu::jit as jitcore;
-use cores::dsp::interpreter as dspcore;
 use modules::{
     audio::CpalAudio,
     debug::{Addr2LineDebug, MapFileDebug},
@@ -144,7 +143,6 @@ impl App {
                     cache_path: jit_cache_path,
                 },
             })),
-            dsp: Box::new(dspcore::InterpreterCore::default()),
         };
 
         let modules = Modules {
@@ -154,6 +152,7 @@ impl App {
             input: Box::new(GilrsInput::new()),
             render: Box::new(renderer.clone()),
             vertex: Box::new(JitVertexModule::new()),
+            dsp: Box::new(modules::dsp::interpreter::ThreadedModule::default()),
         };
 
         let hemisphere = Hemisphere::new(
@@ -331,7 +330,7 @@ impl eframe::App for App {
 }
 
 fn setup_tracing() -> tracing_appender::non_blocking::WorkerGuard {
-    use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+    use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
     let file = std::fs::File::options()
         .truncate(true)

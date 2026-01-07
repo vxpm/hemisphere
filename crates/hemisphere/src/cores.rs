@@ -20,15 +20,7 @@ pub trait CpuCore: Send {
     fn step(&mut self, sys: &mut System) -> Executed;
 }
 
-/// Trait for DSP cores.
-pub trait DspCore: Send {
-    /// Drives the DSP core forward by _at most_ the specified amount of instructions. The actual
-    /// number of instructions executed is returned.
-    fn exec(&mut self, sys: &mut System, instructions: u32) -> u32;
-}
-
 /// Cores that emulate system components.
 pub struct Cores {
     pub cpu: Box<dyn CpuCore>,
-    pub dsp: Box<dyn DspCore>,
 }

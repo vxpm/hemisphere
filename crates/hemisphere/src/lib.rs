@@ -68,7 +68,8 @@ impl Hemisphere {
             // execute DSP
             self.dsp_pending += e.cycles.to_dsp_cycles();
             while self.dsp_pending >= DSP_STEP as f64 {
-                self.cores.dsp.exec(&mut self.system, DSP_INST_PER_STEP);
+                self.system.modules.dsp.prepare(self.system.mem.ram_mut());
+                self.system.modules.dsp.exec(DSP_INST_PER_STEP);
                 self.dsp_pending -= DSP_STEP as f64;
             }
 
@@ -91,7 +92,8 @@ impl Hemisphere {
 
         // execute DSP
         while self.dsp_pending >= DSP_STEP as f64 {
-            self.cores.dsp.exec(&mut self.system, DSP_INST_PER_STEP);
+            self.system.modules.dsp.prepare(self.system.mem.ram_mut());
+            self.system.modules.dsp.exec(DSP_INST_PER_STEP);
             self.dsp_pending -= DSP_STEP as f64;
         }
 

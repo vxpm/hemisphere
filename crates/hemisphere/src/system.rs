@@ -19,11 +19,10 @@ pub mod vi;
 
 use crate::{
     modules::{
-        audio::AudioModule, debug::DebugModule, disk::DiskModule, input::InputModule,
-        render::RenderModule, vertex::VertexModule,
+        audio::AudioModule, debug::DebugModule, disk::DiskModule, dsp::DspModule,
+        input::InputModule, render::RenderModule, vertex::VertexModule,
     },
     system::{
-        dspi::Dsp,
         executable::Executable,
         gx::Gpu,
         ipl::Ipl,
@@ -49,6 +48,7 @@ pub struct Modules {
     pub audio: Box<dyn AudioModule>,
     pub debug: Box<dyn DebugModule>,
     pub disk: Box<dyn DiskModule>,
+    pub dsp: Box<dyn DspModule>,
     pub input: Box<dyn InputModule>,
     pub render: Box<dyn RenderModule>,
     pub vertex: Box<dyn VertexModule>,
@@ -66,8 +66,6 @@ pub struct System {
     pub cpu: Cpu,
     /// The GPU state.
     pub gpu: Gpu,
-    /// The DSP state.
-    pub dsp: Dsp,
     /// System memory.
     pub mem: Memory,
     /// State of mechanisms that update lazily (e.g. time related registers).
@@ -244,7 +242,6 @@ impl System {
             scheduler,
             cpu: Cpu::default(),
             gpu: Gpu::default(),
-            dsp: Dsp::new(),
             mem: Memory::new(&ipl),
             lazy: Lazy::default(),
             video: vi::Interface::default(),
