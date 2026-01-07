@@ -241,8 +241,9 @@ impl BlockBuilder<'_> {
 
                 let ctr_ok = match options.ctr_cond() {
                     CtrCond::NotEqZero => {
-                        let eq = self.bd.ins().icmp_imm(ir::condcodes::IntCC::Equal, ctr, 0);
-                        self.bd.ins().bnot(eq)
+                        self.bd
+                            .ins()
+                            .icmp_imm(ir::condcodes::IntCC::NotEqual, ctr, 0)
                     }
                     CtrCond::EqZero => self.bd.ins().icmp_imm(ir::condcodes::IntCC::Equal, ctr, 0),
                 };

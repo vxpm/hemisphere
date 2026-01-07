@@ -129,14 +129,13 @@ impl BlockBuilder<'_> {
         let should_set = self.ir_value(should_set);
 
         // create mask for the bit
-        let shifted = self.bd.ins().ishl(one, index);
-        let mask = self.bd.ins().bnot(shifted);
+        let mask = self.bd.ins().ishl(one, index);
 
         // unset bit
-        let value = self.bd.ins().band(value, mask);
+        let value = self.bd.ins().band_not(value, mask);
 
         // set bit if `should_set` is true
-        let rhs = self.bd.ins().select(should_set, shifted, zero);
+        let rhs = self.bd.ins().select(should_set, mask, zero);
 
         self.bd.ins().bor(value, rhs)
     }
