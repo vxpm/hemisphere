@@ -31,10 +31,10 @@ use std::{
 use vtxjit::JitVertexModule;
 
 use modules::{
-    audio::CpalAudio,
-    debug::{Addr2LineDebug, MapFileDebug},
-    disk::IsoDisk,
-    input::GilrsInput,
+    audio::CpalModule,
+    debug::{Addr2LineModule, MapFileModule},
+    disk::IsoModule,
+    input::GilrsModule,
 };
 
 struct App {
@@ -43,6 +43,7 @@ struct App {
     windows: Vec<AppWindowState>,
     runner: Runner,
     cps: u64,
+    organize: bool,
 }
 
 impl App {
@@ -56,7 +57,7 @@ impl App {
             None
         };
 
-        let iso = IsoDisk(if let Some(path) = &cfg.iso {
+        let iso = IsoModule(if let Some(path) = &cfg.iso {
             let file = std::fs::File::open(path)?;
             let reader = BufReader::new(file);
             Some(reader)
@@ -79,13 +80,13 @@ impl App {
                 .as_deref()
             {
                 Some("elf") => {
-                    let debug = Addr2LineDebug::new(path);
+                    let debug = Addr2LineModule::new(path);
                     debug.map_or_else(
                         || Box::new(NopDebugModule) as Box<dyn DebugModule>,
                         |d| Box::new(d) as Box<dyn DebugModule>,
                     )
                 }
-                Some("map") => Box::new(MapFileDebug::new(path)) as Box<dyn DebugModule>,
+                Some("map") => Box::new(MapFileModule::new(path)) as Box<dyn DebugModule>,
                 _ => Box::new(NopDebugModule),
             }
         } else {
@@ -125,10 +126,10 @@ impl App {
         };
 
         let modules = Modules {
-            audio: Box::new(CpalAudio::new()),
+            audio: Box::new(CpalModule::new()),
             debug: debug_module,
             disk: Box::new(iso),
-            input: Box::new(GilrsInput::new()),
+            input: Box::new(GilrsModule::new()),
             render: Box::new(renderer.clone()),
             vertex: Box::new(JitVertexModule::new()),
         };
@@ -148,21 +149,42 @@ impl App {
             runner.start();
         }
 
-        let windows: Vec<AppWindowState> = cc
+        let windows: Option<Vec<AppWindowState>> = cc
             .storage
             .as_ref()
-            .and_then(|s| s.get_string("windows"))
-            .and_then(|s| ron::from_str(&s).ok())
-            .unwrap_or_default();
+            .and_then(|s| s.get_string("windows-test"))
+            .and_then(|s| ron::from_str(&s).ok());
 
-        cc.egui_ctx.set_zoom_factor(1.0);
-        Ok(Self {
+        let (windows, create_default) = if let Some(windows) = windows {
+            (windows, false)
+        } else {
+            (vec![], true)
+        };
+
+        let mut app = Self {
             last_update: Instant::now(),
             renderer,
             windows,
             runner,
             cps: 0,
-        })
+            organize: false,
+        };
+
+        if create_default {
+            app.create_window(windows::disasm());
+            app.create_window(windows::control());
+            app.create_window(windows::debug());
+            app.create_window(windows::efb());
+            app.organize = true;
+        }
+
+        // if ui.button("Organize windows").clicked() {
+        //     ui.memory_mut(|mem| mem.reset_areas());
+        // }
+
+        cc.egui_ctx.set_zoom_factor(1.0);
+
+        Ok(app)
     }
 
     fn create_window(&mut self, window: impl AppWindow) {
@@ -265,14 +287,19 @@ impl eframe::App for App {
             let mut close = None;
             for (index, window_state) in self.windows.iter_mut().enumerate() {
                 let mut open = true;
-                egui::Window::new(window_state.window.title())
+                let mut window = egui::Window::new(window_state.window.title())
                     .id(window_state.id)
                     .open(&mut open)
                     .resizable(true)
-                    .min_size(egui::Vec2::ZERO)
-                    .show(ctx, |ui| {
-                        window_state.window.show(ui, &mut context);
-                    });
+                    .min_size(egui::Vec2::ZERO);
+
+                if let Some(size) = window_state.window.default_size() {
+                    window = window.default_size(size);
+                }
+
+                window.show(ctx, |ui| {
+                    window_state.window.show(ui, &mut context);
+                });
 
                 if !open {
                     close = Some(index);
@@ -299,6 +326,11 @@ impl eframe::App for App {
         let remaining = FRAMETIME.saturating_sub(self.last_update.elapsed());
         ctx.request_repaint_after(remaining);
         self.last_update = Instant::now() + remaining;
+
+        if std::mem::replace(&mut self.organize, false) {
+            ctx.request_discard("organize");
+            ctx.memory_mut(|mem| mem.reset_areas());
+        }
     }
 
     fn save(&mut self, storage: &mut dyn eframe::Storage) {

@@ -139,12 +139,12 @@ fn fill_buffer(state: &Arc<Mutex<State>>, out: &mut [f32]) {
     }
 }
 
-pub struct CpalAudio {
+pub struct CpalModule {
     state: Arc<Mutex<State>>,
     _stream: Stream,
 }
 
-impl CpalAudio {
+impl CpalModule {
     pub fn new() -> Self {
         let host = cpal::default_host();
         let device = host
@@ -215,7 +215,7 @@ impl CpalAudio {
     }
 }
 
-impl AudioModule for CpalAudio {
+impl AudioModule for CpalModule {
     fn set_sample_rate(&mut self, sample_rate: SampleRate) {
         self.state.lock().unwrap().sample_rate = sample_rate;
     }

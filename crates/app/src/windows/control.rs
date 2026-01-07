@@ -31,6 +31,10 @@ impl AppWindow for Window {
         "Control"
     }
 
+    fn default_size(&self) -> Option<egui::Vec2> {
+        Some(egui::Vec2::new(100.0, 200.0))
+    }
+
     fn prepare(&mut self, state: &mut State) {
         for breakpoint in self.breakpoints_to_add.drain(..) {
             state.add_breakpoint(Address(breakpoint));

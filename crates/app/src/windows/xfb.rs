@@ -2,7 +2,7 @@ use crate::{
     State,
     windows::{AppWindow, Ctx},
 };
-use eframe::egui;
+use eframe::egui::{self, Vec2};
 use hemisphere::system;
 use serde::{Deserialize, Serialize};
 
@@ -97,8 +97,19 @@ impl AppWindow for Window {
             egui::TextureOptions::LINEAR,
         );
 
-        let size = texture.size_vec2();
-        let sized_texture = egui::load::SizedTexture::new(texture, size);
-        ui.add(egui::Image::new(sized_texture).fit_to_exact_size(size));
+        egui::Frame::canvas(ui.style()).show(ui, |ui| {
+            let aspect_ratio = 4.0 / 3.0;
+            let available_height = (ui.available_height() - 20.0).max(0.0);
+
+            let size = if ui.available_width() < available_height {
+                Vec2::new(ui.available_width(), ui.available_width() / aspect_ratio)
+            } else {
+                Vec2::new(available_height * aspect_ratio, available_height)
+            };
+
+            let tex_size = texture.size_vec2();
+            let sized_texture = egui::load::SizedTexture::new(texture, tex_size);
+            ui.add(egui::Image::new(sized_texture).fit_to_exact_size(size));
+        });
     }
 }

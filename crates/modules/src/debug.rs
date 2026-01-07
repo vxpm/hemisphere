@@ -18,15 +18,15 @@ fn demangle(s: &str) -> String {
     addr2line::demangle_auto(Cow::Borrowed(s), Some(gimli::DW_LANG_C_plus_plus)).into_owned()
 }
 
-pub struct Addr2LineDebug(addr2line::Loader);
+pub struct Addr2LineModule(addr2line::Loader);
 
-impl Addr2LineDebug {
+impl Addr2LineModule {
     pub fn new(path: impl AsRef<Path>) -> Option<Self> {
         addr2line::Loader::new(path).ok().map(Self)
     }
 }
 
-impl DebugModule for Addr2LineDebug {
+impl DebugModule for Addr2LineModule {
     fn find_symbol(&self, addr: Address) -> Option<String> {
         self.0.find_symbol(addr.value() as u64).map(demangle)
     }
@@ -44,15 +44,15 @@ impl DebugModule for Addr2LineDebug {
     }
 }
 
-pub struct MapFileDebug(MapFile);
+pub struct MapFileModule(MapFile);
 
-impl MapFileDebug {
+impl MapFileModule {
     pub fn new(path: impl AsRef<Path>) -> Self {
         Self(MapFile::new_from_map_file(path.as_ref()))
     }
 }
 
-impl DebugModule for MapFileDebug {
+impl DebugModule for MapFileModule {
     fn find_symbol(&self, addr: Address) -> Option<String> {
         self.0
             .find_symbol_by_vram(addr.0 as u64)

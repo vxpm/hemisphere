@@ -9,7 +9,7 @@ mod variables;
 mod xfb;
 
 use crate::runner::State;
-use eframe::egui;
+use eframe::egui::{self, Vec2};
 use renderer::Renderer;
 use serde::{Deserialize, Serialize};
 
@@ -22,6 +22,9 @@ pub struct Ctx<'a> {
 #[typetag::serde]
 pub(crate) trait AppWindow: 'static {
     fn title(&self) -> &str;
+    fn default_size(&self) -> Option<Vec2> {
+        None
+    }
     fn prepare(&mut self, state: &mut State);
     fn show(&mut self, ui: &mut egui::Ui, ctx: &mut Ctx);
 }

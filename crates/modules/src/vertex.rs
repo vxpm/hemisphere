@@ -70,9 +70,9 @@ fn read_attribute<A: Attribute>(
     }
 }
 
-pub struct Interpreter;
+pub struct InterpreterModule;
 
-impl VertexModule for Interpreter {
+impl VertexModule for InterpreterModule {
     fn parse(
         &mut self,
         ctx: Ctx,

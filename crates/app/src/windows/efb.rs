@@ -30,13 +30,16 @@ pub struct Window;
 #[typetag::serde(name = "efb")]
 impl AppWindow for Window {
     fn title(&self) -> &str {
-        "🖵 EFB"
+        "EFB"
+    }
+
+    fn default_size(&self) -> Option<egui::Vec2> {
+        Some(egui::Vec2::new(640.0, 528.0))
     }
 
     fn prepare(&mut self, _: &mut State) {}
 
     fn show(&mut self, ui: &mut egui::Ui, ctx: &mut Ctx) {
-        ui.take_available_space();
         egui::Frame::canvas(ui.style()).show(ui, |ui| {
             let aspect_ratio = 4.0 / 3.0;
             let available_height = (ui.available_height() - 20.0).max(0.0);
