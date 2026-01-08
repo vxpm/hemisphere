@@ -3,11 +3,11 @@ name: Nightly build
 on:
   workflow_dispatch:
     inputs:
-      release:
-        description: 'Generate a github release for this build'
+      no_release:
+        description: 'Do not generate a github release for this build'
         type: boolean
         required: true
-        default: false
+        default: true
   schedule:
      - cron: "0 0 * * *"
 
@@ -126,7 +126,7 @@ jobs:
     name: Create nightly release
     runs-on: ubuntu-slim
     needs: [check_date, generate_name, build_linux, build_windows]
-    if: ${{ needs.check_date.outputs.should_run != 'false' && inputs.release }}
+    if: ${{ needs.check_date.outputs.should_run != 'false' && !inputs.no_release }}
     permissions:
       contents: write
     steps:
