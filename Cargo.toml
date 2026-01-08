@@ -60,17 +60,12 @@ opt-level = 0
 [profile.dev.package."wayland-protocols"]
 opt-level = 0
 
-[profile.dev.package."wgsl-types"]
-opt-level = 2
+[profile.dev.package."moxcms"]
+opt-level = 0
+debug = false
 
-[profile.dev.package."wgsl-parse"]
-opt-level = 2
-
-[profile.dev.package."wesl"]
-opt-level = 2
-
-[profile.dev.package."cranelift-codegen"]
-opt-level = 2
+[profile.dev.package."naga"]
+opt-level = 0
 
 [profile.dev.package."binrw"]
 opt-level = 2
@@ -106,16 +101,10 @@ opt-level = 2
 [profile.dev.package."ppcjit"]
 opt-level = 2
 
-[profile.dev.package."dspint"]
-opt-level = 2
-
-[profile.dev.package."cores"]
-opt-level = 2
-
-[profile.dev.package."modules"]
-opt-level = 2
-
 [profile.dev.package."hemisphere"]
+opt-level = 2
+
+[profile.dev.package."dspint"]
 opt-level = 2
 
 [profile.dev.package."renderer"]
@@ -150,7 +139,12 @@ bytesize = "2"
 ciborium = "0.2"
 clap = { version = "4.5", features = ["derive"] }
 cranelift = { version = "0.127", features = ["frontend", "native"] }
-cranelift-codegen = { version = "0.127", features = ["enable-serde"] }
+cranelift-codegen = { version = "0.127", default-features = false, features = [
+    "std",
+    "unwind",
+    "host-arch",
+    "enable-serde",
+] }
 easyerr = "0.1"
 eyre-pretty = { git = "https://github.com/vxpm/eyre-pretty.git" }
 glam = { version = "0.30", features = ["zerocopy"] }
@@ -181,7 +175,7 @@ twox-hash = { version = "2.1", default-features = false, features = [
 ] }
 wesl = { version = "0.3", default-features = false, features = ["eval"] }
 wesl-quote = { version = "0.3" }
-wgpu = { version = "27.0", features = [], default-features = false }
+wgpu = { version = "27.0", default-features = false }
 zerocopy = { version = "0.8", features = ["derive"] }
 windows = { version = ">=0.59", features = [
     "Win32_System_Memory",
