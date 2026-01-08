@@ -65,7 +65,7 @@ opt-level = 0
 debug = false
 
 [profile.dev.package."naga"]
-opt-level = 0
+opt-level = 1
 
 [profile.dev.package."binrw"]
 opt-level = 2
