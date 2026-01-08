@@ -45,15 +45,12 @@ impl AppWindow for Window {
         let emulator = &state.emulator;
         for variable in self.variables.iter_mut() {
             let physical = emulator
-                .system
+                .sys
                 .mem
                 .translate_data_addr(variable.address)
                 .unwrap_or(0);
 
-            variable.value = emulator
-                .system
-                .read_phys_pure(Address(physical))
-                .unwrap_or(0);
+            variable.value = emulator.sys.read_phys_pure(Address(physical)).unwrap_or(0);
         }
     }
 

@@ -39,16 +39,16 @@ impl AppWindow for Window {
 
     fn prepare(&mut self, state: &mut State) {
         let emulator = &state.emulator;
-        if !emulator.system.video.display_config.enable() {
+        if !emulator.sys.video.display_config.enable() {
             self.xfb_enabled = false;
             return;
         }
 
-        self.xfb_resolution = emulator.system.video.xfb_resolution();
+        self.xfb_resolution = emulator.sys.video.xfb_resolution();
         let Some(xfb) = (if self.bottom {
-            system::vi::bottom_xfb(&emulator.system)
+            system::vi::bottom_xfb(&emulator.sys)
         } else {
-            system::vi::top_xfb(&emulator.system)
+            system::vi::top_xfb(&emulator.sys)
         }) else {
             return;
         };

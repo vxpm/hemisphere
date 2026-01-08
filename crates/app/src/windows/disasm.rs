@@ -65,7 +65,7 @@ impl AppWindow for Window {
         }
 
         let emulator = &state.emulator;
-        self.pc = emulator.system.cpu.pc.value();
+        self.pc = emulator.sys.cpu.pc.value();
 
         if self.follow_pc {
             self.target = self.pc;
@@ -74,11 +74,11 @@ impl AppWindow for Window {
         let mut current = Address(self.target.wrapping_sub(4 * (self.rows / 2)));
         for _ in 0..self.rows {
             let translated = emulator
-                .system
+                .sys
                 .translate_instr_addr(current)
                 .unwrap_or_default();
 
-            let code = emulator.system.read_phys_pure(translated).unwrap_or(0);
+            let code = emulator.sys.read_phys_pure(translated).unwrap_or(0);
             let ins = Ins::new(code, Extensions::gekko_broadway());
             self.instructions.push(ins);
 

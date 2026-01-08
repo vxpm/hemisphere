@@ -26,12 +26,12 @@ impl AppWindow for Window {
 
     fn prepare(&mut self, state: &mut State) {
         let emulator = &state.emulator;
-        self.call_stack = system::eabi::current_call_stack(&emulator.system);
+        self.call_stack = system::eabi::current_call_stack(&emulator.sys);
         self.location = emulator
-            .system
+            .sys
             .modules
             .debug
-            .find_location(emulator.system.cpu.pc)
+            .find_location(emulator.sys.cpu.pc)
             .map(|l| l.into_owned());
     }
 
