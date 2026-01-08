@@ -23,7 +23,7 @@ impl AppWindow for Window {
     }
 
     fn prepare(&mut self, state: &mut State) {
-        let core = &state.emulator;
+        let core = &state.hemi;
         let pi = &core.sys.processor;
         self.fifo_start = pi.fifo_start;
         self.fifo_end = pi.fifo_end;

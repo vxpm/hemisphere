@@ -14,7 +14,7 @@ use std::{
 use crate::runner::timer::Timer;
 
 pub struct State {
-    pub emulator: Hemisphere,
+    pub hemi: Hemisphere,
     pub breakpoints: Vec<Address>,
     pub cycles_history: VecDeque<(Cycles, Duration)>,
 }
@@ -78,7 +78,7 @@ fn worker(state: Arc<Shared>) {
         let state = &mut *lock;
 
         let executed = state
-            .emulator
+            .hemi
             .exec(Cycles::from_duration(delta), &state.breakpoints);
 
         emulated += delta;
@@ -100,7 +100,7 @@ impl Runner {
     pub fn new(hemisphere: Hemisphere) -> Self {
         let state = Shared {
             state: Mutex::new(State {
-                emulator: hemisphere,
+                hemi: hemisphere,
                 breakpoints: vec![],
                 cycles_history: VecDeque::new(),
             }),
@@ -130,7 +130,7 @@ impl Runner {
     pub fn step(&mut self) {
         if !self.running() {
             let mut lock = self.shared.state.lock().unwrap();
-            lock.emulator.step();
+            lock.hemi.step();
         }
     }
 

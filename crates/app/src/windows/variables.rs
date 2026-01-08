@@ -42,7 +42,7 @@ impl AppWindow for Window {
     }
 
     fn prepare(&mut self, state: &mut State) {
-        let emulator = &state.emulator;
+        let emulator = &state.hemi;
         for variable in self.variables.iter_mut() {
             let physical = emulator
                 .sys

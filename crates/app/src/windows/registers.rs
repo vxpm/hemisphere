@@ -205,7 +205,7 @@ impl AppWindow for Window {
     }
 
     fn prepare(&mut self, state: &mut State) {
-        self.cpu = state.emulator.sys.cpu.clone();
+        self.cpu = state.hemi.sys.cpu.clone();
     }
 
     fn show(&mut self, ui: &mut egui::Ui, _: &mut Ctx) {

@@ -64,7 +64,7 @@ impl AppWindow for Window {
             state.add_breakpoint(Address(breakpoint));
         }
 
-        let emulator = &state.emulator;
+        let emulator = &state.hemi;
         self.pc = emulator.sys.cpu.pc.value();
 
         if self.follow_pc {
