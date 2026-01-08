@@ -1,5 +1,5 @@
 use cpal::{
-    Stream,
+    Device, Stream, SupportedStreamConfigRange,
     traits::{DeviceTrait, HostTrait, StreamTrait},
 };
 use hemisphere::{
@@ -144,27 +144,59 @@ pub struct CpalModule {
     _stream: Stream,
 }
 
+const SAMPLE_RATE: u32 = 48_000;
+
+fn is_supported_config(c: &SupportedStreamConfigRange) -> bool {
+    c.sample_format() == cpal::SampleFormat::F32
+        && c.channels() == 2
+        && c.min_sample_rate() <= SAMPLE_RATE
+        && c.max_sample_rate() >= SAMPLE_RATE
+}
+
+fn is_supported_device(device: &Device) -> bool {
+    let Ok(description) = device.description() else {
+        return false;
+    };
+
+    let is_null = || description.driver().is_some_and(|name| name == "null");
+    let has_supported_config = || {
+        device
+            .supported_output_configs()
+            .into_iter()
+            .flat_map(std::convert::identity)
+            .any(|c| is_supported_config(&c))
+    };
+
+    !is_null() && has_supported_config()
+}
+
 impl CpalModule {
     pub fn new() -> Self {
         let host = cpal::default_host();
+
+        println!("[Audio Module]: enumerating devices...");
         let device = host
-            .default_output_device()
-            .expect("no output device available");
+            .output_devices()
+            .expect("no output devices available")
+            .find(is_supported_device)
+            .expect("no output devices supported");
+        println!(
+            "[Audio Module]: done! chosen device: {}",
+            device
+                .description()
+                .map(|d| d.to_string())
+                .as_deref()
+                .unwrap_or("<unknown>")
+        );
 
         let mut supported_configs = device
             .supported_output_configs()
-            .expect("error while querying configs");
+            .expect("error while querying device configs");
 
-        let sample_rate = 48_000;
         let config = supported_configs
-            .find(|c| {
-                c.sample_format() == cpal::SampleFormat::F32
-                    && c.channels() == 2
-                    && c.min_sample_rate() <= sample_rate
-                    && c.max_sample_rate() >= sample_rate
-            })
-            .expect("no supported audio config")
-            .with_sample_rate(sample_rate);
+            .find(is_supported_config)
+            .expect("device has no supported config (this should not happen)")
+            .with_sample_rate(SAMPLE_RATE);
 
         let resampler = ResamplerFir::new(
             2,
