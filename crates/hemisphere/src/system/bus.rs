@@ -67,7 +67,7 @@ impl System {
 
     /// Reads a primitive from the given physical address, but only if it can't possibly have a
     /// side effect.
-    pub fn read_pure<P: Primitive>(&self, addr: Address) -> Option<P> {
+    pub fn read_phys_pure<P: Primitive>(&self, addr: Address) -> Option<P> {
         let offset: usize;
         map! {
             offset, addr;
@@ -75,6 +75,13 @@ impl System {
             0xFFF0_0000, IPL_LEN / 2 => Some(P::read_be_bytes(&self.mem.ipl()[offset..])),
             @default => None
         }
+    }
+
+    /// Reads a primitive from the given physical address, but only if it can't possibly have a
+    /// side effect.
+    pub fn read_pure<P: Primitive>(&self, addr: Address) -> Option<P> {
+        self.translate_data_addr(addr)
+            .and_then(|addr| self.read_phys_pure(addr))
     }
 
     fn read_mmio<P: Primitive>(&mut self, offset: u16) -> P {

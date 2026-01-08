@@ -5,6 +5,7 @@ pub mod eabi;
 pub mod executable;
 pub mod ipl;
 pub mod lazy;
+pub mod os;
 pub mod scheduler;
 
 pub mod ai;

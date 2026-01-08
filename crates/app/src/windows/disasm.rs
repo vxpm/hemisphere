@@ -78,7 +78,7 @@ impl AppWindow for Window {
                 .translate_instr_addr(current)
                 .unwrap_or_default();
 
-            let code = emulator.system.read_pure(translated).unwrap_or(0);
+            let code = emulator.system.read_phys_pure(translated).unwrap_or(0);
             let ins = Ins::new(code, Extensions::gekko_broadway());
             self.instructions.push(ins);
 

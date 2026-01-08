@@ -22,11 +22,11 @@ impl std::fmt::Display for CallStack {
             write!(
                 f,
                 "{}: {}",
-                frame.address,
+                frame.stack,
                 frame.symbol.as_deref().unwrap_or("<unknown>"),
             )?;
 
-            if frame.returns != 0 {
+            if !frame.returns.is_null() {
                 writeln!(f, " (return to {})", frame.returns)?;
             } else {
                 writeln!(f, " (link unsaved)")?;
@@ -37,40 +37,40 @@ impl std::fmt::Display for CallStack {
     }
 }
 
-impl System {
-    pub fn call_stack(&self) -> CallStack {
-        let mut call_stack = Vec::new();
-        let mut current_frame = self.cpu.user.gpr[1];
-        let mut current_routine = self.cpu.pc.value();
+pub fn call_stack(sys: &System, last_frame: Address, last_routine: Address) -> CallStack {
+    let mut call_stack = Vec::new();
+    let mut current_frame = last_frame.value();
+    let mut current_routine = last_routine.value();
 
-        loop {
-            if current_frame == 0 || current_routine == 0 {
-                break;
-            }
-
-            let prev_frame_addr = Address(current_frame);
-            let prev_routine_addr = Address(current_frame.wrapping_add(4));
-
-            if let Some(prev_frame_addr) = self.translate_data_addr(prev_frame_addr)
-                && let Some(prev_routine_addr) = self.translate_data_addr(prev_routine_addr)
-                && let Some(prev_frame) = self.read_pure(prev_frame_addr)
-                && let Some(prev_routine) = self.read_pure(prev_routine_addr)
-            {
-                let name = self.modules.debug.find_symbol(Address(current_routine));
-                call_stack.push(CallFrame {
-                    address: Address(current_routine),
-                    symbol: name,
-                    stack: Address(current_frame),
-                    returns: Address(prev_routine),
-                });
-
-                current_frame = prev_frame;
-                current_routine = prev_routine;
-            } else {
-                break;
-            }
+    loop {
+        if current_frame == 0 || current_routine == 0 {
+            break;
         }
 
-        CallStack(call_stack)
+        let prev_frame_addr = Address(current_frame);
+        let prev_routine_addr = Address(current_frame.wrapping_add(4));
+
+        if let Some(prev_frame) = sys.read_pure(prev_frame_addr)
+            && let Some(prev_routine) = sys.read_pure(prev_routine_addr)
+        {
+            let name = sys.modules.debug.find_symbol(Address(current_routine));
+            call_stack.push(CallFrame {
+                address: Address(current_routine),
+                symbol: name,
+                stack: Address(current_frame),
+                returns: Address(prev_routine),
+            });
+
+            current_frame = prev_frame;
+            current_routine = prev_routine;
+        } else {
+            break;
+        }
     }
+
+    CallStack(call_stack)
+}
+
+pub fn current_call_stack(sys: &System) -> CallStack {
+    self::call_stack(sys, Address(sys.cpu.user.gpr[1]), sys.cpu.pc)
 }

@@ -50,7 +50,10 @@ impl AppWindow for Window {
                 .translate_data_addr(variable.address)
                 .unwrap_or(0);
 
-            variable.value = emulator.system.read_pure(Address(physical)).unwrap_or(0);
+            variable.value = emulator
+                .system
+                .read_phys_pure(Address(physical))
+                .unwrap_or(0);
         }
     }
 

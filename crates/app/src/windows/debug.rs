@@ -4,7 +4,10 @@ use crate::{
 };
 use eframe::egui::{self, Color32};
 use egui_extras::{Column, TableBuilder};
-use hemisphere::{modules::debug::Location, system::eabi::CallStack};
+use hemisphere::{
+    modules::debug::Location,
+    system::{self, eabi::CallStack},
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Default, Serialize, Deserialize)]
@@ -23,7 +26,7 @@ impl AppWindow for Window {
 
     fn prepare(&mut self, state: &mut State) {
         let emulator = &state.emulator;
-        self.call_stack = emulator.system.call_stack();
+        self.call_stack = system::eabi::current_call_stack(&emulator.system);
         self.location = emulator
             .system
             .modules

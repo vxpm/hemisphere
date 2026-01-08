@@ -45,6 +45,12 @@ impl Address {
     pub const fn value(self) -> u32 {
         self.0
     }
+
+    /// Whether this address is null.
+    #[inline(always)]
+    pub const fn is_null(self) -> bool {
+        self.0 == 0
+    }
 }
 
 impl std::ops::Add<u32> for Address {
