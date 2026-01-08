@@ -108,7 +108,7 @@ pub extern "C" fn disk_load(address: *mut c_void, length: usize, offset: usize) 
 #[unsafe(no_mangle)]
 #[inline(never)]
 pub unsafe extern "C" fn main(entry: ApploaderEntryFn) {
-    println(c"[IPL] Executing apploader entry...");
+    println(c"[IPL-HLE] Executing apploader entry...");
 
     let mut init = MaybeUninit::uninit();
     let mut main = MaybeUninit::uninit();
@@ -119,7 +119,7 @@ pub unsafe extern "C" fn main(entry: ApploaderEntryFn) {
     let main = unsafe { main.assume_init() };
     let close = unsafe { close.assume_init() };
 
-    println(c"[IPL] Entry executed:");
+    println(c"[IPL-HLE] Entry executed:");
     print(c"  Init: 0x");
     println_hex(init as usize as u32);
     print(c"  Main: 0x");
@@ -127,13 +127,13 @@ pub unsafe extern "C" fn main(entry: ApploaderEntryFn) {
     print(c"  Close: 0x");
     println_hex(close as usize as u32);
 
-    println(c"[IPL] Running apploader init...");
+    println(c"[IPL-HLE] Running apploader init...");
     init(os_report_callback);
-    println(c"[IPL] Init executed. Calling apploader main on a loop...");
+    println(c"[IPL-HLE] Init executed. Calling apploader main on a loop...");
 
     let mut i = 0;
     loop {
-        print(c"[IPL] Loop iteration ");
+        print(c"[IPL-HLE] Loop iteration ");
         println_dec(i);
 
         let mut address = core::ptr::null_mut();
@@ -144,7 +144,7 @@ pub unsafe extern "C" fn main(entry: ApploaderEntryFn) {
             break;
         }
 
-        println(c"[IPL] Loading disk data:");
+        println(c"[IPL-HLE] Loading disk data:");
         print(c"  Target: 0x");
         println_hex(address as usize as u32);
         print(c"  Offset: 0x");
@@ -157,9 +157,9 @@ pub unsafe extern "C" fn main(entry: ApploaderEntryFn) {
         i += 1;
     }
 
-    println(c"[IPL] Finished running main. Closing apploader...");
+    println(c"[IPL-HLE] Finished running main. Closing apploader...");
     let entry = close();
-    println(c"[IPL] Apploader closed! Jumping to bootfile entrypoint");
+    println(c"[IPL-HLE] Apploader closed! Jumping to bootfile entrypoint");
 
     entry();
 }
