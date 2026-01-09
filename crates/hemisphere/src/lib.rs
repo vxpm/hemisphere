@@ -47,38 +47,38 @@ impl Hemisphere {
 
     /// Advances emulation by the specified number of CPU cycles.
     pub fn exec(&mut self, cycles: Cycles, breakpoints: &[Address]) -> cores::Executed {
-        let mut executed = cores::Executed::default();
-        while executed.cycles < cycles {
+        let mut total_executed = cores::Executed::default();
+        while total_executed.cycles < cycles {
             // how many CPU cycles can we execute?
-            let remaining = cycles - executed.cycles;
+            let remaining = cycles - total_executed.cycles;
             let until_next_dsp_step =
                 Cycles((6.0 * ((DSP_STEP as f64) - self.dsp_pending)).ceil() as u64);
             let until_next_event = Cycles(self.sys.scheduler.until_next().unwrap_or(u64::MAX));
             let can_execute = until_next_dsp_step.min(until_next_event).min(remaining);
 
             // execute CPU
-            let e = self.cores.cpu.exec(&mut self.sys, can_execute, breakpoints);
-            executed.instructions += e.instructions;
-            executed.cycles += e.cycles;
-            executed.hit_breakpoint = e.hit_breakpoint;
+            let executed = self.cores.cpu.exec(&mut self.sys, can_execute, breakpoints);
+            total_executed.instructions += executed.instructions;
+            total_executed.cycles += executed.cycles;
 
             // execute DSP
-            self.dsp_pending += e.cycles.to_dsp_cycles();
+            self.dsp_pending += executed.cycles.to_dsp_cycles();
             while self.dsp_pending >= DSP_STEP as f64 {
                 self.cores.dsp.exec(&mut self.sys, DSP_INST_PER_STEP);
                 self.dsp_pending -= DSP_STEP as f64;
             }
 
-            self.sys.scheduler.advance(e.cycles.0);
+            self.sys.scheduler.advance(executed.cycles.0);
             self.sys.process_events();
 
-            if e.hit_breakpoint {
+            if executed.hit_breakpoint || breakpoints.contains(&self.sys.cpu.pc) {
                 std::hint::cold_path();
+                total_executed.hit_breakpoint = true;
                 break;
             }
         }
 
-        executed
+        total_executed
     }
 
     pub fn step(&mut self) -> cores::Executed {
