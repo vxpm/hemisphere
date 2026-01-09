@@ -769,6 +769,8 @@ impl<'ctx> BlockBuilder<'ctx> {
             Opcode::Subfme => self.subfme(ins),
             Opcode::Subfze => self.subfze(ins),
             Opcode::Sync => self.nop(Action::FlushAndPrologue),
+            Opcode::Tlbsync => self.nop(Action::Continue),
+            Opcode::Tlbie => self.nop(Action::Continue),
             Opcode::Xor => self.xor(ins),
             Opcode::Xori => self.xori(ins),
             Opcode::Xoris => self.xoris(ins),
