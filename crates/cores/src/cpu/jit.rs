@@ -73,8 +73,10 @@ fn deps_page(addr: Address) -> usize {
 /// A structure which keeps tracks of compiled [`Block`]s.
 pub struct Blocks {
     storage: Vec<StoredBlock>,
-    mappings: MappingTable,
-    deps: Box<[IndexSet<Address>; DEPS_TABLE_COUNT]>,
+    logical_mappings: MappingTable,
+    physical_mappings: MappingTable,
+    logical_deps: Box<[IndexSet<Address>; DEPS_TABLE_COUNT]>,
+    physical_deps: Box<[IndexSet<Address>; DEPS_TABLE_COUNT]>,
     temp_deps: IndexSet<Address>,
 }
 
@@ -82,17 +84,25 @@ impl Default for Blocks {
     fn default() -> Self {
         Self {
             storage: Default::default(),
-            mappings: Default::default(),
-            deps: boxed_array(IndexSet::new()),
+            logical_mappings: Default::default(),
+            physical_mappings: Default::default(),
+            logical_deps: boxed_array(IndexSet::new()),
+            physical_deps: boxed_array(IndexSet::new()),
             temp_deps: IndexSet::new(),
         }
     }
 }
 
 impl Blocks {
-    fn insert_mapping(&mut self, addr: Address, mapping: Mapping) {
+    fn insert_mapping(&mut self, logical: bool, addr: Address, mapping: Mapping) {
+        let (mappings, deps) = if logical {
+            (&mut self.logical_mappings, &mut self.logical_deps)
+        } else {
+            (&mut self.physical_mappings, &mut self.physical_deps)
+        };
+
         let (idx0, idx1, idx2) = addr_to_table_idx(addr);
-        let level1 = self.mappings.get_or_default(idx0);
+        let level1 = mappings.get_or_default(idx0);
         let level2 = level1.get_or_default(idx1);
         level2.insert(idx2, mapping);
 
@@ -100,13 +110,24 @@ impl Blocks {
         let end_page = deps_page(addr + mapping.length);
 
         for page in start_page..=end_page {
-            self.deps[page].insert(addr);
+            deps[page].insert(addr);
         }
     }
 
-    fn remove_mapping_if_contains(&mut self, addr: Address, target: Address) -> Option<Mapping> {
+    fn remove_mapping_if_contains(
+        &mut self,
+        logical: bool,
+        addr: Address,
+        target: Address,
+    ) -> Option<Mapping> {
+        let (mappings, deps) = if logical {
+            (&mut self.logical_mappings, &mut self.logical_deps)
+        } else {
+            (&mut self.physical_mappings, &mut self.physical_deps)
+        };
+
         let (idx0, idx1, idx2) = addr_to_table_idx(addr);
-        let level1 = self.mappings.get_mut(idx0)?;
+        let level1 = mappings.get_mut(idx0)?;
         let level2 = level1.get_mut(idx1)?;
         let mapping = level2.get(idx2)?;
 
@@ -118,7 +139,7 @@ impl Blocks {
             let end_page = deps_page(addr + mapping.length);
 
             for page in start_page..=end_page {
-                self.deps[page].swap_remove(&addr);
+                deps[page].swap_remove(&addr);
             }
 
             level2.remove(idx2)
@@ -129,7 +150,7 @@ impl Blocks {
 
     /// Inserts a block into the storage and maps it to the given address.
     #[inline(always)]
-    pub fn insert(&mut self, addr: Address, block: Block) -> BlockId {
+    pub fn insert(&mut self, logical: bool, addr: Address, block: Block) -> BlockId {
         let length = 4 * block.meta().seq.len() as u32;
         let id = BlockId(self.storage.len());
 
@@ -138,38 +159,44 @@ impl Blocks {
             links: Vec::new(),
         });
 
-        self.insert_mapping(addr, Mapping { id, length });
+        self.insert_mapping(logical, addr, Mapping { id, length });
 
         id
     }
 
     /// Returns the mapping at `addr`.
     #[inline(always)]
-    pub fn get_mapping(&self, addr: Address) -> Option<Mapping> {
+    pub fn get_mapping(&self, logical: bool, addr: Address) -> Option<Mapping> {
+        let mappings = if logical {
+            &self.logical_mappings
+        } else {
+            &self.physical_mappings
+        };
+
         let (idx0, idx1, idx2) = addr_to_table_idx(addr);
-        let level1 = self.mappings.get(idx0)?;
+        let level1 = mappings.get(idx0)?;
         let level2 = level1.get(idx1)?;
         level2.get(idx2).copied()
     }
 
     /// Returns the block mapped to `addr`.
     #[inline(always)]
-    pub fn get(&mut self, addr: Address) -> Option<&StoredBlock> {
-        self.storage.get(self.get_mapping(addr)?.id.0)
+    pub fn get(&mut self, logical: bool, addr: Address) -> Option<&StoredBlock> {
+        self.storage.get(self.get_mapping(logical, addr)?.id.0)
     }
 
     /// Invalidate mappings that contain `addr`.
-    pub fn invalidate(&mut self, target: Address) {
+    pub fn invalidate(&mut self, logical: bool, target: Address) {
         let page = deps_page(target);
-        if self.deps[page].is_empty() {
+        if self.logical_deps[page].is_empty() {
             return;
         }
 
         let mut temp_deps = std::mem::replace(&mut self.temp_deps, IndexSet::new());
-        self.deps[page].clone_into(&mut temp_deps);
+        self.logical_deps[page].clone_into(&mut temp_deps);
 
         for dep in temp_deps.iter() {
-            let Some(mapping) = self.remove_mapping_if_contains(*dep, target) else {
+            let Some(mapping) = self.remove_mapping_if_contains(logical, *dep, target) else {
                 tracing::warn!(
                     "mapping {dep} is listed as dependent on page {page} but it does not exist"
                 );
@@ -189,8 +216,8 @@ impl Blocks {
 
     /// Clears all mappings.
     pub fn clear(&mut self) {
-        self.mappings = Table::new();
-        for deps in self.deps.iter_mut() {
+        self.logical_mappings = Table::new();
+        for deps in self.logical_deps.iter_mut() {
             deps.clear();
         }
     }
@@ -294,7 +321,8 @@ const CTX_HOOKS: Hooks = {
         link_data: &mut Option<LinkData>,
     ) {
         debug_assert!(link_data.is_none());
-        if let Some(mapping) = ctx.blocks.get_mapping(addr) {
+        let logical = ctx.sys.cpu.supervisor.config.msr.instr_addr_translation();
+        if let Some(mapping) = ctx.blocks.get_mapping(logical, addr) {
             let stored = ctx.blocks.storage.get_mut(mapping.id.0).unwrap();
             *link_data = Some(LinkData {
                 block: stored.inner.as_ptr(),
@@ -403,9 +431,20 @@ const CTX_HOOKS: Hooks = {
     }
 
     extern "sysv64-unwind" fn invalidate_icache(ctx: &mut Context, addr: Address) {
+        let logical = ctx.sys.cpu.supervisor.config.msr.instr_addr_translation();
         let aligned = Address(addr.value() & !0x1F);
         for offset in 0..32 {
-            ctx.blocks.invalidate(aligned + offset);
+            ctx.blocks.invalidate(logical, aligned + offset);
+        }
+
+        if logical {
+            for offset in 0..32 {
+                let logical = aligned + offset;
+                let translated = ctx.sys.translate_instr_addr(logical);
+                if let Some(physical) = translated {
+                    ctx.blocks.invalidate(false, physical);
+                }
+            }
         }
     }
 
@@ -661,9 +700,10 @@ impl Core {
         target_cycles: u32,
         max_instructions: u32,
     ) -> Executed {
+        let logical = sys.cpu.supervisor.config.msr.instr_addr_translation();
         let stored = self
             .blocks
-            .get(sys.cpu.pc)
+            .get(logical, sys.cpu.pc)
             .filter(|b| b.inner.meta().seq.len() <= max_instructions as usize);
 
         let compiled: ppcjit::Block;
@@ -712,9 +752,10 @@ impl Core {
         target_cycles: u32,
         max_instructions: u32,
     ) -> Executed {
+        let logical = sys.cpu.supervisor.config.msr.instr_addr_translation();
         let block = self
             .blocks
-            .get(sys.cpu.pc)
+            .get(logical, sys.cpu.pc)
             .filter(|b| b.inner.meta().seq.len() <= max_instructions as usize);
 
         if block.is_none() {
@@ -726,7 +767,7 @@ impl Core {
             };
 
             let block = self.compile(sys, sys.cpu.pc, instructions);
-            self.blocks.insert(sys.cpu.pc, block);
+            self.blocks.insert(logical, sys.cpu.pc, block);
         }
 
         self.uncached_exec(sys, target_cycles, max_instructions)
@@ -741,13 +782,14 @@ impl Core {
         let mut executed = Executed::default();
         while executed.cycles < cycles {
             // detect mailbox idle loop
-            if let Some(stored) = self.blocks.get(sys.cpu.pc)
+            let logical = sys.cpu.supervisor.config.msr.instr_addr_translation();
+            if let Some(stored) = self.blocks.get(logical, sys.cpu.pc)
                 && stored.inner.meta().pattern == Pattern::Call
                 && let Some(dest) = stored.inner.meta().seq.is_call(sys.cpu.pc)
             {
                 std::hint::cold_path();
 
-                if let Some(func_block) = self.blocks.get(dest)
+                if let Some(func_block) = self.blocks.get(logical, dest)
                     && func_block.inner.meta().pattern == Pattern::GetMailboxStatusFunc
                     && sys.dsp.cpu_mailbox.status()
                 {
