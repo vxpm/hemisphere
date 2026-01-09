@@ -530,6 +530,12 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
             let new = old | masked;
             new.write_ne_bytes($value.as_mut_bytes());
         }};
+        ($extra_mask:expr; $value:expr) => {{
+            let masked = masked & $extra_mask;
+            let old = $value.to_bits() & !mask;
+            let new = old | masked;
+            new.write_ne_bytes($value.as_mut_bytes());
+        }};
     }
 
     match reg {
@@ -597,8 +603,9 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
             sys.gpu.pix.interrupt.set_finish(true);
             sys.scheduler.schedule_now(pi::check_interrupts);
         }
-        Reg::PixelToken => write_masked!(sys.gpu.pix.token),
+        Reg::PixelToken => write_masked!(0xFFFF; sys.gpu.pix.token),
         Reg::PixelTokenInt => {
+            write_masked!(0xFFFF; sys.gpu.pix.token);
             sys.gpu.pix.interrupt.set_token(true);
             sys.scheduler.schedule_now(pi::check_interrupts);
         }
