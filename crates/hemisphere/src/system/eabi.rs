@@ -39,10 +39,10 @@ impl std::fmt::Display for CallStack {
     }
 }
 
-pub fn call_stack(sys: &System, last_frame: Address, last_routine: Address) -> CallStack {
+pub fn call_stack(sys: &System, top_frame: Address, top_routine: Address) -> CallStack {
     let mut call_stack = Vec::new();
-    let mut current_frame = last_frame.value();
-    let mut current_routine = last_routine.value();
+    let mut current_frame = top_frame.value();
+    let mut current_routine = top_routine.value();
 
     loop {
         if current_frame == 0 || current_routine == 0 {
@@ -50,11 +50,12 @@ pub fn call_stack(sys: &System, last_frame: Address, last_routine: Address) -> C
         }
 
         let prev_frame_addr = Address(current_frame);
-        let prev_routine_addr = Address(current_frame.wrapping_add(4));
+        let return_target_addr = Address(current_frame.wrapping_add(4));
 
         if let Some(prev_frame) = sys.read_pure(prev_frame_addr)
-            && let Some(prev_routine) = sys.read_pure(prev_routine_addr)
+            && let Some(return_target) = sys.read_pure::<u32>(return_target_addr)
         {
+            let called_at = return_target.wrapping_sub(4);
             let name = sys.modules.debug.find_symbol(Address(current_routine));
             let location = sys
                 .modules
@@ -63,15 +64,15 @@ pub fn call_stack(sys: &System, last_frame: Address, last_routine: Address) -> C
                 .map(|l| l.to_string());
 
             call_stack.push(CallFrame {
-                address: Address(current_routine),
+                address: Address(called_at),
                 symbol: name,
                 location: location,
                 stack: Address(current_frame),
-                returns: Address(prev_routine),
+                returns: Address(return_target),
             });
 
             current_frame = prev_frame;
-            current_routine = prev_routine;
+            current_routine = called_at;
         } else {
             break;
         }
