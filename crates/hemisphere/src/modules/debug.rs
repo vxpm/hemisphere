@@ -9,6 +9,18 @@ pub struct Location<'a> {
     pub column: Option<u32>,
 }
 
+impl<'a> std::fmt::Display for Location<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}:{}:{}",
+            self.file.as_deref().unwrap_or("<unknown>"),
+            self.line.unwrap_or(0),
+            self.column.unwrap_or(0)
+        )
+    }
+}
+
 impl<'a> Location<'a> {
     pub fn into_owned(self) -> Location<'static> {
         Location {

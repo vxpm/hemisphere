@@ -20,6 +20,8 @@ tracing.workspace = true
 wgpu.workspace = true
 nanorand.workspace = true
 serde.workspace = true
+indexmap.workspace = true
+bytesize.workspace = true
 
 eframe = { version = "0.33", features = [
     # platforms

@@ -5,8 +5,10 @@ use gekko::Address;
 pub struct CallFrame {
     /// Address of this call.
     pub address: Address,
-    /// Symbol name of the call.
+    /// Name of the symbol that was called.
     pub symbol: Option<String>,
+    /// Name of the location of the symbol.
+    pub location: Option<String>,
     /// Address of the stack frame of this call.
     pub stack: Address,
     /// Return address.
@@ -54,9 +56,16 @@ pub fn call_stack(sys: &System, last_frame: Address, last_routine: Address) -> C
             && let Some(prev_routine) = sys.read_pure(prev_routine_addr)
         {
             let name = sys.modules.debug.find_symbol(Address(current_routine));
+            let location = sys
+                .modules
+                .debug
+                .find_location(Address(current_routine))
+                .map(|l| l.to_string());
+
             call_stack.push(CallFrame {
                 address: Address(current_routine),
                 symbol: name,
+                location: location,
                 stack: Address(current_frame),
                 returns: Address(prev_routine),
             });

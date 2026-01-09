@@ -45,6 +45,14 @@ pub struct ThreadData {
     pub error: i32,
 }
 
+impl ThreadData {
+    pub fn stack_size(&self) -> usize {
+        self.ptr_stack_base
+            .value()
+            .saturating_sub(self.ptr_stack_end.value()) as usize
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Thread {
     pub addr: Address,

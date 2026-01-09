@@ -74,7 +74,7 @@ impl AppWindow for Window {
             });
 
             table.body(|mut body| {
-                for call in &self.call_stack.0 {
+                for call in self.call_stack.0.iter().rev() {
                     body.row(20.0, |mut row| {
                         row.col(|ui| {
                             let text = egui::RichText::new(call.address.to_string())
@@ -93,10 +93,13 @@ impl AppWindow for Window {
                         });
 
                         row.col(|ui| {
-                            let text =
-                                egui::RichText::new(call.symbol.as_deref().unwrap_or("<unknown>"))
-                                    .family(egui::FontFamily::Monospace)
-                                    .color(Color32::GRAY);
+                            let text = egui::RichText::new(format!(
+                                "{} ({})",
+                                call.symbol.as_deref().unwrap_or("<unknown>"),
+                                call.location.as_deref().unwrap_or("<unknown>"),
+                            ))
+                            .family(egui::FontFamily::Monospace)
+                            .color(Color32::GRAY);
 
                             ui.label(text);
                         });

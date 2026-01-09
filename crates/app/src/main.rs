@@ -173,7 +173,7 @@ impl App {
         if create_default {
             app.create_window(windows::disasm());
             app.create_window(windows::control());
-            app.create_window(windows::debug());
+            app.create_window(windows::call_stack());
             app.create_window(windows::efb());
             app.organize = true;
         }
@@ -219,7 +219,11 @@ impl eframe::App for App {
                     }
 
                     if ui.button("Call Stack").clicked() {
-                        self.create_window(windows::debug());
+                        self.create_window(windows::call_stack());
+                    }
+
+                    if ui.button("OS Threads").clicked() {
+                        self.create_window(windows::os_threads());
                     }
 
                     if ui.button("Variables").clicked() {

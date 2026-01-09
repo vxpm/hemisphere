@@ -1,10 +1,11 @@
+mod call_stack;
 mod control;
-mod debug;
 mod disasm;
 mod efb;
 mod registers;
 mod renderer_info;
 mod subsystem;
+mod threads;
 mod variables;
 mod xfb;
 
@@ -48,7 +49,11 @@ pub fn registers() -> registers::Window {
     Default::default()
 }
 
-pub fn debug() -> debug::Window {
+pub fn call_stack() -> call_stack::Window {
+    Default::default()
+}
+
+pub fn os_threads() -> threads::Window {
     Default::default()
 }
 
