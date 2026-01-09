@@ -88,6 +88,10 @@ impl AppWindow for Window {
         for thread in self.threads.values_mut() {
             thread.call_stack = if thread.orphan {
                 None
+            } else if self.current.is_some_and(|c| c == thread.thread.addr) {
+                let sp = Address(state.hemi.sys.cpu.user.gpr[1]);
+                let pc = state.hemi.sys.cpu.pc;
+                Some(system::eabi::call_stack(&state.hemi.sys, sp, pc))
             } else {
                 Some(system::eabi::call_stack(
                     &state.hemi.sys,
