@@ -27,7 +27,7 @@ pub struct Window {
     #[serde(skip)]
     breakpoints: Vec<u32>,
     #[serde(skip)]
-    breakpoint_to_add: Option<u32>,
+    breakpoint_to_toggle: Option<u32>,
 }
 
 impl Default for Window {
@@ -42,7 +42,7 @@ impl Default for Window {
             pc: 0,
             rows: 0,
             breakpoints: Vec::new(),
-            breakpoint_to_add: None,
+            breakpoint_to_toggle: None,
         }
     }
 }
@@ -60,8 +60,13 @@ impl AppWindow for Window {
         self.breakpoints
             .extend(state.breakpoints.iter().map(|b| b.value()));
 
-        if let Some(breakpoint) = self.breakpoint_to_add.take() {
-            state.add_breakpoint(Address(breakpoint));
+        if let Some(breakpoint) = self.breakpoint_to_toggle.take() {
+            let breakpoint = Address(breakpoint);
+            if state.breakpoints.contains(&breakpoint) {
+                state.remove_breakpoint(breakpoint);
+            } else {
+                state.add_breakpoint(breakpoint);
+            }
         }
 
         let emulator = &state.hemi;
@@ -160,7 +165,7 @@ impl AppWindow for Window {
 
                             ui.horizontal(|ui| {
                                 if ui.add(breakpoint_toggle).clicked() {
-                                    self.breakpoint_to_add = Some(current);
+                                    self.breakpoint_to_toggle = Some(current);
                                 }
 
                                 ui.label(text);

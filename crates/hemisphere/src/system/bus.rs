@@ -528,7 +528,7 @@ impl System {
             Mmio::DspAramDmaAramBase => ne!(self.dsp.aram_dma.aram_base.as_mut_bytes()),
             Mmio::DspAramDmaControl => {
                 ne!(self.dsp.aram_dma.control.as_mut_bytes());
-                dspi::aram_dma(self);
+                self.scheduler.schedule(10000, dspi::aram_dma);
             }
             Mmio::AudioDmaBase => ne!(self.audio.dma_base.as_mut_bytes()),
             Mmio::AudioDmaControl => {

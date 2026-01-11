@@ -315,6 +315,7 @@ impl eframe::App for App {
             }
         });
 
+        let running = self.runner.running();
         if context.running != running {
             if context.running {
                 self.runner.start();

@@ -263,6 +263,8 @@ struct Context<'a> {
     target_cycles: u32,
     /// Maximum instructions we should execute.
     max_instructions: u32,
+    /// Whether to forcely disable following links.
+    force_no_link: bool,
     /// Last followed link.
     last_followed_link: Option<BlockFn>,
     /// Reason for exit.
@@ -288,7 +290,10 @@ const CTX_HOOKS: Hooks = {
         link_data: &mut Option<LinkData>,
     ) -> bool {
         // if we have reached cycle or instruction limit, don't follow links, just exit.
-        if info.cycles >= ctx.target_cycles || info.instructions >= ctx.max_instructions {
+        if ctx.force_no_link
+            || info.cycles >= ctx.target_cycles
+            || info.instructions >= ctx.max_instructions
+        {
             ctx.last_followed_link = None;
             return false;
         }
@@ -699,6 +704,7 @@ impl Core {
         sys: &mut System,
         target_cycles: u32,
         max_instructions: u32,
+        force_no_link: bool,
     ) -> Executed {
         let logical = sys.cpu.supervisor.config.msr.instr_addr_translation();
         let stored = self
@@ -722,6 +728,7 @@ impl Core {
             blocks: &mut self.blocks,
             target_cycles,
             max_instructions,
+            force_no_link,
 
             last_followed_link: None,
             exit_reason: ExitReason::None,
@@ -751,6 +758,7 @@ impl Core {
         sys: &mut System,
         target_cycles: u32,
         max_instructions: u32,
+        force_no_link: bool,
     ) -> Executed {
         let logical = sys.cpu.supervisor.config.msr.instr_addr_translation();
         let block = self
@@ -770,7 +778,7 @@ impl Core {
             self.blocks.insert(logical, sys.cpu.pc, block);
         }
 
-        self.uncached_exec(sys, target_cycles, max_instructions)
+        self.uncached_exec(sys, target_cycles, max_instructions, force_no_link)
     }
 
     fn exec_inner<const BREAKPOINTS: bool>(
@@ -809,7 +817,7 @@ impl Core {
 
             // execute
             let target_cycles = cycles - executed.cycles;
-            let e = self.cached_exec(sys, target_cycles.0 as u32, max_instructions);
+            let e = self.cached_exec(sys, target_cycles.0 as u32, max_instructions, BREAKPOINTS);
             executed.instructions += e.instructions;
             executed.cycles += e.cycles;
 
@@ -833,6 +841,6 @@ impl CpuCore for Core {
     }
 
     fn step(&mut self, sys: &mut System) -> Executed {
-        self.uncached_exec(sys, u32::MAX, 1)
+        self.uncached_exec(sys, u32::MAX, 1, true)
     }
 }

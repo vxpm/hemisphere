@@ -38,14 +38,14 @@ struct Shared {
 
 const STEP: Duration = Duration::from_millis(1);
 
-fn worker(state: Arc<Shared>) {
+fn worker(runner_state: Arc<Shared>) {
     let sleeper = SpinSleeper::default();
 
     let mut timer = Timer::new();
     let mut emulated = Duration::ZERO;
 
     loop {
-        if state.advance.load(Ordering::Relaxed) {
+        if runner_state.advance.load(Ordering::Relaxed) {
             timer.resume();
         } else {
             timer.pause();
@@ -74,7 +74,7 @@ fn worker(state: Arc<Shared>) {
             now.saturating_sub(emulated)
         };
 
-        let mut lock = state.state.lock().unwrap();
+        let mut lock = runner_state.state.lock().unwrap();
         let state = &mut *lock;
 
         let executed = state
@@ -82,6 +82,10 @@ fn worker(state: Arc<Shared>) {
             .exec(Cycles::from_duration(delta), &state.breakpoints);
 
         emulated += delta;
+
+        if executed.hit_breakpoint {
+            runner_state.advance.store(false, Ordering::SeqCst);
+        }
 
         while let Some(front) = state.cycles_history.front()
             && now.saturating_sub(front.1) > Duration::from_millis(500)
