@@ -419,7 +419,7 @@ pub fn get_alpha_comparison(settings: &AlphaFunctionSettings) -> wesl::syntax::E
     match settings.logic {
         AlphaLogic::And => quote_expression! { (#a) && (#b) },
         AlphaLogic::Or => quote_expression! { (#a) || (#b) },
-        AlphaLogic::Xor => quote_expression! { (#a) ^ (#b) },
-        AlphaLogic::Xnor => quote_expression! { !((#a) ^ (#b)) },
+        AlphaLogic::Xor => quote_expression! { (#a) != (#b) },
+        AlphaLogic::Xnor => quote_expression! { (#a) == (#b) },
     }
 }

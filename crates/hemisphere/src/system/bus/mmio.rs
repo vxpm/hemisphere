@@ -129,6 +129,7 @@ mmio! {
     0x5028, 4, DspAramDmaControl;
     0x5030, 4, AudioDmaBase;
     0x5036, 2, AudioDmaControl;
+    0x503A, 2, AudioDmaRemaining;
 
     // === Disk Interface ===
     0x6000, 4, DiskStatus;

@@ -19,12 +19,12 @@ impl SampleRate {
         }
     }
 
-    pub fn cycles_per_sample(self) -> u64 {
+    pub fn cycles_per_frame(self) -> u64 {
         gekko::FREQUENCY / self.value() as u64
     }
 
     pub fn cycles_per_block(self) -> u64 {
-        8 * self.cycles_per_sample()
+        8 * self.cycles_per_frame()
     }
 }
 
@@ -61,7 +61,7 @@ pub struct Interface {
     pub control: Control,
     pub dma_base: Address,
     pub dma_control: DmaControl,
-    pub current_dma_block: u32,
+    pub current_dma_block: u16,
     pub sample_counter: u32,
     pub interrupt_sample: u32,
 }
@@ -84,7 +84,7 @@ impl Interface {
     }
 }
 
-fn push_streaming_sample(sys: &mut System, ctx: HandlerCtx) {
+fn push_streaming_frame(sys: &mut System, ctx: HandlerCtx) {
     sys.audio.sample_counter += 1;
     if sys.audio.control.interrupt_valid() && sys.audio.sample_counter == sys.audio.interrupt_sample
     {
@@ -94,22 +94,22 @@ fn push_streaming_sample(sys: &mut System, ctx: HandlerCtx) {
     }
 
     sys.scheduler.schedule_full(
-        sys.audio.control.aux_sample_rate().cycles_per_sample() - ctx.cycles_late.value(),
-        self::push_streaming_sample,
+        sys.audio.control.aux_sample_rate().cycles_per_frame() - ctx.cycles_late.value(),
+        self::push_streaming_frame,
     );
 }
 
 pub fn start_streaming(sys: &mut System) {
-    if !sys.scheduler.contains_full(self::push_streaming_sample) {
+    if !sys.scheduler.contains_full(self::push_streaming_frame) {
         sys.scheduler.schedule_full(
-            sys.audio.control.aux_sample_rate().cycles_per_sample(),
-            self::push_streaming_sample,
+            sys.audio.control.aux_sample_rate().cycles_per_frame(),
+            self::push_streaming_frame,
         );
     }
 }
 
 pub fn stop_streaming(sys: &mut System) {
-    sys.scheduler.cancel_full(self::push_streaming_sample);
+    sys.scheduler.cancel_full(self::push_streaming_frame);
 }
 
 #[derive(Debug, Clone, Copy, Default, IntoBytes, FromBytes, Immutable)]
@@ -120,7 +120,8 @@ pub struct Frame {
 }
 
 fn push_data_dma_block(sys: &mut System, ctx: HandlerCtx) {
-    let addr = Address(sys.audio.dma_base.0.with_bit(31, false)) + 32 * sys.audio.current_dma_block;
+    let addr =
+        Address(sys.audio.dma_base.0.with_bit(31, false)) + 32 * sys.audio.current_dma_block as u32;
     let frames: [Frame; 8] = std::array::from_fn(|i| Frame {
         left: sys.read_phys_slow::<i16>(addr + 4 * i as u32 + 2),
         right: sys.read_phys_slow::<i16>(addr + 4 * i as u32),
@@ -132,19 +133,23 @@ fn push_data_dma_block(sys: &mut System, ctx: HandlerCtx) {
 
     sys.audio.current_dma_block += 1;
 
-    let total_blocks = sys.audio.dma_control.length_by_32().value() as u32;
+    let total_blocks = sys.audio.dma_control.length_by_32().value();
     if sys.audio.current_dma_block >= total_blocks {
         sys.dsp.control.set_ai_interrupt(true);
         sys.audio.current_dma_block = 0;
         pi::check_interrupts(sys);
+
+        // NOTE: it's important to only check this at the end of transfers - if a transfer is
+        // started, it must execute until completion! (breaks Mario Sunshine otherwise)
+        if !sys.audio.dma_control.playing() {
+            return;
+        }
     }
 
-    if sys.audio.dma_control.playing() {
-        sys.scheduler.schedule_full(
-            sys.audio.control.dsp_sample_rate().cycles_per_block() - ctx.cycles_late.value(),
-            self::push_data_dma_block,
-        );
-    }
+    sys.scheduler.schedule_full(
+        sys.audio.control.dsp_sample_rate().cycles_per_block() - ctx.cycles_late.value(),
+        self::push_data_dma_block,
+    );
 }
 
 pub fn start_data_dma(sys: &mut System) {

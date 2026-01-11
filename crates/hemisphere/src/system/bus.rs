@@ -202,6 +202,12 @@ impl System {
             Mmio::DspAramDmaControl => ne!(self.dsp.aram_dma.control.as_bytes()),
             Mmio::AudioDmaBase => ne!(self.audio.dma_base.as_bytes()),
             Mmio::AudioDmaControl => ne!(self.audio.dma_control.as_bytes()),
+            Mmio::AudioDmaRemaining => {
+                let remaining = 32
+                    * (self.audio.dma_control.length_by_32().value()
+                        - self.audio.current_dma_block);
+                ne!(remaining.as_bytes())
+            }
 
             // === Disk Interface ===
             Mmio::DiskStatus => ne!(self.disk.status.as_bytes()),
