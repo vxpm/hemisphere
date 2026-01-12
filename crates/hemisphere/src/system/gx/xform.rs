@@ -550,7 +550,7 @@ pub fn write(sys: &mut System, addr: u16, value: u32) {
                 }
             }
         }
-        0x1000..0x1057 => {
+        0x1000..=0x1057 => {
             let register = addr as u8;
             let Some(register) = Reg::from_repr(register) else {
                 panic!("unknown XF register {register:02X}");
@@ -558,7 +558,7 @@ pub fn write(sys: &mut System, addr: u16, value: u32) {
 
             self::set_register(sys, register, value);
         }
-        _ => tracing::debug!("writing to unknown XF memory"),
+        _ => tracing::error!("writing to unknown XF memory: {addr:04X}"),
     }
 }
 

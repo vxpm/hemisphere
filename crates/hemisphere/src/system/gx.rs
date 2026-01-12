@@ -1063,6 +1063,15 @@ fn extract_vertices(sys: &mut System, stream: &VertexAttributeStream) -> VertexS
         default_matrices: &sys.gpu.xform.internal.default_matrices,
     };
 
+    assert!(
+        sys.gpu
+            .cmd
+            .internal
+            .vertex_descriptor
+            .position()
+            .is_present()
+    );
+
     sys.modules.vertex.parse(
         ctx,
         &sys.gpu.cmd.internal.vertex_descriptor,

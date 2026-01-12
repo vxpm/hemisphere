@@ -446,7 +446,7 @@ pub enum AttributeMode {
 }
 
 impl AttributeMode {
-    pub fn present(self) -> bool {
+    pub fn is_present(self) -> bool {
         self != AttributeMode::None
     }
 
