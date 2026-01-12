@@ -221,7 +221,6 @@ impl BlockBuilder<'_> {
                 .ins()
                 .stack_addr(self.consts.ptr_type, self.consts.read_stack_slot, 0);
 
-        // NOTE: maybe flush to ensure GQRs are up to date?
         let inst = self.bd.ins().call(
             self.hooks.read_quant,
             &[self.consts.ctx_ptr, addr, gqr, stack_slot_addr],
@@ -255,7 +254,6 @@ impl BlockBuilder<'_> {
 
     /// Writes a quantized value. Returns the type size.
     fn write_quantized(&mut self, addr: ir::Value, gqr: ir::Value, value: ir::Value) -> ir::Value {
-        // NOTE: maybe flush to ensure GQRs are up to date?
         let inst = self.bd.ins().call(
             self.hooks.write_quant,
             &[self.consts.ctx_ptr, addr, gqr, value],

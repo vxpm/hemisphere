@@ -417,7 +417,7 @@ const CTX_HOOKS: Hooks = {
             0
         };
 
-        let scaled = value * QUANTIZATION_FACTOR[(scale as usize) & 0b0011_1111];
+        let scaled = value / QUANTIZATION_FACTOR[(scale as usize) & 0b0011_1111];
         let success = match ty {
             QuantizedType::U8 => ctx.sys.write(addr, scaled as u8),
             QuantizedType::U16 => ctx.sys.write(addr, scaled as u16),
