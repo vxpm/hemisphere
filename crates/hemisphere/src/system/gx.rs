@@ -1072,10 +1072,13 @@ fn extract_vertices(sys: &mut System, stream: &VertexAttributeStream) -> VertexS
             .is_present()
     );
 
+    let vcd = &sys.gpu.cmd.internal.vertex_descriptor;
+    let vat = &sys.gpu.cmd.internal.vertex_attr_tables[stream.table_index()];
+
     sys.modules.vertex.parse(
         ctx,
-        &sys.gpu.cmd.internal.vertex_descriptor,
-        &sys.gpu.cmd.internal.vertex_attr_tables[stream.table_index()],
+        vcd,
+        vat,
         stream,
         vertices_slice,
         &mut sys.gpu.matrix_set,
@@ -1124,7 +1127,9 @@ fn update_texture(sys: &mut System, index: usize) {
 
 fn call(sys: &mut System, address: Address, length: u32) {
     tracing::debug!("called {} with length 0x{:08X}", address, length);
-    let address = address.value().with_bits(26, 32, 0);
+    let address = address.value().with_bits(26, 32, 0) & !0x1F;
+    // TODO: consider this
+    // let length = length.value().with_bit(31, false) & !0x1F;
     let data = &sys.mem.ram()[address.value() as usize..][..length as usize];
     sys.gpu.cmd.queue.push_front_bytes(data);
 }
