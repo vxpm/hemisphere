@@ -146,8 +146,8 @@ impl BlockBuilder<'_> {
     }
 
     pub fn ps_round_to_single(&mut self, value: ir::Value) -> ir::Value {
-        let single = self.bd.ins().fdemote(ir::types::F32X2, value);
-        self.bd.ins().fpromote(ir::types::F64X2, single)
+        let single = self.bd.ins().fvdemote(value);
+        self.bd.ins().fvpromote_low(single)
     }
 
     /// Updates OV and SO in XER. `overflowed` must be a boolean (I8).

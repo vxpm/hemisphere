@@ -73,10 +73,13 @@ impl BlockBuilder<'_> {
         let fpr_b = self.get(ins.fpr_b());
         let one = self.ir_value(1.0f64);
 
-        let recip = self.bd.ins().fdiv(one, fpr_b);
-        self.set(ins.fpr_d(), recip);
+        let value = self.bd.ins().fdiv(one, fpr_b);
+        let value = self.round_to_single(value);
 
-        self.update_fprf_cmpz(recip);
+        self.set(ins.fpr_d(), value);
+        self.set(Reg::PS1(ins.fpr_d()), value);
+
+        self.update_fprf_cmpz(value);
 
         if ins.field_rc() {
             self.update_cr1_float();
@@ -90,13 +93,12 @@ impl BlockBuilder<'_> {
 
         let fpr_b = self.get(ins.fpr_b());
         let one = self.ir_value(1.0f64);
-
         let sqrt = self.bd.ins().sqrt(fpr_b);
-        let recip = self.bd.ins().fdiv(one, sqrt);
 
-        self.set(ins.fpr_d(), recip);
+        let value = self.bd.ins().fdiv(one, sqrt);
+        self.set(ins.fpr_d(), value);
 
-        self.update_fprf_cmpz(recip);
+        self.update_fprf_cmpz(value);
 
         if ins.field_rc() {
             self.update_cr1_float();
@@ -126,11 +128,11 @@ impl BlockBuilder<'_> {
         let ps_b = self.get_ps(ins.fpr_b());
         let one = self.ir_value(1.0f64);
         let ps_one = self.bd.ins().splat(ir::types::F64X2, one);
-
         let sqrt = self.bd.ins().sqrt(ps_b);
-        let recip = self.bd.ins().fdiv(ps_one, sqrt);
 
-        self.set_ps(ins.fpr_d(), recip);
+        let value = self.bd.ins().fdiv(ps_one, sqrt);
+        let value = self.ps_round_to_single(value);
+        self.set_ps(ins.fpr_d(), value);
 
         let ps0 = self.get(ins.fpr_b());
         self.update_fprf_cmpz(ps0);
@@ -148,9 +150,10 @@ impl BlockBuilder<'_> {
         let ps_b = self.get_ps(ins.fpr_b());
         let one = self.ir_value(1.0f64);
         let ps_one = self.bd.ins().splat(ir::types::F64X2, one);
-        let recip = self.bd.ins().fdiv(ps_one, ps_b);
 
-        self.set_ps(ins.fpr_d(), recip);
+        let value = self.bd.ins().fdiv(ps_one, ps_b);
+        let value = self.ps_round_to_single(value);
+        self.set_ps(ins.fpr_d(), value);
 
         let ps0 = self.get(ins.fpr_b());
         self.update_fprf_cmpz(ps0);
