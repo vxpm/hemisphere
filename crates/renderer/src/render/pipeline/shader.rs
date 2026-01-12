@@ -380,9 +380,12 @@ fn vertex_stage(texgen: &TexGenSettings) -> wesl::syntax::GlobalDeclaration {
             let vertex_local_norm = vec4f(vertex.normal, 0.0);
             let vertex_world_norm = normalize((vertex.normal_mat * vertex_local_norm).xyz);
 
+            // GameCube's normalized device coordinates are -1.0..1.0 in x/y and -1.0..0.0 in z,
+            // while wgpu's normalized device coordinates are -1.0..1.0 in x/y and 0.0..1.0 in z.
+            //
+            // Therefore, we add the w component to z in order to convert it to the correct range.
             out.clip = vertex_view_pos;
             out.clip.z += out.clip.w;
-            out.clip.z /= 2.0;
 
             out.chan0 = vec4f(
                 compute_color_channel(vertex_world_pos.xyz, vertex_world_norm, vertex.chan0.rgb, 0, config),
