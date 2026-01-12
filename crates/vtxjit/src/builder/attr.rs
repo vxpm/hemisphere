@@ -320,7 +320,31 @@ fn read_rgba(format: ColorFormat, parser: &mut ParserBuilder, ptr: ir::Value) ->
             to_float(parser, rgba, recip)
         }
         ColorFormat::Rgb888x => todo!(),
-        ColorFormat::Rgba4444 => todo!(),
+        ColorFormat::Rgba4444 => {
+            let value = parser
+                .bd
+                .ins()
+                .load(ir::types::I16, MEMFLAGS_READONLY, ptr, 0);
+            let r = parser.shift_mask(value, 0, 15);
+            let g = parser.shift_mask(value, 4, 15);
+            let b = parser.shift_mask(value, 8, 15);
+            let a = parser.shift_mask(value, 12, 15);
+
+            let r = parser.bd.ins().uextend(ir::types::I32, r);
+            let g = parser.bd.ins().uextend(ir::types::I32, g);
+            let b = parser.bd.ins().uextend(ir::types::I32, b);
+            let a = parser.bd.ins().uextend(ir::types::I32, a);
+
+            let rgba = parser.bd.ins().scalar_to_vector(ir::types::I32X4, r);
+            let rgba = parser.bd.ins().insertlane(rgba, g, 1);
+            let rgba = parser.bd.ins().insertlane(rgba, b, 2);
+            let rgba = parser.bd.ins().insertlane(rgba, a, 3);
+
+            let recip = parser.bd.ins().f32const(1.0 / 15.0);
+            let recip = parser.bd.ins().splat(ir::types::F32X4, recip);
+
+            to_float(parser, rgba, recip)
+        }
         ColorFormat::Rgba6666 => todo!(),
         ColorFormat::Rgba8888 => {
             let value = parser
