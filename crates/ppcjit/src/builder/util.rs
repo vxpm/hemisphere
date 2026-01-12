@@ -145,6 +145,11 @@ impl BlockBuilder<'_> {
         self.bd.ins().fpromote(ir::types::F64, single)
     }
 
+    pub fn ps_round_to_single(&mut self, value: ir::Value) -> ir::Value {
+        let single = self.bd.ins().fdemote(ir::types::F32X2, value);
+        self.bd.ins().fpromote(ir::types::F64X2, single)
+    }
+
     /// Updates OV and SO in XER. `overflowed` must be a boolean (I8).
     pub fn update_xer_ov(&mut self, overflowed: impl IntoIrValue) {
         let xer = self.get(SPR::XER);

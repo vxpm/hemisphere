@@ -1008,6 +1008,7 @@ impl BlockBuilder<'_> {
         let ps0_c = self.bd.ins().splat(ir::types::F64X2, ps0_c);
 
         let value = self.bd.ins().fma(ps_a, ps0_c, ps_b);
+        let value = self.ps_round_to_single(value);
         self.set_ps(ins.fpr_d(), value);
 
         let ps0 = self.get(ins.fpr_d());
@@ -1030,6 +1031,7 @@ impl BlockBuilder<'_> {
         let ps1_c = self.bd.ins().splat(ir::types::F64X2, ps1_c);
 
         let value = self.bd.ins().fma(ps_a, ps1_c, ps_b);
+        let value = self.ps_round_to_single(value);
         self.set_ps(ins.fpr_d(), value);
 
         let ps0 = self.get(ins.fpr_d());
