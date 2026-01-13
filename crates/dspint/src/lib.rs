@@ -7,8 +7,8 @@ pub mod ins;
 use crate::ins::{ExtensionOpcode, Opcode};
 use bitos::integer::{u3, u4};
 use bitos::{BitUtils, bitos, integer::u15};
-use hemisphere::Primitive;
-use hemisphere::system::{
+use lazuli::Primitive;
+use lazuli::system::{
     System,
     dspi::{DspDmaControl, DspDmaDirection, DspDmaTarget, Mailbox},
 };

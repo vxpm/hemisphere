@@ -3,7 +3,7 @@
 mod file;
 
 use dspint::{Interpreter, Registers};
-use hemisphere::{
+use lazuli::{
     modules::{
         audio::NopAudioModule, debug::NopDebugModule, disk::NopDiskModule, input::NopInputModule,
         render::NopRenderModule, vertex::NopVertexModule,

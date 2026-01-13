@@ -4,7 +4,7 @@ use crate::{
 };
 use eframe::egui;
 use egui_extras::{Column, TableBuilder};
-use hemisphere::{
+use lazuli::{
     Address,
     gekko::disasm::{Extensions, Ins, ParsedIns},
 };

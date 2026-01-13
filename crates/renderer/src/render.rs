@@ -14,7 +14,7 @@ use crate::{
     util::blit::{ColorBlitter, DepthBlitter},
 };
 use glam::Mat4;
-use hemisphere::{
+use lazuli::{
     modules::render::{Action, TexEnvConfig, TexGenConfig, Viewport, oneshot},
     system::gx::{
         DEPTH_24_BIT_MAX, Topology, Vertex, VertexStream,
@@ -109,7 +109,7 @@ impl Renderer {
         let mut encoder = device.create_command_encoder(&Default::default());
         let pass = encoder
             .begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("hemisphere render pass"),
+                label: Some("lazuli render pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &multisampled_color,
                     depth_slice: None,

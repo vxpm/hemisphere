@@ -1,6 +1,6 @@
 use crate::builder::{MEMFLAGS, MEMFLAGS_READONLY, ParserBuilder};
 use cranelift::{codegen::ir, prelude::InstBuilder};
-use hemisphere::system::gx::{
+use lazuli::system::gx::{
     Vertex,
     cmd::{
         ArrayDescriptor, Arrays,

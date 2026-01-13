@@ -20,7 +20,7 @@ pub struct PpcjitConfig {
     pub clear_cache: bool,
 }
 
-/// Hemisphere: GameCube emulator
+/// Lazuli: GameCube emulator
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 pub struct Config {

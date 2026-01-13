@@ -1,5 +1,5 @@
 use gilrs::{Axis, Button, GamepadId, Gilrs};
-use hemisphere::modules::input::{ControllerState, InputModule};
+use lazuli::modules::input::{ControllerState, InputModule};
 
 pub struct GilrsModule {
     gilrs: Gilrs,

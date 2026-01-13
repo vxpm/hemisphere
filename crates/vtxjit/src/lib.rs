@@ -6,7 +6,7 @@ use cranelift::{
     frontend, native,
     prelude::{Configurable, isa::TargetIsa},
 };
-use hemisphere::{
+use lazuli::{
     modules::vertex::{Ctx, VertexModule},
     system::gx::{
         MatrixSet, Vertex,

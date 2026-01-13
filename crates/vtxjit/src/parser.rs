@@ -1,9 +1,9 @@
-use hemisphere::system::gx::{
+use jitalloc::{Allocation, Exec};
+use lazuli::system::gx::{
     MatrixSet, Vertex,
     cmd::{Arrays, VertexDescriptor, attributes::VertexAttributeTable},
     xform::DefaultMatrices,
 };
-use jitalloc::{Allocation, Exec};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Config {

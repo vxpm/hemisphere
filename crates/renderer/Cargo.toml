@@ -11,7 +11,7 @@ workspace = true
 wesl.workspace = true
 
 [dependencies]
-hemisphere = { path = "../hemisphere/" }
+lazuli = { path = "../lazuli/" }
 tracing.workspace = true
 wgpu.workspace = true
 zerocopy.workspace = true

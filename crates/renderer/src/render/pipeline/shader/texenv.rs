@@ -1,4 +1,4 @@
-use hemisphere::{
+use lazuli::{
     modules::render::TexEnvStage,
     system::gx::tev::{
         AlphaCompare, AlphaInputSrc, AlphaLogic, ColorChannel, ColorInputSrc, CompareOp,

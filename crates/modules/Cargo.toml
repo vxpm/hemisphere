@@ -7,7 +7,7 @@ edition = "2024"
 workspace = true
 
 [dependencies]
-hemisphere.workspace = true
+lazuli.workspace = true
 tracing.workspace = true
 zerocopy.workspace = true
 seq-macro.workspace = true

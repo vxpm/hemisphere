@@ -4,7 +4,7 @@ use crate::{
 };
 use eframe::egui::{self, Color32};
 use egui_extras::{Column, TableBuilder};
-use hemisphere::{
+use lazuli::{
     modules::debug::Location,
     system::{self, eabi::CallStack},
 };

@@ -3,7 +3,7 @@ use crate::{
     windows::{Ctx, subsystem::mmio_dbg},
 };
 use eframe::egui;
-use hemisphere::system::gx::cmd::*;
+use lazuli::system::gx::cmd::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Default, Serialize, Deserialize)]

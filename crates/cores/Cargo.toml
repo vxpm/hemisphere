@@ -8,7 +8,7 @@ edition = "2024"
 workspace = true
 
 [dependencies]
-hemisphere.workspace = true
+lazuli.workspace = true
 ppcjit.workspace = true
 dspint.workspace = true
 util.workspace = true

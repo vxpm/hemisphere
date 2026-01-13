@@ -10,7 +10,7 @@ workspace = true
 [dependencies]
 util.workspace = true
 jitalloc.workspace = true
-hemisphere.workspace = true
+lazuli.workspace = true
 
 rustc-hash.workspace = true
 zerocopy.workspace = true

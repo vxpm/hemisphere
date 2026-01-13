@@ -14,8 +14,8 @@ use eframe::{
     egui_wgpu::{WgpuConfiguration, WgpuSetup, WgpuSetupCreateNew},
 };
 use eyre_pretty::eyre::Result;
-use hemisphere::{
-    Hemisphere,
+use lazuli::{
+    Lazuli,
     cores::Cores,
     modules::debug::{DebugModule, NopDebugModule},
     system::{self, Modules, executable::Executable},
@@ -102,7 +102,7 @@ impl App {
             wgpu_state.target_format,
         );
 
-        let dirs = directories::ProjectDirs::from("", "", "hemisphere").unwrap();
+        let dirs = directories::ProjectDirs::from("", "", "lazuli").unwrap();
         let cache_dir = dirs.cache_dir();
         let jit_cache_path = cache_dir.join("ppcjit");
 
@@ -134,7 +134,7 @@ impl App {
             vertex: Box::new(JitVertexModule::new()),
         };
 
-        let hemisphere = Hemisphere::new(
+        let lazuli = Lazuli::new(
             cores,
             modules,
             system::Config {
@@ -144,7 +144,7 @@ impl App {
             },
         );
 
-        let mut runner = runner::Runner::new(hemisphere);
+        let mut runner = runner::Runner::new(lazuli);
         if cfg.run {
             runner.start();
         }
@@ -204,7 +204,7 @@ impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::TopBottomPanel::top("menu_bar").show(ctx, |ui| {
             egui::MenuBar::new().ui(ui, |ui| {
-                ui.label("Hemisphere");
+                ui.label("Lazuli");
                 ui.menu_button("🗖 View", |ui| {
                     if ui.button("Control").clicked() {
                         self.create_window(windows::control());
@@ -255,7 +255,7 @@ impl eframe::App for App {
 
                 ui.label(format!(
                     "Speed: {}%",
-                    ((self.cps as f64 / hemisphere::gekko::FREQUENCY as f64) * 100.0).round()
+                    ((self.cps as f64 / lazuli::gekko::FREQUENCY as f64) * 100.0).round()
                 ));
             });
         });
@@ -357,7 +357,7 @@ fn setup_tracing() -> tracing_appender::non_blocking::WorkerGuard {
     let (file_nb, _guard_file) = tracing_appender::non_blocking(file);
     let file_layer = fmt::layer().with_writer(file_nb).with_ansi(false);
     let env_filter = EnvFilter::try_from_default_env().unwrap_or(EnvFilter::new(
-        "cli=debug,hemisphere=debug,hemisphere::system::gx=info,common=debug,ppcjit=debug,renderer=debug,dspint=debug,cores=debug",
+        "cli=debug,lazuli=debug,lazuli::system::gx=info,common=debug,ppcjit=debug,renderer=debug,dspint=debug,cores=debug",
     ));
 
     let subscriber = tracing_subscriber::registry()
@@ -383,7 +383,7 @@ fn main() -> Result<()> {
         required_limits.max_texture_dimension_2d = 8192;
 
         wgpu::DeviceDescriptor {
-            label: Some("hemisphere wgpu device"),
+            label: Some("lazuli wgpu device"),
             required_features,
             required_limits,
             ..Default::default()
@@ -409,7 +409,7 @@ fn main() -> Result<()> {
     };
 
     eframe::run_native(
-        "Hemisphere",
+        "Lazuli",
         options,
         Box::new(|cc| {
             let app = App::new(cc, &cfg)?;

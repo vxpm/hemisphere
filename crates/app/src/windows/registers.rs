@@ -4,7 +4,7 @@ use crate::{
 };
 use eframe::egui::{self, Color32};
 use egui_extras::{Column, TableBuilder};
-use hemisphere::gekko::Cpu;
+use lazuli::gekko::Cpu;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]

@@ -2,7 +2,7 @@ use cpal::{
     Device, Stream, SupportedStreamConfigRange,
     traits::{DeviceTrait, HostTrait, StreamTrait},
 };
-use hemisphere::{
+use lazuli::{
     modules::audio::AudioModule,
     system::ai::{Frame, SampleRate},
 };

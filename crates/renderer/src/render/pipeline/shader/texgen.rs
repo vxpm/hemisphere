@@ -1,4 +1,4 @@
-use hemisphere::system::gx::xform::{TexGenInputKind, TexGenKind, TexGenOutputKind, TexGenSource};
+use lazuli::system::gx::xform::{TexGenInputKind, TexGenKind, TexGenOutputKind, TexGenSource};
 use wesl_quote::quote_expression;
 
 pub fn get_source(source: TexGenSource) -> wesl::syntax::Expression {

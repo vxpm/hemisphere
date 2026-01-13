@@ -1,4 +1,4 @@
-use hemisphere::{
+use lazuli::{
     modules::vertex::{Ctx, VertexModule},
     stream::{BinReader, BinaryStream},
     system::gx::{

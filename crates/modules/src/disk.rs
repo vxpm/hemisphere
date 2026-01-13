@@ -1,4 +1,4 @@
-use hemisphere::modules::disk::DiskModule;
+use lazuli::modules::disk::DiskModule;
 use std::io::{Read, Seek};
 
 /// An implementation of [`DiskModule`] for raw .iso data from a reader.

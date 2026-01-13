@@ -1,6 +1,6 @@
 use super::{DSP_COEF, DSP_ROM};
 use dspint::Interpreter;
-use hemisphere::{cores::DspCore, system::System};
+use lazuli::{cores::DspCore, system::System};
 
 pub struct Core {
     interpreter: Interpreter,

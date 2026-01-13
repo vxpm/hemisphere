@@ -1,5 +1,5 @@
 use addr2line::gimli;
-use hemisphere::{
+use lazuli::{
     Address,
     modules::debug::{DebugModule, Location},
 };

@@ -217,8 +217,8 @@ dependencies = [
  "eframe",
  "egui_extras",
  "eyre-pretty",
- "hemisphere",
  "indexmap",
+ "lazuli",
  "modules",
  "nanorand",
  "renderdoc",
@@ -866,8 +866,8 @@ name = "cores"
 version = "0.1.0"
 dependencies = [
  "dspint",
- "hemisphere",
  "indexmap",
+ "lazuli",
  "ppcjit",
  "tracing",
  "util",
@@ -1365,7 +1365,7 @@ version = "0.1.0"
 dependencies = [
  "binrw",
  "bitos",
- "hemisphere",
+ "lazuli",
  "libtest-mimic",
  "strum",
  "tinyvec",
@@ -2184,33 +2184,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 
 [[package]]
-name = "hemisphere"
-version = "0.1.0"
-dependencies = [
- "bitos",
- "bitvec",
- "bytesize",
- "color-backtrace",
- "dol",
- "easyerr",
- "gekko",
- "glam",
- "gxtex",
- "indicatif",
- "iso",
- "oneshot",
- "ordered-float",
- "ring-arena",
- "seq-macro",
- "static_assertions",
- "strum",
- "tracing",
- "twox-hash",
- "util",
- "zerocopy",
-]
-
-[[package]]
 name = "hermit-abi"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2590,6 +2563,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "lazuli"
+version = "0.1.0"
+dependencies = [
+ "bitos",
+ "bitvec",
+ "bytesize",
+ "color-backtrace",
+ "dol",
+ "easyerr",
+ "gekko",
+ "glam",
+ "gxtex",
+ "indicatif",
+ "iso",
+ "oneshot",
+ "ordered-float",
+ "ring-arena",
+ "seq-macro",
+ "static_assertions",
+ "strum",
+ "tracing",
+ "twox-hash",
+ "util",
+ "zerocopy",
+]
+
+[[package]]
 name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2931,8 +2931,8 @@ dependencies = [
  "cpal",
  "cwdemangle",
  "gilrs",
- "hemisphere",
  "hound",
+ "lazuli",
  "mapfile_parser",
  "resampler",
  "seq-macro",
@@ -4048,7 +4048,7 @@ version = "0.1.0"
 dependencies = [
  "flume",
  "glam",
- "hemisphere",
+ "lazuli",
  "rustc-hash 2.1.1",
  "seq-macro",
  "tracing",
@@ -4946,8 +4946,8 @@ name = "vtxjit"
 version = "0.1.0"
 dependencies = [
  "cranelift",
- "hemisphere",
  "jitalloc",
+ "lazuli",
  "rustc-hash 2.1.1",
  "seq-macro",
  "util",

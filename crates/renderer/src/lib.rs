@@ -5,7 +5,7 @@ mod util;
 
 use crate::{render::Renderer as RendererInner, util::blit::XfbBlitter};
 use flume::{Receiver, Sender};
-use hemisphere::modules::render::{Action, RenderModule};
+use lazuli::modules::render::{Action, RenderModule};
 use std::sync::{Arc, atomic::Ordering};
 
 #[expect(clippy::needless_pass_by_value, reason = "makes it clearer")]
@@ -39,7 +39,7 @@ impl Renderer {
         let (sender, receiver) = flume::bounded(CAPACITY);
 
         std::thread::Builder::new()
-            .name("hemisphere wgpu renderer".into())
+            .name("lazuli wgpu renderer".into())
             .spawn(move || worker(renderer, receiver))
             .unwrap();
 

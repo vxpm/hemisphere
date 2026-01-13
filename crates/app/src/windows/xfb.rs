@@ -3,7 +3,7 @@ use crate::{
     windows::{AppWindow, Ctx},
 };
 use eframe::egui::{self, Vec2};
-use hemisphere::system;
+use lazuli::system;
 use serde::{Deserialize, Serialize};
 
 #[inline]

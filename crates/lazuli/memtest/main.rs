@@ -1,7 +1,7 @@
 use std::ops::RangeInclusive;
 
 use gekko::{Address, MemoryManagement};
-use hemisphere::{
+use lazuli::{
     modules::{
         audio::NopAudioModule, debug::NopDebugModule, disk::NopDiskModule, input::NopInputModule,
         render::NopRenderModule,

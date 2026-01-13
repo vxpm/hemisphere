@@ -1,6 +1,6 @@
 mod table;
 
-use hemisphere::{
+use lazuli::{
     Address, Cycles, Primitive,
     cores::{CpuCore, Executed},
     gekko::{

@@ -3,7 +3,7 @@ use crate::{
     windows::{AppWindow, Ctx},
 };
 use eframe::egui;
-use hemisphere::Address;
+use lazuli::Address;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]

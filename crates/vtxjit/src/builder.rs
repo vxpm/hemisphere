@@ -2,7 +2,7 @@ mod attr;
 
 use crate::{Compiler, builder::attr::AttributeExt, parser::Config};
 use cranelift::{codegen::ir, frontend, prelude::InstBuilder};
-use hemisphere::system::gx::{
+use lazuli::system::gx::{
     Vertex,
     cmd::{
         ArrayDescriptor,

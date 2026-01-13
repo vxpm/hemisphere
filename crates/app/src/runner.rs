@@ -1,6 +1,6 @@
 mod timer;
 
-use hemisphere::{Address, Cycles, Hemisphere};
+use lazuli::{Address, Cycles, Lazuli};
 use spin_sleep::SpinSleeper;
 use std::{
     collections::VecDeque,
@@ -14,7 +14,7 @@ use std::{
 use crate::runner::timer::Timer;
 
 pub struct State {
-    pub hemi: Hemisphere,
+    pub hemi: Lazuli,
     pub breakpoints: Vec<Address>,
     pub cycles_history: VecDeque<(Cycles, Duration)>,
 }
@@ -101,10 +101,10 @@ pub struct Runner {
 }
 
 impl Runner {
-    pub fn new(hemisphere: Hemisphere) -> Self {
+    pub fn new(lazuli: Lazuli) -> Self {
         let state = Shared {
             state: Mutex::new(State {
-                hemi: hemisphere,
+                hemi: lazuli,
                 breakpoints: vec![],
                 cycles_history: VecDeque::new(),
             }),
@@ -113,7 +113,7 @@ impl Runner {
 
         let state = Arc::new(state);
         std::thread::Builder::new()
-            .name("hemisphere runner".into())
+            .name("lazuli runner".into())
             .spawn({
                 let state = state.clone();
                 move || worker(state)

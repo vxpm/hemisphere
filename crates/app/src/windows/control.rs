@@ -3,7 +3,7 @@ use crate::{
     windows::{AppWindow, Ctx},
 };
 use eframe::egui::{self, RichText};
-use hemisphere::Address;
+use lazuli::Address;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 

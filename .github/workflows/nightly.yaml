@@ -4,12 +4,12 @@ on:
   workflow_dispatch:
     inputs:
       no_release:
-        description: 'Do not generate a github release for this build'
+        description: "Do not generate a github release for this build"
         type: boolean
         required: true
         default: true
   schedule:
-     - cron: "0 0 * * *"
+    - cron: "0 0 * * *"
 
 env:
   CARGO_TERM_COLOR: always
@@ -36,7 +36,7 @@ jobs:
     runs-on: ubuntu-slim
     needs: check_date
     if: ${{ needs.check_date.outputs.should_run != 'false' }}
-    outputs: 
+    outputs:
       name_linux: ${{ steps.generate_name.outputs.name_linux }}
       name_windows: ${{ steps.generate_name.outputs.name_windows }}
       date: ${{ steps.generate_date.outputs.date }}
@@ -44,8 +44,8 @@ jobs:
     steps:
       - id: generate_name
         run: |
-          echo "name_linux=hemisphere-linux-$(date -u +%y%m%d)" >> "$GITHUB_OUTPUT"
-          echo "name_windows=hemisphere-windows-$(date -u +%y%m%d).exe" >> "$GITHUB_OUTPUT"
+          echo "name_linux=lazuli-linux-$(date -u +%y%m%d)" >> "$GITHUB_OUTPUT"
+          echo "name_windows=lazuli-windows-$(date -u +%y%m%d).exe" >> "$GITHUB_OUTPUT"
       - id: generate_date
         run: echo "date=$(date -u +%Y/%m/%d )" >> "$GITHUB_OUTPUT"
       - id: generate_tag
@@ -79,7 +79,7 @@ jobs:
           tool: just
       - name: Build ipl-hle
         run: just ipl-hle build
-      - name: Build hemisphere
+      - name: Build lazuli
         run: cargo build --release
       - name: Compress debug sections
         run: objcopy --compress-debug-sections=zstd ./target/release/app ./target/release/${{ needs.generate_name.outputs.name_linux }}
@@ -112,7 +112,7 @@ jobs:
           tool: just
       - name: Build ipl-hle
         run: just ipl-hle build
-      - name: Build hemisphere
+      - name: Build lazuli
         run: cargo build --release
       - name: Rename executable
         run: mv ./target/release/app.exe ./target/release/${{ needs.generate_name.outputs.name_windows }}
@@ -143,7 +143,7 @@ jobs:
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          name: Hemisphere Nightly (${{ needs.generate_name.outputs.date }})
+          name: Lazuli Nightly (${{ needs.generate_name.outputs.date }})
           body: Nightly release ${{ needs.generate_name.outputs.date }}
           files: build/*
           tag_name: ${{ needs.generate_name.outputs.tag }}

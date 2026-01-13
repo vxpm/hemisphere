@@ -1,6 +1,6 @@
 [package]
-name = "hemisphere"
-description = "The hemisphere emulator"
+name = "lazuli"
+description = "The lazuli emulator"
 version = "0.1.0"
 edition = "2024"
 

@@ -25,7 +25,7 @@ libtest-mimic = "0.8"
 
 [dependencies]
 util.workspace = true
-hemisphere.workspace = true
+lazuli.workspace = true
 
 bitos.workspace = true
 tracing.workspace = true

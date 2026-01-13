@@ -7,7 +7,7 @@ edition = "2024"
 workspace = true
 
 [dependencies]
-hemisphere.workspace = true
+lazuli.workspace = true
 cores.workspace = true
 renderer.workspace = true
 modules.workspace = true

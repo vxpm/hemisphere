@@ -26,8 +26,8 @@ const DSP_STEP: u32 = 512;
 /// How many DSP instructions to execute per step.
 const DSP_INST_PER_STEP: u32 = (DSP_STEP as f64 * DSP_INST_PER_CYCLE) as u32;
 
-/// The Hemisphere emulator.
-pub struct Hemisphere {
+/// The Lazuli emulator.
+pub struct Lazuli {
     /// System state.
     pub sys: System,
     /// Cores of the emulator.
@@ -36,7 +36,7 @@ pub struct Hemisphere {
     dsp_pending: f64,
 }
 
-impl Hemisphere {
+impl Lazuli {
     pub fn new(cores: Cores, modules: Modules, config: system::Config) -> Self {
         Self {
             sys: System::new(modules, config),
