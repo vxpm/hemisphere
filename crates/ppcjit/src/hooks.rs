@@ -3,7 +3,7 @@ use crate::{
     block::{Info, LinkData},
 };
 use cranelift::{codegen::ir, prelude::isa};
-use gekko::{Address, Cpu};
+use gekko::{Address, Cpu, QuantReg};
 use strum::FromRepr;
 
 pub type Context = std::ffi::c_void;
@@ -17,8 +17,9 @@ pub type TryLinkHook = extern "sysv64-unwind" fn(*mut Context, Address, *mut Lin
 
 pub type ReadHook<T> = extern "sysv64-unwind" fn(*mut Context, Address, *mut T) -> bool;
 pub type WriteHook<T> = extern "sysv64-unwind" fn(*mut Context, Address, T) -> bool;
-pub type ReadQuantizedHook = extern "sysv64-unwind" fn(*mut Context, Address, u8, *mut f64) -> u8;
-pub type WriteQuantizedHook = extern "sysv64-unwind" fn(*mut Context, Address, u8, f64) -> u8;
+pub type ReadQuantizedHook =
+    extern "sysv64-unwind" fn(*mut Context, Address, QuantReg, *mut f64) -> u8;
+pub type WriteQuantizedHook = extern "sysv64-unwind" fn(*mut Context, Address, QuantReg, f64) -> u8;
 
 pub type InvalidateICache = extern "sysv64-unwind" fn(*mut Context, Address);
 
@@ -178,7 +179,7 @@ impl Hooks {
             params: vec![
                 ir::AbiParam::new(ptr_type),       // ctx
                 ir::AbiParam::new(ir::types::I32), // address
-                ir::AbiParam::new(ir::types::I8),  // gqr
+                ir::AbiParam::new(ir::types::I32), // gqr
                 ir::AbiParam::new(ptr_type),       // value ptr
             ],
             returns: vec![ir::AbiParam::new(ir::types::I8)], // size
@@ -192,7 +193,7 @@ impl Hooks {
             params: vec![
                 ir::AbiParam::new(ptr_type),       // ctx
                 ir::AbiParam::new(ir::types::I32), // address
-                ir::AbiParam::new(ir::types::I8),  // gqr
+                ir::AbiParam::new(ir::types::I32), // gqr
                 ir::AbiParam::new(ir::types::F64), // value
             ],
             returns: vec![ir::AbiParam::new(ir::types::I8)], // size

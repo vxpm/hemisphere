@@ -60,8 +60,10 @@ pub const FASTMEM_LUT_COUNT: usize = 1 << 15;
 pub type FastmemLut = [Option<NonNull<u8>>; FASTMEM_LUT_COUNT];
 
 const NAMESPACE_USER_HOOKS: u32 = 0;
-const NAMESPACE_HARD_HOOKS: u32 = 1;
+const NAMESPACE_INTERNALS: u32 = 1;
 const NAMESPACE_LINK_DATA: u32 = 2;
+
+const INTERNAL_RAISE_EXCEPTION: u32 = 0;
 
 struct Compiler {
     settings: CompilerSettings,
@@ -199,6 +201,16 @@ impl Compiler {
         Trampoline(alloc)
     }
 
+    fn write_relocation(code: &mut [u8], reloc: &FinalizedMachReloc, addr: usize) {
+        match reloc.kind {
+            Reloc::Abs8 => {
+                let base = reloc.offset;
+                code[base as usize..][..size_of::<usize>()].copy_from_slice(&addr.to_ne_bytes());
+            }
+            _ => todo!("relocation kind {:?}", reloc.kind),
+        }
+    }
+
     fn apply_relocations(
         &mut self,
         code: &mut [u8],
@@ -244,17 +256,10 @@ impl Compiler {
                         HookKind::DecChanged => self.hooks.dec_changed as usize,
                     };
 
-                    match reloc.kind {
-                        Reloc::Abs8 => {
-                            let base = reloc.offset;
-                            code[base as usize..][..size_of::<usize>()]
-                                .copy_from_slice(&addr.to_ne_bytes());
-                        }
-                        _ => todo!("relocation kind {:?}", reloc.kind),
-                    }
+                    Self::write_relocation(code, reloc, addr);
                 }
-                NAMESPACE_HARD_HOOKS => {
-                    assert_eq!(name.index, 0);
+                NAMESPACE_INTERNALS => {
+                    assert_eq!(name.index, INTERNAL_RAISE_EXCEPTION);
                     extern "sysv64-unwind" fn raise_exception(
                         regs: &mut Cpu,
                         exception: Exception,
@@ -263,33 +268,18 @@ impl Compiler {
                     }
 
                     let addr = raise_exception as extern "sysv64-unwind" fn(_, _) as usize;
-                    match reloc.kind {
-                        Reloc::Abs8 => {
-                            let base = reloc.offset;
-                            code[base as usize..][..size_of::<usize>()]
-                                .copy_from_slice(&addr.to_ne_bytes());
-                        }
-                        _ => todo!("relocation kind {:?}", reloc.kind),
-                    }
+                    Self::write_relocation(code, reloc, addr);
                 }
                 NAMESPACE_LINK_DATA => {
-                    // link data
-                    match reloc.kind {
-                        Reloc::Abs8 => {
-                            let base = reloc.offset;
-                            let link_data =
-                                self.module.allocate_data(Layout::new::<Option<LinkData>>());
+                    let link_data = self.module.allocate_data(Layout::new::<Option<LinkData>>());
 
-                            unsafe {
-                                link_data.as_ptr().cast::<Option<LinkData>>().write(None);
-                            }
-
-                            let link_data_addr = unsafe { link_data.as_ptr().addr().get() };
-                            code[base as usize..][..size_of::<usize>()]
-                                .copy_from_slice(&link_data_addr.to_ne_bytes());
-                        }
-                        _ => todo!("relocation kind {:?}", reloc.kind),
+                    // initialize as None
+                    unsafe {
+                        link_data.as_ptr().cast::<Option<LinkData>>().write(None);
                     }
+
+                    let addr = unsafe { link_data.as_ptr().addr().get() };
+                    Self::write_relocation(code, reloc, addr);
                 }
                 _ => unreachable!(),
             }

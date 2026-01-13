@@ -1,15 +1,15 @@
 mod table;
 
+use indexmap::IndexSet;
 use lazuli::{
     Address, Cycles, Primitive,
     cores::{CpuCore, Executed},
     gekko::{
-        self, Cpu, QuantizedType,
+        self, Cpu, DEQUANTIZATION_LUT, QUANTIZATION_LUT, QuantReg, QuantizedType,
         disasm::{Extensions, Ins},
     },
     system::{self, System},
 };
-use indexmap::IndexSet;
 use ppcjit::{
     Block, FastmemLut,
     block::{BlockFn, Info, LinkData, Pattern},
@@ -229,30 +229,6 @@ enum ExitReason {
     IdleLooping,
 }
 
-const QUANTIZATION_FACTOR: [f64; 1 << 6] = {
-    let mut result = [0.0; 1 << 6];
-
-    let mut i = 0;
-    loop {
-        let scale = ((i as i8) << 2) >> 2;
-        let exp = scale.unsigned_abs();
-        let factor = if scale >= 0 {
-            1.0 / ((1 << exp) as f64)
-        } else {
-            (1u64 << exp) as f64
-        };
-
-        result[i as usize] = factor;
-
-        i += 1;
-        if i >= (1 << 6) {
-            break;
-        }
-    }
-
-    result
-};
-
 /// Context to be passed in for execution of JIT blocks.
 struct Context<'a> {
     /// The system state, so that the JIT block can operate on it.
@@ -370,12 +346,10 @@ const CTX_HOOKS: Hooks = {
     extern "sysv64-unwind" fn read_quantized(
         ctx: &mut Context,
         addr: Address,
-        gqr: u8,
+        gqr: QuantReg,
         value: &mut f64,
     ) -> u8 {
-        let gqr = ctx.sys.cpu.supervisor.gq[gqr as usize];
         let ty = gqr.load_type();
-
         let scale = if ty != QuantizedType::Float {
             gqr.load_scale().value()
         } else {
@@ -396,7 +370,7 @@ const CTX_HOOKS: Hooks = {
             return 0;
         };
 
-        let scaled = read * QUANTIZATION_FACTOR[(scale as usize) & 0b0011_1111];
+        let scaled = read * DEQUANTIZATION_LUT[(scale as usize) & 0b0011_1111];
         *value = scaled;
 
         ty.size()
@@ -405,19 +379,17 @@ const CTX_HOOKS: Hooks = {
     extern "sysv64-unwind" fn write_quantized(
         ctx: &mut Context,
         addr: Address,
-        gqr: u8,
+        gqr: QuantReg,
         value: f64,
     ) -> u8 {
-        let gqr = ctx.sys.cpu.supervisor.gq[gqr as usize];
         let ty = gqr.store_type();
-
         let scale = if ty != QuantizedType::Float {
             gqr.store_scale().value()
         } else {
             0
         };
 
-        let scaled = value / QUANTIZATION_FACTOR[(scale as usize) & 0b0011_1111];
+        let scaled = value * QUANTIZATION_LUT[(scale as usize) & 0b0011_1111];
         let success = match ty {
             QuantizedType::U8 => ctx.sys.write(addr, scaled as u8),
             QuantizedType::U16 => ctx.sys.write(addr, scaled as u16),

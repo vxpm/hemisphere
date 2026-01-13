@@ -399,7 +399,7 @@ impl BlockBuilder<'_> {
         let block_start = self.bd.ins().band_imm(addr, !0b11111u64 as i64);
         for i in 0..8 {
             let current = self.bd.ins().iadd_imm(block_start, 4 * i);
-            self.mem_write::<i32>(current, zero);
+            self.mem_store::<i32>(current, zero);
         }
 
         DCACHE_INFO

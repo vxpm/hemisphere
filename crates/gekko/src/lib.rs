@@ -995,6 +995,46 @@ pub struct QuantReg {
     pub load_scale: i6,
 }
 
+pub static DEQUANTIZATION_LUT: [f64; 1 << 6] = {
+    let mut result = [0.0; 1 << 6];
+
+    let mut i = 0;
+    loop {
+        let scale = ((i as i8) << 2) >> 2;
+        let exp = scale.unsigned_abs();
+        let factor = if scale >= 0 {
+            1.0 / ((1 << exp) as f64)
+        } else {
+            (1u64 << exp) as f64
+        };
+
+        result[i as usize] = factor;
+
+        i += 1;
+        if i >= (1 << 6) {
+            break;
+        }
+    }
+
+    result
+};
+
+pub static QUANTIZATION_LUT: [f64; 1 << 6] = {
+    let mut result = DEQUANTIZATION_LUT;
+
+    let mut i = 0;
+    loop {
+        result[i] = 1.0 / result[i];
+
+        i += 1;
+        if i >= (1 << 6) {
+            break;
+        }
+    }
+
+    result
+};
+
 /// Miscellaneous registers.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Miscellaneous {
@@ -1252,6 +1292,17 @@ pub enum SPR {
 }
 
 impl SPR {
+    pub const GQR: [Self; 8] = [
+        Self::GQR0,
+        Self::GQR1,
+        Self::GQR2,
+        Self::GQR3,
+        Self::GQR4,
+        Self::GQR5,
+        Self::GQR6,
+        Self::GQR7,
+    ];
+
     /// Creates a new SPR with the given index.
     ///
     /// # Panics

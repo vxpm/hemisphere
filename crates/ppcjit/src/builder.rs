@@ -9,7 +9,7 @@ mod others;
 mod util;
 
 use crate::{
-    Compiler, NAMESPACE_HARD_HOOKS, NAMESPACE_USER_HOOKS, Sequence,
+    Compiler, INTERNAL_RAISE_EXCEPTION, NAMESPACE_INTERNALS, NAMESPACE_USER_HOOKS, Sequence,
     block::Info,
     builder::util::IntoIrValue,
     hooks::{HookKind, Hooks},
@@ -218,7 +218,10 @@ impl<'ctx> BlockBuilder<'ctx> {
         let raise_exception = {
             let name = builder
                 .func
-                .declare_imported_user_function(ir::UserExternalName::new(NAMESPACE_HARD_HOOKS, 0));
+                .declare_imported_user_function(ir::UserExternalName::new(
+                    NAMESPACE_INTERNALS,
+                    INTERNAL_RAISE_EXCEPTION,
+                ));
 
             builder.import_function(ir::ExtFuncData {
                 name: ir::ExternalName::User(name),
