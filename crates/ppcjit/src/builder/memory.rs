@@ -1,7 +1,7 @@
 use super::BlockBuilder;
 use crate::builder::{Action, InstructionInfo, MEMFLAGS, MEMFLAGS_READONLY};
-use cranelift::{codegen::ir, prelude::InstBuilder};
-use gekko::{Exception, GPR, InsExt, Reg, SPR, disasm::Ins};
+use cranelift::{codegen::ir, frontend, prelude::InstBuilder};
+use gekko::{Exception, GPR, InsExt, QuantizedType, Reg, SPR, disasm::Ins};
 
 pub trait ReadWriteAble {
     const IR_TYPE: ir::Type;
@@ -214,70 +214,256 @@ impl BlockBuilder<'_> {
         self.switch_to_bb(continue_block);
     }
 
-    /// Reads a quantized value. Returns the value and the type size.
-    fn read_quantized(&mut self, addr: ir::Value, gqr: ir::Value) -> (ir::Value, ir::Value) {
-        let stack_slot_addr =
-            self.bd
-                .ins()
-                .stack_addr(self.consts.ptr_type, self.consts.read_stack_slot, 0);
+    fn quantized_read(&mut self, addr: ir::Value, gqr: ir::Value) -> (ir::Value, ir::Value) {
+        let load_ty = self.bd.ins().ushr_imm(gqr, 16);
+        let load_ty = self.bd.ins().band_imm(load_ty, 0b111);
 
-        let inst = self.bd.ins().call(
-            self.hooks.read_quant,
-            &[self.consts.ctx_ptr, addr, gqr, stack_slot_addr],
-        );
+        let load_scale = self.bd.ins().ushr_imm(gqr, 24);
+        let load_scale = self.bd.ins().band_imm(load_scale, 0x3F);
 
-        let size = self.bd.inst_results(inst)[0];
-        let exit_block = self.bd.create_block();
-        let continue_block = self.bd.create_block();
-
-        self.bd.set_cold_block(exit_block);
-        self.bd
+        let dequant_lut_base = self
+            .bd
             .ins()
-            .brif(size, continue_block, &[], exit_block, &[]);
+            .global_value(self.consts.ptr_type, self.consts.dequantization_lut);
 
-        self.bd.seal_block(exit_block);
-        self.bd.seal_block(continue_block);
-
-        self.switch_to_bb(exit_block);
-        self.set(SPR::DAR, addr);
-        self.raise_exception(Exception::DSI);
-        self.prologue_with(LOAD_INFO);
-
-        self.switch_to_bb(continue_block);
-        (
+        let offset = self.bd.ins().imul_imm(load_scale, 8);
+        let offset = self.bd.ins().uextend(self.consts.ptr_type, offset);
+        let dequant_factor_ptr = self.bd.ins().iadd(dequant_lut_base, offset);
+        let dequant_factor =
             self.bd
                 .ins()
-                .stack_load(ir::types::F64, self.consts.read_stack_slot, 0),
-            self.bd.ins().uextend(ir::types::I32, size),
-        )
+                .load(ir::types::F64, MEMFLAGS_READONLY, dequant_factor_ptr, 0);
+
+        // switch on the ty
+        let types = [
+            QuantizedType::F32,
+            QuantizedType::U8,
+            QuantizedType::I8,
+            QuantizedType::U16,
+            QuantizedType::I16,
+        ];
+        let blocks = types.map(|ty| (ty, self.bd.create_block()));
+
+        let mut switch = frontend::Switch::new();
+        for (ty, block) in blocks.iter() {
+            let value = *ty as u128;
+            switch.set_entry(value, *block);
+        }
+        switch.emit(&mut self.bd, load_ty, blocks[0].1);
+
+        // implement the blocks
+        let continue_block = self.bd.create_block();
+        self.bd.append_block_param(continue_block, ir::types::F64);
+        self.bd.append_block_param(continue_block, ir::types::I32);
+
+        for (ty, block) in blocks {
+            self.switch_to_bb(block);
+
+            // read, perform dequantization
+            let value = match ty {
+                QuantizedType::F32 => self.mem_read::<i32>(addr),
+                QuantizedType::U8 => self.mem_read::<i8>(addr),
+                QuantizedType::I8 => self.mem_read::<i8>(addr),
+                QuantizedType::U16 => self.mem_read::<i16>(addr),
+                QuantizedType::I16 => self.mem_read::<i16>(addr),
+                _ => unreachable!(),
+            };
+
+            let float = if ty == QuantizedType::F32 {
+                let single = self
+                    .bd
+                    .ins()
+                    .bitcast(ir::types::F32, ir::MemFlags::new(), value);
+                self.bd.ins().fpromote(ir::types::F64, single)
+            } else if ty.is_signed() {
+                self.bd.ins().fcvt_from_sint(ir::types::F64, value)
+            } else {
+                self.bd.ins().fcvt_from_uint(ir::types::F64, value)
+            };
+
+            let dequantized = if ty == QuantizedType::F32 {
+                float
+            } else {
+                self.bd.ins().fmul(float, dequant_factor)
+            };
+
+            let size = self.ir_value(ty.size());
+            let size = self.bd.ins().uextend(ir::types::I32, size);
+            self.bd.ins().jump(
+                continue_block,
+                &[ir::BlockArg::Value(dequantized), ir::BlockArg::Value(size)],
+            );
+        }
+
+        // seal all blocks
+        self.bd.seal_block(continue_block);
+        for (_, block) in blocks {
+            self.bd.seal_block(block);
+        }
+
+        // continue
+        self.switch_to_bb(continue_block);
+        let result = self.bd.block_params(continue_block);
+
+        (result[0], result[1])
+    }
+
+    fn quant_conv_clamp(&mut self, value: ir::Value, min: i32, max: i32) -> ir::Value {
+        let int = self.bd.ins().fcvt_to_sint_sat(ir::types::I32, value);
+        let min = self.ir_value(min);
+        let max = self.ir_value(max);
+
+        let gt_max = self
+            .bd
+            .ins()
+            .icmp(ir::condcodes::IntCC::SignedGreaterThan, int, max);
+        let lt_min = self
+            .bd
+            .ins()
+            .icmp(ir::condcodes::IntCC::SignedLessThan, int, min);
+
+        let clamped = self.bd.ins().select(gt_max, max, int);
+        let clamped = self.bd.ins().select(lt_min, min, clamped);
+
+        clamped
+    }
+
+    fn quantized_write(&mut self, addr: ir::Value, gqr: ir::Value, value: ir::Value) -> ir::Value {
+        let store_ty = self.bd.ins().band_imm(gqr, 0b111);
+
+        let store_scale = self.bd.ins().ushr_imm(gqr, 8);
+        let store_scale = self.bd.ins().band_imm(store_scale, 0x3F);
+
+        let quant_lut_base = self
+            .bd
+            .ins()
+            .global_value(self.consts.ptr_type, self.consts.quantization_lut);
+
+        let offset = self.bd.ins().imul_imm(store_scale, 8);
+        let offset = self.bd.ins().uextend(self.consts.ptr_type, offset);
+        let quant_factor_ptr = self.bd.ins().iadd(quant_lut_base, offset);
+        let quant_factor =
+            self.bd
+                .ins()
+                .load(ir::types::F64, MEMFLAGS_READONLY, quant_factor_ptr, 0);
+
+        // switch on the ty
+        let types = [
+            QuantizedType::F32,
+            QuantizedType::U8,
+            QuantizedType::I8,
+            QuantizedType::U16,
+            QuantizedType::I16,
+        ];
+        let blocks = types.map(|ty| (ty, self.bd.create_block()));
+
+        let mut switch = frontend::Switch::new();
+        for (ty, block) in blocks.iter() {
+            let value = *ty as u128;
+            switch.set_entry(value, *block);
+        }
+        switch.emit(&mut self.bd, store_ty, blocks[0].1);
+
+        // implement the blocks
+        let continue_block = self.bd.create_block();
+        self.bd.append_block_param(continue_block, ir::types::I32);
+
+        for (ty, block) in blocks {
+            self.switch_to_bb(block);
+
+            // quantize
+            let quantized = if ty == QuantizedType::F32 {
+                value
+            } else {
+                self.bd.ins().fmul(value, quant_factor)
+            };
+
+            // convert
+            let converted = match ty {
+                QuantizedType::F32 => {
+                    let single = self.bd.ins().fdemote(ir::types::F32, quantized);
+                    self.bd
+                        .ins()
+                        .bitcast(ir::types::I32, ir::MemFlags::new(), single)
+                }
+                QuantizedType::U8 => {
+                    let clamped = self.quant_conv_clamp(quantized, u8::MIN as i32, u8::MAX as i32);
+                    self.bd.ins().ireduce(ir::types::I8, clamped)
+                }
+                QuantizedType::I8 => {
+                    let clamped = self.quant_conv_clamp(quantized, i8::MIN as i32, i8::MAX as i32);
+                    self.bd.ins().ireduce(ir::types::I8, clamped)
+                }
+                QuantizedType::U16 => {
+                    let clamped =
+                        self.quant_conv_clamp(quantized, u16::MIN as i32, u16::MAX as i32);
+                    self.bd.ins().ireduce(ir::types::I16, clamped)
+                }
+                QuantizedType::I16 => {
+                    let clamped =
+                        self.quant_conv_clamp(quantized, i16::MIN as i32, i16::MAX as i32);
+                    self.bd.ins().ireduce(ir::types::I16, clamped)
+                }
+                _ => unreachable!(),
+            };
+
+            // write it
+            match ty {
+                QuantizedType::F32 => self.mem_write::<i32>(addr, converted),
+                QuantizedType::U8 => self.mem_write::<i8>(addr, converted),
+                QuantizedType::I8 => self.mem_write::<i8>(addr, converted),
+                QuantizedType::U16 => self.mem_write::<i16>(addr, converted),
+                QuantizedType::I16 => self.mem_write::<i16>(addr, converted),
+                _ => unreachable!(),
+            }
+
+            let size = self.ir_value(ty.size());
+            let size = self.bd.ins().uextend(ir::types::I32, size);
+            self.bd
+                .ins()
+                .jump(continue_block, &[ir::BlockArg::Value(size)]);
+        }
+
+        // seal all blocks
+        self.bd.seal_block(continue_block);
+        for (_, block) in blocks {
+            self.bd.seal_block(block);
+        }
+
+        // continue
+        self.switch_to_bb(continue_block);
+        let result = self.bd.block_params(continue_block);
+
+        result[0]
     }
 
     /// Writes a quantized value. Returns the type size.
     fn write_quantized(&mut self, addr: ir::Value, gqr: ir::Value, value: ir::Value) -> ir::Value {
-        let inst = self.bd.ins().call(
-            self.hooks.write_quant,
-            &[self.consts.ctx_ptr, addr, gqr, value],
-        );
-
-        let size = self.bd.inst_results(inst)[0];
-        let exit_block = self.bd.create_block();
-        let continue_block = self.bd.create_block();
-
-        self.bd.set_cold_block(exit_block);
-        self.bd
-            .ins()
-            .brif(size, continue_block, &[], exit_block, &[]);
-
-        self.bd.seal_block(exit_block);
-        self.bd.seal_block(continue_block);
-
-        self.switch_to_bb(exit_block);
-        self.set(SPR::DAR, addr);
-        self.raise_exception(Exception::DSI);
-        self.prologue_with(STORE_INFO);
-
-        self.switch_to_bb(continue_block);
-        self.bd.ins().uextend(ir::types::I32, size)
+        self.quantized_write(addr, gqr, value)
+        // let inst = self.bd.ins().call(
+        //     self.hooks.write_quant,
+        //     &[self.consts.ctx_ptr, addr, gqr, value],
+        // );
+        //
+        // let size = self.bd.inst_results(inst)[0];
+        // let exit_block = self.bd.create_block();
+        // let continue_block = self.bd.create_block();
+        //
+        // self.bd.set_cold_block(exit_block);
+        // self.bd
+        //     .ins()
+        //     .brif(size, continue_block, &[], exit_block, &[]);
+        //
+        // self.bd.seal_block(exit_block);
+        // self.bd.seal_block(continue_block);
+        //
+        // self.switch_to_bb(exit_block);
+        // self.set(SPR::DAR, addr);
+        // self.raise_exception(Exception::DSI);
+        // self.prologue_with(STORE_INFO);
+        //
+        // self.switch_to_bb(continue_block);
+        // self.bd.ins().uextend(ir::types::I32, size)
     }
 }
 
@@ -1170,11 +1356,11 @@ impl BlockBuilder<'_> {
             self.bd.ins().iadd_imm(ra, ins.field_ps_offset() as i64)
         };
 
-        let index = self.ir_value(ins.field_ps_i());
-        let (ps0, size) = self.read_quantized(addr, index);
+        let gqr = self.get(SPR::GQR[ins.field_ps_i() as usize]);
+        let (ps0, size) = self.quantized_read(addr, gqr);
         let ps1 = if ins.field_ps_w() == 0 {
             let addr = self.bd.ins().iadd(addr, size);
-            self.read_quantized(addr, index).0
+            self.quantized_read(addr, gqr).0
         } else {
             self.ir_value(1.0f64)
         };
@@ -1196,11 +1382,11 @@ impl BlockBuilder<'_> {
             self.bd.ins().iadd_imm(ra, ins.field_ps_offset() as i64)
         };
 
-        let index = self.ir_value(ins.field_ps_i());
-        let (ps0, size) = self.read_quantized(addr, index);
+        let gqr = self.get(SPR::GQR[ins.field_ps_i() as usize]);
+        let (ps0, size) = self.quantized_read(addr, gqr);
         let ps1 = if ins.field_ps_w() == 0 {
             let addr = self.bd.ins().iadd(addr, size);
-            self.read_quantized(addr, index).0
+            self.quantized_read(addr, gqr).0
         } else {
             self.ir_value(1.0f64)
         };
@@ -1225,11 +1411,11 @@ impl BlockBuilder<'_> {
             self.bd.ins().iadd(ra, rb)
         };
 
-        let index = self.ir_value(ins.field_ps_i());
-        let (ps0, size) = self.read_quantized(addr, index);
+        let gqr = self.get(SPR::GQR[ins.field_ps_i() as usize]);
+        let (ps0, size) = self.quantized_read(addr, gqr);
         let ps1 = if ins.field_ps_w() == 0 {
             let addr = self.bd.ins().iadd(addr, size);
-            self.read_quantized(addr, index).0
+            self.quantized_read(addr, gqr).0
         } else {
             self.ir_value(1.0f64)
         };
@@ -1253,12 +1439,12 @@ impl BlockBuilder<'_> {
 
         let ps0 = self.get(ins.fpr_s());
         let ps1 = self.get(Reg::PS1(ins.fpr_s()));
-        let index = self.ir_value(ins.field_ps_i());
+        let gqr = self.get(SPR::GQR[ins.field_ps_i() as usize]);
 
-        let size = self.write_quantized(addr, index, ps0);
+        let size = self.write_quantized(addr, gqr, ps0);
         if ins.field_ps_w() == 0 {
             let addr = self.bd.ins().iadd(addr, size);
-            self.write_quantized(addr, index, ps1);
+            self.write_quantized(addr, gqr, ps1);
         }
 
         STORE_INFO
@@ -1276,12 +1462,12 @@ impl BlockBuilder<'_> {
 
         let ps0 = self.get(ins.fpr_s());
         let ps1 = self.get(Reg::PS1(ins.fpr_s()));
-        let index = self.ir_value(ins.field_ps_i());
+        let gqr = self.get(SPR::GQR[ins.field_ps_i() as usize]);
 
-        let size = self.write_quantized(addr, index, ps0);
+        let size = self.write_quantized(addr, gqr, ps0);
         if ins.field_ps_w() == 0 {
             let addr = self.bd.ins().iadd(addr, size);
-            self.write_quantized(addr, index, ps1);
+            self.write_quantized(addr, gqr, ps1);
         }
 
         self.set(ins.gpr_a(), addr);
@@ -1302,12 +1488,12 @@ impl BlockBuilder<'_> {
 
         let ps0 = self.get(ins.fpr_s());
         let ps1 = self.get(Reg::PS1(ins.fpr_s()));
-        let index = self.ir_value(ins.field_ps_i());
+        let gqr = self.get(SPR::GQR[ins.field_ps_i() as usize]);
 
-        let size = self.write_quantized(addr, index, ps0);
+        let size = self.write_quantized(addr, gqr, ps0);
         if ins.field_ps_w() == 0 {
             let addr = self.bd.ins().iadd(addr, size);
-            self.write_quantized(addr, index, ps1);
+            self.write_quantized(addr, gqr, ps1);
         }
 
         STORE_INFO

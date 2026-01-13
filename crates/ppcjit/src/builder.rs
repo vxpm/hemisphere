@@ -9,12 +9,17 @@ mod others;
 mod util;
 
 use crate::{
-    Compiler, NAMESPACE_HARD_HOOKS, NAMESPACE_USER_HOOKS, Sequence,
+    Compiler, INTERNAL_DEQUANT_LUT, INTERNAL_QUANT_LUT, INTERNAL_RAISE_EXCEPTION,
+    NAMESPACE_INTERNALS, NAMESPACE_USER_HOOKS, Sequence,
     block::Info,
     builder::util::IntoIrValue,
     hooks::{HookKind, Hooks},
 };
-use cranelift::{codegen::ir, frontend, prelude::InstBuilder};
+use cranelift::{
+    codegen::ir,
+    frontend,
+    prelude::{Imm64, InstBuilder},
+};
 use easyerr::Error;
 use gekko::{
     FPR, Reg, SPR,
@@ -142,6 +147,9 @@ struct Consts {
     fmem_ptr: ir::Value,
 
     read_stack_slot: ir::StackSlot,
+    quantization_lut: ir::GlobalValue,
+    dequantization_lut: ir::GlobalValue,
+
     signatures: Signatures,
 }
 
@@ -218,12 +226,47 @@ impl<'ctx> BlockBuilder<'ctx> {
         let raise_exception = {
             let name = builder
                 .func
-                .declare_imported_user_function(ir::UserExternalName::new(NAMESPACE_HARD_HOOKS, 0));
+                .declare_imported_user_function(ir::UserExternalName::new(
+                    NAMESPACE_INTERNALS,
+                    INTERNAL_RAISE_EXCEPTION,
+                ));
 
             builder.import_function(ir::ExtFuncData {
                 name: ir::ExternalName::User(name),
                 signature: sigs.raise_exception,
                 colocated: false,
+            })
+        };
+
+        let quantization_lut = {
+            let name = builder
+                .func
+                .declare_imported_user_function(ir::UserExternalName::new(
+                    NAMESPACE_INTERNALS,
+                    INTERNAL_QUANT_LUT,
+                ));
+
+            builder.create_global_value(ir::GlobalValueData::Symbol {
+                name: ir::ExternalName::User(name),
+                offset: Imm64::new(0),
+                colocated: false,
+                tls: false,
+            })
+        };
+
+        let dequantization_lut = {
+            let name = builder
+                .func
+                .declare_imported_user_function(ir::UserExternalName::new(
+                    NAMESPACE_INTERNALS,
+                    INTERNAL_DEQUANT_LUT,
+                ));
+
+            builder.create_global_value(ir::GlobalValueData::Symbol {
+                name: ir::ExternalName::User(name),
+                offset: Imm64::new(0),
+                colocated: false,
+                tls: false,
             })
         };
 
@@ -276,6 +319,8 @@ impl<'ctx> BlockBuilder<'ctx> {
             fmem_ptr,
 
             read_stack_slot,
+            quantization_lut,
+            dequantization_lut,
 
             signatures: sigs,
         };

@@ -60,8 +60,12 @@ pub const FASTMEM_LUT_COUNT: usize = 1 << 15;
 pub type FastmemLut = [Option<NonNull<u8>>; FASTMEM_LUT_COUNT];
 
 const NAMESPACE_USER_HOOKS: u32 = 0;
-const NAMESPACE_HARD_HOOKS: u32 = 1;
+const NAMESPACE_INTERNALS: u32 = 1;
 const NAMESPACE_LINK_DATA: u32 = 2;
+
+const INTERNAL_RAISE_EXCEPTION: u32 = 0;
+const INTERNAL_QUANT_LUT: u32 = 1;
+const INTERNAL_DEQUANT_LUT: u32 = 2;
 
 struct Compiler {
     settings: CompilerSettings,
@@ -253,25 +257,49 @@ impl Compiler {
                         _ => todo!("relocation kind {:?}", reloc.kind),
                     }
                 }
-                NAMESPACE_HARD_HOOKS => {
-                    assert_eq!(name.index, 0);
-                    extern "sysv64-unwind" fn raise_exception(
-                        regs: &mut Cpu,
-                        exception: Exception,
-                    ) {
-                        regs.raise_exception(exception);
-                    }
-
-                    let addr = raise_exception as extern "sysv64-unwind" fn(_, _) as usize;
-                    match reloc.kind {
-                        Reloc::Abs8 => {
-                            let base = reloc.offset;
-                            code[base as usize..][..size_of::<usize>()]
-                                .copy_from_slice(&addr.to_ne_bytes());
+                NAMESPACE_INTERNALS => match name.index {
+                    INTERNAL_RAISE_EXCEPTION => {
+                        extern "sysv64-unwind" fn raise_exception(
+                            regs: &mut Cpu,
+                            exception: Exception,
+                        ) {
+                            regs.raise_exception(exception);
                         }
-                        _ => todo!("relocation kind {:?}", reloc.kind),
+
+                        let addr = raise_exception as extern "sysv64-unwind" fn(_, _) as usize;
+                        match reloc.kind {
+                            Reloc::Abs8 => {
+                                let base = reloc.offset;
+                                code[base as usize..][..size_of::<usize>()]
+                                    .copy_from_slice(&addr.to_ne_bytes());
+                            }
+                            _ => todo!("relocation kind {:?}", reloc.kind),
+                        }
                     }
-                }
+                    INTERNAL_QUANT_LUT => {
+                        let addr = &raw const gekko::QUANTIZATION_LUT as usize;
+                        match reloc.kind {
+                            Reloc::Abs8 => {
+                                let base = reloc.offset;
+                                code[base as usize..][..size_of::<usize>()]
+                                    .copy_from_slice(&addr.to_ne_bytes());
+                            }
+                            _ => todo!("relocation kind {:?}", reloc.kind),
+                        }
+                    }
+                    INTERNAL_DEQUANT_LUT => {
+                        let addr = &raw const gekko::DEQUANTIZATION_LUT as usize;
+                        match reloc.kind {
+                            Reloc::Abs8 => {
+                                let base = reloc.offset;
+                                code[base as usize..][..size_of::<usize>()]
+                                    .copy_from_slice(&addr.to_ne_bytes());
+                            }
+                            _ => todo!("relocation kind {:?}", reloc.kind),
+                        }
+                    }
+                    _ => unreachable!(),
+                },
                 NAMESPACE_LINK_DATA => {
                     // link data
                     match reloc.kind {

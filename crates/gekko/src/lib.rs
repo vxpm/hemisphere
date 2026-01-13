@@ -956,7 +956,7 @@ pub struct Configuration {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum QuantizedType {
     #[default]
-    Float,
+    F32,
     Reserved0,
     Reserved1,
     Reserved2,
@@ -969,13 +969,61 @@ pub enum QuantizedType {
 impl QuantizedType {
     pub fn size(&self) -> u8 {
         match self {
-            Self::Float => 4,
+            Self::F32 => 4,
             Self::U8 | Self::I8 => 1,
             Self::U16 | Self::I16 => 2,
             _ => panic!("reserved quantized type"),
         }
     }
+
+    pub fn is_signed(&self) -> bool {
+        match self {
+            Self::F32 | Self::I8 | Self::I16 => true,
+            Self::U8 | Self::U16 => false,
+            _ => panic!("reserved quantized type"),
+        }
+    }
 }
+
+pub static DEQUANTIZATION_LUT: [f64; 1 << 6] = {
+    let mut result = [0.0; 1 << 6];
+
+    let mut i = 0;
+    loop {
+        let scale = ((i as i8) << 2) >> 2;
+        let exp = scale.unsigned_abs();
+        let factor = if scale >= 0 {
+            1.0 / ((1 << exp) as f64)
+        } else {
+            (1u64 << exp) as f64
+        };
+
+        result[i as usize] = factor;
+
+        i += 1;
+        if i >= (1 << 6) {
+            break;
+        }
+    }
+
+    result
+};
+
+pub static QUANTIZATION_LUT: [f64; 1 << 6] = {
+    let mut result = DEQUANTIZATION_LUT;
+
+    let mut i = 0;
+    loop {
+        result[i] = 1.0 / result[i];
+
+        i += 1;
+        if i >= (1 << 6) {
+            break;
+        }
+    }
+
+    result
+};
 
 /// A graphics quantization register.
 #[bitos(32)]
@@ -1252,6 +1300,17 @@ pub enum SPR {
 }
 
 impl SPR {
+    pub const GQR: [Self; 8] = [
+        Self::GQR0,
+        Self::GQR1,
+        Self::GQR2,
+        Self::GQR3,
+        Self::GQR4,
+        Self::GQR5,
+        Self::GQR6,
+        Self::GQR7,
+    ];
+
     /// Creates a new SPR with the given index.
     ///
     /// # Panics
