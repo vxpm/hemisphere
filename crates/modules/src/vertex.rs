@@ -92,7 +92,7 @@ impl VertexModule for InterpreterModule {
                     .unwrap_or(default_pos_matrix_idx) as u16;
 
             matrix_set.include(pos_norm_matrix);
-            matrix_set.include(pos_norm_matrix + 256);
+            matrix_set.include(pos_norm_matrix + 64);
 
             let mut tex_coords_matrix = [0; 8];
             seq! {

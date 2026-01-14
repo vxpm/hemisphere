@@ -308,7 +308,7 @@ impl Renderer {
             _pad0: 0,
 
             position_mat: get_matrix(vertex.pos_norm_matrix).unwrap(),
-            normal_mat: get_matrix(vertex.pos_norm_matrix + 256).unwrap(),
+            normal_mat: get_matrix(vertex.pos_norm_matrix + 64).unwrap(),
 
             chan0: vertex.chan0,
             chan1: vertex.chan1,
