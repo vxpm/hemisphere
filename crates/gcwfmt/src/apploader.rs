@@ -1,3 +1,6 @@
+//! An apploader is a small wrapper around a `.dol` file that's present in `.iso`s to load games
+//! from disk into memory.
+
 use binrw::{BinRead, BinWrite, NullString};
 
 #[derive(Debug, BinRead, BinWrite)]

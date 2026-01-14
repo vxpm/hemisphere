@@ -1,10 +1,14 @@
-use binrw::{BinRead, io::BufReader};
 use bytesize::ByteSize;
 use comfy_table::{
     Cell, CellAlignment, ContentArrangement, Table, modifiers::UTF8_ROUND_CORNERS,
     presets::UTF8_FULL,
 };
 use eyre_pretty::{Context, Result};
+use gcwfmt::{
+    apploader::Apploader,
+    binrw::{BinRead, io::BufReader},
+    dol, iso,
+};
 use std::{
     io::{Read, Seek},
     path::PathBuf,
@@ -84,7 +88,7 @@ pub fn inspect_dol(input: PathBuf) -> Result<()> {
     Ok(())
 }
 
-fn apploader_table(apploader: &iso::Apploader) -> Result<()> {
+fn apploader_table(apploader: &Apploader) -> Result<()> {
     let mut properties = Table::new();
     properties
         .load_preset(UTF8_FULL)
@@ -97,20 +101,20 @@ fn apploader_table(apploader: &iso::Apploader) -> Result<()> {
 
     properties.add_row(vec![
         Cell::new("Version"),
-        Cell::new(format!("{}", apploader.version)),
+        Cell::new(format!("{}", apploader.header.version)),
     ]);
 
     properties.add_row(vec![
         Cell::new("Entrypoint"),
-        Cell::new(format!("0x{:08X}", apploader.entrypoint)),
+        Cell::new(format!("0x{:08X}", apploader.header.entrypoint)),
     ]);
 
     properties.add_row(vec![
         Cell::new("Size"),
         Cell::new(format!(
             "0x{:08X} ({})",
-            apploader.size,
-            ByteSize(apploader.size as u64)
+            apploader.header.size,
+            ByteSize(apploader.header.size as u64)
         )),
     ]);
 
@@ -118,8 +122,8 @@ fn apploader_table(apploader: &iso::Apploader) -> Result<()> {
         Cell::new("Trailer Size"),
         Cell::new(format!(
             "0x{:08X} ({})",
-            apploader.size,
-            ByteSize(apploader.size as u64)
+            apploader.header.size,
+            ByteSize(apploader.header.size as u64)
         )),
     ]);
 

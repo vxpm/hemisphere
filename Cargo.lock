@@ -1187,13 +1187,11 @@ dependencies = [
 name = "cubetool"
 version = "0.1.0"
 dependencies = [
- "binrw",
  "bytesize",
  "clap",
  "comfy-table",
- "dol",
  "eyre-pretty",
- "iso",
+ "gcwfmt",
  "petgraph 0.8.3",
  "powerpc",
 ]
@@ -1336,15 +1334,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d4b8a88685455ed29a21542a33abd9cb6510b6b129abadabdcef0f4c55bc8f61"
 dependencies = [
  "litrs",
-]
-
-[[package]]
-name = "dol"
-version = "0.1.0"
-dependencies = [
- "binrw",
- "easyerr",
- "elf",
 ]
 
 [[package]]
@@ -1875,6 +1864,15 @@ name = "futures-sink"
 version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e575fab7d1e0dcb8d0c7bcf9a63ee213816ab51902e6d244a95819acacf1d4f7"
+
+[[package]]
+name = "gcwfmt"
+version = "0.1.0"
+dependencies = [
+ "binrw",
+ "easyerr",
+ "elf",
+]
 
 [[package]]
 name = "gekko"
@@ -2434,15 +2432,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a6cb138bb79a146c1bd460005623e142ef0181e3d0219cb493e02f7d08a35695"
 
 [[package]]
-name = "iso"
-version = "0.1.0"
-dependencies = [
- "binrw",
- "dol",
- "easyerr",
-]
-
-[[package]]
 name = "itertools"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2570,13 +2559,12 @@ dependencies = [
  "bitvec",
  "bytesize",
  "color-backtrace",
- "dol",
  "easyerr",
+ "gcwfmt",
  "gekko",
  "glam",
  "gxtex",
  "indicatif",
- "iso",
  "oneshot",
  "ordered-float",
  "ring-arena",

@@ -1,10 +1,8 @@
-//! A simple .dol file parser using [`binrw`].
+//! A `.dol` file is a proprietary executable format used in the GameCube and the Wii.
 
-use std::io::{Read, Seek};
-
-pub use binrw;
 use binrw::{BinRead, BinWrite};
 use easyerr::{Error, ResultExt};
+use std::io::{Read, Seek};
 
 const HEADER_SIZE: usize = 0x100;
 

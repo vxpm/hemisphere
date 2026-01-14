@@ -1,5 +1,8 @@
-use binrw::{BinRead, NullString};
 use eyre_pretty::Result;
+use gcwfmt::{
+    binrw::{BinRead, NullString},
+    iso,
+};
 use petgraph::{Graph, graph::NodeIndex};
 use std::io::{Read, Seek, SeekFrom};
 

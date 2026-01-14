@@ -33,8 +33,8 @@ use crate::{
         scheduler::{HandlerCtx, Scheduler},
     },
 };
-use dol::binrw::BinRead;
 use easyerr::{Error, ResultExt};
+use gcwfmt::{apploader, binrw::BinRead, dol, iso};
 use gekko::{Address, Cpu, Cycles};
 use std::io::{Cursor, SeekFrom};
 
@@ -92,7 +92,7 @@ pub enum LoadApploaderError {
     #[error(transparent)]
     Io { source: std::io::Error },
     #[error(transparent)]
-    Apploader { source: iso::binrw::Error },
+    Apploader { source: gcwfmt::binrw::Error },
 }
 
 impl System {
@@ -102,13 +102,13 @@ impl System {
             .seek(SeekFrom::Start(0x2440))
             .context(LoadApploaderCtx::Io)?;
 
-        let apploader =
-            iso::Apploader::read(&mut self.modules.disk).context(LoadApploaderCtx::Apploader)?;
+        let apploader = apploader::Apploader::read(&mut self.modules.disk)
+            .context(LoadApploaderCtx::Apploader)?;
 
-        let size = apploader.size;
-        self.mem.ram_mut()[0x0120_0000..][..size as usize].copy_from_slice(&apploader.data);
+        let size = apploader.header.size;
+        self.mem.ram_mut()[0x0120_0000..][..size as usize].copy_from_slice(&apploader.body);
 
-        Ok(Address(apploader.entrypoint))
+        Ok(Address(apploader.header.entrypoint))
     }
 
     fn load_executable(&mut self) {

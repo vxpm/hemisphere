@@ -1,14 +1,12 @@
-//! A simple GameCube .iso file parser using [`binrw`].
-pub mod apploader;
+//! A GameCube/Wii `.iso` file contains the entire image of a disk.
+
 pub mod filesystem;
 
+use crate::{apploader::Apploader, dol};
 use binrw::{BinRead, BinWrite, NullString};
 use easyerr::{Error, ResultExt};
+use filesystem::FileSystem;
 use std::io::{Read, Seek, SeekFrom};
-
-pub use binrw;
-
-use crate::filesystem::FileSystem;
 
 #[derive(Debug, Clone, Copy, BinRead, BinWrite)]
 #[brw(big, magic = 0xC233_9F3D_u32)]
@@ -89,21 +87,6 @@ impl Header {
             _ => return None,
         })
     }
-}
-
-/// An apploader program in a .iso.
-#[derive(Debug, BinRead, BinWrite)]
-#[brw(big)]
-pub struct Apploader {
-    #[brw(pad_size_to = 0x10)]
-    #[brw(assert(version.len() <= 0x10))]
-    pub version: NullString,
-    pub entrypoint: u32,
-    pub size: u32,
-    pub trailer_size: u32,
-    #[brw(pad_before = 0x4)]
-    #[br(count = size)]
-    pub data: Vec<u8>,
 }
 
 /// A GameCube .iso file.

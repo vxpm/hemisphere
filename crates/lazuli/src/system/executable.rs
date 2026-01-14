@@ -1,8 +1,8 @@
-use dol::{
-    Dol,
-    binrw::{BinRead, io::BufReader},
-};
 use easyerr::{Error, ResultExt};
+use gcwfmt::{
+    binrw::{BinRead, io::BufReader},
+    dol::Dol,
+};
 use std::path::Path;
 
 #[derive(Debug, Error)]

@@ -1171,7 +1171,7 @@ impl GPR {
         Self::from_repr(index).unwrap()
     }
 
-    /// Offset of this GPR in the [`Registers`] struct.
+    /// Offset of this GPR in the [`Cpu`] struct.
     #[inline(always)]
     pub fn offset(self) -> usize {
         offset_of!(Cpu, user.gpr) + size_of::<u32>() * (self as usize)
@@ -1226,7 +1226,7 @@ impl FPR {
         Self::from_repr(index).unwrap()
     }
 
-    /// Offset of this FPR in the [`Registers`] struct.
+    /// Offset of this FPR in the [`Cpu`] struct.
     #[inline(always)]
     pub fn offset(self) -> usize {
         offset_of!(Cpu, user.fpr) + size_of::<FloatPair>() * (self as usize)
@@ -1315,7 +1315,7 @@ impl SPR {
         }
     }
 
-    /// Offset of this SPR in the [`Registers`] struct.
+    /// Offset of this SPR in the [`Cpu`] struct.
     pub fn offset(self) -> usize {
         match self {
             Self::XER => offset_of!(Cpu, user.xer),
@@ -1471,7 +1471,7 @@ impl Reg {
         Self::SR15,
     ];
 
-    /// Offset of this register in the [`Registers`] struct.
+    /// Offset of this register in the [`Cpu`] struct.
     #[inline(always)]
     pub fn offset(self) -> usize {
         match self {

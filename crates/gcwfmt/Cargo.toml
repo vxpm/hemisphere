@@ -1,6 +1,6 @@
 [package]
-name = "dol"
-description = "A .dol file parser"
+name = "gcwfmt"
+description = "GameCube/Wii file formats"
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
@@ -9,6 +9,7 @@ license = "MIT"
 workspace = true
 
 [dependencies]
-elf = "0.8"
 easyerr.workspace = true
 binrw.workspace = true
+
+elf = "0.8"

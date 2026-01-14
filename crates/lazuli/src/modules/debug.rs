@@ -37,7 +37,7 @@ pub trait DebugModule: Send {
     fn find_location(&self, addr: Address) -> Option<Location<'_>>;
 }
 
-/// An implementation of [`AudioModule`] which does nothing.
+/// An implementation of [`DebugModule`] which does nothing.
 #[derive(Debug, Clone, Copy)]
 pub struct NopDebugModule;
 
