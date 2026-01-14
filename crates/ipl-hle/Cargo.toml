@@ -3,6 +3,7 @@ name = "ipl-hle"
 description = "A small program to HLE the IPL"
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
 
 [lints]
 workspace = true

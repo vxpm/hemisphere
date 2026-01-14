@@ -3,6 +3,7 @@ name = "gxtex"
 description = "Encoding and decoding of GX texture formats"
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
 
 [lints]
 workspace = true

@@ -3,6 +3,7 @@ name = "dspint"
 description = "DSP interpreter"
 version = "0.1.0"
 edition = "2024"
+license = "GPL-3.0-only"
 
 [lints]
 workspace = true

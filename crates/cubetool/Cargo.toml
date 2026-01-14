@@ -3,6 +3,7 @@ name = "cubetool"
 description = "A CLI tool for GameCube stuff"
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
 
 [lints]
 workspace = true
