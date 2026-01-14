@@ -119,6 +119,7 @@ impl App {
                         nop_syscalls: cfg.ppcjit.nop_syscalls,
                         force_fpu: cfg.ppcjit.force_fpu,
                         ignore_unimplemented: cfg.ppcjit.ignore_unimplemented_inst,
+                        round_to_single: cfg.ppcjit.round_to_single,
                     },
                     cache_path: jit_cache_path,
                 },

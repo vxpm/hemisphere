@@ -38,7 +38,7 @@ use std::{alloc::Layout, path::PathBuf, ptr::NonNull, sync::Arc};
 pub use block::Block;
 pub use sequence::Sequence;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, PartialEq, Default, Hash)]
 pub struct CompilerSettings {
     /// Whether to treat `sc` instructions as no-ops.
     pub nop_syscalls: bool,
@@ -46,6 +46,8 @@ pub struct CompilerSettings {
     pub force_fpu: bool,
     /// Whether to ignore unimplemented instructions instead of panicking.
     pub ignore_unimplemented: bool,
+    /// Whether to perform round to single operations.
+    pub round_to_single: bool,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -393,7 +395,11 @@ impl Jit {
             seq: translated.sequence.clone(),
         };
 
-        let key = CompiledKey::new(&*self.compiler.isa, &translated.sequence);
+        let key = CompiledKey::new(
+            &*self.compiler.isa,
+            &self.compiler.settings,
+            &translated.sequence,
+        );
         let compiled = if let Some(compiled) = self.cache.get(key) {
             compiled
         } else {

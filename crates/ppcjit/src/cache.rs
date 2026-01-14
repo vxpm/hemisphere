@@ -1,4 +1,4 @@
-use crate::{Compiled, Sequence};
+use crate::{Compiled, CompilerSettings, Sequence};
 use cranelift_codegen::isa::TargetIsa;
 use fjall::{Database, KeyspaceCreateOptions};
 use std::{
@@ -25,12 +25,13 @@ impl Hasher for Hash128 {
 pub struct CompiledKey(u128);
 
 impl CompiledKey {
-    pub fn new(isa: &dyn TargetIsa, seq: &Sequence) -> Self {
+    pub fn new(isa: &dyn TargetIsa, settings: &CompilerSettings, seq: &Sequence) -> Self {
         let mut hasher = Hash128(twox_hash::XxHash3_128::with_seed(0));
         isa.name().hash(&mut hasher);
         isa.triple().hash(&mut hasher);
         isa.flags().hash(&mut hasher);
         isa.isa_flags_hash_key().hash(&mut hasher);
+        settings.hash(&mut hasher);
         seq.hash(&mut hasher);
         Self(hasher.0.finish_128())
     }

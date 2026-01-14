@@ -18,6 +18,8 @@ pub struct PpcjitConfig {
     /// Whether to clear the JIT block cache
     #[arg(long, default_value_t = false)]
     pub clear_cache: bool,
+    #[arg(long, default_value_t = false)]
+    pub round_to_single: bool,
 }
 
 /// Lazuli: GameCube emulator
