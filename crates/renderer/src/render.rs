@@ -17,7 +17,7 @@ use glam::Mat4;
 use lazuli::{
     modules::render::{Action, TexEnvConfig, TexGenConfig, Viewport, oneshot},
     system::gx::{
-        DEPTH_24_BIT_MAX, Topology, Vertex, VertexStream,
+        DEPTH_24_BIT_MAX, MatrixId, Topology, Vertex, VertexStream,
         colors::{Rgba, Rgba8},
         pix::{
             self, BlendMode, CompareMode, ConstantAlpha, DepthMode, DstBlendFactor, SrcBlendFactor,
@@ -298,7 +298,7 @@ impl Renderer {
         }
     }
 
-    fn insert_vertex(&mut self, vertex: &Vertex, matrices: &[(u16, Mat4)]) -> u32 {
+    fn insert_vertex(&mut self, vertex: &Vertex, matrices: &[(MatrixId, Mat4)]) -> u32 {
         let get_matrix = |idx| matrices.iter().find_map(|(i, m)| (*i == idx).then_some(*m));
         let vertex = data::Vertex {
             position: vertex.position,
@@ -308,7 +308,7 @@ impl Renderer {
             _pad0: 0,
 
             position_mat: get_matrix(vertex.pos_norm_matrix).unwrap(),
-            normal_mat: get_matrix(vertex.pos_norm_matrix + 64).unwrap(),
+            normal_mat: get_matrix(vertex.pos_norm_matrix.normal()).unwrap(),
 
             chan0: vertex.chan0,
             chan1: vertex.chan1,

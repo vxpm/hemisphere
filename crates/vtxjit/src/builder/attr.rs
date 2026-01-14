@@ -1,7 +1,7 @@
 use crate::builder::{MEMFLAGS, MEMFLAGS_READONLY, ParserBuilder};
 use cranelift::{codegen::ir, prelude::InstBuilder};
 use lazuli::system::gx::{
-    Vertex,
+    MatrixId, Vertex,
     cmd::{
         ArrayDescriptor, Arrays,
         attributes::{
@@ -40,7 +40,7 @@ impl AttributeExt for attributes::PosMatrixIndex {
             .bd
             .ins()
             .load(ir::types::I8, MEMFLAGS_READONLY, ptr, 0);
-        let index = parser.bd.ins().uextend(ir::types::I16, index);
+
         parser.include_matrix(false, index);
         parser.include_matrix(true, index);
 
@@ -64,7 +64,7 @@ impl<const N: usize> AttributeExt for attributes::TexMatrixIndex<N> {
             MEMFLAGS,
             parser.consts.default_tex[N],
             parser.vars.vertex_ptr,
-            offset_of!(Vertex, tex_coords_matrix) as i32 + size_of::<u16>() as i32 * N as i32,
+            offset_of!(Vertex, tex_coords_matrix) as i32 + size_of::<MatrixId>() as i32 * N as i32,
         );
     }
 
@@ -73,7 +73,7 @@ impl<const N: usize> AttributeExt for attributes::TexMatrixIndex<N> {
             .bd
             .ins()
             .load(ir::types::I8, MEMFLAGS_READONLY, ptr, 0);
-        let index = parser.bd.ins().uextend(ir::types::I16, index);
+
         parser.include_matrix(false, index);
         parser.include_matrix(true, index);
 

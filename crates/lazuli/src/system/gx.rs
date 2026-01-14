@@ -388,7 +388,49 @@ pub struct GenMode {
     pub z_freeze: bool,
 }
 
-pub type MatrixId = u16;
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub struct MatrixId(u8);
+
+impl MatrixId {
+    #[inline(always)]
+    pub fn from_raw(id: u8) -> Self {
+        assert!(id < 64 + 32);
+        Self(id)
+    }
+
+    #[inline(always)]
+    pub fn from_position_idx(index: u8) -> Self {
+        assert!(index < 64);
+        Self(index)
+    }
+
+    #[inline(always)]
+    pub fn from_normal_idx(index: u8) -> Self {
+        assert!(index < 32);
+        Self(index + 64)
+    }
+
+    #[inline(always)]
+    pub fn get(self) -> u8 {
+        self.0
+    }
+
+    #[inline(always)]
+    pub fn normal(self) -> Self {
+        assert!(!self.is_normal());
+        Self(self.0 + 64)
+    }
+
+    #[inline(always)]
+    pub fn index(&self) -> u8 {
+        self.0 % 64
+    }
+
+    #[inline(always)]
+    pub fn is_normal(&self) -> bool {
+        self.0 >= 64
+    }
+}
 
 /// A vertex extracted from a [`VertexAttributeStream`].
 #[derive(Debug, PartialEq, Default)]
@@ -407,7 +449,7 @@ pub struct Vertex {
 /// A stream of [`Vertex`] elements and their associated matrices.
 pub struct VertexStream {
     vertices: Handle<Vertex>,
-    matrices: Handle<(u16, Mat4)>,
+    matrices: Handle<(MatrixId, Mat4)>,
 }
 
 impl VertexStream {
@@ -417,7 +459,7 @@ impl VertexStream {
         unsafe { self.vertices.as_slice().assume_init_ref() }
     }
 
-    pub fn matrices(&self) -> &[(u16, Mat4)] {
+    pub fn matrices(&self) -> &[(MatrixId, Mat4)] {
         // SAFETY: this struct is only created inside `extract_vertices`, which mantains
         // a static arena
         unsafe { self.matrices.as_slice().assume_init_ref() }
@@ -436,8 +478,8 @@ impl Default for MatrixSet {
 
 impl MatrixSet {
     #[inline(always)]
-    pub fn include(&mut self, index: u16) {
-        self.0.set(index as usize, true);
+    pub fn include(&mut self, id: MatrixId) {
+        self.0.set(id.index() as usize, true);
     }
 
     #[inline(always)]
@@ -446,8 +488,8 @@ impl MatrixSet {
     }
 
     #[inline(always)]
-    pub fn iter(&self) -> impl Iterator<Item = u16> {
-        self.0.iter_ones().map(|x| x as u16)
+    pub fn iter(&self) -> impl Iterator<Item = MatrixId> {
+        self.0.iter_ones().map(|x| MatrixId::from_raw(x as u8))
     }
 
     #[inline(always)]
@@ -1041,11 +1083,11 @@ fn alloc_vertices_handle(length: usize) -> Handle<Vertex> {
 }
 
 #[inline]
-fn alloc_matrices_handle(length: usize) -> Handle<(u16, Mat4)> {
+fn alloc_matrices_handle(length: usize) -> Handle<(MatrixId, Mat4)> {
     const CHUNK_SIZE: usize = 2 * bytesize::MIB as usize;
     const CHUNK_CAPACITY: NonZero<usize> = NonZero::new(CHUNK_SIZE / size_of::<Mat4>()).unwrap();
 
-    static ARENA: LazyLock<Mutex<RingArena<(u16, Mat4)>>> =
+    static ARENA: LazyLock<Mutex<RingArena<(MatrixId, Mat4)>>> =
         LazyLock::new(|| Mutex::new(RingArena::new(CHUNK_CAPACITY)));
 
     ARENA.lock().unwrap().allocate(length)
@@ -1087,17 +1129,14 @@ fn extract_vertices(sys: &mut System, stream: &VertexAttributeStream) -> VertexS
     let mut matrices = alloc_matrices_handle(sys.gpu.matrix_set.len());
     let matrices_slice = unsafe { matrices.as_mut_slice() };
 
-    for (i, mat_idx) in sys.gpu.matrix_set.iter().enumerate() {
-        let is_normal = mat_idx >= 256;
-        let mem_idx = mat_idx as u8;
-
-        let mat = if is_normal {
-            Mat4::from_mat3(sys.gpu.xform.normal_matrix(mem_idx))
+    for (i, mat_id) in sys.gpu.matrix_set.iter().enumerate() {
+        let mat = if mat_id.is_normal() {
+            Mat4::from_mat3(sys.gpu.xform.normal_matrix(mat_id.index()))
         } else {
-            sys.gpu.xform.matrix(mem_idx)
+            sys.gpu.xform.matrix(mat_id.index())
         };
 
-        matrices_slice[i].write((mat_idx, mat));
+        matrices_slice[i].write((mat_id, mat));
     }
 
     VertexStream { vertices, matrices }

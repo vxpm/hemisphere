@@ -2,7 +2,7 @@ use lazuli::{
     modules::vertex::{Ctx, VertexModule},
     stream::{BinReader, BinaryStream},
     system::gx::{
-        MatrixSet, Vertex,
+        MatrixId, MatrixSet, Vertex,
         cmd::{
             ArrayDescriptor, VertexAttributeStream, VertexDescriptor,
             attributes::{
@@ -89,12 +89,13 @@ impl VertexModule for InterpreterModule {
         for i in 0..stream.count() {
             let pos_norm_matrix =
                 read_attribute::<attributes::PosMatrixIndex>(ctx, vcd, vat, &mut reader)
-                    .unwrap_or(default_pos_matrix_idx) as u16;
+                    .unwrap_or(default_pos_matrix_idx);
 
+            let pos_norm_matrix = MatrixId::from_position_idx(pos_norm_matrix);
             matrix_set.include(pos_norm_matrix);
-            matrix_set.include(pos_norm_matrix + 64);
+            matrix_set.include(pos_norm_matrix.normal());
 
-            let mut tex_coords_matrix = [0; 8];
+            let mut tex_coords_matrix = [Default::default(); 8];
             seq! {
                 N in 0..8 {
                     let default = ctx
@@ -105,10 +106,10 @@ impl VertexModule for InterpreterModule {
 
                     let tex_matrix_index =
                         read_attribute::<attributes::TexMatrixIndex<N>>(ctx, vcd, vat, &mut reader)
-                            .unwrap_or(default) as u16;
+                            .unwrap_or(default);
 
-                    matrix_set.include(tex_matrix_index);
-                    tex_coords_matrix[N] = tex_matrix_index;
+                    tex_coords_matrix[N] = MatrixId::from_position_idx(tex_matrix_index);
+                    matrix_set.include(tex_coords_matrix[N]);
                 }
             }
 
