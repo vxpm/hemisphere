@@ -20,6 +20,9 @@ homebrew. Here's a very small list of games that are frequently tested and go in
 - Crash Bandicoot: The Wrath of Cortex
 - WarioWare, Inc.: Mega Party Game$!
 
+It's worth noting that these are _not_ the only games that work. Other games might or might not work,
+most are untested.
+
 On a more technical note, here's what `lazuli` currently offers:
 
 - `cranelift` based PowerPC JIT compiler
@@ -60,7 +63,7 @@ which case you won't see anything if you don't have one). To pass an IPL:
 lazuli --ipl path/to/ipl.bin --iso path/to/gamecube/game.iso
 ```
 
-You can also pass `--force-ipl` to skip the high-level emulation of the IPL (IPL-HLE) and instead
+You can also pass `--ipl-lle` to skip the high-level emulation of the IPL (IPL-HLE) and instead
 use the provided rom to boot. Beware this currently has issues and will likely not work.
 
 For more CLI options, `--help` is your friend.
