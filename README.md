@@ -56,7 +56,7 @@ you can run it in the terminal with a path to the `.iso` file you want to run:
 lazuli --iso path/to/gamecube/game.iso
 ```
 
-You do not need an IPL ROM (the "bios") to run games, but some games might use it's embedded font (in
+You do not need an IPL ROM (the "bios") to run games, but some games might use its embedded font (in
 which case you won't see anything if you don't have one). To pass an IPL:
 
 ```sh
