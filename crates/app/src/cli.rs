@@ -18,6 +18,7 @@ pub struct PpcjitConfig {
     /// Whether to clear the JIT block cache
     #[arg(long, default_value_t = false)]
     pub clear_cache: bool,
+    /// Whether to perform round-to-single operations
     #[arg(long, default_value_t = false)]
     pub round_to_single: bool,
 }
@@ -28,26 +29,28 @@ pub struct PpcjitConfig {
 pub struct Config {
     #[command(flatten)]
     pub ppcjit: PpcjitConfig,
-    /// Path to the IPL ROM.
+    /// Path to the IPL ROM
     #[arg(long)]
     pub ipl: Option<PathBuf>,
-    /// Path to the ROM to load and execute.
+    /// Path to the ROM to load and execute
     ///
     /// Supported format is .iso. To sideload executables, use the `exec` argument.
     #[arg(short, long)]
     pub iso: Option<PathBuf>,
-    /// Path to the executable to sideload and execute.
+    /// Path to the executable to sideload and execute
     ///
     /// Supported format is .dol.
     #[arg(long)]
     pub exec: Option<PathBuf>,
-    /// Whether to load IPL instead of HLEing it for loading games.
-    #[arg(long, default_value_t = false)]
-    pub force_ipl: bool,
-    /// Path to a file to use as a debug info provider.
+    /// Path to a file to use as a debug info provider
+    ///
+    /// Supported formats are .elf and .map.
     #[arg(long)]
     pub debug: Option<PathBuf>,
-    /// Whether to start running right away
+    /// Whether to LLE the IPL instead of HLEing it for loading games
+    #[arg(long, default_value_t = false)]
+    pub ipl_lle: bool,
+    /// Whether to start running the emulator right away
     #[arg(short, long, default_value_t = false)]
     pub run: bool,
 }

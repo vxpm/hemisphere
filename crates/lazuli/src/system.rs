@@ -40,7 +40,7 @@ use std::io::{Cursor, SeekFrom};
 
 /// System configuration.
 pub struct Config {
-    pub force_ipl: bool,
+    pub ipl_lle: bool,
     pub ipl: Option<Vec<u8>>,
     pub sideload: Option<Executable>,
 }
@@ -259,7 +259,7 @@ impl System {
             modules,
         };
 
-        if system.config.force_ipl {
+        if system.config.ipl_lle {
             system.load_ipl();
         } else if system.config.sideload.is_some() {
             system.load_executable();

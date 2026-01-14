@@ -105,7 +105,7 @@ fn run_test(file: file::TestFile, quiet: bool) -> Result<(), Failed> {
         system::Config {
             ipl: None,
             sideload: None,
-            force_ipl: false,
+            ipl_lle: false,
         },
     );
 

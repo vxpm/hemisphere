@@ -139,7 +139,7 @@ impl App {
             cores,
             modules,
             system::Config {
-                force_ipl: cfg.force_ipl,
+                ipl_lle: cfg.ipl_lle,
                 ipl,
                 sideload: executable,
             },
