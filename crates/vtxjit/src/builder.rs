@@ -127,18 +127,12 @@ impl<'ctx> ParserBuilder<'ctx> {
     }
 
     fn include_matrix(&mut self, is_normal: bool, mat_idx: ir::Value) {
-        let mat_idx = self.bd.ins().uextend(self.consts.ptr_type, mat_idx);
-        let mat_full_idx = if is_normal {
-            self.bd.ins().iadd_imm(mat_idx, 64)
-        } else {
-            mat_idx
-        };
+        let bit_idx = self.bd.ins().uextend(self.consts.ptr_type, mat_idx);
+        let ptr = self
+            .bd
+            .ins()
+            .iadd_imm(self.consts.mtx_set_ptr, if is_normal { 8 } else { 0 });
 
-        let word_idx = self.bd.ins().udiv_imm(mat_full_idx, 64);
-        let bit_idx = self.bd.ins().urem_imm(mat_full_idx, 64);
-
-        let offset = self.bd.ins().imul_imm(word_idx, 8);
-        let ptr = self.bd.ins().iadd(self.consts.mtx_set_ptr, offset);
         let curr = self.bd.ins().load(ir::types::I64, MEMFLAGS, ptr, 0);
         let one = self.bd.ins().iconst(ir::types::I64, 1);
         let bit = self.bd.ins().ishl(one, bit_idx);

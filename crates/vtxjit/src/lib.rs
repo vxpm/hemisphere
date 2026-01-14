@@ -6,6 +6,7 @@ use cranelift::{
     frontend, native,
     prelude::{Configurable, isa::TargetIsa},
 };
+use jitalloc::{Allocator, Exec};
 use lazuli::{
     modules::vertex::{Ctx, VertexModule},
     system::gx::{
@@ -13,7 +14,6 @@ use lazuli::{
         cmd::{VertexAttributeStream, VertexDescriptor, attributes::VertexAttributeTable},
     },
 };
-use jitalloc::{Allocator, Exec};
 use parser::VertexParser;
 use rustc_hash::FxHashMap;
 use std::{collections::hash_map::Entry, mem::MaybeUninit, sync::Arc};
@@ -103,8 +103,8 @@ impl Compiler {
         // println!("{:?}", config);
         // println!("{}", func.display());
 
+        // code_ctx.want_disasm = true;
         code_ctx.clear();
-        code_ctx.want_disasm = true;
         code_ctx.func = func;
         code_ctx
             .compile(&*self.isa, &mut Default::default())

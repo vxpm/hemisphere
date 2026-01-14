@@ -253,6 +253,32 @@ impl AttributeExt for attributes::Normal {
     }
 }
 
+fn rgba_vector(
+    parser: &mut ParserBuilder,
+    r: ir::Value,
+    g: ir::Value,
+    b: ir::Value,
+    a: ir::Value,
+) -> ir::Value {
+    let (r, g, b, a) = if parser.bd.func.stencil.dfg.value_type(r) != ir::types::I32 {
+        (
+            parser.bd.ins().uextend(ir::types::I32, r),
+            parser.bd.ins().uextend(ir::types::I32, g),
+            parser.bd.ins().uextend(ir::types::I32, b),
+            parser.bd.ins().uextend(ir::types::I32, a),
+        )
+    } else {
+        (r, g, b, a)
+    };
+
+    let rgba = parser.bd.ins().scalar_to_vector(ir::types::I32X4, r);
+    let rgba = parser.bd.ins().insertlane(rgba, g, 1);
+    let rgba = parser.bd.ins().insertlane(rgba, b, 2);
+    let rgba = parser.bd.ins().insertlane(rgba, a, 3);
+
+    rgba
+}
+
 fn read_rgba(format: ColorFormat, parser: &mut ParserBuilder, ptr: ir::Value) -> ir::Value {
     let to_float = |parser: &mut ParserBuilder, rgba, recip| {
         let rgba = parser.bd.ins().fcvt_from_uint(ir::types::F32X4, rgba);
@@ -271,16 +297,7 @@ fn read_rgba(format: ColorFormat, parser: &mut ParserBuilder, ptr: ir::Value) ->
             let g = parser.shift_mask(value, 5, 0x3F);
             let b = parser.shift_mask(value, 11, 0x1F);
             let a = parser.bd.ins().iconst(ir::types::I16, 255);
-
-            let r = parser.bd.ins().uextend(ir::types::I32, r);
-            let g = parser.bd.ins().uextend(ir::types::I32, g);
-            let b = parser.bd.ins().uextend(ir::types::I32, b);
-            let a = parser.bd.ins().uextend(ir::types::I32, a);
-
-            let rgba = parser.bd.ins().scalar_to_vector(ir::types::I32X4, r);
-            let rgba = parser.bd.ins().insertlane(rgba, g, 1);
-            let rgba = parser.bd.ins().insertlane(rgba, b, 2);
-            let rgba = parser.bd.ins().insertlane(rgba, a, 3);
+            let rgba = rgba_vector(parser, r, g, b, a);
 
             const SIMD_CONST: [f32; 4] = [1.0 / 31.0, 1.0 / 63.0, 1.0 / 31.0, 1.0 / 255.0];
             let recip_const = parser
@@ -293,33 +310,22 @@ fn read_rgba(format: ColorFormat, parser: &mut ParserBuilder, ptr: ir::Value) ->
 
             to_float(parser, rgba, recip)
         }
-        ColorFormat::Rgb888 => {
+        ColorFormat::Rgb888 | ColorFormat::Rgb888x => {
             let rg = parser
                 .bd
                 .ins()
                 .load(ir::types::I16, MEMFLAGS_READONLY, ptr, 0);
             let b = parser.bd.ins().load(ir::types::I8, MEMFLAGS, ptr, 2);
             let a = parser.bd.ins().iconst(ir::types::I8, 255);
-
             let r = parser.bd.ins().band_imm(rg, 255);
             let g = parser.bd.ins().ushr_imm(rg, 8);
 
-            let r = parser.bd.ins().uextend(ir::types::I32, r);
-            let g = parser.bd.ins().uextend(ir::types::I32, g);
-            let b = parser.bd.ins().uextend(ir::types::I32, b);
-            let a = parser.bd.ins().uextend(ir::types::I32, a);
-
-            let rgba = parser.bd.ins().scalar_to_vector(ir::types::I32X4, r);
-            let rgba = parser.bd.ins().insertlane(rgba, g, 1);
-            let rgba = parser.bd.ins().insertlane(rgba, b, 2);
-            let rgba = parser.bd.ins().insertlane(rgba, a, 3);
-
+            let rgba = rgba_vector(parser, r, g, b, a);
             let recip = parser.bd.ins().f32const(1.0 / 255.0);
             let recip = parser.bd.ins().splat(ir::types::F32X4, recip);
 
             to_float(parser, rgba, recip)
         }
-        ColorFormat::Rgb888x => todo!(),
         ColorFormat::Rgba4444 => {
             let value = parser
                 .bd
@@ -330,22 +336,35 @@ fn read_rgba(format: ColorFormat, parser: &mut ParserBuilder, ptr: ir::Value) ->
             let b = parser.shift_mask(value, 8, 15);
             let a = parser.shift_mask(value, 12, 15);
 
-            let r = parser.bd.ins().uextend(ir::types::I32, r);
-            let g = parser.bd.ins().uextend(ir::types::I32, g);
-            let b = parser.bd.ins().uextend(ir::types::I32, b);
-            let a = parser.bd.ins().uextend(ir::types::I32, a);
-
-            let rgba = parser.bd.ins().scalar_to_vector(ir::types::I32X4, r);
-            let rgba = parser.bd.ins().insertlane(rgba, g, 1);
-            let rgba = parser.bd.ins().insertlane(rgba, b, 2);
-            let rgba = parser.bd.ins().insertlane(rgba, a, 3);
-
+            let rgba = rgba_vector(parser, r, g, b, a);
             let recip = parser.bd.ins().f32const(1.0 / 15.0);
             let recip = parser.bd.ins().splat(ir::types::F32X4, recip);
 
             to_float(parser, rgba, recip)
         }
-        ColorFormat::Rgba6666 => todo!(),
+        ColorFormat::Rgba6666 => {
+            let low = parser
+                .bd
+                .ins()
+                .load(ir::types::I16, MEMFLAGS_READONLY, ptr, 0);
+            let low = parser.bd.ins().uextend(ir::types::I32, low);
+
+            let high = parser.bd.ins().load(ir::types::I8, MEMFLAGS, ptr, 2);
+            let high = parser.bd.ins().uextend(ir::types::I32, high);
+            let high = parser.bd.ins().ishl_imm(high, 16);
+
+            let value = parser.bd.ins().bor(low, high);
+            let r = parser.shift_mask(value, 0, 63);
+            let g = parser.shift_mask(value, 6, 63);
+            let b = parser.shift_mask(value, 12, 63);
+            let a = parser.shift_mask(value, 18, 63);
+
+            let rgba = rgba_vector(parser, r, g, b, a);
+            let recip = parser.bd.ins().f32const(1.0 / 63.0);
+            let recip = parser.bd.ins().splat(ir::types::F32X4, recip);
+
+            to_float(parser, rgba, recip)
+        }
         ColorFormat::Rgba8888 => {
             let value = parser
                 .bd
@@ -356,11 +375,7 @@ fn read_rgba(format: ColorFormat, parser: &mut ParserBuilder, ptr: ir::Value) ->
             let b = parser.shift_mask(value, 16, 255);
             let a = parser.shift_mask(value, 24, 255);
 
-            let rgba = parser.bd.ins().scalar_to_vector(ir::types::I32X4, r);
-            let rgba = parser.bd.ins().insertlane(rgba, g, 1);
-            let rgba = parser.bd.ins().insertlane(rgba, b, 2);
-            let rgba = parser.bd.ins().insertlane(rgba, a, 3);
-
+            let rgba = rgba_vector(parser, r, g, b, a);
             let recip = parser.bd.ins().f32const(1.0 / 255.0);
             let recip = parser.bd.ins().splat(ir::types::F32X4, recip);
 
