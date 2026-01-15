@@ -68,7 +68,7 @@ impl<const N: usize> AttributeExt for attributes::TexMatrixIndex<N> {
             MEMFLAGS,
             index,
             parser.vars.vertex_ptr,
-            offset_of!(Vertex, tex_coords_matrix) as i32 + size_of::<u16>() as i32 * N as i32,
+            offset_of!(Vertex, tex_coords_matrix) as i32 + size_of::<u8>() as i32 * N as i32,
         );
 
         1
