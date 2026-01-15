@@ -1,7 +1,7 @@
 use crate::builder::{MEMFLAGS, MEMFLAGS_READONLY, ParserBuilder};
 use cranelift::{codegen::ir, prelude::InstBuilder};
 use lazuli::system::gx::{
-    MatrixId, Vertex,
+    Vertex,
     cmd::{
         ArrayDescriptor, Arrays,
         attributes::{
@@ -24,9 +24,6 @@ impl AttributeExt for attributes::PosMatrixIndex {
     const ARRAY_OFFSET: usize = usize::MAX;
 
     fn set_default(parser: &mut ParserBuilder) {
-        parser.include_matrix(false, parser.consts.default_pos);
-        parser.include_matrix(true, parser.consts.default_pos);
-
         parser.bd.ins().store(
             MEMFLAGS,
             parser.consts.default_pos,
@@ -57,16 +54,6 @@ impl AttributeExt for attributes::PosMatrixIndex {
 
 impl<const N: usize> AttributeExt for attributes::TexMatrixIndex<N> {
     const ARRAY_OFFSET: usize = usize::MAX;
-
-    fn set_default(parser: &mut ParserBuilder) {
-        parser.include_matrix(false, parser.consts.default_tex[N]);
-        parser.bd.ins().store(
-            MEMFLAGS,
-            parser.consts.default_tex[N],
-            parser.vars.vertex_ptr,
-            offset_of!(Vertex, tex_coords_matrix) as i32 + size_of::<MatrixId>() as i32 * N as i32,
-        );
-    }
 
     fn parse(_: &Self::Descriptor, parser: &mut ParserBuilder, ptr: ir::Value) -> u32 {
         let index = parser

@@ -479,7 +479,7 @@ impl Default for MatrixSet {
 impl MatrixSet {
     #[inline(always)]
     pub fn include(&mut self, id: MatrixId) {
-        self.0.set(id.index() as usize, true);
+        self.0.set(id.get() as usize, true);
     }
 
     #[inline(always)]

@@ -2,8 +2,9 @@ use jitalloc::{Allocation, Exec};
 use lazuli::system::gx::{
     MatrixSet, Vertex,
     cmd::{Arrays, VertexDescriptor, attributes::VertexAttributeTable},
-    xform::DefaultMatrices,
 };
+
+use crate::UnpackedDefaultMatrices;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Config {
@@ -23,7 +24,7 @@ impl Config {
 pub type ParserFn = extern "sysv64" fn(
     *const u8,
     *const Arrays,
-    *const DefaultMatrices,
+    *const UnpackedDefaultMatrices,
     *const u8,
     *mut Vertex,
     *mut MatrixSet,

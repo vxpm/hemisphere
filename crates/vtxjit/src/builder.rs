@@ -1,6 +1,6 @@
 mod attr;
 
-use crate::{Compiler, builder::attr::AttributeExt, parser::Config};
+use crate::{Compiler, UnpackedDefaultMatrices, builder::attr::AttributeExt, parser::Config};
 use cranelift::{codegen::ir, frontend, prelude::InstBuilder};
 use lazuli::system::gx::{
     Vertex,
@@ -31,7 +31,7 @@ struct Consts {
     ram_ptr: ir::Value,
     data_ptr: ir::Value,
     default_pos: ir::Value,
-    default_tex: [ir::Value; 8],
+    default_tex: ir::Value,
     vertices_ptr: ir::Value,
     mtx_set_ptr: ir::Value,
     count: ir::Value,
@@ -72,19 +72,20 @@ impl<'ctx> ParserBuilder<'ctx> {
         let mtx_map_ptr = params[5];
         let count = params[6];
 
-        // extract default matrix indices
-        let default_mtx = bd
-            .ins()
-            .load(ir::types::I64, MEMFLAGS_READONLY, default_mtx_ptr, 0);
-        let mut extract_idx = |i: usize| {
-            let shifted = bd.ins().ushr_imm(default_mtx, i as i64 * 6);
-            let masked = bd.ins().band_imm(shifted, 0x3F);
+        // extract default matrices indices
+        let default_pos = bd.ins().load(
+            ir::types::I8,
+            MEMFLAGS_READONLY,
+            default_mtx_ptr,
+            offset_of!(UnpackedDefaultMatrices, view) as i32,
+        );
 
-            bd.ins().ireduce(ir::types::I16, masked)
-        };
-
-        let default_pos = extract_idx(0);
-        let default_tex: [ir::Value; 8] = std::array::from_fn(|i| extract_idx(i + 1));
+        let default_tex = bd.ins().load(
+            ir::types::I64,
+            MEMFLAGS_READONLY,
+            default_mtx_ptr,
+            offset_of!(UnpackedDefaultMatrices, tex) as i32,
+        );
 
         let consts = Consts {
             ptr_type,
@@ -238,8 +239,16 @@ impl<'ctx> ParserBuilder<'ctx> {
 
     fn body(&mut self) {
         self.bd.set_srcloc(ir::SourceLoc::new(0));
-
         self.parse::<attributes::PosMatrixIndex>();
+
+        // special case: write all default matrices
+        self.bd.ins().store(
+            MEMFLAGS,
+            self.consts.default_tex,
+            self.vars.vertex_ptr,
+            offset_of!(Vertex, tex_coords_matrix) as i32,
+        );
+
         seq! {
             N in 0..8 {
                 self.increment_srcloc();

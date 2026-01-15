@@ -10,8 +10,9 @@ use jitalloc::{Allocator, Exec};
 use lazuli::{
     modules::vertex::{Ctx, VertexModule},
     system::gx::{
-        MatrixSet, Vertex,
+        MatrixId, MatrixSet, Vertex,
         cmd::{VertexAttributeStream, VertexDescriptor, attributes::VertexAttributeTable},
+        xform::DefaultMatrices,
     },
 };
 use parser::VertexParser;
@@ -19,6 +20,21 @@ use rustc_hash::FxHashMap;
 use std::{collections::hash_map::Entry, mem::MaybeUninit, sync::Arc};
 
 use crate::{builder::ParserBuilder, parser::Config};
+
+#[repr(C)]
+struct UnpackedDefaultMatrices {
+    pub view: u8,
+    pub tex: [u8; 8],
+}
+
+impl UnpackedDefaultMatrices {
+    pub fn new(packed: &DefaultMatrices) -> Self {
+        Self {
+            view: packed.view().value(),
+            tex: packed.tex().map(|x| x.value()),
+        }
+    }
+}
 
 struct Compiler {
     isa: Arc<dyn TargetIsa>,
@@ -103,15 +119,15 @@ impl Compiler {
         // println!("{:?}", config);
         // println!("{}", func.display());
 
-        // code_ctx.want_disasm = true;
         code_ctx.clear();
+        code_ctx.want_disasm = true;
         code_ctx.func = func;
         code_ctx
             .compile(&*self.isa, &mut Default::default())
             .unwrap();
 
         let compiled = code_ctx.take_compiled_code().unwrap();
-        // println!("{}", compiled.vcode.as_ref().unwrap());
+        println!("{}", compiled.vcode.as_ref().unwrap());
 
         let alloc = self.allocator.allocate(64, compiled.code_buffer());
         VertexParser::new(alloc)
@@ -165,11 +181,19 @@ impl VertexModule for JitVertexModule {
             }
         };
 
+        let unpacked_default_matrices = UnpackedDefaultMatrices::new(ctx.default_matrices);
+        let view = MatrixId::from_position_idx(unpacked_default_matrices.view);
+        matrix_set.include(view);
+        matrix_set.include(view.normal());
+        for tex in unpacked_default_matrices.tex {
+            matrix_set.include(MatrixId::from_position_idx(tex));
+        }
+
         let parser = parser.as_ptr();
         parser(
             ctx.ram.as_ptr(),
             ctx.arrays,
-            ctx.default_matrices,
+            &raw const unpacked_default_matrices,
             stream.data().as_ptr(),
             vertices.as_mut_ptr().cast(),
             matrix_set,
