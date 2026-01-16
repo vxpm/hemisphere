@@ -17,7 +17,11 @@ use eyre_pretty::eyre::Result;
 use lazuli::{
     Lazuli,
     cores::Cores,
-    modules::debug::{DebugModule, NopDebugModule},
+    gcwfmt::rvz::Rvz,
+    modules::{
+        debug::{DebugModule, NopDebugModule},
+        disk::{DiskModule, NopDiskModule},
+    },
     system::{self, Modules, executable::Executable},
 };
 use nanorand::Rng;
@@ -33,7 +37,7 @@ use vtxjit::JitVertexModule;
 use modules::{
     audio::CpalModule,
     debug::{Addr2LineModule, MapFileModule},
-    disk::IsoModule,
+    disk::{IsoModule, RvzModule},
     input::GilrsModule,
 };
 
@@ -57,13 +61,26 @@ impl App {
             None
         };
 
-        let iso = IsoModule(if let Some(path) = &cfg.iso {
-            let file = std::fs::File::open(path)?;
-            let reader = BufReader::new(file);
-            Some(reader)
+        let disk: Box<dyn DiskModule> = if let Some(path) = &cfg.iso {
+            let extension = path.extension().and_then(|ext| ext.to_str()).unwrap();
+            match extension {
+                "iso" => {
+                    let file = std::fs::File::open(path)?;
+                    let reader = BufReader::new(file);
+                    Box::new(IsoModule(Some(reader)))
+                }
+                "rvz" => {
+                    let file = std::fs::File::open(path)?;
+                    let reader = BufReader::new(file);
+                    let rvz = Rvz::new(reader).unwrap();
+                    let rvz = RvzModule::new(rvz);
+                    Box::new(rvz)
+                }
+                _ => todo!(),
+            }
         } else {
-            None
-        });
+            Box::new(NopDiskModule)
+        };
 
         let executable = if let Some(path) = &cfg.exec {
             Some(Executable::open(path)?)
@@ -129,7 +146,7 @@ impl App {
         let modules = Modules {
             audio: Box::new(CpalModule::new()),
             debug: debug_module,
-            disk: Box::new(iso),
+            disk: disk,
             input: Box::new(GilrsModule::new()),
             render: Box::new(renderer.clone()),
             vertex: Box::new(JitVertexModule::new()),

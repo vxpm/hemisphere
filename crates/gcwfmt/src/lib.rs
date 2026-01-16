@@ -6,3 +6,9 @@ pub mod iso;
 pub mod rvz;
 
 pub use binrw;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Console {
+    GameCube,
+    Wii,
+}

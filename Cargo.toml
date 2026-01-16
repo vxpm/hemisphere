@@ -179,6 +179,7 @@ windows = { version = ">=0.59", features = [
     "Win32_System_Diagnostics_Debug",
 ] }
 rustix = { version = "1.1", features = ["mm"] }
+zstd = { version = "0.13", features = ["arrays"], default-features = false }
 
 # lints
 [workspace.lints.clippy]

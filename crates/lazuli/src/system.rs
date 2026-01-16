@@ -171,15 +171,19 @@ impl System {
             .unwrap();
 
         tracing::info!(
-            game_code = header.game_code(),
-            maker_code = header.maker_code,
-            disk_id = header.disk_id,
-            version = header.version,
-            audio_streaming = header.audio_streaming,
-            stream_buffer_size = header.stream_buffer_size,
+            game_code = header.meta.game_code(),
+            maker_code = header.meta.maker_code,
+            disk_id = header.meta.disk_id,
+            version = header.meta.version,
+            audio_streaming = header.meta.audio_streaming,
+            stream_buffer_size = header.meta.stream_buffer_size,
             "loading '{}' ({}) using IPL HLE",
-            header.game_name,
-            header.game_code_str().as_deref().unwrap_or("<unknown>")
+            header.meta.game_name,
+            header
+                .meta
+                .game_code_str()
+                .as_deref()
+                .unwrap_or("<unknown>")
         );
 
         // load apploader
@@ -198,12 +202,12 @@ impl System {
         self.cpu.user.gpr[3] = entry.value();
 
         // load dolphin-os globals
-        self.write_phys_slow::<u32>(Address(0x00), header.game_code());
-        self.write_phys_slow::<u16>(Address(0x04), header.maker_code);
-        self.write_phys_slow::<u8>(Address(0x06), header.disk_id);
-        self.write_phys_slow::<u8>(Address(0x07), header.version);
-        self.write_phys_slow::<u8>(Address(0x08), header.audio_streaming);
-        self.write_phys_slow::<u8>(Address(0x09), header.stream_buffer_size);
+        self.write_phys_slow::<u32>(Address(0x00), header.meta.game_code());
+        self.write_phys_slow::<u16>(Address(0x04), header.meta.maker_code);
+        self.write_phys_slow::<u8>(Address(0x06), header.meta.disk_id);
+        self.write_phys_slow::<u8>(Address(0x07), header.meta.version);
+        self.write_phys_slow::<u8>(Address(0x08), header.meta.audio_streaming);
+        self.write_phys_slow::<u8>(Address(0x09), header.meta.stream_buffer_size);
 
         self.write_phys_slow::<u32>(Address(0x1C), 0xC233_9F3D); // DVD Magic Word
         self.write_phys_slow::<u32>(Address(0x20), 0x0D15_EA5E); // Boot kind

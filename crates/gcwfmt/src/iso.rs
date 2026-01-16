@@ -2,20 +2,19 @@
 
 pub mod filesystem;
 
-use crate::{apploader::Apploader, dol};
+use crate::{Console, apploader::Apploader, dol};
 use binrw::{BinRead, BinWrite, NullString};
 use easyerr::{Error, ResultExt};
 use filesystem::FileSystem;
 use std::io::{Read, Seek, SeekFrom};
 
-#[derive(Debug, Clone, Copy, BinRead, BinWrite)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, BinRead, BinWrite)]
 #[brw(big, magic = 0xC233_9F3D_u32)]
 pub struct MagicWord;
 
-/// The header of a GameCube .iso file.
-#[derive(Debug, Clone, BinRead, BinWrite)]
+#[derive(Debug, Clone, PartialEq, Eq, BinRead, BinWrite)]
 #[brw(big)]
-pub struct Header {
+pub struct Meta {
     pub console_id: u8,
     pub game_id: u16,
     pub country_code: u8,
@@ -26,34 +25,11 @@ pub struct Header {
     pub stream_buffer_size: u8,
     #[brw(pad_before = 0x12)]
     pub magic: MagicWord,
-    #[brw(pad_size_to = 0x3E0)]
-    #[brw(assert(game_name.len() <= 0x3E0))]
+    #[brw(assert(game_name.len() <= 48))]
     pub game_name: NullString,
-    pub debug_monitor_offset: u32,
-    pub debug_monitor_target: u32,
-    #[brw(pad_before = 0x18)]
-    pub bootfile_offset: u32,
-    pub filesystem_offset: u32,
-    pub filesystem_size: u32,
-    pub max_filesystem_size: u32,
-    pub user_position: u32,
-    pub user_length: u32,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Console {
-    GameCube,
-    Wii,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Country {
-    Japan,
-    Pal,
-    Usa,
-}
-
-impl Header {
+impl Meta {
     pub fn game_code(&self) -> u32 {
         let game = self.game_id.to_be_bytes();
         u32::from_be_bytes([self.console_id, game[0], game[1], self.country_code])
@@ -71,11 +47,11 @@ impl Header {
         })
     }
 
-    pub fn country(&self) -> Option<Country> {
+    pub fn region(&self) -> Option<Region> {
         Some(match self.country_code {
-            b'J' => Country::Japan,
-            b'P' => Country::Pal,
-            b'E' => Country::Usa,
+            b'J' => Region::Japan,
+            b'P' => Region::Pal,
+            b'E' => Region::Usa,
             _ => return None,
         })
     }
@@ -87,6 +63,30 @@ impl Header {
             _ => return None,
         })
     }
+}
+
+/// The header of a GameCube .iso file.
+#[derive(Debug, Clone, BinRead, BinWrite)]
+#[brw(big)]
+pub struct Header {
+    #[brw(pad_size_to = 0x3E0)]
+    pub meta: Meta,
+    pub debug_monitor_offset: u32,
+    pub debug_monitor_target: u32,
+    #[brw(pad_before = 0x18)]
+    pub bootfile_offset: u32,
+    pub filesystem_offset: u32,
+    pub filesystem_size: u32,
+    pub max_filesystem_size: u32,
+    pub user_position: u32,
+    pub user_length: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Region {
+    Japan,
+    Pal,
+    Usa,
 }
 
 /// A GameCube .iso file.

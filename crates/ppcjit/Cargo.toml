@@ -23,5 +23,5 @@ twox-hash.workspace = true
 strum.workspace = true
 serde.workspace = true
 ciborium.workspace = true
+zstd.workspace = true
 fjall = { version = "3", default-features = false }
-zstd = { version = "0.13", features = ["arrays"], default-features = false }

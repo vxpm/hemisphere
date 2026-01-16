@@ -11,5 +11,6 @@ workspace = true
 [dependencies]
 easyerr.workspace = true
 binrw.workspace = true
+zstd.workspace = true
 
 elf = "0.8"

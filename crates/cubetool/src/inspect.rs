@@ -7,10 +7,12 @@ use eyre_pretty::{Context, Result};
 use gcwfmt::{
     apploader::Apploader,
     binrw::{BinRead, io::BufReader},
-    dol, iso,
+    dol,
+    iso::{self, Meta},
+    rvz,
 };
 use std::{
-    io::{Read, Seek},
+    io::{Cursor, Read, Seek},
     path::PathBuf,
 };
 
@@ -227,20 +229,20 @@ pub fn inspect_iso(input: PathBuf, filesystem: bool) -> Result<()> {
     let header = iso.header();
     properties.add_row(vec![
         Cell::new("Game Name"),
-        Cell::new(format!("{}", header.game_name)),
+        Cell::new(format!("{}", header.meta.game_name)),
     ]);
 
     properties.add_row(vec![
         Cell::new("Game ID"),
-        Cell::new(format!("0x{:04X}", header.game_id)),
+        Cell::new(format!("0x{:04X}", header.meta.game_id)),
     ]);
 
     properties.add_row(vec![
         Cell::new("Console ID"),
         Cell::new(format!(
             "0x{:02X} ({})",
-            header.console_id,
-            maybe(header.console())
+            header.meta.console_id,
+            maybe(header.meta.console())
         )),
     ]);
 
@@ -248,8 +250,8 @@ pub fn inspect_iso(input: PathBuf, filesystem: bool) -> Result<()> {
         Cell::new("Country Code"),
         Cell::new(format!(
             "0x{:02X} ({})",
-            header.country_code,
-            maybe(header.country())
+            header.meta.country_code,
+            maybe(header.meta.region())
         )),
     ]);
 
@@ -257,24 +259,28 @@ pub fn inspect_iso(input: PathBuf, filesystem: bool) -> Result<()> {
         Cell::new("Game Code"),
         Cell::new(format!(
             "{} (0x{:04X})",
-            header.game_code_str().as_deref().unwrap_or("<invalid>"),
-            header.game_code()
+            header
+                .meta
+                .game_code_str()
+                .as_deref()
+                .unwrap_or("<invalid>"),
+            header.meta.game_code()
         )),
     ]);
 
     properties.add_row(vec![
         Cell::new("Maker Code"),
-        Cell::new(format!("0x{:04X}", header.maker_code)),
+        Cell::new(format!("0x{:04X}", header.meta.maker_code)),
     ]);
 
     properties.add_row(vec![
         Cell::new("Disk ID"),
-        Cell::new(format!("0x{:02X}", header.disk_id)),
+        Cell::new(format!("0x{:02X}", header.meta.disk_id)),
     ]);
 
     properties.add_row(vec![
         Cell::new("Version"),
-        Cell::new(format!("0x{:02X}", header.version)),
+        Cell::new(format!("0x{:02X}", header.meta.version)),
     ]);
 
     properties.add_row(vec![
@@ -319,8 +325,8 @@ pub fn inspect_iso(input: PathBuf, filesystem: bool) -> Result<()> {
         Cell::new("Audio Streaming"),
         Cell::new(format!(
             "0x{:02X} ({})",
-            header.audio_streaming,
-            maybe(header.audio_streaming())
+            header.meta.audio_streaming,
+            maybe(header.meta.audio_streaming())
         )),
     ]);
 
@@ -328,8 +334,8 @@ pub fn inspect_iso(input: PathBuf, filesystem: bool) -> Result<()> {
         Cell::new("Stream Buffer Size"),
         Cell::new(format!(
             "0x{:02X} ({})",
-            header.stream_buffer_size,
-            ByteSize(header.stream_buffer_size as u64)
+            header.meta.stream_buffer_size,
+            ByteSize(header.meta.stream_buffer_size as u64)
         )),
     ]);
 
@@ -372,6 +378,20 @@ pub fn inspect_iso(input: PathBuf, filesystem: bool) -> Result<()> {
         println!("{info}");
         dol_table(&bootfile.header)?;
     }
+
+    Ok(())
+}
+
+pub fn inspect_rvz(input: PathBuf) -> Result<()> {
+    let mut file = std::fs::File::open(&input).context("opening file")?;
+    let mut rvz = rvz::Rvz::new(BufReader::new(&mut file)).context("parsing .rvz file")?;
+
+    dbg!(rvz.header());
+    dbg!(rvz.disk());
+    dbg!(rvz.disk_sections());
+
+    let mut buf = vec![0; 0x25C0];
+    rvz.read(0x1F800, &mut buf).unwrap();
 
     Ok(())
 }
