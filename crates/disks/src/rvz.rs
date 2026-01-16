@@ -1,7 +1,7 @@
 //! A `.rvz` file is a disc format designed to store the same data as `.iso` files in a
 //! space-efficient manner.
 
-use crate::{Console, iso};
+use crate::{Console, apploader, dol, iso};
 use binrw::{BinRead, BinResult, binread};
 use easyerr::{Error, ResultExt};
 use std::io::{Cursor, Read, Seek, SeekFrom};
@@ -620,5 +620,108 @@ where
         }
 
         Ok(out.len() as u64 - remaining)
+    }
+}
+
+/// A wrapper around [`Rvz`] providing an implementation of [`Read`] and [`Seek`].
+pub struct RvzReader<R> {
+    rvz: Rvz<R>,
+    position: u64,
+}
+
+impl<R> RvzReader<R> {
+    pub fn new(rvz: Rvz<R>) -> Self {
+        Self { rvz, position: 0 }
+    }
+
+    pub fn inner(&self) -> &Rvz<R> {
+        &self.rvz
+    }
+
+    pub fn inner_mut(&mut self) -> &mut Rvz<R> {
+        &mut self.rvz
+    }
+
+    pub fn into_inner(self) -> Rvz<R> {
+        self.rvz
+    }
+}
+
+impl<R> Read for RvzReader<R>
+where
+    R: Read + Seek,
+{
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let read = match self.rvz.read(self.position, buf) {
+            Ok(read) => read,
+            Err(e) => {
+                return Err(std::io::Error::other(format!(
+                    "rvz disk module failed: {e}"
+                )));
+            }
+        };
+
+        self.position += read;
+        Ok(read as usize)
+    }
+}
+
+impl<R> Seek for RvzReader<R>
+where
+    R: Read + Seek,
+{
+    fn seek(&mut self, from: SeekFrom) -> std::io::Result<u64> {
+        match from {
+            SeekFrom::Start(x) => self.position = x,
+            SeekFrom::End(x) => {
+                self.position = self
+                    .rvz
+                    .rvz_header()
+                    .inner
+                    .disk_len
+                    .saturating_sub_signed(x)
+            }
+            SeekFrom::Current(x) => self.position = self.position.saturating_add_signed(x),
+        }
+
+        Ok(self.position)
+    }
+}
+
+impl<R> RvzReader<R>
+where
+    R: Read + Seek,
+{
+    pub fn iso_header(&mut self) -> Result<iso::Header, binrw::Error> {
+        self.seek(SeekFrom::Start(0))?;
+        iso::Header::read_be(self)
+    }
+
+    pub fn bootfile(&mut self) -> Result<dol::Dol, binrw::Error> {
+        let header = self.iso_header()?;
+        self.seek(SeekFrom::Start(header.bootfile_offset as u64))?;
+        dol::Dol::read(self)
+    }
+
+    pub fn bootfile_header(&mut self) -> Result<dol::Header, binrw::Error> {
+        let header = self.iso_header()?;
+        self.seek(SeekFrom::Start(header.bootfile_offset as u64))?;
+        dol::Header::read(self)
+    }
+
+    pub fn apploader(&mut self) -> Result<apploader::Apploader, binrw::Error> {
+        self.seek(SeekFrom::Start(0x2440))?;
+        apploader::Apploader::read(self)
+    }
+
+    pub fn apploader_header(&mut self) -> Result<apploader::Header, binrw::Error> {
+        self.seek(SeekFrom::Start(0x2440))?;
+        apploader::Header::read(self)
+    }
+
+    pub fn filesystem(&mut self) -> Result<iso::filesystem::FileSystem, binrw::Error> {
+        let header = self.iso_header()?;
+        self.seek(SeekFrom::Start(header.filesystem_offset as u64))?;
+        iso::filesystem::FileSystem::read(self)
     }
 }

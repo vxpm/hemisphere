@@ -1,4 +1,7 @@
-use lazuli::{disks::rvz::Rvz, modules::disk::DiskModule};
+use lazuli::{
+    disks::rvz::{Rvz, RvzReader},
+    modules::disk::DiskModule,
+};
 use std::io::{Read, Seek, SeekFrom};
 
 /// An implementation of [`DiskModule`] for raw .iso data from a reader.
@@ -41,14 +44,11 @@ where
 }
 
 /// An implementation of [`DiskModule`] for .rvz disks.
-pub struct RvzModule<R> {
-    rvz: Rvz<R>,
-    position: u64,
-}
+pub struct RvzModule<R>(RvzReader<R>);
 
 impl<R> RvzModule<R> {
     pub fn new(rvz: Rvz<R>) -> Self {
-        Self { rvz, position: 0 }
+        Self(RvzReader::new(rvz))
     }
 }
 
@@ -57,16 +57,7 @@ where
     R: Read + Seek,
 {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        let read = match self.rvz.read(self.position, buf) {
-            Ok(read) => read,
-            Err(e) => {
-                tracing::error!("rvz disk module read failed: {e}");
-                return Err(std::io::Error::other("rvz disk module failed"));
-            }
-        };
-
-        self.position += read;
-        Ok(read as usize)
+        self.0.read(buf)
     }
 }
 
@@ -75,20 +66,7 @@ where
     R: Read + Seek,
 {
     fn seek(&mut self, from: SeekFrom) -> std::io::Result<u64> {
-        match from {
-            SeekFrom::Start(x) => self.position = x,
-            SeekFrom::End(x) => {
-                self.position = self
-                    .rvz
-                    .rvz_header()
-                    .inner
-                    .disk_len
-                    .saturating_sub_signed(x)
-            }
-            SeekFrom::Current(x) => self.position = self.position.saturating_add_signed(x),
-        }
-
-        Ok(self.position)
+        self.0.seek(from)
     }
 }
 

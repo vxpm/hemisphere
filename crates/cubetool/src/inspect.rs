@@ -4,11 +4,11 @@ use comfy_table::{
     presets::UTF8_FULL,
 };
 use disks::{
-    apploader::Apploader,
+    apploader,
     binrw::{BinRead, io::BufReader},
     dol,
-    iso::{self},
-    rvz,
+    iso::{self, Meta},
+    rvz::{self, RvzReader},
 };
 use eyre_pretty::{Context, Result};
 use std::{
@@ -17,6 +17,16 @@ use std::{
 };
 
 use crate::vfs::{self, VfsEntryId, VfsGraph, VirtualEntry};
+
+fn label(cells: impl IntoIterator<Item = String>) {
+    let mut label = Table::new();
+    label
+        .load_preset(comfy_table::presets::NOTHING)
+        .set_content_arrangement(ContentArrangement::Dynamic)
+        .set_header(cells.into_iter());
+
+    println!("{}", label);
+}
 
 fn dol_table(header: &dol::Header) -> Result<()> {
     let mut sections = Table::new();
@@ -84,13 +94,21 @@ pub fn inspect_dol(input: PathBuf) -> Result<()> {
             Cell::new(format!("Entry: 0x{:08X}", header.entry)),
         ]);
 
+    label([
+        format!(
+            "{} ({})",
+            input.file_name().unwrap().to_string_lossy(),
+            ByteSize(meta.len()).display()
+        ),
+        format!("Entry: 0x{:08X}", header.entry),
+    ]);
     println!("{info}");
     dol_table(&header)?;
 
     Ok(())
 }
 
-fn apploader_table(apploader: &Apploader) -> Result<()> {
+fn apploader_table(header: &apploader::Header) -> Result<()> {
     let mut properties = Table::new();
     properties
         .load_preset(UTF8_FULL)
@@ -103,20 +121,20 @@ fn apploader_table(apploader: &Apploader) -> Result<()> {
 
     properties.add_row(vec![
         Cell::new("Version"),
-        Cell::new(format!("{}", apploader.header.version)),
+        Cell::new(format!("{}", header.version)),
     ]);
 
     properties.add_row(vec![
         Cell::new("Entrypoint"),
-        Cell::new(format!("0x{:08X}", apploader.header.entrypoint)),
+        Cell::new(format!("0x{:08X}", header.entrypoint)),
     ]);
 
     properties.add_row(vec![
         Cell::new("Size"),
         Cell::new(format!(
             "0x{:08X} ({})",
-            apploader.header.size,
-            ByteSize(apploader.header.size as u64)
+            header.size,
+            ByteSize(header.size as u64)
         )),
     ]);
 
@@ -124,8 +142,8 @@ fn apploader_table(apploader: &Apploader) -> Result<()> {
         Cell::new("Trailer Size"),
         Cell::new(format!(
             "0x{:08X} ({})",
-            apploader.header.size,
-            ByteSize(apploader.header.size as u64)
+            header.size,
+            ByteSize(header.size as u64)
         )),
     ]);
 
@@ -191,27 +209,15 @@ fn inspect_iso_fs(mut iso: iso::Iso<impl Read + Seek>) -> Result<()> {
     Ok(())
 }
 
-pub fn inspect_iso(input: PathBuf, filesystem: bool) -> Result<()> {
-    let mut file = std::fs::File::open(&input).context("opening file")?;
-    let meta = file.metadata()?;
-    let mut iso = iso::Iso::new(BufReader::new(&mut file)).context("parsing .iso header")?;
+fn debug_or_unknown(value: Option<impl std::fmt::Debug>) -> String {
+    value
+        .map(|x| format!("{x:?}"))
+        .unwrap_or("<unknown>".to_owned())
+}
 
-    let mut info = Table::new();
-    info.load_preset(comfy_table::presets::NOTHING)
-        .set_content_arrangement(ContentArrangement::Dynamic)
-        .set_header(vec![Cell::new(format!(
-            "{} ({})",
-            input.file_name().unwrap().to_string_lossy(),
-            ByteSize(meta.len()).display()
-        ))]);
-
-    if filesystem {
-        println!("{info}");
-        return inspect_iso_fs(iso);
-    }
-
-    let mut properties = Table::new();
-    properties
+fn disk_meta_table(meta: &Meta) -> Table {
+    let mut table = Table::new();
+    table
         .load_preset(UTF8_FULL)
         .apply_modifier(UTF8_ROUND_CORNERS)
         .set_content_arrangement(ContentArrangement::Dynamic)
@@ -220,90 +226,93 @@ pub fn inspect_iso(input: PathBuf, filesystem: bool) -> Result<()> {
             Cell::new("Value").set_alignment(CellAlignment::Center),
         ]);
 
-    fn maybe(value: Option<impl std::fmt::Debug>) -> String {
-        value
-            .map(|x| format!("{x:?}"))
-            .unwrap_or("<unknown>".to_owned())
-    }
-
-    let header = iso.header();
-    properties.add_row(vec![
+    table.add_row(vec![
         Cell::new("Game Name"),
-        Cell::new(format!("{}", header.meta.game_name)),
+        Cell::new(format!("{}", meta.game_name)),
     ]);
 
-    properties.add_row(vec![
+    table.add_row(vec![
         Cell::new("Game ID"),
-        Cell::new(format!("0x{:04X}", header.meta.game_id)),
+        Cell::new(format!("0x{:04X}", meta.game_id)),
     ]);
 
-    properties.add_row(vec![
+    table.add_row(vec![
         Cell::new("Console ID"),
         Cell::new(format!(
             "0x{:02X} ({})",
-            header.meta.console_id,
-            maybe(header.meta.console())
+            meta.console_id,
+            debug_or_unknown(meta.console())
         )),
     ]);
 
-    properties.add_row(vec![
+    table.add_row(vec![
         Cell::new("Country Code"),
         Cell::new(format!(
             "0x{:02X} ({})",
-            header.meta.country_code,
-            maybe(header.meta.region())
+            meta.country_code,
+            debug_or_unknown(meta.region())
         )),
     ]);
 
-    properties.add_row(vec![
+    table.add_row(vec![
         Cell::new("Game Code"),
         Cell::new(format!(
             "{} (0x{:04X})",
-            header
-                .meta
-                .game_code_str()
-                .as_deref()
-                .unwrap_or("<invalid>"),
-            header.meta.game_code()
+            meta.game_code_str().as_deref().unwrap_or("<invalid>"),
+            meta.game_code()
         )),
     ]);
 
-    properties.add_row(vec![
+    table.add_row(vec![
         Cell::new("Maker Code"),
-        Cell::new(format!("0x{:04X}", header.meta.maker_code)),
+        Cell::new(format!("0x{:04X}", meta.maker_code)),
     ]);
 
-    properties.add_row(vec![
+    table.add_row(vec![
         Cell::new("Disk ID"),
-        Cell::new(format!("0x{:02X}", header.meta.disk_id)),
+        Cell::new(format!("0x{:02X}", meta.disk_id)),
     ]);
 
-    properties.add_row(vec![
+    table.add_row(vec![
         Cell::new("Version"),
-        Cell::new(format!("0x{:02X}", header.meta.version)),
+        Cell::new(format!("0x{:02X}", meta.version)),
     ]);
 
-    properties.add_row(vec![
+    table
+}
+
+fn disk_properties_table(header: &iso::Header) -> Table {
+    let mut table = Table::new();
+    table
+        .load_preset(UTF8_FULL)
+        .apply_modifier(UTF8_ROUND_CORNERS)
+        .set_content_arrangement(ContentArrangement::Dynamic)
+        .set_header(vec![
+            Cell::new("Property").set_alignment(CellAlignment::Center),
+            Cell::new("Value").set_alignment(CellAlignment::Center),
+        ]);
+
+    table.add_row(vec![
         Cell::new("Bootfile Offset"),
         Cell::new(format!("0x{:08X}", header.bootfile_offset)),
     ]);
 
-    properties.add_row(vec![
+    table.add_row(vec![
         Cell::new("Debug Monitor Offset"),
         Cell::new(format!("0x{:08X}", header.debug_monitor_offset)),
     ]);
 
-    properties.add_row(vec![
+    table.add_row(vec![
         Cell::new("Debug Monitor Target"),
         Cell::new(format!("0x{:08X}", header.debug_monitor_target)),
     ]);
 
-    properties.add_row(vec![
+    table.add_row(vec![
         Cell::new("Filesystem Offset"),
         Cell::new(format!("0x{:08X}", header.filesystem_offset)),
     ]);
 
-    properties.add_row(vec![
+    table.add_row(vec![
         Cell::new("Filesystem Size"),
         Cell::new(format!(
             "0x{:08X} ({})",
@@ -312,7 +321,7 @@ pub fn inspect_iso(input: PathBuf, filesystem: bool) -> Result<()> {
         )),
     ]);
 
-    properties.add_row(vec![
+    table.add_row(vec![
         Cell::new("Max. Filesystem Size"),
         Cell::new(format!(
             "0x{:08X} ({})",
@@ -321,16 +330,16 @@ pub fn inspect_iso(input: PathBuf, filesystem: bool) -> Result<()> {
         )),
     ]);
 
-    properties.add_row(vec![
+    table.add_row(vec![
         Cell::new("Audio Streaming"),
         Cell::new(format!(
             "0x{:02X} ({})",
             header.meta.audio_streaming,
-            maybe(header.meta.audio_streaming())
+            debug_or_unknown(header.meta.audio_streaming())
         )),
     ]);
 
-    properties.add_row(vec![
+    table.add_row(vec![
         Cell::new("Stream Buffer Size"),
         Cell::new(format!(
             "0x{:02X} ({})",
@@ -339,12 +348,12 @@ pub fn inspect_iso(input: PathBuf, filesystem: bool) -> Result<()> {
         )),
     ]);
 
-    properties.add_row(vec![
+    table.add_row(vec![
         Cell::new("User Position"),
         Cell::new(format!("0x{:08X}", header.user_position)),
     ]);
 
-    properties.add_row(vec![
+    table.add_row(vec![
         Cell::new("User Length"),
         Cell::new(format!(
             "0x{:08X} ({})",
@@ -353,30 +362,44 @@ pub fn inspect_iso(input: PathBuf, filesystem: bool) -> Result<()> {
         )),
     ]);
 
-    println!("{info}");
-    println!("{properties}");
+    table
+}
 
-    if let Ok(apploader) = iso.apploader() {
-        let mut info = Table::new();
-        info.load_preset(comfy_table::presets::NOTHING)
-            .set_content_arrangement(ContentArrangement::Dynamic)
-            .set_header(vec![Cell::new(format!("Apploader"))]);
+pub fn inspect_iso(input: PathBuf, filesystem: bool) -> Result<()> {
+    let mut file = std::fs::File::open(&input).context("opening file")?;
+    let meta = file.metadata()?;
+    let mut iso = iso::Iso::new(BufReader::new(&mut file)).context("parsing .iso header")?;
 
-        println!("{info}");
+    label([format!(
+        "{} ({})",
+        input.file_name().unwrap().to_string_lossy(),
+        ByteSize(meta.len()).display()
+    )]);
+
+    if filesystem {
+        return inspect_iso_fs(iso);
+    }
+
+    let header = iso.header();
+    let disk_meta = disk_meta_table(&header.meta);
+    let disk_properties = disk_properties_table(&header);
+
+    label(["> Disk Properties".into()]);
+    println!("{disk_properties}");
+    label(["> Disk Meta".into()]);
+    println!("{disk_meta}");
+
+    if let Ok(apploader) = iso.apploader_header() {
+        label(["> Apploader".into()]);
         apploader_table(&apploader)?;
     }
 
-    if let Ok(bootfile) = iso.bootfile() {
-        let mut info = Table::new();
-        info.load_preset(comfy_table::presets::NOTHING)
-            .set_content_arrangement(ContentArrangement::Dynamic)
-            .set_header(vec![
-                Cell::new(format!("Bootfile (.dol)")),
-                Cell::new(format!("Entry: 0x{:08X}", bootfile.header.entry)),
-            ]);
-
-        println!("{info}");
-        dol_table(&bootfile.header)?;
+    if let Ok(bootfile) = iso.bootfile_header() {
+        label([
+            format!("> Bootfile (.dol)"),
+            format!("Entry: 0x{:08X}", bootfile.entry),
+        ]);
+        dol_table(&bootfile)?;
     }
 
     Ok(())
@@ -384,14 +407,70 @@ pub fn inspect_iso(input: PathBuf, filesystem: bool) -> Result<()> {
 
 pub fn inspect_rvz(input: PathBuf) -> Result<()> {
     let mut file = std::fs::File::open(&input).context("opening file")?;
-    let mut rvz = rvz::Rvz::new(BufReader::new(&mut file)).context("parsing .rvz file")?;
+    let meta = file.metadata()?;
 
-    dbg!(rvz.rvz_header());
-    dbg!(rvz.disk_header());
-    dbg!(rvz.disk_sections());
+    let rvz = rvz::Rvz::new(BufReader::new(&mut file)).context("parsing .rvz file")?;
+    let mut rvz = RvzReader::new(rvz);
 
-    let mut buf = vec![0; 0x25C0];
-    rvz.read(0x1F800, &mut buf).unwrap();
+    label([format!(
+        "{} ({})",
+        input.file_name().unwrap().to_string_lossy(),
+        ByteSize(meta.len()).display()
+    )]);
+
+    let disk_header = rvz.iso_header().unwrap();
+    let rvz_disk_header = rvz.inner().disk_header();
+
+    let disk_properties = disk_properties_table(&disk_header);
+    let disk_meta = disk_meta_table(&rvz_disk_header.disk_meta);
+
+    let mut rvz_properties = Table::new();
+    rvz_properties
+        .load_preset(UTF8_FULL)
+        .apply_modifier(UTF8_ROUND_CORNERS)
+        .set_content_arrangement(ContentArrangement::Dynamic)
+        .set_header(vec![
+            Cell::new("Property").set_alignment(CellAlignment::Center),
+            Cell::new("Value").set_alignment(CellAlignment::Center),
+        ]);
+
+    rvz_properties.add_row(vec![
+        Cell::new("Console"),
+        Cell::new(debug_or_unknown(rvz_disk_header.console)),
+    ]);
+
+    rvz_properties.add_row(vec![
+        Cell::new("Compression"),
+        Cell::new(format!(
+            "{:?} (Level {})",
+            rvz_disk_header.compression, rvz_disk_header.compression_level
+        )),
+    ]);
+
+    rvz_properties.add_row(vec![
+        Cell::new("Chunk Length"),
+        Cell::new(format!("{}", ByteSize(rvz_disk_header.chunk_len as u64))),
+    ]);
+
+    label(["> RVZ Properties".into()]);
+    println!("{rvz_properties}");
+    label(["> Disk Properties".into()]);
+    println!("{disk_properties}");
+    label(["> Disk Meta".into()]);
+    println!("{disk_meta}");
+
+    if let Ok(apploader) = rvz.apploader_header() {
+        label(["> Apploader".into()]);
+        apploader_table(&apploader)?;
+    }
+
+    if let Ok(bootfile) = rvz.bootfile_header() {
+        label([
+            format!("> Bootfile (.dol)"),
+            format!("Entry: 0x{:08X}", bootfile.entry),
+        ]);
+        dol_table(&bootfile)?;
+    }
 
     Ok(())
 }

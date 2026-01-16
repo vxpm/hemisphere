@@ -2,9 +2,8 @@
 
 pub mod filesystem;
 
-use crate::{Console, apploader::Apploader, dol};
+use crate::{Console, apploader, dol};
 use binrw::{BinRead, BinWrite, NullString};
-use easyerr::{Error, ResultExt};
 use filesystem::FileSystem;
 use std::io::{Read, Seek, SeekFrom};
 
@@ -69,7 +68,7 @@ impl Meta {
 #[derive(Debug, Clone, BinRead, BinWrite)]
 #[brw(big)]
 pub struct Header {
-    #[brw(pad_size_to = 0x3E0)]
+    #[brw(pad_size_to = 0x400)]
     pub meta: Meta,
     pub debug_monitor_offset: u32,
     pub debug_monitor_target: u32,
@@ -98,14 +97,6 @@ pub struct Iso<R> {
     reader: R,
 }
 
-#[derive(Debug, Error)]
-pub enum ReadError {
-    #[error(transparent)]
-    Io { source: std::io::Error },
-    #[error(transparent)]
-    Format { source: binrw::Error },
-}
-
 impl<R> Iso<R>
 where
     R: Read + Seek,
@@ -123,27 +114,32 @@ where
         &mut self.reader
     }
 
-    pub fn bootfile(&mut self) -> Result<dol::Dol, ReadError> {
+    pub fn bootfile(&mut self) -> Result<dol::Dol, binrw::Error> {
         self.reader
-            .seek(SeekFrom::Start(self.header.bootfile_offset as u64))
-            .context(ReadCtx::Io)?;
-
-        dol::Dol::read(&mut self.reader).context(ReadCtx::Format)
+            .seek(SeekFrom::Start(self.header.bootfile_offset as u64))?;
+        dol::Dol::read(&mut self.reader)
     }
 
-    pub fn apploader(&mut self) -> Result<Apploader, ReadError> {
+    pub fn bootfile_header(&mut self) -> Result<dol::Header, binrw::Error> {
         self.reader
-            .seek(SeekFrom::Start(0x2440))
-            .context(ReadCtx::Io)?;
-
-        Apploader::read(&mut self.reader).context(ReadCtx::Format)
+            .seek(SeekFrom::Start(self.header.bootfile_offset as u64))?;
+        dol::Header::read(&mut self.reader)
     }
 
-    pub fn filesystem(&mut self) -> Result<FileSystem, ReadError> {
-        self.reader
-            .seek(SeekFrom::Start(self.header.filesystem_offset as u64))
-            .context(ReadCtx::Io)?;
+    pub fn apploader(&mut self) -> Result<apploader::Apploader, binrw::Error> {
+        self.reader.seek(SeekFrom::Start(0x2440))?;
+        apploader::Apploader::read(&mut self.reader)
+    }
 
-        FileSystem::read(&mut self.reader).context(ReadCtx::Format)
+    pub fn apploader_header(&mut self) -> Result<apploader::Header, binrw::Error> {
+        self.reader.seek(SeekFrom::Start(0x2440))?;
+        apploader::Header::read(&mut self.reader)
+    }
+
+    pub fn filesystem(&mut self) -> Result<FileSystem, binrw::Error> {
+        self.reader
+            .seek(SeekFrom::Start(self.header.filesystem_offset as u64))?;
+
+        FileSystem::read(&mut self.reader)
     }
 }
