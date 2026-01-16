@@ -28,7 +28,7 @@ struct UnpackedDefaultMatrices {
 }
 
 impl UnpackedDefaultMatrices {
-    pub fn new(packed: &DefaultMatrices) -> Self {
+    pub fn new(packed: DefaultMatrices) -> Self {
         Self {
             view: packed.view().value(),
             tex: packed.tex().map(|x| x.value()),
@@ -181,7 +181,7 @@ impl VertexModule for JitVertexModule {
             }
         };
 
-        let unpacked_default_matrices = UnpackedDefaultMatrices::new(ctx.default_matrices);
+        let unpacked_default_matrices = UnpackedDefaultMatrices::new(*ctx.default_matrices);
         let view = MatrixId::from_position_idx(unpacked_default_matrices.view);
         matrix_set.include(view);
         matrix_set.include(view.normal());

@@ -146,7 +146,7 @@ impl App {
         let modules = Modules {
             audio: Box::new(CpalModule::new()),
             debug: debug_module,
-            disk: disk,
+            disk,
             input: Box::new(GilrsModule::new()),
             render: Box::new(renderer.clone()),
             vertex: Box::new(JitVertexModule::new()),

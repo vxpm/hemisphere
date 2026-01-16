@@ -261,9 +261,7 @@ fn rgba_vector(
     let rgba = parser.bd.ins().scalar_to_vector(ir::types::I32X4, r);
     let rgba = parser.bd.ins().insertlane(rgba, g, 1);
     let rgba = parser.bd.ins().insertlane(rgba, b, 2);
-    let rgba = parser.bd.ins().insertlane(rgba, a, 3);
-
-    rgba
+    parser.bd.ins().insertlane(rgba, a, 3)
 }
 
 fn read_rgba(format: ColorFormat, parser: &mut ParserBuilder, ptr: ir::Value) -> ir::Value {

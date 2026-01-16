@@ -246,7 +246,7 @@ impl CpalModule {
         let state = Arc::new(Mutex::new(state));
         let stream = device
             .build_output_stream(
-                &config.into(),
+                &config,
                 {
                     let state = state.clone();
                     move |out: &mut [f32], _: &cpal::OutputCallbackInfo| {

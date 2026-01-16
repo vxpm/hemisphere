@@ -66,7 +66,7 @@ pub fn call_stack(sys: &System, top_frame: Address, top_routine: Address) -> Cal
             call_stack.push(CallFrame {
                 address: Address(called_at),
                 symbol: name,
-                location: location,
+                location,
                 stack: Address(current_frame),
                 returns: Address(return_target),
             });

@@ -521,16 +521,14 @@ where
         let file_section_disk_len =
             (disk_section.disk_len - file_section_disk_start).min(chunk_len);
 
-        if file_section_idx < disk_section.file_sections_count as u64 {
+        (file_section_idx < disk_section.file_sections_count as u64).then(|| {
             let file_section_idx = disk_section.file_sections_index as u64 + file_section_idx;
-            Some(FoundFileSection {
+            FoundFileSection {
                 inner: self.file_sections[file_section_idx as usize],
                 disk_start: file_section_disk_start,
                 disk_len: file_section_disk_len,
-            })
-        } else {
-            None
-        }
+            }
+        })
     }
 
     /// Reads a disk section at the given offset and writes it into the output buffer.

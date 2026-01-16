@@ -5,11 +5,11 @@ use crate::{
 use bytesize::ByteSize;
 use eframe::egui::{self, Color32};
 use egui_extras::{Column, TableBuilder};
+use indexmap::IndexMap;
 use lazuli::{
     Address,
     system::{self, eabi::CallStack, os::Thread},
 };
-use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
@@ -107,12 +107,9 @@ impl AppWindow for Window {
             let selected = self.threads.get_index(self.selected);
 
             ui.horizontal_wrapped(|ui| {
-                let selected_label = selected
-                    .map(|(a, _)| a.to_string())
-                    .unwrap_or("None".into());
-
+                let selected_label = selected.map_or("None".into(), |(a, _)| a.to_string());
                 egui::ComboBox::from_label("Thread")
-                    .selected_text(format!("{}", selected_label))
+                    .selected_text(selected_label)
                     .show_ui(ui, |ui| {
                         for (index, (address, thread)) in self.threads.iter().enumerate() {
                             let label = egui::RichText::new(format!(
