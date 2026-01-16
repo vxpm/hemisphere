@@ -375,7 +375,7 @@ fn setup_tracing() -> tracing_appender::non_blocking::WorkerGuard {
     let (file_nb, _guard_file) = tracing_appender::non_blocking(file);
     let file_layer = fmt::layer().with_writer(file_nb).with_ansi(false);
     let env_filter = EnvFilter::try_from_default_env().unwrap_or(EnvFilter::new(
-        "cli=debug,lazuli=debug,lazuli::system::gx=info,common=debug,ppcjit=debug,renderer=debug,dspint=debug,cores=debug",
+        "cli=debug,lazuli=debug,lazuli::system::gx=info,common=debug,ppcjit=debug,renderer=debug,dspint=debug,cores=debug,modules=debug",
     ));
 
     let subscriber = tracing_subscriber::registry()

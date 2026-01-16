@@ -158,45 +158,65 @@ fn is_supported_device(device: &Device) -> bool {
         return false;
     };
 
-    let is_null = || description.driver().is_some_and(|name| name == "null");
-    let has_supported_config = || {
-        device
-            .supported_output_configs()
-            .into_iter()
-            .flat_map(std::convert::identity)
-            .any(|c| is_supported_config(&c))
-    };
+    let is_null = description.driver().is_some_and(|name| name == "null");
+    !is_null
+}
 
-    !is_null() && has_supported_config()
+fn get_supported_config(device: &Device) -> Option<cpal::StreamConfig> {
+    let mut device_supported_configs = device.supported_output_configs().ok()?;
+    device_supported_configs
+        .find(is_supported_config)
+        .map(|c| c.with_sample_rate(SAMPLE_RATE))
+        .map(Into::into)
+}
+
+fn get_default_device_and_config(host: &cpal::Host) -> Option<(cpal::Device, cpal::StreamConfig)> {
+    let device = host.default_output_device()?;
+    if !is_supported_device(&device) {
+        return None;
+    }
+
+    let config = get_supported_config(&device)?;
+    Some((device, config))
+}
+
+fn get_device_and_config(host: &cpal::Host) -> Option<(cpal::Device, cpal::StreamConfig)> {
+    if let Some(supported) = get_default_device_and_config(host) {
+        return Some(supported);
+    }
+
+    for device in host.output_devices().expect("no available output devices") {
+        if !is_supported_device(&device) {
+            continue;
+        }
+
+        let Some(config) = get_supported_config(&device) else {
+            continue;
+        };
+
+        return Some((device, config));
+    }
+
+    None
 }
 
 impl CpalModule {
     pub fn new() -> Self {
         let host = cpal::default_host();
+        let (device, config) = get_device_and_config(&host).expect("no supported output device");
 
-        println!("[Audio Module]: enumerating devices...");
-        let device = host
-            .output_devices()
-            .expect("no output devices available")
-            .find(is_supported_device)
-            .expect("no output devices supported");
-        println!(
-            "[Audio Module]: done! chosen device: {}",
-            device
-                .description()
-                .map(|d| d.to_string())
-                .as_deref()
-                .unwrap_or("<unknown>")
-        );
-
-        let mut supported_configs = device
-            .supported_output_configs()
-            .expect("error while querying device configs");
-
-        let config = supported_configs
-            .find(is_supported_config)
-            .expect("device has no supported config (this should not happen)")
-            .with_sample_rate(SAMPLE_RATE);
+        match device.description() {
+            Ok(description) => {
+                tracing::info!(
+                    "chosen output device: {} ({})",
+                    description.name(),
+                    description.extended().join(", "),
+                );
+            }
+            Err(e) => {
+                tracing::warn!("chosen output device has no description: {e}");
+            }
+        }
 
         let resampler = ResamplerFir::new(
             2,
