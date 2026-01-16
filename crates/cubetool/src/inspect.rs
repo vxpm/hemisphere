@@ -28,7 +28,7 @@ fn label(cells: impl IntoIterator<Item = String>) {
     println!("{}", label);
 }
 
-fn dol_table(header: &dol::Header) -> Result<()> {
+fn dol_table(header: &dol::Header) {
     let mut sections = Table::new();
     sections
         .load_preset(UTF8_FULL)
@@ -73,8 +73,6 @@ fn dol_table(header: &dol::Header) -> Result<()> {
     }
 
     println!("{sections}");
-
-    Ok(())
 }
 
 pub fn inspect_dol(input: PathBuf) -> Result<()> {
@@ -103,12 +101,12 @@ pub fn inspect_dol(input: PathBuf) -> Result<()> {
         format!("Entry: 0x{:08X}", header.entry),
     ]);
     println!("{info}");
-    dol_table(&header)?;
+    dol_table(&header);
 
     Ok(())
 }
 
-fn apploader_table(header: &apploader::Header) -> Result<()> {
+fn apploader_table(header: &apploader::Header) {
     let mut properties = Table::new();
     properties
         .load_preset(UTF8_FULL)
@@ -148,8 +146,6 @@ fn apploader_table(header: &apploader::Header) -> Result<()> {
     ]);
 
     println!("{properties}");
-
-    Ok(())
 }
 
 fn print_dir(graph: &VfsGraph, id: VfsEntryId, depth: u8, current: &str) {
@@ -210,9 +206,7 @@ fn inspect_iso_fs(mut iso: iso::Iso<impl Read + Seek>) -> Result<()> {
 }
 
 fn debug_or_unknown(value: Option<impl std::fmt::Debug>) -> String {
-    value
-        .map(|x| format!("{x:?}"))
-        .unwrap_or("<unknown>".to_owned())
+    value.map_or("<unknown>".to_owned(), |x| format!("{x:?}"))
 }
 
 fn disk_meta_table(meta: &Meta) -> Table {
@@ -382,7 +376,7 @@ pub fn inspect_iso(input: PathBuf, filesystem: bool) -> Result<()> {
 
     let header = iso.header();
     let disk_meta = disk_meta_table(&header.meta);
-    let disk_properties = disk_properties_table(&header);
+    let disk_properties = disk_properties_table(header);
 
     label(["> Disk Properties".into()]);
     println!("{disk_properties}");
@@ -391,15 +385,15 @@ pub fn inspect_iso(input: PathBuf, filesystem: bool) -> Result<()> {
 
     if let Ok(apploader) = iso.apploader_header() {
         label(["> Apploader".into()]);
-        apploader_table(&apploader)?;
+        apploader_table(&apploader);
     }
 
     if let Ok(bootfile) = iso.bootfile_header() {
         label([
-            format!("> Bootfile (.dol)"),
+            "> Bootfile (.dol)".to_string(),
             format!("Entry: 0x{:08X}", bootfile.entry),
         ]);
-        dol_table(&bootfile)?;
+        dol_table(&bootfile);
     }
 
     Ok(())
@@ -447,12 +441,12 @@ pub fn inspect_rvz(input: PathBuf) -> Result<()> {
 
     rvz_properties.add_row(vec![
         Cell::new("Disk Length"),
-        Cell::new(ByteSize(rvz_header.inner.disk_len as u64).to_string()),
+        Cell::new(ByteSize(rvz_header.inner.disk_len).to_string()),
     ]);
 
     rvz_properties.add_row(vec![
         Cell::new("RVZ Length"),
-        Cell::new(ByteSize(rvz_header.inner.rvz_len as u64).to_string()),
+        Cell::new(ByteSize(rvz_header.inner.rvz_len).to_string()),
     ]);
 
     rvz_properties.add_row(vec![
@@ -529,15 +523,15 @@ pub fn inspect_rvz(input: PathBuf) -> Result<()> {
 
     if let Ok(apploader) = rvz.apploader_header() {
         label(["> Apploader".into()]);
-        apploader_table(&apploader)?;
+        apploader_table(&apploader);
     }
 
     if let Ok(bootfile) = rvz.bootfile_header() {
         label([
-            format!("> Bootfile (.dol)"),
+            "> Bootfile (.dol)".to_string(),
             format!("Entry: 0x{:08X}", bootfile.entry),
         ]);
-        dol_table(&bootfile)?;
+        dol_table(&bootfile);
     }
 
     Ok(())

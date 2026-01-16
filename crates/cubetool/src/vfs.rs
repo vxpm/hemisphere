@@ -39,7 +39,7 @@ impl VirtualFileSystem {
         let filesystem = iso.filesystem()?;
         let mut reader = iso.reader();
         let mut graph = Graph::new();
-        let root = graph.add_node(VirtualEntry::Dir(VirtualDir { name: "".into() }));
+        let root = graph.add_node(VirtualEntry::Dir(VirtualDir { name: String::new() }));
 
         let mut dir_stack = vec![root];
         let mut end_stack = vec![filesystem.root.entry_count];

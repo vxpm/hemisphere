@@ -122,7 +122,7 @@ fn main() -> Result<()> {
             } else if let Some(code) = code.strip_prefix("0b") {
                 u32::from_str_radix(code, 2).context("parsing instruction code")?
             } else {
-                u32::from_str_radix(&code, 10).context("parsing instruction code")?
+                code.parse::<u32>().context("parsing instruction code")?
             };
 
             let ins = powerpc::Ins::new(code, powerpc::Extensions::gekko_broadway());
