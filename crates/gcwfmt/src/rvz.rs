@@ -358,6 +358,19 @@ impl Prng {
 
         value
     }
+
+    fn skip(&mut self, count: usize) {
+        for _ in 0..count / Self::SEED_LEN {
+            self.advance();
+        }
+
+        let remainder = count % Self::SEED_LEN;
+        self.current += remainder;
+        if self.current >= Self::SEED_LEN {
+            self.advance();
+            self.current %= Self::SEED_LEN;
+        }
+    }
 }
 
 /// Unpacks a sequence of bytes at the given offset.
@@ -370,14 +383,12 @@ fn unpack(data: &[u8], offset: u32) -> Vec<u8> {
         if format.is_padding() {
             let seed = <[u32; 17]>::read_be(&mut cursor).unwrap();
             let discard = offset % 0x8000;
-            let total = format.len() + discard;
 
             let mut prng = Prng::from_seed(&seed);
-            for current in 0..total {
-                let value = prng.next();
-                if current >= discard {
-                    output.push(value);
-                }
+            prng.skip(discard as usize);
+
+            for _ in 0..format.len() {
+                output.push(prng.next());
             }
         } else {
             let start = output.len();
