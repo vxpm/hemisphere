@@ -120,14 +120,14 @@ impl Compiler {
         // println!("{}", func.display());
 
         code_ctx.clear();
-        code_ctx.want_disasm = true;
+        // code_ctx.want_disasm = true;
         code_ctx.func = func;
         code_ctx
             .compile(&*self.isa, &mut Default::default())
             .unwrap();
 
         let compiled = code_ctx.take_compiled_code().unwrap();
-        println!("{}", compiled.vcode.as_ref().unwrap());
+        // println!("{}", compiled.vcode.as_ref().unwrap());
 
         let alloc = self.allocator.allocate(64, compiled.code_buffer());
         VertexParser::new(alloc)
