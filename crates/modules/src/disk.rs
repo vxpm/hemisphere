@@ -72,7 +72,14 @@ where
     fn seek(&mut self, from: SeekFrom) -> std::io::Result<u64> {
         match from {
             SeekFrom::Start(x) => self.position = x,
-            SeekFrom::End(_) => todo!(),
+            SeekFrom::End(x) => {
+                self.position = self
+                    .rvz
+                    .rvz_header()
+                    .inner
+                    .disk_len
+                    .saturating_sub_signed(x)
+            }
             SeekFrom::Current(x) => self.position = self.position.saturating_add_signed(x),
         }
 

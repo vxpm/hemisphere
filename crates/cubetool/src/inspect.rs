@@ -8,11 +8,11 @@ use gcwfmt::{
     apploader::Apploader,
     binrw::{BinRead, io::BufReader},
     dol,
-    iso::{self, Meta},
+    iso::{self},
     rvz,
 };
 use std::{
-    io::{Cursor, Read, Seek},
+    io::{Read, Seek},
     path::PathBuf,
 };
 
@@ -386,8 +386,8 @@ pub fn inspect_rvz(input: PathBuf) -> Result<()> {
     let mut file = std::fs::File::open(&input).context("opening file")?;
     let mut rvz = rvz::Rvz::new(BufReader::new(&mut file)).context("parsing .rvz file")?;
 
-    dbg!(rvz.header());
-    dbg!(rvz.disk());
+    dbg!(rvz.rvz_header());
+    dbg!(rvz.disk_header());
     dbg!(rvz.disk_sections());
 
     let mut buf = vec![0; 0x25C0];
