@@ -419,6 +419,7 @@ pub fn inspect_rvz(input: PathBuf) -> Result<()> {
     )]);
 
     let disk_header = rvz.iso_header().unwrap();
+    let rvz_header = rvz.inner().rvz_header();
     let rvz_disk_header = rvz.inner().disk_header();
 
     let disk_properties = disk_properties_table(&disk_header);
@@ -433,6 +434,26 @@ pub fn inspect_rvz(input: PathBuf) -> Result<()> {
             Cell::new("Property").set_alignment(CellAlignment::Center),
             Cell::new("Value").set_alignment(CellAlignment::Center),
         ]);
+
+    rvz_properties.add_row(vec![
+        Cell::new("Version"),
+        Cell::new(rvz_header.inner.version.to_string()),
+    ]);
+
+    rvz_properties.add_row(vec![
+        Cell::new("Compatible Version"),
+        Cell::new(rvz_header.inner.compatible_version.to_string()),
+    ]);
+
+    rvz_properties.add_row(vec![
+        Cell::new("Disk Length"),
+        Cell::new(ByteSize(rvz_header.inner.disk_len as u64).to_string()),
+    ]);
+
+    rvz_properties.add_row(vec![
+        Cell::new("RVZ Length"),
+        Cell::new(ByteSize(rvz_header.inner.rvz_len as u64).to_string()),
+    ]);
 
     rvz_properties.add_row(vec![
         Cell::new("Console"),

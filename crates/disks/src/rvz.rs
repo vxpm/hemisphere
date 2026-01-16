@@ -29,6 +29,17 @@ pub struct Version {
     pub beta: u8,
 }
 
+impl std::fmt::Display for Version {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}.{}.{}", self.major, self.minor, self.patch)?;
+        if self.beta != 0 && self.beta != 0xFF {
+            write!(f, "-beta{}", self.beta)?;
+        }
+
+        Ok(())
+    }
+}
+
 /// The actual header of a RVZ file.
 #[derive(Debug, Clone, BinRead)]
 #[br(big, magic = b"RVZ\x01")]
