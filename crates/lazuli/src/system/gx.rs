@@ -359,12 +359,12 @@ pub enum Topology {
 }
 
 #[bitos(2)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum CullingMode {
     #[default]
     None = 0b00,
-    Negative = 0b01,
-    Positive = 0b10,
+    Back = 0b01,
+    Front = 0b10,
     All = 0b11,
 }
 
@@ -1057,6 +1057,9 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
     if reg == Reg::GenMode {
         sys.gpu.env.stages_dirty = true;
         sys.gpu.xform.internal.stages_dirty = true;
+        sys.modules
+            .render
+            .exec(render::Action::SetCullingMode(sys.gpu.mode.culling_mode()));
     }
 
     if reg.is_tev() {

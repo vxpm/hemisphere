@@ -17,7 +17,7 @@ use glam::Mat4;
 use lazuli::{
     modules::render::{Action, TexEnvConfig, TexGenConfig, Viewport, oneshot},
     system::gx::{
-        DEPTH_24_BIT_MAX, MatrixId, Topology, Vertex, VertexStream,
+        CullingMode, DEPTH_24_BIT_MAX, MatrixId, Topology, Vertex, VertexStream,
         colors::{Rgba, Rgba8},
         pix::{
             self, BlendMode, CompareMode, ConstantAlpha, DepthMode, DstBlendFactor, SrcBlendFactor,
@@ -189,6 +189,7 @@ impl Renderer {
         match action {
             Action::SetFramebufferFormat(fmt) => self.set_framebuffer_format(fmt),
             Action::SetViewport(viewport) => self.set_viewport(viewport),
+            Action::SetCullingMode(mode) => self.set_culling_mode(mode),
             Action::SetClearColor(color) => self.set_clear_color(color),
             Action::SetClearDepth(depth) => self.clear_depth = depth,
             Action::SetBlendMode(mode) => self.set_blend_mode(mode),
@@ -352,6 +353,10 @@ impl Renderer {
         );
 
         self.viewport = viewport;
+    }
+
+    pub fn set_culling_mode(&mut self, mode: CullingMode) {
+        self.pipeline.settings.culling = mode;
     }
 
     pub fn set_clear_color(&mut self, rgba: Rgba) {
@@ -576,9 +581,16 @@ impl Renderer {
         let mut iter = vertices.iter();
         let mut v0 = self.insert_vertex(iter.next().unwrap(), matrices);
         let mut v1 = self.insert_vertex(iter.next().unwrap(), matrices);
-        for v2 in iter {
+
+        for (i, v2) in iter.enumerate() {
             let v2 = self.insert_vertex(v2, matrices);
-            self.indices.extend_from_slice(&[v0, v1, v2]);
+
+            // flip to preserve vertex order (cw)
+            if i.is_multiple_of(2) {
+                self.indices.extend_from_slice(&[v0, v1, v2]);
+            } else {
+                self.indices.extend_from_slice(&[v2, v1, v0]);
+            }
 
             v0 = v1;
             v1 = v2;

@@ -1,10 +1,10 @@
 mod settings;
 mod shader;
 
-use std::{borrow::Cow, collections::hash_map::Entry};
-
+use lazuli::system::gx::CullingMode;
 use rustc_hash::FxHashMap;
 pub use settings::*;
+use std::{borrow::Cow, collections::hash_map::Entry};
 
 #[derive(Clone, PartialEq, Eq, Hash, Default)]
 pub struct ShaderSettings {
@@ -15,6 +15,7 @@ pub struct ShaderSettings {
 #[derive(Clone, PartialEq, Eq, Hash, Default)]
 pub struct PipelineSettings {
     pub has_alpha: bool,
+    pub culling: CullingMode,
     pub blend: BlendSettings,
     pub depth: DepthSettings,
     pub shader: ShaderSettings,
@@ -125,7 +126,6 @@ impl Pipeline {
         }
 
         let label = format!("shader {}", id);
-
         let shader = match cached_shaders.entry(settings.shader.clone()) {
             Entry::Occupied(o) => o.into_mut(),
             Entry::Vacant(v) => {
@@ -139,6 +139,16 @@ impl Pipeline {
             }
         };
 
+        let cull_mode = match settings.culling {
+            CullingMode::None => None,
+            CullingMode::Back => Some(wgpu::Face::Back),
+            CullingMode::Front => Some(wgpu::Face::Front),
+            CullingMode::All => {
+                tracing::warn!("culling mode all is not supported - culling back faces only");
+                Some(wgpu::Face::Back)
+            }
+        };
+
         let label = format!("render pipeline {}", id);
         device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some(&label),
@@ -147,7 +157,7 @@ impl Pipeline {
                 topology: wgpu::PrimitiveTopology::TriangleList,
                 strip_index_format: None,
                 front_face: wgpu::FrontFace::Cw,
-                cull_mode: None,
+                cull_mode,
                 unclipped_depth: false,
                 polygon_mode: wgpu::PolygonMode::Fill,
                 conservative: false,

@@ -1,7 +1,7 @@
 //! Renderer module interface.
 
 use crate::system::gx::{
-    Topology, VertexStream,
+    CullingMode, Topology, VertexStream,
     colors::{Abgr8, Rgba, Rgba8, Rgba16},
     pix::{BlendMode, BufferFormat, ConstantAlpha, DepthMode},
     tev::{AlphaFunction, Constant, StageOps, StageRefs},
@@ -98,6 +98,7 @@ pub struct TexGenConfig {
 pub enum Action {
     SetFramebufferFormat(BufferFormat),
     SetViewport(Viewport),
+    SetCullingMode(CullingMode),
     SetClearColor(Rgba),
     SetClearDepth(f32),
     SetDepthMode(DepthMode),
