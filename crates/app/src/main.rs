@@ -17,7 +17,7 @@ use eyre_pretty::eyre::Result;
 use lazuli::{
     Lazuli,
     cores::Cores,
-    gcwfmt::rvz::Rvz,
+    disks::rvz::Rvz,
     modules::{
         debug::{DebugModule, NopDebugModule},
         disk::{DiskModule, NopDiskModule},

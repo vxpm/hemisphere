@@ -2,11 +2,11 @@ mod inspect;
 mod vfs;
 
 use clap::{Parser, Subcommand};
-use eyre_pretty::{Context, ContextCompat, Result, bail, eyre};
-use gcwfmt::{
+use disks::{
     binrw::{BinWrite, io::BufReader},
     dol, iso,
 };
+use eyre_pretty::{Context, ContextCompat, Result, bail, eyre};
 use std::{
     io::{BufWriter, Read, Seek, SeekFrom},
     path::PathBuf,

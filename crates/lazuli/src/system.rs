@@ -33,8 +33,8 @@ use crate::{
         scheduler::{HandlerCtx, Scheduler},
     },
 };
+use disks::{apploader, binrw::BinRead, dol, iso};
 use easyerr::{Error, ResultExt};
-use gcwfmt::{apploader, binrw::BinRead, dol, iso};
 use gekko::{Address, Cpu, Cycles};
 use std::io::{Cursor, SeekFrom};
 
@@ -92,7 +92,7 @@ pub enum LoadApploaderError {
     #[error(transparent)]
     Io { source: std::io::Error },
     #[error(transparent)]
-    Apploader { source: gcwfmt::binrw::Error },
+    Apploader { source: disks::binrw::Error },
 }
 
 impl System {

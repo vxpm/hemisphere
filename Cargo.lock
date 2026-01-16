@@ -1190,8 +1190,8 @@ dependencies = [
  "bytesize",
  "clap",
  "comfy-table",
+ "disks",
  "eyre-pretty",
- "gcwfmt",
  "petgraph 0.8.3",
  "powerpc",
 ]
@@ -1289,6 +1289,16 @@ dependencies = [
  "option-ext",
  "redox_users",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "disks"
+version = "0.1.0"
+dependencies = [
+ "binrw",
+ "easyerr",
+ "elf",
+ "zstd",
 ]
 
 [[package]]
@@ -1864,16 +1874,6 @@ name = "futures-sink"
 version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e575fab7d1e0dcb8d0c7bcf9a63ee213816ab51902e6d244a95819acacf1d4f7"
-
-[[package]]
-name = "gcwfmt"
-version = "0.1.0"
-dependencies = [
- "binrw",
- "easyerr",
- "elf",
- "zstd",
-]
 
 [[package]]
 name = "gekko"
@@ -2560,8 +2560,8 @@ dependencies = [
  "bitvec",
  "bytesize",
  "color-backtrace",
+ "disks",
  "easyerr",
- "gcwfmt",
  "gekko",
  "glam",
  "gxtex",

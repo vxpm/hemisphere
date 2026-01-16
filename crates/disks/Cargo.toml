@@ -1,5 +1,5 @@
 [package]
-name = "gcwfmt"
+name = "disks"
 description = "GameCube/Wii file formats"
 version = "0.1.0"
 edition = "2024"

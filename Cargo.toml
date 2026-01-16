@@ -2,7 +2,7 @@
 resolver = "3"
 members = [
     "crates/util",
-    "crates/gcwfmt",
+    "crates/disks",
     "crates/gekko",
     "crates/gxtex",
     "crates/jitalloc",
@@ -22,7 +22,7 @@ members = [
 default-members = [
     # libraries
     "crates/util",
-    "crates/gcwfmt",
+    "crates/disks",
     "crates/gekko",
     "crates/gxtex",
     "crates/jitalloc",
@@ -83,7 +83,7 @@ opt-level = 2
 opt-level = 2
 
 # workspace crates
-[profile.dev.package."gcwfmt"]
+[profile.dev.package."disks"]
 opt-level = 2
 
 [profile.dev.package."util"]
@@ -114,7 +114,7 @@ wgpu = { git = "https://github.com/vxpm/wgpu", branch = "v27" }
 [workspace.dependencies]
 # workspace crates
 util = { path = "./crates/util" }
-gcwfmt = { path = "./crates/gcwfmt" }
+disks = { path = "./crates/disks" }
 gekko = { path = "./crates/gekko" }
 gxtex = { path = "./crates/gxtex" }
 jitalloc = { path = "./crates/jitalloc" }

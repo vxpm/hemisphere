@@ -1,8 +1,8 @@
-use easyerr::{Error, ResultExt};
-use gcwfmt::{
+use disks::{
     binrw::{BinRead, io::BufReader},
     dol::Dol,
 };
+use easyerr::{Error, ResultExt};
 use std::path::Path;
 
 #[derive(Debug, Error)]

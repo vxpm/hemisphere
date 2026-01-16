@@ -1,8 +1,8 @@
-use eyre_pretty::Result;
-use gcwfmt::{
+use disks::{
     binrw::{BinRead, NullString},
     iso,
 };
+use eyre_pretty::Result;
 use petgraph::{Graph, graph::NodeIndex};
 use std::io::{Read, Seek, SeekFrom};
 

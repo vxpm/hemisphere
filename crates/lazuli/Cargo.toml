@@ -16,7 +16,7 @@ workspace = true
 [dependencies]
 gekko.workspace = true
 util.workspace = true
-gcwfmt.workspace = true
+disks.workspace = true
 gxtex.workspace = true
 
 bitos.workspace = true

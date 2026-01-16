@@ -3,14 +3,14 @@ use comfy_table::{
     Cell, CellAlignment, ContentArrangement, Table, modifiers::UTF8_ROUND_CORNERS,
     presets::UTF8_FULL,
 };
-use eyre_pretty::{Context, Result};
-use gcwfmt::{
+use disks::{
     apploader::Apploader,
     binrw::{BinRead, io::BufReader},
     dol,
     iso::{self},
     rvz,
 };
+use eyre_pretty::{Context, Result};
 use std::{
     io::{Read, Seek},
     path::PathBuf,
