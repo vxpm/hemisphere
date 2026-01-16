@@ -41,7 +41,6 @@ where
 }
 
 /// An implementation of [`DiskModule`] for .rvz disks.
-#[derive(Debug)]
 pub struct RvzModule<R> {
     rvz: Rvz<R>,
     position: u64,
@@ -58,10 +57,16 @@ where
     R: Read + Seek,
 {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        self.rvz.read(self.position, buf)?;
-        self.position += buf.len() as u64;
+        let read = match self.rvz.read(self.position, buf) {
+            Ok(read) => read,
+            Err(e) => {
+                tracing::error!("rvz disk module read failed: {e}");
+                return Err(std::io::Error::other("rvz disk module failed"));
+            }
+        };
 
-        Ok(buf.len())
+        self.position += read;
+        Ok(read as usize)
     }
 }
 

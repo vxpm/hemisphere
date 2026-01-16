@@ -3,6 +3,7 @@
 
 use crate::{Console, iso};
 use binrw::{BinRead, BinResult, binread};
+use easyerr::{Error, ResultExt};
 use std::io::{Cursor, Read, Seek, SeekFrom};
 
 /// A SHA1 hash.
@@ -210,74 +211,6 @@ pub struct FileSection {
     pub packing: PackingFormat,
 }
 
-/// A .rvz file.
-#[derive(Debug)]
-pub struct Rvz<R> {
-    rvz_header: RvzHeader,
-    disk_header: DiskHeader,
-    disk_sections: Vec<DiskSection>,
-    file_sections: Vec<FileSection>,
-    reader: R,
-}
-
-/// Reads the disk sections in a RVZ.
-fn read_disk_sections<R: Read + Seek>(
-    disk: &DiskHeader,
-    mut reader: R,
-) -> Result<Vec<DiskSection>, binrw::Error> {
-    assert_eq!(disk.compression, Compression::Zstd);
-
-    let mut compressed = vec![0; disk.disk_sections_size as usize];
-    reader.seek(SeekFrom::Start(disk.disk_sections_offset))?;
-    reader.read_exact(&mut compressed)?;
-
-    let decompressed_size = disk.disk_sections_count as usize * size_of::<DiskSection>();
-    let decompressed = zstd::bulk::decompress(&compressed, decompressed_size).unwrap();
-
-    let mut cursor = Cursor::new(decompressed);
-    let decoded = <Vec<DiskSection>>::read_options(
-        &mut cursor,
-        binrw::endian::BE,
-        binrw::VecArgs::builder()
-            .count(disk.disk_sections_count as usize)
-            .finalize(),
-    )?;
-
-    Ok(decoded)
-}
-
-/// Reads the file sections in a RVZ.
-fn read_file_sections<R: Read + Seek>(
-    disk: &DiskHeader,
-    mut reader: R,
-) -> Result<Vec<FileSection>, binrw::Error> {
-    assert_eq!(disk.compression, Compression::Zstd);
-
-    let mut compressed = vec![0; disk.file_sections_size as usize];
-    reader.seek(SeekFrom::Start(disk.file_sections_offset))?;
-    reader.read_exact(&mut compressed)?;
-
-    let decompressed_size = disk.file_sections_count as usize * size_of::<FileSection>();
-    let decompressed = zstd::bulk::decompress(&compressed, decompressed_size).unwrap();
-
-    let mut cursor = Cursor::new(decompressed);
-    let decoded = <Vec<FileSection>>::read_options(
-        &mut cursor,
-        binrw::endian::BE,
-        binrw::VecArgs::builder()
-            .count(disk.file_sections_count as usize)
-            .finalize(),
-    )?;
-
-    Ok(decoded)
-}
-
-struct FoundFileSection {
-    inner: FileSection,
-    disk_start: u64,
-    disk_len: u64,
-}
-
 /// A descriptor for a chunk of packed data.
 #[derive(Clone, Copy, BinRead)]
 pub struct PackedChunk(u32);
@@ -401,23 +334,138 @@ fn unpack(data: &[u8], offset: u32) -> Vec<u8> {
     output
 }
 
+enum Decompressor {
+    None,
+    Zstd(zstd::bulk::Decompressor<'static>),
+}
+
+impl Decompressor {
+    fn decompress(&mut self, data: &[u8], length: usize) -> Vec<u8> {
+        match self {
+            Self::None => data.to_vec(),
+            Self::Zstd(decompressor) => decompressor.decompress(data, length).unwrap(),
+        }
+    }
+}
+
+/// Reads the disk sections in a RVZ.
+fn read_disk_sections<R: Read + Seek>(
+    disk: &DiskHeader,
+    decompressor: &mut Decompressor,
+    mut reader: R,
+) -> Result<Vec<DiskSection>, binrw::Error> {
+    assert_eq!(disk.compression, Compression::Zstd);
+
+    let mut compressed = vec![0; disk.disk_sections_size as usize];
+    reader.seek(SeekFrom::Start(disk.disk_sections_offset))?;
+    reader.read_exact(&mut compressed)?;
+
+    let decompressed_size = disk.disk_sections_count as usize * size_of::<DiskSection>();
+    let decompressed = decompressor.decompress(&compressed, decompressed_size);
+
+    let mut cursor = Cursor::new(decompressed);
+    let decoded = <Vec<DiskSection>>::read_options(
+        &mut cursor,
+        binrw::endian::BE,
+        binrw::VecArgs::builder()
+            .count(disk.disk_sections_count as usize)
+            .finalize(),
+    )?;
+
+    Ok(decoded)
+}
+
+/// Reads the file sections in a RVZ.
+fn read_file_sections<R: Read + Seek>(
+    disk: &DiskHeader,
+    decompressor: &mut Decompressor,
+    mut reader: R,
+) -> Result<Vec<FileSection>, binrw::Error> {
+    let mut compressed = vec![0; disk.file_sections_size as usize];
+    reader.seek(SeekFrom::Start(disk.file_sections_offset))?;
+    reader.read_exact(&mut compressed)?;
+
+    let decompressed_size = disk.file_sections_count as usize * size_of::<FileSection>();
+    let decompressed = decompressor.decompress(&compressed, decompressed_size);
+
+    let mut cursor = Cursor::new(decompressed);
+    let decoded = <Vec<FileSection>>::read_options(
+        &mut cursor,
+        binrw::endian::BE,
+        binrw::VecArgs::builder()
+            .count(disk.file_sections_count as usize)
+            .finalize(),
+    )?;
+
+    Ok(decoded)
+}
+
+struct FoundFileSection {
+    inner: FileSection,
+    disk_start: u64,
+    disk_len: u64,
+}
+
+#[derive(Debug, Error)]
+pub enum RvzError {
+    #[error("unsupported compression format {f0:?}")]
+    UnsupportedCompression(Compression),
+    #[error(transparent)]
+    ParsingRvzHeader { source: binrw::Error },
+    #[error(transparent)]
+    ParsingDiskHeader { source: binrw::Error },
+    #[error(transparent)]
+    ParsingDiskSections { source: binrw::Error },
+    #[error(transparent)]
+    ParsingFileSections { source: binrw::Error },
+    #[error(transparent)]
+    ReadingFileSection { source: std::io::Error },
+    #[error(
+        "file section containing offset {disk_section_offset} of {disk_section:?} could not be found"
+    )]
+    FileSectionNotFound {
+        disk_section: DiskSection,
+        disk_section_offset: u64,
+    },
+}
+
+/// A .rvz file.
+pub struct Rvz<R> {
+    rvz_header: RvzHeader,
+    disk_header: DiskHeader,
+    disk_sections: Vec<DiskSection>,
+    file_sections: Vec<FileSection>,
+    decompressor: Decompressor,
+    reader: R,
+}
+
 impl<R> Rvz<R>
 where
     R: Read + Seek,
 {
     /// Creates a new [`Rvz`] from the given reader. This function _does not_ validate the RVZ,
     /// i.e. hashes are not computed and checked.
-    pub fn new(mut reader: R) -> Result<Self, binrw::Error> {
-        let header = RvzHeader::read(&mut reader)?;
-        let disk = DiskHeader::read(&mut reader)?;
-        let disk_sections = read_disk_sections(&disk, &mut reader)?;
-        let file_sections = read_file_sections(&disk, &mut reader)?;
+    pub fn new(mut reader: R) -> Result<Self, RvzError> {
+        let header = RvzHeader::read(&mut reader).context(RvzCtx::ParsingRvzHeader)?;
+        let disk = DiskHeader::read(&mut reader).context(RvzCtx::ParsingDiskHeader)?;
+
+        let mut decompressor = match disk.compression {
+            Compression::None => Decompressor::None,
+            Compression::Zstd => Decompressor::Zstd(zstd::bulk::Decompressor::new().unwrap()),
+            _ => return Err(RvzError::UnsupportedCompression(disk.compression)),
+        };
+
+        let disk_sections = read_disk_sections(&disk, &mut decompressor, &mut reader)
+            .context(RvzCtx::ParsingDiskSections)?;
+        let file_sections = read_file_sections(&disk, &mut decompressor, &mut reader)
+            .context(RvzCtx::ParsingFileSections)?;
 
         Ok(Self {
             rvz_header: header,
             disk_header: disk,
             disk_sections,
             file_sections,
+            decompressor,
             reader,
         })
     }
@@ -480,7 +528,7 @@ where
         disk_section: DiskSection,
         disk_section_offset: u64,
         out: &mut [u8],
-    ) -> Result<(), std::io::Error> {
+    ) -> Result<(), RvzError> {
         let mut current_disk_section_offset = disk_section_offset;
         let mut remaining = out.len() as u64;
 
@@ -488,11 +536,10 @@ where
             // find file section containing current offset
             let Some(section) = self.find_file_section(disk_section, current_disk_section_offset)
             else {
-                dbg!(disk_section_offset, out.len());
-                panic!(
-                    "file section containing offset {} not found :(",
-                    current_disk_section_offset
-                );
+                return Err(RvzError::FileSectionNotFound {
+                    disk_section,
+                    disk_section_offset: current_disk_section_offset,
+                });
             };
 
             // 01. read compressed data
@@ -505,15 +552,20 @@ where
                 let mut compressed = vec![0; len];
 
                 self.reader
-                    .seek(SeekFrom::Start(section.inner.file_offset))?;
-                self.reader.read_exact(&mut compressed)?;
+                    .seek(SeekFrom::Start(section.inner.file_offset))
+                    .context(RvzCtx::ReadingFileSection)?;
+
+                self.reader
+                    .read_exact(&mut compressed)
+                    .context(RvzCtx::ReadingFileSection)?;
 
                 compressed
             };
 
             // 02. decompress
             let decompressed = if !compression.is_zeroed() && compression.is_compressed() {
-                zstd::bulk::decompress(&compressed, section.disk_len as usize).unwrap()
+                self.decompressor
+                    .decompress(&compressed, section.disk_len as usize)
             } else {
                 compressed
             };
@@ -542,14 +594,15 @@ where
         Ok(())
     }
 
-    /// Reads from disk at the given offset and writes it into the output buffer.
-    pub fn read(&mut self, disk_offset: u64, out: &mut [u8]) -> Result<(), std::io::Error> {
+    /// Reads from disk at the given offset and writes it into the output buffer. Returns how many
+    /// bytes were actually read.
+    pub fn read(&mut self, disk_offset: u64, out: &mut [u8]) -> Result<u64, RvzError> {
         let mut current_disk_offset = disk_offset;
         let mut remaining = out.len() as u64;
 
         while remaining > 0 {
             let Some(section) = self.find_disk_section(current_disk_offset) else {
-                panic!("disk section not found :(");
+                break;
             };
 
             // read as many bytes as possible from the section
@@ -566,6 +619,6 @@ where
             remaining -= to_read;
         }
 
-        Ok(())
+        Ok(out.len() as u64 - remaining)
     }
 }
