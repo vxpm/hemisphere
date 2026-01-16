@@ -288,8 +288,7 @@ impl Reg {
     pub fn is_tev(&self) -> bool {
         matches!(
             self,
-            Self::GenMode
-                | Self::TevColor0
+            Self::TevColor0
                 | Self::TevAlpha0
                 | Self::TevColor1
                 | Self::TevAlpha1
@@ -586,7 +585,6 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
             let mode = &sys.gpu.mode;
             sys.gpu.env.active_stages = mode.tev_stages_minus_one().value() + 1;
             sys.gpu.env.active_channels = mode.color_channels_count().value();
-            tracing::debug!(?mode);
         }
 
         Reg::TevRefs01 => write_masked!(sys.gpu.env.stage_refs[0]),
@@ -1057,7 +1055,8 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
     }
 
     if reg == Reg::GenMode {
-        xform::update_texgen(sys);
+        sys.gpu.env.stages_dirty = true;
+        sys.gpu.xform.internal.stages_dirty = true;
     }
 
     if reg.is_tev() {
