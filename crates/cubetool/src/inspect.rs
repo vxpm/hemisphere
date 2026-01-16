@@ -4,7 +4,7 @@ use comfy_table::{
     presets::UTF8_FULL,
 };
 use disks::{
-    apploader,
+    Console, apploader,
     binrw::{BinRead, io::BufReader},
     dol,
     iso::{self, Meta},
@@ -471,6 +471,53 @@ pub fn inspect_rvz(input: PathBuf) -> Result<()> {
     rvz_properties.add_row(vec![
         Cell::new("Chunk Length"),
         Cell::new(format!("{}", ByteSize(rvz_disk_header.chunk_len as u64))),
+    ]);
+
+    if rvz_disk_header.console == Some(Console::Wii) {
+        rvz_properties.add_row(vec![
+            Cell::new("Partitions"),
+            Cell::new(rvz_disk_header.partitions_count.to_string()),
+        ]);
+
+        rvz_properties.add_row(vec![
+            Cell::new("Partitions Offset"),
+            Cell::new(format!("0x{:08X}", rvz_disk_header.partitions_offset)),
+        ]);
+
+        rvz_properties.add_row(vec![
+            Cell::new("Partitions Length"),
+            Cell::new(format!("0x{:08X}", rvz_disk_header.partitions_len)),
+        ]);
+    }
+
+    rvz_properties.add_row(vec![
+        Cell::new("Disk Sections"),
+        Cell::new(rvz_disk_header.disk_sections_count.to_string()),
+    ]);
+
+    rvz_properties.add_row(vec![
+        Cell::new("Disk Sections Offset"),
+        Cell::new(format!("0x{:08X}", rvz_disk_header.disk_sections_offset)),
+    ]);
+
+    rvz_properties.add_row(vec![
+        Cell::new("Disk Sections Length"),
+        Cell::new(format!("0x{:08X}", rvz_disk_header.disk_sections_len)),
+    ]);
+
+    rvz_properties.add_row(vec![
+        Cell::new("File Sections"),
+        Cell::new(rvz_disk_header.file_sections_count.to_string()),
+    ]);
+
+    rvz_properties.add_row(vec![
+        Cell::new("File Sections Offset"),
+        Cell::new(format!("0x{:08X}", rvz_disk_header.file_sections_offset)),
+    ]);
+
+    rvz_properties.add_row(vec![
+        Cell::new("File Sections Length"),
+        Cell::new(format!("0x{:08X}", rvz_disk_header.file_sections_len)),
     ]);
 
     label(["> RVZ Properties".into()]);

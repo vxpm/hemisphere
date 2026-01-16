@@ -106,17 +106,17 @@ pub struct DiskHeader {
     pub disk_meta: iso::Meta,
 
     pub partitions_count: u32,
-    pub partitions_size: u32,
+    pub partitions_len: u32,
     pub partitions_offset: u64,
     pub partitions_sha1: Sha1Hash,
 
     pub disk_sections_count: u32,
     pub disk_sections_offset: u64,
-    pub disk_sections_size: u32,
+    pub disk_sections_len: u32,
 
     pub file_sections_count: u32,
     pub file_sections_offset: u64,
-    pub file_sections_size: u32,
+    pub file_sections_len: u32,
 
     pub compressor_data_count: u8,
     pub compressor_data: [u8; 7],
@@ -367,7 +367,7 @@ fn read_disk_sections<R: Read + Seek>(
 ) -> Result<Vec<DiskSection>, binrw::Error> {
     assert_eq!(disk.compression, Compression::Zstd);
 
-    let mut compressed = vec![0; disk.disk_sections_size as usize];
+    let mut compressed = vec![0; disk.disk_sections_len as usize];
     reader.seek(SeekFrom::Start(disk.disk_sections_offset))?;
     reader.read_exact(&mut compressed)?;
 
@@ -392,7 +392,7 @@ fn read_file_sections<R: Read + Seek>(
     decompressor: &mut Decompressor,
     mut reader: R,
 ) -> Result<Vec<FileSection>, binrw::Error> {
-    let mut compressed = vec![0; disk.file_sections_size as usize];
+    let mut compressed = vec![0; disk.file_sections_len as usize];
     reader.seek(SeekFrom::Start(disk.file_sections_offset))?;
     reader.read_exact(&mut compressed)?;
 
