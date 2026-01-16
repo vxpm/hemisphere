@@ -1,7 +1,7 @@
 use std::hint::black_box;
 
 use criterion::{Criterion, criterion_group, criterion_main};
-use gxtex::{FastIntensity, FastRgb565, Format, IA8, Intensity, Pixel, Rgb565, compute_size};
+use gxtex::{FastLuma, FastRgb565, Format, IA8, Luma, Pixel, Rgb565, compute_size};
 
 fn bench<F: Format>(c: &mut Criterion, name: &str) {
     let img = image::open("resources/waterfall.webp").unwrap();
@@ -138,7 +138,7 @@ fn bench_with_fast<Accurate: Format, Fast: Format>(c: &mut Criterion, name: &str
 
 fn formats(c: &mut Criterion) {
     bench_with_fast::<Rgb565, FastRgb565>(c, "RGB565");
-    bench_with_fast::<IA8<Intensity, Intensity>, IA8<FastIntensity, FastIntensity>>(c, "IA8");
+    bench_with_fast::<IA8<Luma, Luma>, IA8<FastLuma, FastLuma>>(c, "IA8");
 }
 
 criterion_group!(benches, formats);

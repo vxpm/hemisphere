@@ -303,18 +303,18 @@ impl ComponentSource for AlphaChannel {
     }
 }
 
-pub struct Intensity;
+pub struct Luma;
 
-impl ComponentSource for Intensity {
+impl ComponentSource for Luma {
     #[inline(always)]
     fn get(pixel: Pixel) -> u8 {
         pixel.y()
     }
 }
 
-pub struct FastIntensity;
+pub struct FastLuma;
 
-impl ComponentSource for FastIntensity {
+impl ComponentSource for FastLuma {
     #[inline(always)]
     fn get(pixel: Pixel) -> u8 {
         pixel.fast_y()
@@ -781,10 +781,10 @@ mod test {
 
     #[test]
     fn test_basic() {
-        test_format::<I4<Intensity>>("resources/waterfall.webp", "I4");
-        test_format::<IA4<Intensity, AlphaChannel>>("resources/waterfall.webp", "IA4");
-        test_format::<I8<Intensity>>("resources/waterfall.webp", "I8");
-        test_format::<IA8<Intensity, AlphaChannel>>("resources/waterfall.webp", "IA8");
+        test_format::<I4<Luma>>("resources/waterfall.webp", "I4");
+        test_format::<IA4<Luma, AlphaChannel>>("resources/waterfall.webp", "IA4");
+        test_format::<I8<Luma>>("resources/waterfall.webp", "I8");
+        test_format::<IA8<Luma, AlphaChannel>>("resources/waterfall.webp", "IA8");
         test_format::<Rgb565>("resources/waterfall.webp", "RGB565");
         test_format::<Rgb5A3>("resources/waterfall.webp", "RGB5A3");
         test_format::<Rgba8>("resources/waterfall.webp", "RGBA8");
@@ -793,7 +793,7 @@ mod test {
     #[test]
     fn test_fast() {
         test_format::<FastRgb565>("resources/waterfall.webp", "FAST_RGB565");
-        test_format::<IA8<FastIntensity, AlphaChannel>>("resources/waterfall.webp", "FAST_IA8");
+        test_format::<IA8<FastLuma, AlphaChannel>>("resources/waterfall.webp", "FAST_IA8");
     }
 
     #[test]

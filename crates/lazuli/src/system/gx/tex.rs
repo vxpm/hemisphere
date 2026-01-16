@@ -226,14 +226,14 @@ pub fn decode_texture(data: &[u8], format: Encoding) -> Vec<Rgba8> {
     let width = format.width() as usize;
     let height = format.height() as usize;
     let pixels = match format.format() {
-        Format::I4 => gxtex::decode::<gxtex::I4<gxtex::FastIntensity>>(width, height, data),
-        Format::IA4 => gxtex::decode::<gxtex::IA4<gxtex::FastIntensity, gxtex::AlphaChannel>>(
-            width, height, data,
-        ),
-        Format::I8 => gxtex::decode::<gxtex::I8<gxtex::FastIntensity>>(width, height, data),
-        Format::IA8 => gxtex::decode::<gxtex::IA8<gxtex::FastIntensity, gxtex::AlphaChannel>>(
-            width, height, data,
-        ),
+        Format::I4 => gxtex::decode::<gxtex::I4<gxtex::FastLuma>>(width, height, data),
+        Format::IA4 => {
+            gxtex::decode::<gxtex::IA4<gxtex::FastLuma, gxtex::AlphaChannel>>(width, height, data)
+        }
+        Format::I8 => gxtex::decode::<gxtex::I8<gxtex::FastLuma>>(width, height, data),
+        Format::IA8 => {
+            gxtex::decode::<gxtex::IA8<gxtex::FastLuma, gxtex::AlphaChannel>>(width, height, data)
+        }
         Format::Rgb565 => gxtex::decode::<gxtex::FastRgb565>(width, height, data),
         Format::Rgb5A3 => gxtex::decode::<gxtex::Rgb5A3>(width, height, data),
         Format::Rgba8 => gxtex::decode::<gxtex::Rgba8>(width, height, data),
@@ -295,7 +295,7 @@ pub fn encode_color_texture(
 
     match format {
         ColorCopyFormat::R4 => encode!(gxtex::I4<gxtex::RedChannel>),
-        ColorCopyFormat::Y8 => encode!(gxtex::I8<gxtex::FastIntensity>),
+        ColorCopyFormat::Y8 => encode!(gxtex::I8<gxtex::FastLuma>),
         ColorCopyFormat::RA4 => encode!(gxtex::IA4<gxtex::RedChannel, gxtex::AlphaChannel>),
         ColorCopyFormat::RA8 => encode!(gxtex::IA8<gxtex::RedChannel, gxtex::AlphaChannel>),
         ColorCopyFormat::RGB565 => encode!(gxtex::FastRgb565),
