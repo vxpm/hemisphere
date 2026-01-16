@@ -50,21 +50,22 @@ such as `--release`). This should produce an `app` executable inside `target/cho
 ## Running a game
 
 Once you have a `lazuli` executable (either by building it or by grabbing one of the nightly releases),
-you can run it in the terminal with a path to the `.iso` file you want to run:
+you can run it in the terminal with a path to the ROM you want to run (supports `.iso` and `.rvz`):
 
 ```sh
-lazuli --iso path/to/gamecube/game.iso
+lazuli --rom path/to/gamecube/game.iso
 ```
 
 You do not need an IPL ROM (the "bios") to run games, but some games might use its embedded font (in
 which case you won't see anything if you don't have one). To pass an IPL:
 
 ```sh
-lazuli --ipl path/to/ipl.bin --iso path/to/gamecube/game.iso
+lazuli --ipl path/to/ipl.bin --rom path/to/gamecube/game.iso
 ```
 
 You can also pass `--ipl-lle` to skip the high-level emulation of the IPL (IPL-HLE) and instead
-use the provided rom to boot. Beware this currently has issues and will likely not work.
+use the provided IPL ROM to boot. Beware this currently has issues and will likely crash after the 
+animation.
 
 For more CLI options, `--help` is your friend.
 

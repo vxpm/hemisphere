@@ -34,9 +34,9 @@ pub struct Config {
     pub ipl: Option<PathBuf>,
     /// Path to the ROM to load and execute
     ///
-    /// Supported format is .iso. To sideload executables, use the `exec` argument.
-    #[arg(short, long)]
-    pub iso: Option<PathBuf>,
+    /// Supported formats are .iso and .rvz. To sideload executables, use the `exec` argument.
+    #[arg(short('i'), long)]
+    pub rom: Option<PathBuf>,
     /// Path to the executable to sideload and execute
     ///
     /// Supported format is .dol.

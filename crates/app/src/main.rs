@@ -61,7 +61,7 @@ impl App {
             None
         };
 
-        let disk: Box<dyn DiskModule> = if let Some(path) = &cfg.iso {
+        let disk: Box<dyn DiskModule> = if let Some(path) = &cfg.rom {
             let extension = path.extension().and_then(|ext| ext.to_str()).unwrap();
             match extension {
                 "iso" => {
