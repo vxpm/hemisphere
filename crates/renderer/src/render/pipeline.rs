@@ -6,21 +6,6 @@ use rustc_hash::FxHashMap;
 pub use settings::*;
 use std::{borrow::Cow, collections::hash_map::Entry};
 
-#[derive(Clone, PartialEq, Eq, Hash, Default)]
-pub struct ShaderSettings {
-    pub texenv: TexEnvSettings,
-    pub texgen: TexGenSettings,
-}
-
-#[derive(Clone, PartialEq, Eq, Hash, Default)]
-pub struct PipelineSettings {
-    pub has_alpha: bool,
-    pub culling: CullingMode,
-    pub blend: BlendSettings,
-    pub depth: DepthSettings,
-    pub shader: ShaderSettings,
-}
-
 pub struct Pipeline {
     pub settings: PipelineSettings,
     group0_layout: wgpu::BindGroupLayout,

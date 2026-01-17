@@ -1,6 +1,7 @@
 use lazuli::{
     modules::render::TexEnvStage,
     system::gx::{
+        CullingMode,
         tev::{AlphaCompare, AlphaLogic},
         xform::BaseTexGen,
     },
@@ -69,4 +70,19 @@ pub struct TexGenStageSettings {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct TexGenSettings {
     pub stages: Vec<TexGenStageSettings>,
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, Default)]
+pub struct ShaderSettings {
+    pub texenv: TexEnvSettings,
+    pub texgen: TexGenSettings,
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, Default)]
+pub struct PipelineSettings {
+    pub has_alpha: bool,
+    pub culling: CullingMode,
+    pub blend: BlendSettings,
+    pub depth: DepthSettings,
+    pub shader: ShaderSettings,
 }
