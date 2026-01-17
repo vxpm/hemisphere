@@ -256,7 +256,6 @@ impl Renderer {
                 clear,
                 response,
             } => {
-                // println!("color copy requested: ({x}, {y}) [{width}x{height}] (mip: {half})");
                 self.debug(format!(
                     "color copy requested: ({x}, {y}) [{width}x{height}] (mip: {half})"
                 ));
@@ -356,6 +355,7 @@ impl Renderer {
     }
 
     pub fn set_culling_mode(&mut self, mode: CullingMode) {
+        self.flush("changed culling mode");
         self.pipeline.settings.culling = mode;
     }
 
