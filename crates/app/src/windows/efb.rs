@@ -6,6 +6,7 @@ use eframe::{
     egui::{self, Vec2},
     egui_wgpu::{self, CallbackTrait},
 };
+use lazuli::system::gx::{EFB_HEIGHT, EFB_WIDTH};
 use renderer::Renderer;
 use serde::{Deserialize, Serialize};
 
@@ -34,7 +35,7 @@ impl AppWindow for Window {
     }
 
     fn default_size(&self) -> Option<egui::Vec2> {
-        Some(egui::Vec2::new(640.0, 528.0))
+        Some(egui::Vec2::new(EFB_WIDTH as f32, EFB_HEIGHT as f32))
     }
 
     fn prepare(&mut self, _: &mut State) {}

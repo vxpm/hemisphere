@@ -1,10 +1,10 @@
-pub struct Buffers {
+pub struct Allocator {
     usages: wgpu::BufferUsages,
     allocated: Vec<wgpu::Buffer>,
     free: Vec<wgpu::Buffer>,
 }
 
-impl Buffers {
+impl Allocator {
     pub fn new(usages: wgpu::BufferUsages) -> Self {
         Self {
             usages,

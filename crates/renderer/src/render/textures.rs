@@ -13,14 +13,14 @@ pub struct TextureHandle {
     pub generation: u32,
 }
 
-pub struct Textures {
+pub struct TextureCache {
     cached: FxHashMap<u32, CachedTexture>,
     current: [TextureHandle; 8],
     textures: [wgpu::Texture; 8],
     samplers: [wgpu::Sampler; 8],
 }
 
-impl Textures {
+impl TextureCache {
     fn create_texture(device: &wgpu::Device, size: wgpu::Extent3d, label: &str) -> wgpu::Texture {
         device.create_texture(&wgpu::TextureDescriptor {
             label: Some(label),

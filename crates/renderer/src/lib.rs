@@ -5,7 +5,10 @@ mod util;
 
 use crate::{render::Renderer as RendererInner, util::blit::XfbBlitter};
 use flume::{Receiver, Sender};
-use lazuli::modules::render::{Action, RenderModule};
+use lazuli::{
+    modules::render::{Action, RenderModule},
+    system::gx::{EFB_HEIGHT, EFB_WIDTH},
+};
 use std::sync::{Arc, atomic::Ordering};
 
 #[expect(clippy::needless_pass_by_value, reason = "makes it clearer")]
@@ -60,8 +63,8 @@ impl Renderer {
             &xfb,
             wgpu::Origin3d::ZERO,
             wgpu::Extent3d {
-                width: 640,
-                height: 528,
+                width: EFB_WIDTH as u32,
+                height: EFB_HEIGHT as u32,
                 depth_or_array_layers: 1,
             },
             pass,
@@ -72,7 +75,7 @@ impl Renderer {
         self.inner
             .shared
             .rendered_anything
-            .swap(false, Ordering::SeqCst)
+            .swap(false, Ordering::Relaxed)
     }
 }
 

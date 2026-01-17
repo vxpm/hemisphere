@@ -1,4 +1,4 @@
-mod buffers;
+mod allocator;
 mod data;
 mod framebuffer;
 mod pipeline;
@@ -6,10 +6,10 @@ mod textures;
 
 use crate::{
     render::{
-        buffers::Buffers,
+        allocator::Allocator,
         framebuffer::Framebuffer,
         pipeline::{Pipeline, TexGenStageSettings},
-        textures::Textures,
+        textures::TextureCache,
     },
     util::blit::{ColorBlitter, DepthBlitter},
 };
@@ -17,13 +17,14 @@ use glam::Mat4;
 use lazuli::{
     modules::render::{Action, TexEnvConfig, TexGenConfig, Viewport, oneshot},
     system::gx::{
-        CullingMode, DEPTH_24_BIT_MAX, MatrixId, Topology, Vertex, VertexStream,
+        CullingMode, DEPTH_24_BIT_MAX, EFB_HEIGHT, EFB_WIDTH, MatrixId, Topology, Vertex,
+        VertexStream,
         colors::{Rgba, Rgba8},
         pix::{
             self, BlendMode, CompareMode, ConstantAlpha, DepthMode, DstBlendFactor, SrcBlendFactor,
         },
         tev::AlphaFunction,
-        xform::ChannelControl,
+        xform::{ChannelControl, Light},
     },
 };
 use seq_macro::seq;
@@ -41,6 +42,11 @@ pub struct Shared {
     pub rendered_anything: AtomicBool,
 }
 
+struct Allocators {
+    index: Allocator,
+    storage: Allocator,
+}
+
 pub struct Renderer {
     device: wgpu::Device,
     queue: wgpu::Queue,
@@ -49,17 +55,17 @@ pub struct Renderer {
     current_encoder: wgpu::CommandEncoder,
     current_pass: wgpu::RenderPass<'static>,
 
+    // components
     pipeline: Pipeline,
     framebuffer: Framebuffer,
-    textures: Textures,
-    index_buffers: Buffers,
-    storage_buffers: Buffers,
+    texture_cache: TextureCache,
+    allocators: Allocators,
+    color_blitter: ColorBlitter,
+    depth_blitter: DepthBlitter,
     color_copy_buffer: wgpu::Buffer,
     depth_copy_buffer: wgpu::Buffer,
 
-    color_blitter: ColorBlitter,
-    depth_blitter: DepthBlitter,
-
+    // state
     viewport: Viewport,
     clear_color: wgpu::Color,
     clear_depth: f32,
@@ -90,19 +96,19 @@ impl Renderer {
     pub fn new(device: wgpu::Device, queue: wgpu::Queue) -> (Self, Arc<Shared>) {
         let framebuffer = Framebuffer::new(&device);
         let pipeline = Pipeline::new(&device);
-        let textures = Textures::new(&device);
-        let index_buffers = Buffers::new(wgpu::BufferUsages::INDEX);
-        let storage_buffers = Buffers::new(wgpu::BufferUsages::STORAGE);
+        let texture_cache = TextureCache::new(&device);
+        let allocators = Allocators {
+            index: Allocator::new(wgpu::BufferUsages::INDEX),
+            storage: Allocator::new(wgpu::BufferUsages::STORAGE),
+        };
 
-        let external = framebuffer.external().create_view(&Default::default());
-        let color = framebuffer.color().create_view(&Default::default());
-        let multisampled_color = framebuffer
-            .multisampled_color()
-            .create_view(&Default::default());
-        let depth = framebuffer.depth().create_view(&Default::default());
+        let color = framebuffer.color();
+        let multisampled_color = framebuffer.multisampled_color();
+        let depth = framebuffer.depth();
+        let external = framebuffer.external();
 
         let shared = Arc::new(Shared {
-            xfb: Mutex::new(external),
+            xfb: Mutex::new(external.clone()),
             rendered_anything: AtomicBool::new(false),
         });
 
@@ -137,14 +143,14 @@ impl Renderer {
 
         let color_copy_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("color copy buffer"),
-            size: 640 * 528 * 4,
+            size: EFB_WIDTH * EFB_HEIGHT * 4,
             usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
             mapped_at_creation: false,
         });
 
         let depth_copy_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("depth copy buffer"),
-            size: 640 * 528 * 4,
+            size: EFB_WIDTH * EFB_HEIGHT * 4,
             usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
             mapped_at_creation: false,
         });
@@ -159,9 +165,8 @@ impl Renderer {
 
             pipeline,
             framebuffer,
-            textures,
-            index_buffers,
-            storage_buffers,
+            texture_cache,
+            allocators,
             color_copy_buffer,
             depth_copy_buffer,
 
@@ -215,38 +220,11 @@ impl Renderer {
                 Topology::LineStrip => tracing::warn!("ignored line strip primitive"),
                 Topology::PointList => tracing::warn!("ignored point list primitive"),
             },
-            Action::SetAmbient(idx, color) => {
-                self.current_config.ambient[idx as usize] = color.into();
-                self.current_config_dirty = true;
-            }
-            Action::SetMaterial(idx, color) => {
-                self.current_config.material[idx as usize] = color.into();
-                self.current_config_dirty = true;
-            }
-            Action::SetColorChannel(idx, control) => {
-                set_channel(
-                    &mut self.current_config.color_channels[idx as usize],
-                    control,
-                );
-                self.current_config_dirty = true;
-            }
-            Action::SetAlphaChannel(idx, control) => {
-                set_channel(
-                    &mut self.current_config.alpha_channels[idx as usize],
-                    control,
-                );
-                self.current_config_dirty = true;
-            }
-            Action::SetLight(idx, light) => {
-                let l = &mut self.current_config.lights[idx as usize];
-                l.color = light.color.into();
-                l.cos_attenuation = light.cos_attenuation;
-                l.dist_attenuation = light.dist_attenuation;
-                l.position = light.position;
-                l.direction = light.direction;
-
-                self.current_config_dirty = true;
-            }
+            Action::SetAmbient(idx, color) => self.set_ambient(idx, color.into()),
+            Action::SetMaterial(idx, color) => self.set_material(idx, color.into()),
+            Action::SetColorChannel(idx, control) => self.set_color_channel(idx, control),
+            Action::SetAlphaChannel(idx, control) => self.set_alpha_channel(idx, control),
+            Action::SetLight(idx, light) => self.set_light(idx, light),
             Action::ColorCopy {
                 x,
                 y,
@@ -255,15 +233,7 @@ impl Renderer {
                 half,
                 clear,
                 response,
-            } => {
-                self.debug(format!(
-                    "color copy requested: ({x}, {y}) [{width}x{height}] (mip: {half})"
-                ));
-
-                self.next_pass(clear, false);
-                let data = self.get_color_data(x, y, width, height, half);
-                response.send(data).unwrap();
-            }
+            } => self.color_copy(x, y, width, height, half, clear, response),
             Action::DepthCopy {
                 x,
                 y,
@@ -273,13 +243,7 @@ impl Renderer {
                 clear,
                 response,
             } => {
-                self.debug(format!(
-                    "depth copy requested: ({x}, {y}) [{width}x{height}] (mip: {half})"
-                ));
-
-                self.next_pass(clear, false);
-                let data = self.get_depth_data(x, y, width, height, half);
-                response.send(data).unwrap();
+                self.depth_copy(x, y, width, height, half, clear, response);
             }
             Action::XfbCopy { clear } => {
                 self.debug("XFB copy requested");
@@ -454,6 +418,42 @@ impl Renderer {
         self.current_config_dirty = true;
     }
 
+    pub fn set_ambient(&mut self, idx: u8, color: Rgba) {
+        self.current_config.ambient[idx as usize] = color;
+        self.current_config_dirty = true;
+    }
+
+    pub fn set_material(&mut self, idx: u8, color: Rgba) {
+        self.current_config.material[idx as usize] = color;
+        self.current_config_dirty = true;
+    }
+
+    pub fn set_color_channel(&mut self, idx: u8, control: ChannelControl) {
+        set_channel(
+            &mut self.current_config.color_channels[idx as usize],
+            control,
+        );
+        self.current_config_dirty = true;
+    }
+
+    pub fn set_alpha_channel(&mut self, idx: u8, control: ChannelControl) {
+        set_channel(
+            &mut self.current_config.alpha_channels[idx as usize],
+            control,
+        );
+        self.current_config_dirty = true;
+    }
+
+    pub fn set_light(&mut self, idx: u8, light: Light) {
+        let data = &mut self.current_config.lights[idx as usize];
+        data.color = light.color.into();
+        data.cos_attenuation = light.cos_attenuation;
+        data.dist_attenuation = light.dist_attenuation;
+        data.position = light.position;
+        data.direction = light.direction;
+        self.current_config_dirty = true;
+    }
+
     pub fn set_projection_mat(&mut self, mat: Mat4) {
         self.current_config.projection_mat = mat;
         self.current_config_dirty = true;
@@ -497,14 +497,14 @@ impl Renderer {
     }
 
     pub fn load_texture(&mut self, id: u32, width: u32, height: u32, data: &[u8]) {
-        self.textures
+        self.texture_cache
             .update_texture(&self.device, &self.queue, id, width, height, data);
     }
 
     pub fn set_texture(&mut self, index: usize, id: u32) {
-        let in_slot = self.textures.get_texture_slot(index);
+        let in_slot = self.texture_cache.get_texture_slot(index);
         let handle = self
-            .textures
+            .texture_cache
             .get_texture(id)
             .expect("texture should exist before being set");
 
@@ -513,7 +513,7 @@ impl Renderer {
         }
 
         self.flush("texture slot changed");
-        self.textures.set_texture_slot(index, handle);
+        self.texture_cache.set_texture_slot(index, handle);
     }
 
     fn flush_config(&mut self) {
@@ -638,18 +638,21 @@ impl Renderer {
         self.pipeline.update(&self.device);
 
         let index_buf =
-            self.index_buffers
+            self.allocators
+                .index
                 .allocate(&self.device, &self.queue, self.indices.as_bytes());
         let vertices_buf =
-            self.storage_buffers
+            self.allocators
+                .storage
                 .allocate(&self.device, &self.queue, self.vertices.as_bytes());
         let configs_buf =
-            self.storage_buffers
+            self.allocators
+                .storage
                 .allocate(&self.device, &self.queue, self.configs.as_bytes());
 
-        let samplers = self.textures.samplers();
+        let samplers = self.texture_cache.samplers();
         let textures = self
-            .textures
+            .texture_cache
             .textures()
             .clone()
             .map(|tex| tex.create_view(&Default::default()));
@@ -716,13 +719,9 @@ impl Renderer {
     pub fn next_pass(&mut self, clear: bool, copy_to_xfb: bool) {
         self.flush("finishing pass");
 
-        let external = self.framebuffer.external().create_view(&Default::default());
-        let color = self.framebuffer.color().create_view(&Default::default());
-        let multisampled_color = self
-            .framebuffer
-            .multisampled_color()
-            .create_view(&Default::default());
-        let depth = self.framebuffer.depth().create_view(&Default::default());
+        let color = self.framebuffer.color();
+        let depth = self.framebuffer.depth();
+        let multisampled_color = self.framebuffer.multisampled_color();
 
         let color_op = if clear && self.pipeline.settings.blend.color_write {
             if !self.pipeline.settings.blend.alpha_write {
@@ -756,16 +755,16 @@ impl Renderer {
             .begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("main render pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &multisampled_color,
+                    view: multisampled_color,
                     depth_slice: None,
-                    resolve_target: Some(&color),
+                    resolve_target: Some(color),
                     ops: wgpu::Operations {
                         load: color_op,
                         store: wgpu::StoreOp::Store,
                     },
                 })],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &depth,
+                    view: depth,
                     depth_ops: Some(wgpu::Operations {
                         load: depth_op,
                         store: wgpu::StoreOp::Store,
@@ -783,6 +782,7 @@ impl Renderer {
         std::mem::drop(previous_pass);
 
         if copy_to_xfb {
+            let external = self.framebuffer.external();
             previous_encoder.copy_texture_to_texture(
                 wgpu::TexelCopyTextureInfoBase {
                     texture: color.texture(),
@@ -804,10 +804,10 @@ impl Renderer {
         self.queue.submit([buffer]);
         self.device.poll(wgpu::PollType::Poll).unwrap();
 
-        self.index_buffers.recall();
-        self.storage_buffers.recall();
+        self.allocators.index.recall();
+        self.allocators.storage.recall();
 
-        self.shared.rendered_anything.store(true, Ordering::SeqCst);
+        self.shared.rendered_anything.store(true, Ordering::Relaxed);
     }
 
     pub fn get_color_data(
@@ -842,7 +842,6 @@ impl Renderer {
             sample_count: 1,
         });
 
-        let color_view = color.create_view(&wgpu::TextureViewDescriptor::default());
         let target_view = copy_target.create_view(&wgpu::TextureViewDescriptor::default());
 
         let mut encoder = self
@@ -851,7 +850,7 @@ impl Renderer {
 
         self.color_blitter.blit_to_texture(
             &self.device,
-            &color_view,
+            color,
             wgpu::Origin3d {
                 x: x as u32,
                 y: y as u32,
@@ -950,7 +949,6 @@ impl Renderer {
             sample_count: 1,
         });
 
-        let depth_view = depth.create_view(&wgpu::TextureViewDescriptor::default());
         let target_view = copy_target.create_view(&wgpu::TextureViewDescriptor::default());
 
         let mut encoder = self
@@ -959,7 +957,7 @@ impl Renderer {
 
         self.depth_blitter.blit_to_texture(
             &self.device,
-            &depth_view,
+            depth,
             wgpu::Origin3d::ZERO,
             wgpu::Extent3d {
                 width: width as u32,
@@ -1033,5 +1031,43 @@ impl Renderer {
         self.depth_copy_buffer.unmap();
 
         depth
+    }
+
+    pub fn color_copy(
+        &mut self,
+        x: u16,
+        y: u16,
+        width: u16,
+        height: u16,
+        half: bool,
+        clear: bool,
+        response: oneshot::Sender<Vec<Rgba8>>,
+    ) {
+        self.debug(format!(
+            "color copy requested: ({x}, {y}) [{width}x{height}] (mip: {half})"
+        ));
+
+        self.next_pass(clear, false);
+        let data = self.get_color_data(x, y, width, height, half);
+        response.send(data).unwrap();
+    }
+
+    pub fn depth_copy(
+        &mut self,
+        x: u16,
+        y: u16,
+        width: u16,
+        height: u16,
+        half: bool,
+        clear: bool,
+        response: oneshot::Sender<Vec<u32>>,
+    ) {
+        self.debug(format!(
+            "depth copy requested: ({x}, {y}) [{width}x{height}] (mip: {half})"
+        ));
+
+        self.next_pass(clear, false);
+        let data = self.get_depth_data(x, y, width, height, half);
+        response.send(data).unwrap();
     }
 }

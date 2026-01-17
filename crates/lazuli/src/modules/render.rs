@@ -1,7 +1,7 @@
 //! Renderer module interface.
 
 use crate::system::gx::{
-    CullingMode, Topology, VertexStream,
+    CullingMode, EFB_HEIGHT, EFB_WIDTH, Topology, VertexStream,
     colors::{Abgr8, Rgba, Rgba8, Rgba16},
     pix::{BlendMode, BufferFormat, ConstantAlpha, DepthMode},
     tev::{AlphaFunction, Constant, StageOps, StageRefs},
@@ -41,8 +41,8 @@ pub struct Viewport {
 impl Default for Viewport {
     fn default() -> Self {
         Self {
-            width: 640.0,
-            height: 528.0,
+            width: EFB_WIDTH as f32,
+            height: EFB_HEIGHT as f32,
             top_left_x: 0.0,
             top_left_y: 0.0,
             near_z: 0.0,

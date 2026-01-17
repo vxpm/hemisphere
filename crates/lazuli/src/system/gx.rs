@@ -38,6 +38,8 @@ pub use glam;
 
 /// Maximum value for the 24-bit depth.
 pub const DEPTH_24_BIT_MAX: u32 = (1 << 24) - 1;
+pub const EFB_WIDTH: u64 = 640;
+pub const EFB_HEIGHT: u64 = 528;
 
 /// An internal GX register.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, FromRepr)]
