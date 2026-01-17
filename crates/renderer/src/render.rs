@@ -24,6 +24,7 @@ use lazuli::{
             self, BlendMode, CompareMode, ConstantAlpha, DepthMode, DstBlendFactor, SrcBlendFactor,
         },
         tev::AlphaFunction,
+        tex::TextureData,
         xform::{ChannelControl, Light},
     },
 };
@@ -117,16 +118,16 @@ impl Renderer {
             .begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("lazuli render pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &multisampled_color,
+                    view: multisampled_color,
                     depth_slice: None,
-                    resolve_target: Some(&color),
+                    resolve_target: Some(color),
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
                         store: wgpu::StoreOp::Store,
                     },
                 })],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &depth,
+                    view: depth,
                     depth_ops: Some(wgpu::Operations {
                         load: wgpu::LoadOp::Clear(1.0),
                         store: wgpu::StoreOp::Store,
@@ -209,7 +210,7 @@ impl Renderer {
                 width,
                 height,
                 data,
-            } => self.load_texture(id, width, height, zerocopy::transmute_ref!(data.as_slice())),
+            } => self.load_texture(id, width, height, data),
             Action::SetTexture { index, id } => self.set_texture(index, id),
             Action::Draw(topology, vertices) => match topology {
                 Topology::QuadList => self.draw_quad_list(&vertices),
@@ -496,9 +497,41 @@ impl Renderer {
         self.current_config_dirty = true;
     }
 
-    pub fn load_texture(&mut self, id: u32, width: u32, height: u32, data: &[u8]) {
-        self.texture_cache
-            .update_texture(&self.device, &self.queue, id, width, height, data);
+    pub fn load_texture(&mut self, id: u32, width: u32, height: u32, data: TextureData) {
+        match data {
+            TextureData::Direct(data) => {
+                let data = zerocopy::transmute_ref!(data.as_slice());
+                self.texture_cache.update_texture(
+                    &self.device,
+                    &self.queue,
+                    id,
+                    width,
+                    height,
+                    data,
+                );
+            }
+            TextureData::Indirect(data) => {
+                let pixels = data
+                    .into_iter()
+                    .map(|i| Rgba8 {
+                        r: i as u8,
+                        g: i as u8,
+                        b: i as u8,
+                        a: i as u8,
+                    })
+                    .collect::<Vec<_>>();
+
+                let data = zerocopy::transmute_ref!(pixels.as_slice());
+                self.texture_cache.update_texture(
+                    &self.device,
+                    &self.queue,
+                    id,
+                    width,
+                    height,
+                    data,
+                );
+            }
+        }
     }
 
     pub fn set_texture(&mut self, index: usize, id: u32) {

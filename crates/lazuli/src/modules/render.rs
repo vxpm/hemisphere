@@ -5,6 +5,7 @@ use crate::system::gx::{
     colors::{Abgr8, Rgba, Rgba8, Rgba16},
     pix::{BlendMode, BufferFormat, ConstantAlpha, DepthMode},
     tev::{AlphaFunction, Constant, StageOps, StageRefs},
+    tex::TextureData,
     xform::{BaseTexGen, ChannelControl, Light, ProjectionMat},
 };
 use glam::Mat4;
@@ -117,7 +118,7 @@ pub enum Action {
         id: u32,
         width: u32,
         height: u32,
-        data: Vec<Rgba8>,
+        data: TextureData,
     },
     SetTexture {
         index: usize,

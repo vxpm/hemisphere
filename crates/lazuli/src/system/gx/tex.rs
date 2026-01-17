@@ -8,7 +8,29 @@ use bitos::{
     integer::{u2, u10, u11},
 };
 use gekko::Address;
+use gxtex::PaletteIndex;
 use std::collections::HashMap;
+
+#[derive(Debug, Clone)]
+pub enum TextureData {
+    Direct(Vec<Rgba8>),
+    Indirect(Vec<PaletteIndex>),
+}
+
+impl TextureData {
+    fn direct(data: Vec<gxtex::Pixel>) -> Self {
+        Self::Direct(
+            data.into_iter()
+                .map(|p| Rgba8 {
+                    r: p.r,
+                    g: p.g,
+                    b: p.b,
+                    a: p.a,
+                })
+                .collect(),
+        )
+    }
+}
 
 #[bitos(2)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -46,9 +68,9 @@ pub enum Format {
     Rgb5A3 = 0x5,
     Rgba8 = 0x6,
     Reserved0 = 0x7,
-    C4 = 0x8,
-    C8 = 0x9,
-    C14X2 = 0xA,
+    CI4 = 0x8,
+    CI8 = 0x9,
+    CI14X2 = 0xA,
     Reserved1 = 0xB,
     Reserved2 = 0xC,
     Reserved3 = 0xD,
@@ -111,8 +133,8 @@ impl Encoding {
             Format::Rgb5A3 => pixels(4) * 2,
             Format::Rgba8 => pixels(4) * 4,
             Format::Cmp => pixels(8) / 2,
-            Format::C8 => pixels(1),
-            Format::C4 => pixels(1) / 2,
+            Format::CI8 => pixels(1),
+            Format::CI4 => pixels(1) / 2,
             _ => todo!("format {:?}", self.format()),
         }
     }
@@ -222,45 +244,33 @@ impl Interface {
     }
 }
 
-pub fn decode_texture(data: &[u8], format: Encoding) -> Vec<Rgba8> {
-    let width = format.width() as usize;
-    let height = format.height() as usize;
-    let pixels = match format.format() {
-        Format::I4 => gxtex::decode::<gxtex::I4<gxtex::FastLuma>>(width, height, data),
-        Format::IA4 => {
-            gxtex::decode::<gxtex::IA4<gxtex::FastLuma, gxtex::AlphaChannel>>(width, height, data)
-        }
-        Format::I8 => gxtex::decode::<gxtex::I8<gxtex::FastLuma>>(width, height, data),
-        Format::IA8 => {
-            gxtex::decode::<gxtex::IA8<gxtex::FastLuma, gxtex::AlphaChannel>>(width, height, data)
-        }
-        Format::Rgb565 => gxtex::decode::<gxtex::FastRgb565>(width, height, data),
-        Format::Rgb5A3 => gxtex::decode::<gxtex::Rgb5A3>(width, height, data),
-        Format::Rgba8 => gxtex::decode::<gxtex::Rgba8>(width, height, data),
-        Format::Cmp => gxtex::decode::<gxtex::Cmpr>(width, height, data),
-        Format::C8 | Format::C4 => {
-            vec![
-                gxtex::Pixel {
-                    r: 255,
-                    g: 255,
-                    b: 255,
-                    a: 128
-                };
-                (format.width() * format.height()) as usize
-            ]
-        }
-        _ => todo!("format {format:?}"),
+pub fn decode_texture(data: &[u8], format: Encoding) -> TextureData {
+    use gxtex::{
+        AlphaChannel, CI4, CI8, CI14X2, Cmpr, FastLuma, FastRgb565, I4, I8, IA4, IA8, Rgb5A3,
+        Rgba8, decode,
     };
 
-    pixels
-        .into_iter()
-        .map(|c| Rgba8 {
-            r: c.r,
-            g: c.g,
-            b: c.b,
-            a: c.a,
-        })
-        .collect()
+    let width = format.width() as usize;
+    let height = format.height() as usize;
+
+    match format.format() {
+        Format::I4 => TextureData::direct(decode::<I4<FastLuma>>(width, height, data)),
+        Format::IA4 => {
+            TextureData::direct(decode::<IA4<FastLuma, AlphaChannel>>(width, height, data))
+        }
+        Format::I8 => TextureData::direct(decode::<I8<FastLuma>>(width, height, data)),
+        Format::IA8 => {
+            TextureData::direct(decode::<IA8<FastLuma, AlphaChannel>>(width, height, data))
+        }
+        Format::Rgb565 => TextureData::direct(decode::<FastRgb565>(width, height, data)),
+        Format::Rgb5A3 => TextureData::direct(decode::<Rgb5A3>(width, height, data)),
+        Format::Rgba8 => TextureData::direct(decode::<Rgba8>(width, height, data)),
+        Format::Cmp => TextureData::direct(decode::<Cmpr>(width, height, data)),
+        Format::CI4 => TextureData::Indirect(decode::<CI4>(width, height, data)),
+        Format::CI8 => TextureData::Indirect(decode::<CI8>(width, height, data)),
+        Format::CI14X2 => TextureData::Indirect(decode::<CI14X2>(width, height, data)),
+        _ => todo!("reserved texture format"),
+    }
 }
 
 pub fn encode_color_texture(
@@ -271,6 +281,11 @@ pub fn encode_color_texture(
     height: u32,
     output: &mut [u8],
 ) {
+    use gxtex::{
+        AlphaChannel, BlueChannel, FastLuma, FastRgb565, GreenChannel, I4, I8, IA4, IA8,
+        RedChannel, Rgb5A3, Rgba8, encode,
+    };
+
     let pixels = data
         .into_iter()
         .map(|c| gxtex::Pixel {
@@ -283,7 +298,7 @@ pub fn encode_color_texture(
 
     macro_rules! encode {
         ($fmt:ty) => {
-            gxtex::encode::<$fmt>(
+            encode::<$fmt>(
                 stride as usize,
                 width as usize,
                 height as usize,
@@ -294,19 +309,19 @@ pub fn encode_color_texture(
     }
 
     match format {
-        ColorCopyFormat::R4 => encode!(gxtex::I4<gxtex::RedChannel>),
-        ColorCopyFormat::Y8 => encode!(gxtex::I8<gxtex::FastLuma>),
-        ColorCopyFormat::RA4 => encode!(gxtex::IA4<gxtex::RedChannel, gxtex::AlphaChannel>),
-        ColorCopyFormat::RA8 => encode!(gxtex::IA8<gxtex::RedChannel, gxtex::AlphaChannel>),
-        ColorCopyFormat::RGB565 => encode!(gxtex::FastRgb565),
-        ColorCopyFormat::RGB5A3 => encode!(gxtex::Rgb5A3),
-        ColorCopyFormat::RGBA8 => encode!(gxtex::Rgba8),
-        ColorCopyFormat::A8 => encode!(gxtex::I8<gxtex::AlphaChannel>),
-        ColorCopyFormat::R8 => encode!(gxtex::I8<gxtex::RedChannel>),
-        ColorCopyFormat::G8 => encode!(gxtex::I8<gxtex::GreenChannel>),
-        ColorCopyFormat::B8 => encode!(gxtex::I8<gxtex::BlueChannel>),
-        ColorCopyFormat::RG8 => encode!(gxtex::IA8<gxtex::RedChannel, gxtex::GreenChannel>),
-        ColorCopyFormat::GB8 => encode!(gxtex::IA8<gxtex::GreenChannel, gxtex::BlueChannel>),
+        ColorCopyFormat::R4 => encode!(I4<RedChannel>),
+        ColorCopyFormat::Y8 => encode!(I8<FastLuma>),
+        ColorCopyFormat::RA4 => encode!(IA4<RedChannel, AlphaChannel>),
+        ColorCopyFormat::RA8 => encode!(IA8<RedChannel, AlphaChannel>),
+        ColorCopyFormat::RGB565 => encode!(FastRgb565),
+        ColorCopyFormat::RGB5A3 => encode!(Rgb5A3),
+        ColorCopyFormat::RGBA8 => encode!(Rgba8),
+        ColorCopyFormat::A8 => encode!(I8<AlphaChannel>),
+        ColorCopyFormat::R8 => encode!(I8<RedChannel>),
+        ColorCopyFormat::G8 => encode!(I8<GreenChannel>),
+        ColorCopyFormat::B8 => encode!(I8<BlueChannel>),
+        ColorCopyFormat::RG8 => encode!(IA8<RedChannel, GreenChannel>),
+        ColorCopyFormat::GB8 => encode!(IA8<GreenChannel, BlueChannel>),
         _ => panic!("reserved color format"),
     }
 }
@@ -319,6 +334,8 @@ pub fn encode_depth_texture(
     height: u32,
     output: &mut [u8],
 ) {
+    use gxtex::{BlueChannel, GreenChannel, I8, IA8, RedChannel, Rgba8, encode};
+
     let depth = data
         .into_iter()
         .map(u32::to_le_bytes)
@@ -332,7 +349,7 @@ pub fn encode_depth_texture(
 
     macro_rules! encode {
         ($fmt:ty) => {
-            gxtex::encode::<$fmt>(
+            encode::<$fmt>(
                 stride as usize,
                 width as usize,
                 height as usize,
@@ -344,14 +361,14 @@ pub fn encode_depth_texture(
 
     match format {
         DepthCopyFormat::Z4 => todo!(),
-        DepthCopyFormat::Z8 => encode!(gxtex::I8<gxtex::RedChannel>), // not sure...
-        DepthCopyFormat::Z16C => encode!(gxtex::IA8<gxtex::RedChannel, gxtex::GreenChannel>),
-        DepthCopyFormat::Z24X8 => encode!(gxtex::Rgba8),
-        DepthCopyFormat::Z8H => encode!(gxtex::I8<gxtex::BlueChannel>),
-        DepthCopyFormat::Z8M => encode!(gxtex::I8<gxtex::GreenChannel>),
-        DepthCopyFormat::Z8L => encode!(gxtex::I8<gxtex::RedChannel>),
-        DepthCopyFormat::Z16A => encode!(gxtex::IA8<gxtex::GreenChannel, gxtex::RedChannel>),
-        DepthCopyFormat::Z16B => encode!(gxtex::IA8<gxtex::GreenChannel, gxtex::RedChannel>),
+        DepthCopyFormat::Z8 => encode!(I8<RedChannel>), // not sure...
+        DepthCopyFormat::Z16C => encode!(IA8<RedChannel, GreenChannel>),
+        DepthCopyFormat::Z24X8 => encode!(Rgba8),
+        DepthCopyFormat::Z8H => encode!(I8<BlueChannel>),
+        DepthCopyFormat::Z8M => encode!(I8<GreenChannel>),
+        DepthCopyFormat::Z8L => encode!(I8<RedChannel>),
+        DepthCopyFormat::Z16A => encode!(IA8<GreenChannel, RedChannel>),
+        DepthCopyFormat::Z16B => encode!(IA8<GreenChannel, RedChannel>),
         _ => panic!("reserved depth format"),
     }
 }

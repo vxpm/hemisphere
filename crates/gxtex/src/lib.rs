@@ -18,6 +18,8 @@ use zerocopy::{FromBytes, Immutable, IntoBytes};
 //     [63, 31, 55, 23, 61, 29, 53, 21],
 // ];
 
+pub type PaletteIndex = u16;
+
 /// Converts a value in range `0..=OLD_MAX` to a value in the range `0..=NEW_MAX`.
 #[inline(always)]
 fn range_conv<const OLD_MAX: u32, const NEW_MAX: u32>(value: u8) -> u8 {
@@ -179,8 +181,10 @@ pub trait Format {
     const TILE_HEIGHT: usize;
     const BYTES_PER_TILE: usize = 32;
 
-    fn encode_tile(data: &mut [u8], get: impl Fn(usize, usize) -> Pixel);
-    fn decode_tile(data: &[u8], set: impl FnMut(usize, usize, Pixel));
+    type Texel: Clone + Copy + Default;
+
+    fn encode_tile(data: &mut [u8], get: impl Fn(usize, usize) -> Self::Texel);
+    fn decode_tile(data: &[u8], set: impl FnMut(usize, usize, Self::Texel));
 }
 
 pub fn compute_size<F: Format>(width: usize, height: usize) -> usize {
@@ -195,7 +199,7 @@ pub fn encode<F: Format>(
     stride: usize,
     width: usize,
     height: usize,
-    data: &[Pixel],
+    data: &[F::Texel],
     buffer: &mut [u8],
 ) {
     assert!(buffer.len() >= ((width * height * F::NIBBLES_PER_TEXEL).div_ceil(2)));
@@ -228,8 +232,8 @@ pub fn encode<F: Format>(
 }
 
 #[multiversion(targets = "simd")]
-pub fn decode<F: Format>(width: usize, height: usize, data: &[u8]) -> Vec<Pixel> {
-    let mut pixels = vec![Pixel::default(); width * height];
+pub fn decode<F: Format>(width: usize, height: usize, data: &[u8]) -> Vec<F::Texel> {
+    let mut texels = vec![F::Texel::default(); width * height];
 
     let width_in_tiles = width.div_ceil(F::TILE_WIDTH);
     let height_in_tiles = height.div_ceil(F::TILE_HEIGHT);
@@ -254,13 +258,13 @@ pub fn decode<F: Format>(width: usize, height: usize, data: &[u8]) -> Vec<Pixel>
                 let y = base_y + y;
                 if x < width && y < height {
                     let image_index = y * width + x;
-                    pixels[image_index] = value;
+                    texels[image_index] = value;
                 }
             });
         }
     }
 
-    pixels
+    texels
 }
 
 pub trait ComponentSource {
@@ -328,6 +332,8 @@ impl<Source: ComponentSource> Format for I4<Source> {
     const TILE_WIDTH: usize = 8;
     const TILE_HEIGHT: usize = 8;
 
+    type Texel = Pixel;
+
     fn encode_tile(data: &mut [u8], get: impl Fn(usize, usize) -> Pixel) {
         for y in 0..Self::TILE_HEIGHT {
             for x in 0..Self::TILE_WIDTH {
@@ -383,6 +389,8 @@ impl<IntensitySource: ComponentSource, AlphaSource: ComponentSource> Format
     const TILE_WIDTH: usize = 8;
     const TILE_HEIGHT: usize = 4;
 
+    type Texel = Pixel;
+
     fn encode_tile(data: &mut [u8], get: impl Fn(usize, usize) -> Pixel) {
         for y in 0..Self::TILE_HEIGHT {
             for x in 0..Self::TILE_WIDTH {
@@ -426,6 +434,8 @@ impl<Source: ComponentSource> Format for I8<Source> {
     const TILE_WIDTH: usize = 8;
     const TILE_HEIGHT: usize = 4;
 
+    type Texel = Pixel;
+
     fn encode_tile(data: &mut [u8], get: impl Fn(usize, usize) -> Pixel) {
         for y in 0..Self::TILE_HEIGHT {
             for x in 0..Self::TILE_WIDTH {
@@ -468,23 +478,10 @@ impl<IntensitySource: ComponentSource, AlphaSource: ComponentSource> Format
     const TILE_WIDTH: usize = 4;
     const TILE_HEIGHT: usize = 4;
 
+    type Texel = Pixel;
+
     #[inline(always)]
     fn encode_tile(data: &mut [u8], get: impl Fn(usize, usize) -> Pixel) {
-        // let pixels: [Pixel; 16] = std::array::from_fn(|i| get(i % 4, i / 4));
-        // let conv = pixels.map(|p| (AlphaSource::get(p), IntensitySource::get(p)));
-        // seq! {
-        //     Y in 0..4 {
-        //         seq! {
-        //             X in 0..4 {
-        //                 let index = X + 4 * Y;
-        //                 let value = conv[index];
-        //                 data[2 * index] = value.0;
-        //                 data[2 * index + 1] = value.1;
-        //             }
-        //         }
-        //     }
-        // }
-
         for y in 0..Self::TILE_HEIGHT {
             for x in 0..Self::TILE_WIDTH {
                 let pixel = get(x, y);
@@ -528,6 +525,8 @@ impl Format for Rgb565 {
     const TILE_WIDTH: usize = 4;
     const TILE_HEIGHT: usize = 4;
 
+    type Texel = Pixel;
+
     #[inline(always)]
     fn encode_tile(data: &mut [u8], get: impl Fn(usize, usize) -> Pixel) {
         let pixels: [Pixel; 16] = std::array::from_fn(|i| get(i % 4, i / 4));
@@ -569,6 +568,8 @@ impl Format for FastRgb565 {
     const NIBBLES_PER_TEXEL: usize = 4;
     const TILE_WIDTH: usize = 4;
     const TILE_HEIGHT: usize = 4;
+
+    type Texel = Pixel;
 
     #[inline(always)]
     fn encode_tile(data: &mut [u8], get: impl Fn(usize, usize) -> Pixel) {
@@ -612,6 +613,8 @@ impl Format for Rgb5A3 {
     const TILE_WIDTH: usize = 4;
     const TILE_HEIGHT: usize = 4;
 
+    type Texel = Pixel;
+
     fn encode_tile(data: &mut [u8], get: impl Fn(usize, usize) -> Pixel) {
         for y in 0..Self::TILE_HEIGHT {
             for x in 0..Self::TILE_WIDTH {
@@ -643,6 +646,8 @@ impl Format for Rgba8 {
     const TILE_WIDTH: usize = 4;
     const TILE_HEIGHT: usize = 4;
     const BYTES_PER_TILE: usize = 64;
+
+    type Texel = Pixel;
 
     fn encode_tile(data: &mut [u8], get: impl Fn(usize, usize) -> Pixel) {
         for y in 0..Self::TILE_HEIGHT {
@@ -686,6 +691,8 @@ impl Format for Cmpr {
     const NIBBLES_PER_TEXEL: usize = 1;
     const TILE_WIDTH: usize = 8;
     const TILE_HEIGHT: usize = 8;
+
+    type Texel = Pixel;
 
     fn encode_tile(_: &mut [u8], _: impl Fn(usize, usize) -> Pixel) {
         unimplemented!("cmpr encoding not implemented")
@@ -735,13 +742,127 @@ impl Format for Cmpr {
     }
 }
 
+pub struct CI4;
+
+impl Format for CI4 {
+    const NIBBLES_PER_TEXEL: usize = 1;
+    const TILE_WIDTH: usize = 8;
+    const TILE_HEIGHT: usize = 8;
+
+    type Texel = PaletteIndex;
+
+    fn encode_tile(data: &mut [u8], get: impl Fn(usize, usize) -> Self::Texel) {
+        for y in 0..Self::TILE_HEIGHT {
+            for x in 0..Self::TILE_WIDTH {
+                let palette_index = get(x, y);
+                let index = y * Self::TILE_WIDTH + x;
+                let current = data[index / 2];
+
+                let new = if index % 2 == 0 {
+                    current.with_bits(4, 8, palette_index as u8)
+                } else {
+                    current.with_bits(0, 4, palette_index as u8)
+                };
+
+                data[index / 2] = new;
+            }
+        }
+    }
+
+    fn decode_tile(data: &[u8], mut set: impl FnMut(usize, usize, Self::Texel)) {
+        for y in 0..Self::TILE_HEIGHT {
+            for x in 0..Self::TILE_WIDTH {
+                let index = y * Self::TILE_WIDTH + x;
+                let value = data[index / 2];
+                let palette_index = if index % 2 == 0 {
+                    value.bits(4, 8)
+                } else {
+                    value.bits(0, 4)
+                } as u16;
+
+                set(x, y, palette_index)
+            }
+        }
+    }
+}
+
+pub struct CI8;
+
+impl Format for CI8 {
+    const NIBBLES_PER_TEXEL: usize = 2;
+    const TILE_WIDTH: usize = 8;
+    const TILE_HEIGHT: usize = 4;
+
+    type Texel = PaletteIndex;
+
+    fn encode_tile(data: &mut [u8], get: impl Fn(usize, usize) -> Self::Texel) {
+        for y in 0..Self::TILE_HEIGHT {
+            for x in 0..Self::TILE_WIDTH {
+                let palette_index = get(x, y);
+                let index = y * Self::TILE_WIDTH + x;
+                data[index] = palette_index as u8;
+            }
+        }
+    }
+
+    fn decode_tile(data: &[u8], mut set: impl FnMut(usize, usize, Self::Texel)) {
+        for y in 0..Self::TILE_HEIGHT {
+            for x in 0..Self::TILE_WIDTH {
+                let index = y * Self::TILE_WIDTH + x;
+                let palette_index = data[index];
+
+                set(x, y, palette_index as PaletteIndex)
+            }
+        }
+    }
+}
+
+pub struct CI14X2;
+
+impl Format for CI14X2 {
+    const NIBBLES_PER_TEXEL: usize = 4;
+    const TILE_WIDTH: usize = 4;
+    const TILE_HEIGHT: usize = 4;
+
+    type Texel = PaletteIndex;
+
+    #[inline(always)]
+    fn encode_tile(data: &mut [u8], get: impl Fn(usize, usize) -> Self::Texel) {
+        for y in 0..Self::TILE_HEIGHT {
+            for x in 0..Self::TILE_WIDTH {
+                let pixel = get(x, y);
+                let low = pixel.bits(0, 8) as u8;
+                let high = pixel.bits(8, 14) as u8;
+
+                let index = y * Self::TILE_WIDTH + x;
+                data[2 * index] = high;
+                data[2 * index + 1] = low;
+            }
+        }
+    }
+
+    #[inline(always)]
+    fn decode_tile(data: &[u8], mut set: impl FnMut(usize, usize, Self::Texel)) {
+        for y in 0..Self::TILE_HEIGHT {
+            for x in 0..Self::TILE_WIDTH {
+                let index = y * Self::TILE_WIDTH + x;
+                let high = data[2 * index];
+                let low = data[2 * index + 1];
+
+                let palette_index = ((high as PaletteIndex) << 8) | (low as PaletteIndex);
+                set(x, y, palette_index)
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
 
-    fn test_format<F: Format>(input: &str, name: &str) {
+    fn test_format<F: Format<Texel = Pixel>>(input: &str, name: &str) {
         let img = image::open(input).unwrap();
-        let pixels = img
+        let texels = img
             .to_rgba8()
             .pixels()
             .map(|p| Pixel {
@@ -760,7 +881,7 @@ mod test {
             required_width / F::TILE_WIDTH,
             img.width() as usize,
             img.height() as usize,
-            &pixels,
+            &texels,
             &mut encoded,
         );
 
