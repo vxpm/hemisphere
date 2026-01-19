@@ -407,12 +407,16 @@ impl MatrixId {
     #[inline(always)]
     pub fn normal(self) -> Self {
         assert!(!self.is_normal());
-        Self(self.0 + 64)
+        Self((self.0 % 32) + 64)
     }
 
     #[inline(always)]
     pub fn index(&self) -> u8 {
-        self.0 % 64
+        if self.is_normal() {
+            self.0 - 64
+        } else {
+            self.0
+        }
     }
 
     #[inline(always)]
