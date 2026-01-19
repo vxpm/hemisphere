@@ -73,7 +73,7 @@ pub enum Format {
 }
 
 #[bitos(32)]
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct Sampler {
     #[bits(0..2)]
     pub wrap_u: WrapMode,

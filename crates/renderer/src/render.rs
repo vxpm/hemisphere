@@ -1,8 +1,8 @@
 mod data;
 mod framebuffer;
 mod pipeline;
+mod sampler;
 mod texture;
-mod texture_new;
 
 use std::num::NonZero;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -29,6 +29,7 @@ use crate::alloc::Allocator;
 use crate::blit::{ColorBlitter, DepthBlitter};
 use crate::render::framebuffer::Framebuffer;
 use crate::render::pipeline::TexGenStageSettings;
+use crate::render::texture::TextureSettings;
 
 pub struct Shared {
     pub xfb: Mutex<wgpu::TextureView>,
@@ -38,6 +39,12 @@ pub struct Shared {
 struct Allocators {
     index: Allocator,
     storage: Allocator,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
+struct TexSlotSettings {
+    settings: TextureSettings,
+    sampler: Sampler,
 }
 
 pub struct Renderer {
@@ -52,6 +59,7 @@ pub struct Renderer {
     pipeline_settings: pipeline::Settings,
     framebuffer: Framebuffer,
     allocators: Allocators,
+    tex_slots: [TexSlotSettings; 8],
     color_blitter: ColorBlitter,
     depth_blitter: DepthBlitter,
     color_copy_buffer: wgpu::Buffer,
@@ -60,6 +68,7 @@ pub struct Renderer {
     // caches
     pipeline_cache: pipeline::Cache,
     texture_cache: texture::Cache,
+    sampler_cache: sampler::Cache,
 
     // state
     viewport: Viewport,
@@ -97,7 +106,8 @@ impl Renderer {
         };
 
         let pipeline_cache = pipeline::Cache::new(&device);
-        let texture_cache = texture::Cache::new(&device);
+        let texture_cache = texture::Cache::default();
+        let sampler_cache = sampler::Cache::default();
 
         let color = framebuffer.color();
         let multisampled_color = framebuffer.multisampled_color();
@@ -163,11 +173,13 @@ impl Renderer {
             pipeline_settings: Default::default(),
             framebuffer,
             allocators,
+            tex_slots: Default::default(),
             color_copy_buffer,
             depth_copy_buffer,
 
             pipeline_cache,
             texture_cache,
+            sampler_cache,
 
             color_blitter,
             depth_blitter,
@@ -497,35 +509,37 @@ impl Renderer {
     }
 
     pub fn load_texture(&mut self, id: TextureId, texture: Texture) {
-        self.texture_cache
-            .update_texture(&self.device, &self.queue, id, texture);
+        self.texture_cache.update_raw(id, texture);
     }
 
-    pub fn load_clut(&mut self, _id: ClutId, _clut: Clut) {
-        // todo!()
+    pub fn load_clut(&mut self, id: ClutId, clut: Clut) {
+        self.texture_cache.update_clut(id, clut);
     }
 
     pub fn set_texture_slot(
         &mut self,
         slot: usize,
-        _clut_id: ClutId,
-        texture_id: TextureId,
-        _sampler: Sampler,
+        clut_id: ClutId,
+        raw_id: TextureId,
+        sampler: Sampler,
         _scaling: Scaling,
-        _clut_fmt: ClutFormat,
+        clut_fmt: ClutFormat,
     ) {
-        let in_slot = self.texture_cache.get_texture_slot(slot);
-        let handle = self
-            .texture_cache
-            .get_texture(texture_id)
-            .expect("texture should exist before being set");
+        let new = TexSlotSettings {
+            settings: TextureSettings {
+                raw_id,
+                clut_id,
+                clut_fmt,
+            },
+            sampler,
+        };
 
-        if in_slot == handle {
+        if self.tex_slots[slot] == new {
             return;
         }
 
         self.flush("texture slot changed");
-        self.texture_cache.set_texture_slot(slot, handle);
+        self.tex_slots[slot] = new;
     }
 
     fn flush_config(&mut self) {
@@ -660,12 +674,15 @@ impl Renderer {
                 .storage
                 .allocate(&self.device, &self.queue, self.configs.as_bytes());
 
-        let samplers = self.texture_cache.samplers();
-        let textures = self
-            .texture_cache
-            .textures()
-            .clone()
-            .map(|tex| tex.create_view(&Default::default()));
+        let samplers = self
+            .tex_slots
+            .map(|s| self.sampler_cache.get(&self.device, s.sampler).clone());
+
+        let textures = self.tex_slots.map(|s| {
+            self.texture_cache
+                .get(&self.device, &self.queue, s.settings)
+                .clone()
+        });
 
         let primitives_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: None,

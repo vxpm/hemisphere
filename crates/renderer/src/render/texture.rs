@@ -1,32 +1,84 @@
 use std::collections::hash_map::Entry;
 
-use lazuli::modules::render::{Texture, TextureId};
+use lazuli::modules::render::{Clut, ClutId, Texture, TextureId};
 use lazuli::system::gx::color::Rgba8;
-use lazuli::system::gx::tex::TextureData;
-use rustc_hash::FxHashMap;
+use lazuli::system::gx::tex::{ClutFormat, TextureData};
+use rustc_hash::{FxHashMap, FxHashSet};
 
-struct CachedTexture {
-    texture: wgpu::Texture,
-    generation: u32,
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub struct TextureSettings {
+    pub raw_id: TextureId,
+    pub clut_id: ClutId,
+    pub clut_fmt: ClutFormat,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct TextureHandle {
-    pub id: TextureId,
-    pub generation: u32,
+struct WithDeps<T> {
+    value: T,
+    deps: FxHashSet<TextureSettings>,
 }
 
+#[derive(Default)]
 pub struct Cache {
-    cached: FxHashMap<TextureId, CachedTexture>,
-    current: [TextureHandle; 8],
-    textures: [wgpu::Texture; 8],
-    samplers: [wgpu::Sampler; 8],
+    raws: FxHashMap<TextureId, WithDeps<Texture>>,
+    cluts: FxHashMap<ClutId, WithDeps<Clut>>,
+    textures: FxHashMap<TextureSettings, wgpu::TextureView>,
 }
 
 impl Cache {
-    fn create_texture(device: &wgpu::Device, size: wgpu::Extent3d, label: &str) -> wgpu::Texture {
-        device.create_texture(&wgpu::TextureDescriptor {
-            label: Some(label),
+    fn create_texture_data_indirect(
+        indirect: &Vec<u16>,
+        clut: &Clut,
+        format: ClutFormat,
+    ) -> Vec<Rgba8> {
+        let convert = match format {
+            ClutFormat::IA8 => Rgba8::from_ia8,
+            ClutFormat::RGB565 => Rgba8::from_rgb565,
+            ClutFormat::RGB5A3 => Rgba8::from_rgb5a3,
+            _ => panic!("reserved clut format"),
+        };
+
+        indirect
+            .iter()
+            .copied()
+            .map(|index| {
+                let color = clut.0.get(index as usize).copied().unwrap_or_default();
+                convert(color)
+            })
+            .collect()
+    }
+
+    fn create_texture(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        raws: &mut FxHashMap<TextureId, WithDeps<Texture>>,
+        cluts: &mut FxHashMap<ClutId, WithDeps<Clut>>,
+        settings: TextureSettings,
+    ) -> wgpu::TextureView {
+        let raw = raws.get_mut(&settings.raw_id).unwrap();
+        raw.deps.insert(settings);
+
+        let owned_data;
+        let data = match &raw.value.data {
+            TextureData::Direct(data) => zerocopy::transmute_ref!(data.as_slice()),
+            TextureData::Indirect(data) => {
+                let clut = cluts.get_mut(&settings.clut_id).unwrap();
+                clut.deps.insert(settings);
+
+                owned_data =
+                    Self::create_texture_data_indirect(&data, &clut.value, settings.clut_fmt);
+
+                zerocopy::transmute_ref!(owned_data.as_slice())
+            }
+        };
+
+        let size = wgpu::Extent3d {
+            width: raw.value.width,
+            height: raw.value.height,
+            depth_or_array_layers: 1,
+        };
+
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: None,
             dimension: wgpu::TextureDimension::D2,
             size,
             format: wgpu::TextureFormat::Rgba8Unorm,
@@ -34,73 +86,8 @@ impl Cache {
             view_formats: &[],
             mip_level_count: 1,
             sample_count: 1,
-        })
-    }
-
-    fn create_sampler(device: &wgpu::Device) -> wgpu::Sampler {
-        device.create_sampler(&wgpu::SamplerDescriptor {
-            label: None,
-            address_mode_u: wgpu::AddressMode::Repeat,
-            address_mode_v: wgpu::AddressMode::Repeat,
-            address_mode_w: wgpu::AddressMode::Repeat,
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Linear,
-            mipmap_filter: wgpu::FilterMode::Linear,
-            anisotropy_clamp: 16,
-            ..Default::default()
-        })
-    }
-
-    pub fn new(device: &wgpu::Device) -> Self {
-        let textures = std::array::from_fn(|i| {
-            Self::create_texture(
-                device,
-                wgpu::Extent3d {
-                    width: 1,
-                    height: 1,
-                    depth_or_array_layers: 1,
-                },
-                &format!("default texture {i}"),
-            )
         });
-        let samplers = std::array::from_fn(|_| Self::create_sampler(device));
 
-        Self {
-            cached: FxHashMap::default(),
-            current: [TextureHandle::default(); 8],
-            textures,
-            samplers,
-        }
-    }
-
-    pub fn update_texture(
-        &mut self,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        id: TextureId,
-        tex: Texture,
-    ) -> TextureHandle {
-        let pixels = match tex.data {
-            TextureData::Direct(data) => data,
-            TextureData::Indirect(data) => data
-                .into_iter()
-                .map(|i| Rgba8 {
-                    r: i as u8,
-                    g: i as u8,
-                    b: i as u8,
-                    a: i as u8,
-                })
-                .collect::<Vec<_>>(),
-        };
-
-        let data = zerocopy::transmute_ref!(pixels.as_slice());
-        let size = wgpu::Extent3d {
-            width: tex.width,
-            height: tex.height,
-            depth_or_array_layers: 1,
-        };
-
-        let texture = Self::create_texture(device, size, &format!("texture {:08X}", id.0));
         queue.write_texture(
             wgpu::TexelCopyTextureInfo {
                 texture: &texture,
@@ -111,55 +98,61 @@ impl Cache {
             data,
             wgpu::TexelCopyBufferLayout {
                 offset: 0,
-                bytes_per_row: Some(tex.width * 4),
+                bytes_per_row: Some(raw.value.width * 4),
                 rows_per_image: None,
             },
             size,
         );
 
-        match self.cached.entry(id) {
-            Entry::Occupied(mut o) => {
-                let cached = o.get_mut();
-                cached.texture = texture;
-                cached.generation += 1;
+        texture.create_view(&Default::default())
+    }
 
-                TextureHandle {
-                    id,
-                    generation: cached.generation,
-                }
-            }
-            Entry::Vacant(v) => {
-                v.insert(CachedTexture {
-                    texture,
-                    generation: 0,
-                });
+    pub fn update_raw(&mut self, id: TextureId, texture: Texture) {
+        let old = self.raws.insert(
+            id,
+            WithDeps {
+                value: texture,
+                deps: Default::default(),
+            },
+        );
 
-                TextureHandle { id, generation: 0 }
+        if let Some(old) = old {
+            for dep in old.deps.into_iter() {
+                self.textures.remove(&dep);
             }
         }
     }
 
-    pub fn get_texture(&self, id: TextureId) -> Option<TextureHandle> {
-        self.cached.get(&id).map(|c| TextureHandle {
+    pub fn update_clut(&mut self, id: ClutId, clut: Clut) {
+        let old = self.cluts.insert(
             id,
-            generation: c.generation,
-        })
+            WithDeps {
+                value: clut,
+                deps: Default::default(),
+            },
+        );
+
+        if let Some(old) = old {
+            for dep in old.deps.into_iter() {
+                self.textures.remove(&dep);
+            }
+        }
     }
 
-    pub fn get_texture_slot(&self, index: usize) -> TextureHandle {
-        self.current[index]
-    }
+    pub fn get(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        settings: TextureSettings,
+    ) -> &wgpu::TextureView {
+        match self.textures.entry(settings) {
+            Entry::Occupied(o) => o.into_mut(),
+            Entry::Vacant(v) => {
+                let texture =
+                    Self::create_texture(device, queue, &mut self.raws, &mut self.cluts, settings);
 
-    pub fn set_texture_slot(&mut self, index: usize, handle: TextureHandle) {
-        self.current[index] = handle;
-        self.textures[index] = self.cached.get(&handle.id).unwrap().texture.clone();
-    }
-
-    pub fn textures(&self) -> &[wgpu::Texture; 8] {
-        &self.textures
-    }
-
-    pub fn samplers(&self) -> &[wgpu::Sampler; 8] {
-        &self.samplers
+                v.insert(texture)
+            }
+        }
     }
 }
