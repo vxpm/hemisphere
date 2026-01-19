@@ -1,11 +1,11 @@
 //! Vertex attribute parsing.
 use bitos::integer::u5;
 use bitos::{BitUtils, bitos};
+use color::Rgba;
 use glam::{Vec2, Vec3};
 
 use crate::stream::BinReader;
 use crate::system::gx::cmd::{ArrayDescriptor, Arrays, VertexDescriptor};
-use crate::system::gx::colors::Rgba;
 
 /// A vertex attribute descriptor. The descriptor defines how the attribute is encoded.
 pub trait AttributeDescriptor: std::fmt::Debug {
@@ -217,21 +217,6 @@ pub struct ColorDescriptor {
     pub kind: ColorKind,
     #[bits(1..4)]
     pub format: ColorFormat,
-}
-
-impl Rgba {
-    pub fn new(r: f32, g: f32, b: f32, a: f32) -> Self {
-        Self { r, g, b, a }
-    }
-
-    pub fn rgb(self) -> Self {
-        Self {
-            r: self.r,
-            g: self.g,
-            b: self.b,
-            a: 1.0,
-        }
-    }
 }
 
 impl AttributeDescriptor for ColorDescriptor {

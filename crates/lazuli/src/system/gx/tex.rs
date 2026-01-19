@@ -3,34 +3,18 @@ use std::collections::HashMap;
 
 use bitos::bitos;
 use bitos::integer::{u2, u10, u11};
+use color::Rgba8;
 use gekko::Address;
 use gxtex::PaletteIndex;
 
 use crate::modules::render;
 use crate::system::System;
-use crate::system::gx::colors::Rgba8;
 use crate::system::gx::pix::{ColorCopyFormat, DepthCopyFormat};
 
 #[derive(Debug, Clone)]
 pub enum TextureData {
     Direct(Vec<Rgba8>),
     Indirect(Vec<PaletteIndex>),
-}
-
-impl TextureData {
-    fn direct(data: Vec<gxtex::Pixel>) -> Self {
-        // PERF: hopefully compiler optimizes this to a vec transmute
-        Self::Direct(
-            data.into_iter()
-                .map(|p| Rgba8 {
-                    r: p.r,
-                    g: p.g,
-                    b: p.b,
-                    a: p.a,
-                })
-                .collect(),
-        )
-    }
 }
 
 #[bitos(2)]
@@ -55,6 +39,15 @@ pub enum MinFilter {
     LinearMipNear   = 0x5,
     LinearMipLinear = 0x6,
     Reserved        = 0x7,
+}
+
+impl MinFilter {
+    pub fn is_linear(&self) -> bool {
+        matches!(
+            self,
+            Self::Linear | Self::LinearMipNear | Self::LinearMipLinear
+        )
+    }
 }
 
 #[bitos(4)]
@@ -179,12 +172,12 @@ pub struct TextureMap {
     pub format: Encoding,
     pub sampler: Sampler,
     pub scaling: Scaling,
-    pub lut: LutRef,
+    pub clut: LutRef,
     pub dirty: bool,
 }
 
 #[bitos(2)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum ClutFormat {
     #[default]
     IA8       = 0b00,
@@ -271,18 +264,18 @@ fn decode_texture(data: &[u8], format: Encoding) -> TextureData {
     let height = format.height() as usize;
 
     match format.format() {
-        Format::I4 => TextureData::direct(decode::<I4<FastLuma>>(width, height, data)),
+        Format::I4 => TextureData::Direct(decode::<I4<FastLuma>>(width, height, data)),
         Format::IA4 => {
-            TextureData::direct(decode::<IA4<FastLuma, AlphaChannel>>(width, height, data))
+            TextureData::Direct(decode::<IA4<FastLuma, AlphaChannel>>(width, height, data))
         }
-        Format::I8 => TextureData::direct(decode::<I8<FastLuma>>(width, height, data)),
+        Format::I8 => TextureData::Direct(decode::<I8<FastLuma>>(width, height, data)),
         Format::IA8 => {
-            TextureData::direct(decode::<IA8<FastLuma, AlphaChannel>>(width, height, data))
+            TextureData::Direct(decode::<IA8<FastLuma, AlphaChannel>>(width, height, data))
         }
-        Format::Rgb565 => TextureData::direct(decode::<FastRgb565>(width, height, data)),
-        Format::Rgb5A3 => TextureData::direct(decode::<Rgb5A3>(width, height, data)),
-        Format::Rgba8 => TextureData::direct(decode::<Rgba8>(width, height, data)),
-        Format::Cmp => TextureData::direct(decode::<Cmpr>(width, height, data)),
+        Format::Rgb565 => TextureData::Direct(decode::<FastRgb565>(width, height, data)),
+        Format::Rgb5A3 => TextureData::Direct(decode::<Rgb5A3>(width, height, data)),
+        Format::Rgba8 => TextureData::Direct(decode::<Rgba8>(width, height, data)),
+        Format::Cmp => TextureData::Direct(decode::<Cmpr>(width, height, data)),
         Format::CI4 => TextureData::Indirect(decode::<CI4>(width, height, data)),
         Format::CI8 => TextureData::Indirect(decode::<CI8>(width, height, data)),
         Format::CI14X2 => TextureData::Indirect(decode::<CI14X2>(width, height, data)),
@@ -393,7 +386,8 @@ pub fn encode_depth_texture(
 pub fn update_texture(sys: &mut System, index: usize) {
     let map = sys.gpu.tex.maps[index];
     let texture_id = render::TextureId(map.address.value());
-    let clut_id = render::ClutId(map.lut.tmem_offset().value());
+    let clut_id = render::ClutId(map.clut.tmem_offset().value());
+    let clut_fmt = map.clut.format();
 
     let base = map.address;
     let len = map.format.size() as usize;
@@ -417,6 +411,7 @@ pub fn update_texture(sys: &mut System, index: usize) {
         texture_id,
         sampler: map.sampler,
         scaling: map.scaling,
+        clut_fmt,
     });
 }
 

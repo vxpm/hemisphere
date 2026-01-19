@@ -17,6 +17,7 @@ workspace = true
 gekko.workspace = true
 util.workspace = true
 disks.workspace = true
+color.workspace = true
 gxtex.workspace = true
 
 bitos.workspace = true

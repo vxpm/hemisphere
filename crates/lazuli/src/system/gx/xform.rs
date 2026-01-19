@@ -1,6 +1,7 @@
 //! Transform unit (XF).
 use bitos::integer::{u3, u6};
 use bitos::{BitUtils, bitos};
+use color::Abgr8;
 use glam::{Mat3, Mat4, Vec3};
 use strum::FromRepr;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, TryFromBytes};
@@ -10,7 +11,6 @@ use crate::modules::render;
 use crate::system::System;
 use crate::system::gx::DEPTH_24_BIT_MAX;
 use crate::system::gx::cmd::ArrayDescriptor;
-use crate::system::gx::colors::Abgr8;
 
 /// A transform unit register.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, FromRepr)]
@@ -417,25 +417,25 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
         Reg::MatIndexHigh => value.write_ne_bytes(&mut xf.default_matrices.as_mut_bytes()[4..8]),
 
         Reg::Ambient0 => {
-            xf.ambient[0] = Abgr8::from_u32(value);
+            xf.ambient[0] = zerocopy::transmute!(value);
             sys.modules
                 .render
                 .exec(render::Action::SetAmbient(0, xf.ambient[0]));
         }
         Reg::Ambient1 => {
-            xf.ambient[1] = Abgr8::from_u32(value);
+            xf.ambient[1] = zerocopy::transmute!(value);
             sys.modules
                 .render
                 .exec(render::Action::SetAmbient(1, xf.ambient[1]));
         }
         Reg::Material0 => {
-            xf.material[0] = Abgr8::from_u32(value);
+            xf.material[0] = zerocopy::transmute!(value);
             sys.modules
                 .render
                 .exec(render::Action::SetMaterial(0, xf.material[0]));
         }
         Reg::Material1 => {
-            xf.material[1] = Abgr8::from_u32(value);
+            xf.material[1] = zerocopy::transmute!(value);
             sys.modules
                 .render
                 .exec(render::Action::SetMaterial(1, xf.material[1]));

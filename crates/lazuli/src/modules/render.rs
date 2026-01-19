@@ -1,14 +1,14 @@
 //! Renderer module interface.
 
+use color::{Abgr8, Rgba, Rgba8, Rgba16};
 use glam::Mat4;
 use oneshot::Sender;
 use ordered_float::OrderedFloat;
 use static_assertions::const_assert;
 
-use crate::system::gx::colors::{Abgr8, Rgba, Rgba8, Rgba16};
 use crate::system::gx::pix::{BlendMode, BufferFormat, ConstantAlpha, DepthMode};
 use crate::system::gx::tev::{AlphaFunction, Constant, StageOps, StageRefs};
-use crate::system::gx::tex::{Sampler, Scaling, TextureData};
+use crate::system::gx::tex::{ClutFormat, Sampler, Scaling, TextureData};
 use crate::system::gx::xform::{BaseTexGen, ChannelControl, Light, ProjectionMat};
 use crate::system::gx::{CullingMode, EFB_HEIGHT, EFB_WIDTH, Topology, VertexStream};
 
@@ -144,6 +144,7 @@ pub enum Action {
         texture_id: TextureId,
         sampler: Sampler,
         scaling: Scaling,
+        clut_fmt: ClutFormat,
     },
     Draw(Topology, VertexStream),
     ColorCopy {

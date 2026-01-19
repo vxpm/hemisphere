@@ -20,6 +20,7 @@ name = "benchmarks"
 harness = false
 
 [dependencies]
+color.workspace = true
 bitut.workspace = true
 zerocopy.workspace = true
 seq-macro.workspace = true

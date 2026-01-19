@@ -1,7 +1,7 @@
 use std::collections::hash_map::Entry;
 
 use lazuli::modules::render::{Texture, TextureId};
-use lazuli::system::gx::colors::Rgba8;
+use lazuli::system::gx::color::Rgba8;
 use lazuli::system::gx::tex::TextureData;
 use rustc_hash::FxHashMap;
 

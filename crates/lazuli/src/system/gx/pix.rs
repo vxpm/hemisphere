@@ -1,9 +1,9 @@
 //! Pixel engine (PE).
 use bitos::integer::{u2, u3, u4, u10};
 use bitos::{Bits, bitos};
+use color::Abgr8;
 use gekko::Address;
 
-use crate::system::gx::colors::Abgr8;
 use crate::system::gx::tex;
 
 #[bitos(3)]

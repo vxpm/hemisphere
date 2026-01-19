@@ -2,6 +2,7 @@ mod data;
 mod framebuffer;
 mod pipeline;
 mod texture;
+mod texture_new;
 
 use std::num::NonZero;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -11,12 +12,12 @@ use glam::Mat4;
 use lazuli::modules::render::{
     Action, Clut, ClutId, TexEnvConfig, TexGenConfig, Texture, TextureId, Viewport, oneshot,
 };
-use lazuli::system::gx::colors::{Rgba, Rgba8};
+use lazuli::system::gx::color::{Rgba, Rgba8};
 use lazuli::system::gx::pix::{
     self, BlendMode, CompareMode, ConstantAlpha, DepthMode, DstBlendFactor, SrcBlendFactor,
 };
 use lazuli::system::gx::tev::AlphaFunction;
-use lazuli::system::gx::tex::{Sampler, Scaling};
+use lazuli::system::gx::tex::{ClutFormat, Sampler, Scaling};
 use lazuli::system::gx::xform::{ChannelControl, Light};
 use lazuli::system::gx::{
     CullingMode, DEPTH_24_BIT_MAX, EFB_HEIGHT, EFB_WIDTH, MatrixId, Topology, Vertex, VertexStream,
@@ -210,7 +211,8 @@ impl Renderer {
                 texture_id,
                 sampler,
                 scaling,
-            } => self.set_texture_slot(slot, clut_id, texture_id, sampler, scaling),
+                clut_fmt,
+            } => self.set_texture_slot(slot, clut_id, texture_id, sampler, scaling, clut_fmt),
             Action::Draw(topology, vertices) => match topology {
                 Topology::QuadList => self.draw_quad_list(&vertices),
                 Topology::TriangleList => self.draw_triangle_list(&vertices),
@@ -510,6 +512,7 @@ impl Renderer {
         texture_id: TextureId,
         _sampler: Sampler,
         _scaling: Scaling,
+        _clut_fmt: ClutFormat,
     ) {
         let in_slot = self.texture_cache.get_texture_slot(slot);
         let handle = self

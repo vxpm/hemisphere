@@ -714,6 +714,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "color"
+version = "0.1.0"
+dependencies = [
+ "bitut",
+ "ordered-float",
+ "zerocopy",
+]
+
+[[package]]
 name = "color-backtrace"
 version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2152,6 +2161,7 @@ name = "gxtex"
 version = "0.1.0"
 dependencies = [
  "bitut",
+ "color",
  "criterion",
  "image",
  "multiversion",
@@ -2568,6 +2578,7 @@ dependencies = [
  "bitos",
  "bitvec",
  "bytesize",
+ "color",
  "color-backtrace",
  "disks",
  "easyerr",

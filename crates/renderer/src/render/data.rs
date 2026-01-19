@@ -1,7 +1,7 @@
 //! Data types used for CPU-GPU communication.
 
 use glam::{Mat4, Vec2, Vec3};
-use lazuli::system::gx::colors::Rgba;
+use lazuli::system::gx::color::Rgba;
 use zerocopy::{Immutable, IntoBytes};
 
 #[derive(Debug, Clone, Immutable, IntoBytes, Default)]

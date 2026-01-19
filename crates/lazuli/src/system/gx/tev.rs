@@ -1,8 +1,7 @@
 //! Texture Environment (TEV).
 use bitos::bitos;
 use bitos::integer::{u2, u3};
-
-use crate::system::gx::colors::Rgba16;
+use color::Rgba16;
 
 #[bitos(3)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

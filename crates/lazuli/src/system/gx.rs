@@ -1,6 +1,4 @@
 //! Graphics subsystem (GX).
-pub mod colors;
-
 pub mod cmd;
 pub mod pix;
 pub mod tev;
@@ -13,6 +11,7 @@ use std::sync::{LazyLock, Mutex};
 use bitos::integer::{UnsignedInt, u3, u4};
 use bitos::{BitUtils, TryBits, bitos};
 use bitvec::array::BitArray;
+use color::Rgba;
 use gekko::Address;
 use glam::{Mat4, Vec2, Vec3};
 use ring_arena::{Handle, RingArena};
@@ -21,11 +20,12 @@ use zerocopy::IntoBytes;
 
 use crate::modules::{render, vertex};
 use crate::system::gx::cmd::VertexAttributeStream;
-use crate::system::gx::colors::Rgba;
 use crate::system::gx::tex::{encode_color_texture, encode_depth_texture};
 use crate::system::pi;
 use crate::{Primitive, System};
 
+#[rustfmt::skip]
+pub use color;
 #[rustfmt::skip]
 pub use glam;
 
@@ -849,35 +849,35 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
         }
 
         Reg::TexLutRef0 => {
-            write_masked!(sys.gpu.tex.maps[0].lut);
+            write_masked!(sys.gpu.tex.maps[0].clut);
             sys.gpu.tex.maps[0].dirty = true;
         }
         Reg::TexLutRef1 => {
-            write_masked!(sys.gpu.tex.maps[1].lut);
+            write_masked!(sys.gpu.tex.maps[1].clut);
             sys.gpu.tex.maps[1].dirty = true;
         }
         Reg::TexLutRef2 => {
-            write_masked!(sys.gpu.tex.maps[2].lut);
+            write_masked!(sys.gpu.tex.maps[2].clut);
             sys.gpu.tex.maps[2].dirty = true;
         }
         Reg::TexLutRef3 => {
-            write_masked!(sys.gpu.tex.maps[3].lut);
+            write_masked!(sys.gpu.tex.maps[3].clut);
             sys.gpu.tex.maps[3].dirty = true;
         }
         Reg::TexLutRef4 => {
-            write_masked!(sys.gpu.tex.maps[4].lut);
+            write_masked!(sys.gpu.tex.maps[4].clut);
             sys.gpu.tex.maps[4].dirty = true;
         }
         Reg::TexLutRef5 => {
-            write_masked!(sys.gpu.tex.maps[5].lut);
+            write_masked!(sys.gpu.tex.maps[5].clut);
             sys.gpu.tex.maps[5].dirty = true;
         }
         Reg::TexLutRef6 => {
-            write_masked!(sys.gpu.tex.maps[6].lut);
+            write_masked!(sys.gpu.tex.maps[6].clut);
             sys.gpu.tex.maps[6].dirty = true;
         }
         Reg::TexLutRef7 => {
-            write_masked!(sys.gpu.tex.maps[7].lut);
+            write_masked!(sys.gpu.tex.maps[7].clut);
             sys.gpu.tex.maps[7].dirty = true;
         }
 
