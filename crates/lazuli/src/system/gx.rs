@@ -381,10 +381,17 @@ pub struct GenMode {
 pub struct MatrixId(u8);
 
 impl MatrixId {
+    const MAX: u8 = 64 + 32;
+
     #[inline(always)]
     pub fn from_raw(id: u8) -> Self {
-        assert!(id < 64 + 32);
-        Self(id)
+        if id < Self::MAX {
+            Self(id)
+        } else if id < 2 * 64 {
+            Self(id - Self::MAX)
+        } else {
+            panic!("id out of range")
+        }
     }
 
     #[inline(always)]

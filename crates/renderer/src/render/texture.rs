@@ -17,17 +17,27 @@ struct WithDeps<T> {
     deps: FxHashSet<TextureSettings>,
 }
 
+const TMEM_LEN: usize = 1024 * 1024 / 2;
+
+struct Tmem(Box<[u16; TMEM_LEN]>);
+
+impl Default for Tmem {
+    fn default() -> Self {
+        Self(util::boxed_array(0))
+    }
+}
+
 #[derive(Default)]
 pub struct Cache {
+    tmem: Tmem,
     raws: FxHashMap<TextureId, WithDeps<Texture>>,
-    cluts: FxHashMap<ClutId, WithDeps<Clut>>,
     textures: FxHashMap<TextureSettings, wgpu::TextureView>,
 }
 
 impl Cache {
     fn create_texture_data_indirect(
         indirect: &Vec<u16>,
-        clut: &Clut,
+        palette: &[u16],
         format: ClutFormat,
     ) -> Vec<Rgba8> {
         let convert = match format {
@@ -41,7 +51,7 @@ impl Cache {
             .iter()
             .copied()
             .map(|index| {
-                let color = clut.0.get(index as usize).copied().unwrap_or_default();
+                let color = palette[index as usize];
                 convert(color)
             })
             .collect()
@@ -51,7 +61,7 @@ impl Cache {
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         raws: &mut FxHashMap<TextureId, WithDeps<Texture>>,
-        cluts: &mut FxHashMap<ClutId, WithDeps<Clut>>,
+        tmem: &mut Tmem,
         settings: TextureSettings,
     ) -> wgpu::TextureView {
         let raw = raws.get_mut(&settings.raw_id).unwrap();
@@ -61,11 +71,10 @@ impl Cache {
         let data = match &raw.value.data {
             TextureData::Direct(data) => zerocopy::transmute_ref!(data.as_slice()),
             TextureData::Indirect(data) => {
-                let clut = cluts.get_mut(&settings.clut_id).unwrap();
-                clut.deps.insert(settings);
+                let create_addr = settings.clut_id.0 as usize * 16;
+                let clut = &tmem.0[create_addr..];
 
-                owned_data =
-                    Self::create_texture_data_indirect(&data, &clut.value, settings.clut_fmt);
+                owned_data = Self::create_texture_data_indirect(&data, &clut, settings.clut_fmt);
 
                 zerocopy::transmute_ref!(owned_data.as_slice())
             }
@@ -124,17 +133,19 @@ impl Cache {
     }
 
     pub fn update_clut(&mut self, id: ClutId, clut: Clut) {
-        let old = self.cluts.insert(
-            id,
-            WithDeps {
-                value: clut,
-                deps: Default::default(),
-            },
-        );
+        let addr = id.0 as usize * 16;
 
-        if let Some(old) = old {
-            for dep in old.deps.into_iter() {
-                self.textures.remove(&dep);
+        // let mut current = addr;
+        // for _ in 0..16 {
+        //     self.tmem.0[current..][..clut.0.len()].copy_from_slice(&clut.0);
+        //     current += clut.0.len();
+        // }
+
+        let mut current = addr;
+        for entry in &clut.0 {
+            for _ in 0..16 {
+                self.tmem.0[current] = *entry;
+                current += 1;
             }
         }
     }
@@ -149,7 +160,7 @@ impl Cache {
             Entry::Occupied(o) => o.into_mut(),
             Entry::Vacant(v) => {
                 let texture =
-                    Self::create_texture(device, queue, &mut self.raws, &mut self.cluts, settings);
+                    Self::create_texture(device, queue, &mut self.raws, &mut self.tmem, settings);
 
                 v.insert(texture)
             }
