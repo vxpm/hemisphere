@@ -1,17 +1,12 @@
-mod allocator;
 mod data;
 mod framebuffer;
 mod pipeline;
-mod textures;
+mod texture;
 
 use crate::{
-    render::{
-        allocator::Allocator,
-        framebuffer::Framebuffer,
-        pipeline::{Pipeline, TexGenStageSettings},
-        textures::TextureCache,
-    },
-    util::blit::{ColorBlitter, DepthBlitter},
+    alloc::Allocator,
+    blit::{ColorBlitter, DepthBlitter},
+    render::{framebuffer::Framebuffer, pipeline::TexGenStageSettings},
 };
 use glam::Mat4;
 use lazuli::{
@@ -59,14 +54,17 @@ pub struct Renderer {
     current_pass: wgpu::RenderPass<'static>,
 
     // components
-    pipeline: Pipeline,
+    pipeline_settings: pipeline::Settings,
     framebuffer: Framebuffer,
-    texture_cache: TextureCache,
     allocators: Allocators,
     color_blitter: ColorBlitter,
     depth_blitter: DepthBlitter,
     color_copy_buffer: wgpu::Buffer,
     depth_copy_buffer: wgpu::Buffer,
+
+    // caches
+    pipeline_cache: pipeline::Cache,
+    texture_cache: texture::Cache,
 
     // state
     viewport: Viewport,
@@ -98,12 +96,13 @@ fn set_channel(channel: &mut data::Channel, control: ChannelControl) {
 impl Renderer {
     pub fn new(device: wgpu::Device, queue: wgpu::Queue) -> (Self, Arc<Shared>) {
         let framebuffer = Framebuffer::new(&device);
-        let pipeline = Pipeline::new(&device);
-        let texture_cache = TextureCache::new(&device);
         let allocators = Allocators {
             index: Allocator::new(wgpu::BufferUsages::INDEX),
             storage: Allocator::new(wgpu::BufferUsages::STORAGE),
         };
+
+        let pipeline_cache = pipeline::Cache::new(&device);
+        let texture_cache = texture::Cache::new(&device);
 
         let color = framebuffer.color();
         let multisampled_color = framebuffer.multisampled_color();
@@ -113,6 +112,23 @@ impl Renderer {
         let shared = Arc::new(Shared {
             xfb: Mutex::new(external.clone()),
             rendered_anything: AtomicBool::new(false),
+        });
+
+        let color_blitter = ColorBlitter::new(&device);
+        let depth_blitter = DepthBlitter::new(&device);
+
+        let color_copy_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("color copy buffer"),
+            size: EFB_WIDTH * EFB_HEIGHT * 4,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+
+        let depth_copy_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("depth copy buffer"),
+            size: EFB_WIDTH * EFB_HEIGHT * 4,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
         });
 
         let mut encoder = device.create_command_encoder(&Default::default());
@@ -141,23 +157,6 @@ impl Renderer {
             })
             .forget_lifetime();
 
-        let color_blitter = ColorBlitter::new(&device);
-        let depth_blitter = DepthBlitter::new(&device);
-
-        let color_copy_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("color copy buffer"),
-            size: EFB_WIDTH * EFB_HEIGHT * 4,
-            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-            mapped_at_creation: false,
-        });
-
-        let depth_copy_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("depth copy buffer"),
-            size: EFB_WIDTH * EFB_HEIGHT * 4,
-            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-            mapped_at_creation: false,
-        });
-
         let mut value = Self {
             device,
             queue,
@@ -166,12 +165,14 @@ impl Renderer {
             current_encoder: encoder,
             current_pass: pass,
 
-            pipeline,
+            pipeline_settings: Default::default(),
             framebuffer,
-            texture_cache,
             allocators,
             color_copy_buffer,
             depth_copy_buffer,
+
+            pipeline_cache,
+            texture_cache,
 
             color_blitter,
             depth_blitter,
@@ -273,7 +274,6 @@ impl Renderer {
             position: vertex.position,
             config_idx: self.configs.len() as u32 - 1,
             normal: vertex.normal,
-
             _pad0: 0,
 
             position_mat: get_matrix(vertex.pos_norm_matrix).unwrap(),
@@ -302,9 +302,9 @@ impl Renderer {
 
         match format {
             pix::BufferFormat::RGB8Z24 | pix::BufferFormat::RGB565Z16 => {
-                self.pipeline.settings.has_alpha = false
+                self.pipeline_settings.has_alpha = false
             }
-            pix::BufferFormat::RGBA6Z24 => self.pipeline.settings.has_alpha = true,
+            pix::BufferFormat::RGBA6Z24 => self.pipeline_settings.has_alpha = true,
             _ => (),
         }
     }
@@ -316,8 +316,8 @@ impl Renderer {
             viewport.top_left_y,
             viewport.width,
             viewport.height,
-            viewport.near_z.clamp(0.0, 1.0),
-            viewport.far_z.clamp(0.0, 1.0),
+            viewport.near_depth.clamp(0.0, 1.0),
+            viewport.far_depth.clamp(0.0, 1.0),
         );
 
         self.viewport = viewport;
@@ -325,7 +325,7 @@ impl Renderer {
 
     pub fn set_culling_mode(&mut self, mode: CullingMode) {
         self.flush("changed culling mode");
-        self.pipeline.settings.culling = mode;
+        self.pipeline_settings.culling = mode;
     }
 
     pub fn set_clear_color(&mut self, rgba: Rgba) {
@@ -378,7 +378,7 @@ impl Renderer {
 
         self.debug(format!("set blend settings to {blend:?}"));
         self.flush("changed blend settings");
-        self.pipeline.settings.blend = blend;
+        self.pipeline_settings.blend = blend;
     }
 
     pub fn set_depth_mode(&mut self, mode: DepthMode) {
@@ -401,14 +401,14 @@ impl Renderer {
 
         self.debug(format!("set depth settings to {depth:?}"));
         self.flush("depth settings changed");
-        self.pipeline.settings.depth = depth;
+        self.pipeline_settings.depth = depth;
     }
 
     pub fn set_alpha_function(&mut self, func: AlphaFunction) {
         self.debug(format!("set alpha function to {func:?}"));
         self.flush("alpha function changed");
-        self.pipeline.settings.shader.texenv.alpha_func.comparison = func.comparison();
-        self.pipeline.settings.shader.texenv.alpha_func.logic = func.logic();
+        self.pipeline_settings.shader.texenv.alpha_func.comparison = func.comparison();
+        self.pipeline_settings.shader.texenv.alpha_func.logic = func.logic();
         self.current_config.alpha_refs = func.refs().map(|x| x as u32);
         self.current_config_dirty = true;
     }
@@ -467,8 +467,7 @@ impl Renderer {
     pub fn set_texenv_config(&mut self, config: TexEnvConfig) {
         self.debug("changed texenv");
         self.flush("texenv changed");
-        self.pipeline
-            .settings
+        self.pipeline_settings
             .shader
             .texenv
             .stages
@@ -480,7 +479,7 @@ impl Renderer {
     pub fn set_texgen_config(&mut self, config: TexGenConfig) {
         self.debug("changed texgen");
         self.flush("texgen changed");
-        self.pipeline.settings.shader.texgen.stages = config
+        self.pipeline_settings.shader.texgen.stages = config
             .stages
             .iter()
             .map(|s| TexGenStageSettings {
@@ -651,8 +650,6 @@ impl Renderer {
         }
 
         self.debug(format!("[FLUSH]: {reason}"));
-        self.pipeline.update(&self.device);
-
         let index_buf =
             self.allocators
                 .index
@@ -675,7 +672,7 @@ impl Renderer {
 
         let primitives_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: None,
-            layout: self.pipeline.primitives_group_layout(),
+            layout: self.pipeline_cache.primitives_group_layout(),
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
@@ -712,11 +709,15 @@ impl Renderer {
         });
         let textures_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: None,
-            layout: self.pipeline.textures_group_layout(),
+            layout: self.pipeline_cache.textures_group_layout(),
             entries: &textures_group_entries,
         });
 
-        self.current_pass.set_pipeline(self.pipeline.pipeline());
+        let pipeline = self
+            .pipeline_cache
+            .get(&self.device, &self.pipeline_settings);
+
+        self.current_pass.set_pipeline(pipeline);
         self.current_pass
             .set_bind_group(0, Some(&primitives_group), &[]);
         self.current_pass
@@ -739,12 +740,12 @@ impl Renderer {
         let depth = self.framebuffer.depth();
         let multisampled_color = self.framebuffer.multisampled_color();
 
-        let color_op = if clear && self.pipeline.settings.blend.color_write {
-            if !self.pipeline.settings.blend.alpha_write {
+        let color_op = if clear && self.pipeline_settings.blend.color_write {
+            if !self.pipeline_settings.blend.alpha_write {
                 tracing::warn!("clearing alpha and color when only color should be cleared!");
             }
 
-            let color = if self.pipeline.settings.has_alpha {
+            let color = if self.pipeline_settings.has_alpha {
                 self.clear_color
             } else {
                 wgpu::Color {
@@ -760,7 +761,7 @@ impl Renderer {
             wgpu::LoadOp::Load
         };
 
-        let depth_op = if clear && self.pipeline.settings.depth.write {
+        let depth_op = if clear && self.pipeline_settings.depth.write {
             wgpu::LoadOp::Clear(self.clear_depth)
         } else {
             wgpu::LoadOp::Load

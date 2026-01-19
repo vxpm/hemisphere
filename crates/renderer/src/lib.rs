@@ -1,9 +1,10 @@
 #![feature(iter_array_chunks)]
 
+mod alloc;
+mod blit;
 mod render;
-mod util;
 
-use crate::{render::Renderer as RendererInner, util::blit::XfbBlitter};
+use crate::{blit::XfbBlitter, render::Renderer as RendererInner};
 use flume::{Receiver, Sender};
 use lazuli::{
     modules::render::{Action, RenderModule},

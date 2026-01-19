@@ -79,7 +79,7 @@ pub struct ShaderSettings {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Default)]
-pub struct PipelineSettings {
+pub struct Settings {
     pub has_alpha: bool,
     pub culling: CullingMode,
     pub blend: BlendSettings,

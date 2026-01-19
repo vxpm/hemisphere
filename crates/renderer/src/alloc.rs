@@ -1,3 +1,5 @@
+//! Buffer allocator.
+
 pub struct Allocator {
     usages: wgpu::BufferUsages,
     allocated: Vec<wgpu::Buffer>,

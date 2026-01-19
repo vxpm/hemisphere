@@ -1,3 +1,5 @@
+//! Data types used for CPU-GPU communication.
+
 use glam::{Mat4, Vec2, Vec3};
 use lazuli::system::gx::colors::Rgba;
 use zerocopy::{Immutable, IntoBytes};
@@ -8,7 +10,6 @@ pub struct Vertex {
     pub position: Vec3,
     pub config_idx: u32,
     pub normal: Vec3,
-
     pub _pad0: u32,
 
     pub position_mat: Mat4,

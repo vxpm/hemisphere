@@ -35,8 +35,8 @@ pub struct Viewport {
     pub height: f32,
     pub top_left_x: f32,
     pub top_left_y: f32,
-    pub near_z: f32,
-    pub far_z: f32,
+    pub near_depth: f32,
+    pub far_depth: f32,
 }
 
 impl Default for Viewport {
@@ -46,8 +46,8 @@ impl Default for Viewport {
             height: EFB_HEIGHT as f32,
             top_left_x: 0.0,
             top_left_y: 0.0,
-            near_z: 0.0,
-            far_z: 1.0,
+            near_depth: 0.0,
+            far_depth: 1.0,
         }
     }
 }

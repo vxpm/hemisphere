@@ -1151,17 +1151,9 @@ fn extract_vertices(sys: &mut System, stream: &VertexAttributeStream) -> VertexS
         default_matrices: &sys.gpu.xform.internal.default_matrices,
     };
 
-    assert!(
-        sys.gpu
-            .cmd
-            .internal
-            .vertex_descriptor
-            .position()
-            .is_present()
-    );
-
     let vcd = &sys.gpu.cmd.internal.vertex_descriptor;
     let vat = &sys.gpu.cmd.internal.vertex_attr_tables[stream.table_index()];
+    assert!(vcd.position().is_present());
 
     sys.modules.vertex.parse(
         ctx,
@@ -1190,19 +1182,19 @@ fn extract_vertices(sys: &mut System, stream: &VertexAttributeStream) -> VertexS
 
 fn draw(sys: &mut System, topology: Topology, stream: &VertexAttributeStream) {
     if std::mem::take(&mut sys.gpu.xform.internal.viewport_dirty) {
+        let viewport = &sys.gpu.xform.internal.viewport;
+        let viewport = render::Viewport {
+            width: viewport.width,
+            height: viewport.height,
+            top_left_x: viewport.center_x - viewport.width / 2.0,
+            top_left_y: viewport.center_y - viewport.height / 2.0,
+            near_depth: viewport.far - viewport.far_minus_near,
+            far_depth: viewport.far,
+        };
+
         sys.modules
             .render
-            .exec(render::Action::SetViewport(render::Viewport {
-                width: sys.gpu.xform.internal.viewport.width,
-                height: sys.gpu.xform.internal.viewport.height,
-                top_left_x: sys.gpu.xform.internal.viewport.center_x
-                    - sys.gpu.xform.internal.viewport.width / 2.0,
-                top_left_y: sys.gpu.xform.internal.viewport.center_y
-                    - sys.gpu.xform.internal.viewport.height / 2.0,
-                far_z: sys.gpu.xform.internal.viewport.far,
-                near_z: sys.gpu.xform.internal.viewport.far
-                    - sys.gpu.xform.internal.viewport.far_minus_near,
-            }));
+            .exec(render::Action::SetViewport(viewport));
     }
 
     if std::mem::take(&mut sys.gpu.xform.internal.stages_dirty) {
