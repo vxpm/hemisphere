@@ -120,8 +120,8 @@ pub enum Action {
         height: u32,
         data: TextureData,
     },
-    SetTexture {
-        index: usize,
+    SetTextureSlot {
+        slot: usize,
         id: u32,
     },
     Draw(Topology, VertexStream),

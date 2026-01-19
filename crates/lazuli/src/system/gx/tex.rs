@@ -32,6 +32,13 @@ impl TextureData {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct Texture {
+    pub width: u32,
+    pub height: u32,
+    pub data: TextureData,
+}
+
 #[bitos(2)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum WrapMode {
@@ -80,11 +87,11 @@ pub enum Format {
 
 #[bitos(32)]
 #[derive(Debug, Clone, Copy, Default)]
-pub struct Mode {
+pub struct Sampler {
     #[bits(0..2)]
-    pub wrap_s: WrapMode,
+    pub wrap_u: WrapMode,
     #[bits(2..4)]
-    pub wrap_t: WrapMode,
+    pub wrap_v: WrapMode,
     #[bits(4)]
     pub mag_linear: bool,
     #[bits(5..8)]
@@ -142,7 +149,7 @@ impl Encoding {
 
 #[bitos(32)]
 #[derive(Debug, Clone, Copy, Default)]
-pub struct ScaleS {
+pub struct ScaleU {
     #[bits(0..16)]
     pub scale_minus_one: u16,
     #[bits(16)]
@@ -157,7 +164,7 @@ pub struct ScaleS {
 
 #[bitos(32)]
 #[derive(Debug, Clone, Copy, Default)]
-pub struct ScaleT {
+pub struct ScaleV {
     #[bits(0..16)]
     pub scale_minus_one: u16,
     #[bits(16)]
@@ -168,15 +175,15 @@ pub struct ScaleT {
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Scaling {
-    pub s: ScaleS,
-    pub t: ScaleT,
+    pub u: ScaleU,
+    pub v: ScaleV,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct TextureMap {
     pub address: Address,
     pub format: Encoding,
-    pub mode: Mode,
+    pub sampler: Sampler,
     pub scaling: Scaling,
     pub lut: LutRef,
     pub dirty: bool,

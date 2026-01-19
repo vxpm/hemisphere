@@ -83,7 +83,6 @@ pub enum Reg {
     ScissorTopLeft = 0x20,
     ScissorBottomRight = 0x21,
 
-    // Setup Unit and Rasterizer
     SetupLpSize = 0x22,
     SetupPerf = 0x23,
     RasterPerf = 0x24,
@@ -100,24 +99,23 @@ pub enum Reg {
     TevRefsCD = 0x2E,
     TevRefsEF = 0x2F,
 
-    SetupScaleS0 = 0x30,
-    SetupScaleT0 = 0x31,
-    SetupScaleS1 = 0x32,
-    SetupScaleT1 = 0x33,
-    SetupScaleS2 = 0x34,
-    SetupScaleT2 = 0x35,
-    SetupScaleS3 = 0x36,
-    SetupScaleT3 = 0x37,
-    SetupScaleS4 = 0x38,
-    SetupScaleT4 = 0x39,
-    SetupScaleS5 = 0x3A,
-    SetupScaleT5 = 0x3B,
-    SetupScaleS6 = 0x3C,
-    SetupScaleT6 = 0x3D,
-    SetupScaleS7 = 0x3E,
-    SetupScaleT7 = 0x3F,
+    TexScaleU0 = 0x30,
+    TexScaleV0 = 0x31,
+    TexScaleU1 = 0x32,
+    TexScaleV1 = 0x33,
+    TexScaleU2 = 0x34,
+    TexScaleV2 = 0x35,
+    TexScaleU3 = 0x36,
+    TexScaleV3 = 0x37,
+    TexScaleU4 = 0x38,
+    TexScaleV4 = 0x39,
+    TexScaleU5 = 0x3A,
+    TexScaleV5 = 0x3B,
+    TexScaleU6 = 0x3C,
+    TexScaleV6 = 0x3D,
+    TexScaleU7 = 0x3E,
+    TexScaleV7 = 0x3F,
 
-    // Pixel Engine
     PixelZMode = 0x40,
     PixelBlendMode = 0x41,
     PixelConstantAlpha = 0x42,
@@ -144,7 +142,6 @@ pub enum Reg {
     PixelChicken = 0x58,
     ScissorOffset = 0x59,
 
-    // TX
     TexLoadBlock0 = 0x60,
     TexLoadBlock1 = 0x61,
     TexLoadBlock2 = 0x62,
@@ -214,7 +211,6 @@ pub enum Reg {
     TexLutRef6 = 0xBA,
     TexLutRef7 = 0xBB,
 
-    // TEV
     TevColor0 = 0xC0,
     TevAlpha0 = 0xC1,
     TevColor1 = 0xC2,
@@ -282,7 +278,6 @@ pub enum Reg {
     TevKSel6 = 0xFC,
     TevKSel7 = 0xFD,
 
-    // BP
     WriteMask = 0xFE,
 }
 
@@ -598,22 +593,70 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
         Reg::TevRefsCD => write_masked!(sys.gpu.env.stage_refs[6]),
         Reg::TevRefsEF => write_masked!(sys.gpu.env.stage_refs[7]),
 
-        Reg::SetupScaleS0 => write_masked!(sys.gpu.tex.maps[0].scaling.s),
-        Reg::SetupScaleT0 => write_masked!(sys.gpu.tex.maps[0].scaling.t),
-        Reg::SetupScaleS1 => write_masked!(sys.gpu.tex.maps[1].scaling.s),
-        Reg::SetupScaleT1 => write_masked!(sys.gpu.tex.maps[1].scaling.t),
-        Reg::SetupScaleS2 => write_masked!(sys.gpu.tex.maps[2].scaling.s),
-        Reg::SetupScaleT2 => write_masked!(sys.gpu.tex.maps[2].scaling.t),
-        Reg::SetupScaleS3 => write_masked!(sys.gpu.tex.maps[3].scaling.s),
-        Reg::SetupScaleT3 => write_masked!(sys.gpu.tex.maps[3].scaling.t),
-        Reg::SetupScaleS4 => write_masked!(sys.gpu.tex.maps[4].scaling.s),
-        Reg::SetupScaleT4 => write_masked!(sys.gpu.tex.maps[4].scaling.t),
-        Reg::SetupScaleS5 => write_masked!(sys.gpu.tex.maps[5].scaling.s),
-        Reg::SetupScaleT5 => write_masked!(sys.gpu.tex.maps[5].scaling.t),
-        Reg::SetupScaleS6 => write_masked!(sys.gpu.tex.maps[6].scaling.s),
-        Reg::SetupScaleT6 => write_masked!(sys.gpu.tex.maps[6].scaling.t),
-        Reg::SetupScaleS7 => write_masked!(sys.gpu.tex.maps[7].scaling.s),
-        Reg::SetupScaleT7 => write_masked!(sys.gpu.tex.maps[7].scaling.t),
+        Reg::TexScaleU0 => {
+            write_masked!(sys.gpu.tex.maps[0].scaling.u);
+            sys.gpu.tex.maps[0].dirty = true;
+        }
+        Reg::TexScaleV0 => {
+            write_masked!(sys.gpu.tex.maps[0].scaling.v);
+            sys.gpu.tex.maps[0].dirty = true;
+        }
+        Reg::TexScaleU1 => {
+            write_masked!(sys.gpu.tex.maps[1].scaling.u);
+            sys.gpu.tex.maps[1].dirty = true;
+        }
+        Reg::TexScaleV1 => {
+            write_masked!(sys.gpu.tex.maps[1].scaling.v);
+            sys.gpu.tex.maps[1].dirty = true;
+        }
+        Reg::TexScaleU2 => {
+            write_masked!(sys.gpu.tex.maps[2].scaling.u);
+            sys.gpu.tex.maps[2].dirty = true;
+        }
+        Reg::TexScaleV2 => {
+            write_masked!(sys.gpu.tex.maps[2].scaling.v);
+            sys.gpu.tex.maps[2].dirty = true;
+        }
+        Reg::TexScaleU3 => {
+            write_masked!(sys.gpu.tex.maps[3].scaling.u);
+            sys.gpu.tex.maps[3].dirty = true;
+        }
+        Reg::TexScaleV3 => {
+            write_masked!(sys.gpu.tex.maps[3].scaling.v);
+            sys.gpu.tex.maps[3].dirty = true;
+        }
+        Reg::TexScaleU4 => {
+            write_masked!(sys.gpu.tex.maps[4].scaling.u);
+            sys.gpu.tex.maps[4].dirty = true;
+        }
+        Reg::TexScaleV4 => {
+            write_masked!(sys.gpu.tex.maps[4].scaling.v);
+            sys.gpu.tex.maps[4].dirty = true;
+        }
+        Reg::TexScaleU5 => {
+            write_masked!(sys.gpu.tex.maps[5].scaling.u);
+            sys.gpu.tex.maps[5].dirty = true;
+        }
+        Reg::TexScaleV5 => {
+            write_masked!(sys.gpu.tex.maps[5].scaling.v);
+            sys.gpu.tex.maps[5].dirty = true;
+        }
+        Reg::TexScaleU6 => {
+            write_masked!(sys.gpu.tex.maps[6].scaling.u);
+            sys.gpu.tex.maps[6].dirty = true;
+        }
+        Reg::TexScaleV6 => {
+            write_masked!(sys.gpu.tex.maps[6].scaling.v);
+            sys.gpu.tex.maps[6].dirty = true;
+        }
+        Reg::TexScaleU7 => {
+            write_masked!(sys.gpu.tex.maps[7].scaling.u);
+            sys.gpu.tex.maps[7].dirty = true;
+        }
+        Reg::TexScaleV7 => {
+            write_masked!(sys.gpu.tex.maps[7].scaling.v);
+            sys.gpu.tex.maps[7].dirty = true;
+        }
 
         Reg::PixelZMode => {
             write_masked!(sys.gpu.pix.depth_mode);
@@ -695,35 +738,35 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
         }
 
         Reg::TexMode0 => {
-            write_masked!(sys.gpu.tex.maps[0].mode);
+            write_masked!(sys.gpu.tex.maps[0].sampling);
             sys.gpu.tex.maps[0].dirty = true;
         }
         Reg::TexMode1 => {
-            write_masked!(sys.gpu.tex.maps[1].mode);
+            write_masked!(sys.gpu.tex.maps[1].sampling);
             sys.gpu.tex.maps[1].dirty = true;
         }
         Reg::TexMode2 => {
-            write_masked!(sys.gpu.tex.maps[2].mode);
+            write_masked!(sys.gpu.tex.maps[2].sampling);
             sys.gpu.tex.maps[2].dirty = true;
         }
         Reg::TexMode3 => {
-            write_masked!(sys.gpu.tex.maps[3].mode);
+            write_masked!(sys.gpu.tex.maps[3].sampling);
             sys.gpu.tex.maps[3].dirty = true;
         }
         Reg::TexMode4 => {
-            write_masked!(sys.gpu.tex.maps[4].mode);
+            write_masked!(sys.gpu.tex.maps[4].sampling);
             sys.gpu.tex.maps[4].dirty = true;
         }
         Reg::TexMode5 => {
-            write_masked!(sys.gpu.tex.maps[5].mode);
+            write_masked!(sys.gpu.tex.maps[5].sampling);
             sys.gpu.tex.maps[5].dirty = true;
         }
         Reg::TexMode6 => {
-            write_masked!(sys.gpu.tex.maps[6].mode);
+            write_masked!(sys.gpu.tex.maps[6].sampling);
             sys.gpu.tex.maps[6].dirty = true;
         }
         Reg::TexMode7 => {
-            write_masked!(sys.gpu.tex.maps[7].mode);
+            write_masked!(sys.gpu.tex.maps[7].sampling);
             sys.gpu.tex.maps[7].dirty = true;
         }
 
@@ -1162,8 +1205,8 @@ fn update_texture(sys: &mut System, index: usize) {
         });
     }
 
-    sys.modules.render.exec(render::Action::SetTexture {
-        index,
+    sys.modules.render.exec(render::Action::SetTextureSlot {
+        slot: index,
         id: map.address.value(),
     });
 }

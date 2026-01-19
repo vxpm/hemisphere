@@ -211,7 +211,7 @@ impl Renderer {
                 height,
                 data,
             } => self.load_texture(id, width, height, data),
-            Action::SetTexture { index, id } => self.set_texture(index, id),
+            Action::SetTextureSlot { slot: index, id } => self.set_texture(index, id),
             Action::Draw(topology, vertices) => match topology {
                 Topology::QuadList => self.draw_quad_list(&vertices),
                 Topology::TriangleList => self.draw_triangle_list(&vertices),
