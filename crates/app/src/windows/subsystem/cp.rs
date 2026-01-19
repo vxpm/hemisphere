@@ -1,10 +1,10 @@
-use crate::{
-    AppWindow, State,
-    windows::{Ctx, subsystem::mmio_dbg},
-};
 use eframe::egui;
 use lazuli::system::gx::cmd::*;
 use serde::{Deserialize, Serialize};
+
+use crate::windows::Ctx;
+use crate::windows::subsystem::mmio_dbg;
+use crate::{AppWindow, State};
 
 #[derive(Default, Serialize, Deserialize)]
 pub struct Window {

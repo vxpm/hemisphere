@@ -7,11 +7,9 @@
     reason = "extern C is used to make it easier to debug generated code"
 )]
 
-use core::{
-    arch::global_asm,
-    ffi::{CStr, c_char, c_void},
-    mem::MaybeUninit,
-};
+use core::arch::global_asm;
+use core::ffi::{CStr, c_char, c_void};
+use core::mem::MaybeUninit;
 
 use numtoa::numtoa_u32;
 

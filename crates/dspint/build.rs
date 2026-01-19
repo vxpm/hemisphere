@@ -1,8 +1,9 @@
 #[path = "src/ins/opcodes.rs"]
 mod opcodes;
-use opcodes::{ExtensionOpcode, Opcode};
 use std::io::Write;
 use std::path::PathBuf;
+
+use opcodes::{ExtensionOpcode, Opcode};
 
 fn main() {
     let lut: Vec<String> = Vec::from_iter((0..(1 << 16)).map(|i| {

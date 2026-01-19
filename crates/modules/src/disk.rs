@@ -1,8 +1,7 @@
-use lazuli::{
-    disks::rvz::{Rvz, RvzReader},
-    modules::disk::DiskModule,
-};
 use std::io::{Read, Seek, SeekFrom};
+
+use lazuli::disks::rvz::{Rvz, RvzReader};
+use lazuli::modules::disk::DiskModule;
 
 /// An implementation of [`DiskModule`] for raw .iso data from a reader.
 #[derive(Debug)]

@@ -1,11 +1,10 @@
 mod texenv;
 mod texgen;
 
-use crate::render::pipeline::{
-    ShaderSettings,
-    settings::{TexEnvSettings, TexGenSettings},
-};
 use wesl::{VirtualResolver, Wesl};
+
+use crate::render::pipeline::ShaderSettings;
+use crate::render::pipeline::settings::{TexEnvSettings, TexGenSettings};
 
 fn base_module() -> wesl::syntax::TranslationUnit {
     use wesl::syntax::*;

@@ -1,24 +1,19 @@
 mod table;
 
 use indexmap::IndexSet;
-use lazuli::{
-    Address, Cycles, Primitive,
-    cores::{CpuCore, Executed},
-    gekko::{
-        self, Cpu, DEQUANTIZATION_LUT, QUANTIZATION_LUT, QuantReg, QuantizedType,
-        disasm::{Extensions, Ins},
-    },
-    system::{self, System},
-};
-use ppcjit::{
-    Block, FastmemLut,
-    block::{BlockFn, Info, LinkData, Pattern},
-    hooks::*,
-};
+use lazuli::cores::{CpuCore, Executed};
+use lazuli::gekko::disasm::{Extensions, Ins};
+use lazuli::gekko::{self, Cpu, DEQUANTIZATION_LUT, QUANTIZATION_LUT, QuantReg, QuantizedType};
+use lazuli::system::{self, System};
+use lazuli::{Address, Cycles, Primitive};
+use ppcjit::block::{BlockFn, Info, LinkData, Pattern};
+use ppcjit::hooks::*;
+use ppcjit::{Block, FastmemLut};
 use table::Table;
-
-pub use ppcjit;
 use util::boxed_array;
+
+#[rustfmt::skip]
+pub use ppcjit;
 
 const TABLE_PRIMARY_BITS: usize = 12;
 const TABLE_PRIMARY_COUNT: usize = 1 << TABLE_PRIMARY_BITS;

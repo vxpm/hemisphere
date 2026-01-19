@@ -1,10 +1,10 @@
+use cranelift::codegen::ir;
+use cranelift::prelude::{InstBuilder, isa};
+use gekko::disasm::Ins;
+use gekko::{Exception, Reg, SPR};
+
 use super::BlockBuilder;
 use crate::builder::{Action, InstructionInfo};
-use cranelift::{
-    codegen::ir,
-    prelude::{InstBuilder, isa},
-};
-use gekko::{Exception, Reg, SPR, disasm::Ins};
 
 const RFI_INFO: InstructionInfo = InstructionInfo {
     cycles: 2,

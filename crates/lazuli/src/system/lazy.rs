@@ -1,5 +1,6 @@
-use crate::system::System;
 use gekko::Exception;
+
+use crate::system::System;
 
 #[derive(Debug, Default)]
 pub struct Lazy {

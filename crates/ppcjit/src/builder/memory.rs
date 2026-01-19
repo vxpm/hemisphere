@@ -1,7 +1,10 @@
+use cranelift::codegen::ir;
+use cranelift::prelude::InstBuilder;
+use gekko::disasm::Ins;
+use gekko::{Exception, GPR, InsExt, Reg, SPR};
+
 use super::BlockBuilder;
 use crate::builder::{Action, InstructionInfo, MEMFLAGS, MEMFLAGS_READONLY};
-use cranelift::{codegen::ir, prelude::InstBuilder};
-use gekko::{Exception, GPR, InsExt, Reg, SPR, disasm::Ins};
 
 pub trait ReadWriteAble {
     const IR_TYPE: ir::Type;

@@ -1,21 +1,15 @@
 //! Texture unit (TX).
-use crate::{
-    modules::render,
-    system::{
-        System,
-        gx::{
-            colors::Rgba8,
-            pix::{ColorCopyFormat, DepthCopyFormat},
-        },
-    },
-};
-use bitos::{
-    bitos,
-    integer::{u2, u10, u11},
-};
+use std::collections::HashMap;
+
+use bitos::bitos;
+use bitos::integer::{u2, u10, u11};
 use gekko::Address;
 use gxtex::PaletteIndex;
-use std::collections::HashMap;
+
+use crate::modules::render;
+use crate::system::System;
+use crate::system::gx::colors::Rgba8;
+use crate::system::gx::pix::{ColorCopyFormat, DepthCopyFormat};
 
 #[derive(Debug, Clone)]
 pub enum TextureData {
@@ -43,9 +37,9 @@ impl TextureData {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum WrapMode {
     #[default]
-    Clamp = 0x0,
-    Repeat = 0x1,
-    Mirror = 0x2,
+    Clamp    = 0x0,
+    Repeat   = 0x1,
+    Mirror   = 0x2,
     Reserved = 0x3,
 }
 
@@ -53,35 +47,35 @@ pub enum WrapMode {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum MinFilter {
     #[default]
-    Near = 0x0,
-    NearMipNear = 0x1,
-    NearMipLinear = 0x2,
-    Reserved0 = 0x3,
-    Linear = 0x4,
-    LinearMipNear = 0x5,
+    Near            = 0x0,
+    NearMipNear     = 0x1,
+    NearMipLinear   = 0x2,
+    Reserved0       = 0x3,
+    Linear          = 0x4,
+    LinearMipNear   = 0x5,
     LinearMipLinear = 0x6,
-    Reserved = 0x7,
+    Reserved        = 0x7,
 }
 
 #[bitos(4)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Format {
     #[default]
-    I4 = 0x0,
-    I8 = 0x1,
-    IA4 = 0x2,
-    IA8 = 0x3,
-    Rgb565 = 0x4,
-    Rgb5A3 = 0x5,
-    Rgba8 = 0x6,
+    I4        = 0x0,
+    I8        = 0x1,
+    IA4       = 0x2,
+    IA8       = 0x3,
+    Rgb565    = 0x4,
+    Rgb5A3    = 0x5,
+    Rgba8     = 0x6,
     Reserved0 = 0x7,
-    CI4 = 0x8,
-    CI8 = 0x9,
-    CI14X2 = 0xA,
+    CI4       = 0x8,
+    CI8       = 0x9,
+    CI14X2    = 0xA,
     Reserved1 = 0xB,
     Reserved2 = 0xC,
     Reserved3 = 0xD,
-    Cmp = 0xE,
+    Cmp       = 0xE,
     Reserved4 = 0xF,
 }
 
@@ -193,9 +187,9 @@ pub struct TextureMap {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ClutFormat {
     #[default]
-    IA8 = 0b00,
-    RGB565 = 0b01,
-    RGB5A3 = 0b10,
+    IA8       = 0b00,
+    RGB565    = 0b01,
+    RGB5A3    = 0b10,
     Reserved0 = 0b11,
 }
 

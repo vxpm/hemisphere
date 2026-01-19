@@ -1,12 +1,12 @@
-use crate::{Compiled, CompilerSettings, Sequence};
+use std::hash::{Hash, Hasher};
+use std::io::Cursor;
+use std::path::Path;
+
 use cranelift_codegen::isa::TargetIsa;
 use fjall::{Database, KeyspaceCreateOptions};
-use std::{
-    hash::{Hash, Hasher},
-    io::Cursor,
-    path::Path,
-};
 use zerocopy::IntoBytes;
+
+use crate::{Compiled, CompilerSettings, Sequence};
 
 struct Hash128(twox_hash::XxHash3_128);
 

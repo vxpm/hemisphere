@@ -1,14 +1,12 @@
-use crate::{
-    State,
-    windows::{AppWindow, Ctx},
-};
 use eframe::egui::{self, Color32};
 use egui_extras::{Column, TableBuilder};
-use lazuli::{
-    modules::debug::Location,
-    system::{self, eabi::CallStack},
-};
+use lazuli::modules::debug::Location;
+use lazuli::system::eabi::CallStack;
+use lazuli::system::{self};
 use serde::{Deserialize, Serialize};
+
+use crate::State;
+use crate::windows::{AppWindow, Ctx};
 
 #[derive(Default, Serialize, Deserialize)]
 pub struct Window {

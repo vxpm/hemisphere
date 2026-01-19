@@ -1,10 +1,11 @@
 #![expect(clippy::identity_op, reason = "seq expanded code")]
 #![expect(clippy::erasing_op, reason = "seq expanded code")]
 
+use std::marker::PhantomData;
+
 use bitut::BitUtils;
 use multiversion::multiversion;
 use seq_macro::seq;
-use std::marker::PhantomData;
 use zerocopy::{FromBytes, Immutable, IntoBytes};
 
 // const DITHER: [[i8; 8]; 8] = [

@@ -1,15 +1,12 @@
 mod timer;
 
+use std::collections::VecDeque;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex, MutexGuard};
+use std::time::Duration;
+
 use lazuli::{Address, Cycles, Lazuli};
 use spin_sleep::SpinSleeper;
-use std::{
-    collections::VecDeque,
-    sync::{
-        Arc, Mutex, MutexGuard,
-        atomic::{AtomicBool, Ordering},
-    },
-    time::Duration,
-};
 
 use crate::runner::timer::Timer;
 

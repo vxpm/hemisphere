@@ -3,37 +3,31 @@ mod framebuffer;
 mod pipeline;
 mod texture;
 
-use crate::{
-    alloc::Allocator,
-    blit::{ColorBlitter, DepthBlitter},
-    render::{framebuffer::Framebuffer, pipeline::TexGenStageSettings},
-};
+use std::num::NonZero;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+
 use glam::Mat4;
-use lazuli::{
-    modules::render::{
-        Action, Clut, ClutId, TexEnvConfig, TexGenConfig, Texture, TextureId, Viewport, oneshot,
-    },
-    system::gx::{
-        CullingMode, DEPTH_24_BIT_MAX, EFB_HEIGHT, EFB_WIDTH, MatrixId, Topology, Vertex,
-        VertexStream,
-        colors::{Rgba, Rgba8},
-        pix::{
-            self, BlendMode, CompareMode, ConstantAlpha, DepthMode, DstBlendFactor, SrcBlendFactor,
-        },
-        tev::AlphaFunction,
-        tex::{Sampler, Scaling},
-        xform::{ChannelControl, Light},
-    },
+use lazuli::modules::render::{
+    Action, Clut, ClutId, TexEnvConfig, TexGenConfig, Texture, TextureId, Viewport, oneshot,
+};
+use lazuli::system::gx::colors::{Rgba, Rgba8};
+use lazuli::system::gx::pix::{
+    self, BlendMode, CompareMode, ConstantAlpha, DepthMode, DstBlendFactor, SrcBlendFactor,
+};
+use lazuli::system::gx::tev::AlphaFunction;
+use lazuli::system::gx::tex::{Sampler, Scaling};
+use lazuli::system::gx::xform::{ChannelControl, Light};
+use lazuli::system::gx::{
+    CullingMode, DEPTH_24_BIT_MAX, EFB_HEIGHT, EFB_WIDTH, MatrixId, Topology, Vertex, VertexStream,
 };
 use seq_macro::seq;
-use std::{
-    num::NonZero,
-    sync::{
-        Arc, Mutex,
-        atomic::{AtomicBool, Ordering},
-    },
-};
 use zerocopy::IntoBytes;
+
+use crate::alloc::Allocator;
+use crate::blit::{ColorBlitter, DepthBlitter};
+use crate::render::framebuffer::Framebuffer;
+use crate::render::pipeline::TexGenStageSettings;
 
 pub struct Shared {
     pub xfb: Mutex<wgpu::TextureView>,

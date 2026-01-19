@@ -1,6 +1,8 @@
-use super::{DSP_COEF, DSP_ROM};
 use dspint::Interpreter;
-use lazuli::{cores::DspCore, system::System};
+use lazuli::cores::DspCore;
+use lazuli::system::System;
+
+use super::{DSP_COEF, DSP_ROM};
 
 pub struct Core {
     interpreter: Interpreter,

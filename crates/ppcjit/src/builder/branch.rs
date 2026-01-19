@@ -1,14 +1,14 @@
+use bitos::bitos;
+use bitos::integer::u5;
+use cranelift::codegen::ir;
+use cranelift::prelude::{Imm64, InstBuilder};
+use gekko::disasm::Ins;
+use gekko::{Reg, SPR};
+
 use super::BlockBuilder;
-use crate::{
-    NAMESPACE_LINK_DATA,
-    builder::{Action, InstructionInfo, MEMFLAGS, util::IntoIrValue},
-};
-use bitos::{bitos, integer::u5};
-use cranelift::{
-    codegen::ir,
-    prelude::{Imm64, InstBuilder},
-};
-use gekko::{Reg, SPR, disasm::Ins};
+use crate::NAMESPACE_LINK_DATA;
+use crate::builder::util::IntoIrValue;
+use crate::builder::{Action, InstructionInfo, MEMFLAGS};
 
 const UNCONDITIONAL_BRANCH_INFO: InstructionInfo = InstructionInfo {
     cycles: 2,
@@ -26,7 +26,7 @@ const CONDITIONAL_BRANCH_INFO: InstructionInfo = InstructionInfo {
 #[derive(Debug, Clone, Copy)]
 enum CtrCond {
     NotEqZero = 0,
-    EqZero = 1,
+    EqZero    = 1,
 }
 
 #[bitos(5)]

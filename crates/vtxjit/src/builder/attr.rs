@@ -1,17 +1,15 @@
-use crate::builder::{MEMFLAGS, MEMFLAGS_READONLY, ParserBuilder};
-use cranelift::{codegen::ir, prelude::InstBuilder};
-use lazuli::system::gx::{
-    Vertex,
-    cmd::{
-        ArrayDescriptor, Arrays,
-        attributes::{
-            self, Attribute, AttributeDescriptor, ColorFormat, ColorKind, CoordsFormat,
-            PositionKind, TexCoordsKind,
-        },
-    },
+use cranelift::codegen::ir;
+use cranelift::prelude::InstBuilder;
+use lazuli::system::gx::Vertex;
+use lazuli::system::gx::cmd::attributes::{
+    self, Attribute, AttributeDescriptor, ColorFormat, ColorKind, CoordsFormat, PositionKind,
+    TexCoordsKind,
 };
+use lazuli::system::gx::cmd::{ArrayDescriptor, Arrays};
 use util::offset_of;
 use zerocopy::IntoBytes;
+
+use crate::builder::{MEMFLAGS, MEMFLAGS_READONLY, ParserBuilder};
 
 pub trait AttributeExt: Attribute {
     const ARRAY_OFFSET: usize;

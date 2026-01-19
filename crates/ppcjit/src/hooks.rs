@@ -1,10 +1,10 @@
-use crate::{
-    FastmemLut,
-    block::{Info, LinkData},
-};
-use cranelift::{codegen::ir, prelude::isa};
+use cranelift::codegen::ir;
+use cranelift::prelude::isa;
 use gekko::{Address, Cpu, QuantReg};
 use strum::FromRepr;
+
+use crate::FastmemLut;
+use crate::block::{Info, LinkData};
 
 pub type Context = std::ffi::c_void;
 

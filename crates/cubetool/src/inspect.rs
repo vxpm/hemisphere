@@ -1,20 +1,16 @@
+use std::io::{Read, Seek};
+use std::path::PathBuf;
+
 use bytesize::ByteSize;
-use comfy_table::{
-    Cell, CellAlignment, ContentArrangement, Table, modifiers::UTF8_ROUND_CORNERS,
-    presets::UTF8_FULL,
-};
-use disks::{
-    Console, apploader,
-    binrw::{BinRead, io::BufReader},
-    dol,
-    iso::{self, Meta},
-    rvz::{self, RvzReader},
-};
+use comfy_table::modifiers::UTF8_ROUND_CORNERS;
+use comfy_table::presets::UTF8_FULL;
+use comfy_table::{Cell, CellAlignment, ContentArrangement, Table};
+use disks::binrw::BinRead;
+use disks::binrw::io::BufReader;
+use disks::iso::{self, Meta};
+use disks::rvz::{self, RvzReader};
+use disks::{Console, apploader, dol};
 use eyre_pretty::{Context, Result};
-use std::{
-    io::{Read, Seek},
-    path::PathBuf,
-};
 
 use crate::vfs::{self, VfsEntryId, VfsGraph, VirtualEntry};
 

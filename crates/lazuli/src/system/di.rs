@@ -1,9 +1,11 @@
 //! Disk interface (DI).
-use crate::system::{System, pi};
+use std::io::SeekFrom;
+
 use bitos::{BitUtils, bitos};
 use gekko::Address;
-use std::io::SeekFrom;
 use strum::FromRepr;
+
+use crate::system::{System, pi};
 
 #[bitos(32)]
 #[derive(Debug, Clone, Copy, Default)]
@@ -36,7 +38,7 @@ impl Status {
 #[bitos(1)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TransferMode {
-    Read = 0,
+    Read  = 0,
     Write = 1,
 }
 
@@ -65,15 +67,15 @@ pub struct Cover {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, FromRepr)]
 #[repr(u8)]
 pub enum Opcode {
-    Identify = 0x12,
-    Read = 0xA8,
-    Seek = 0xAB,
-    Status = 0xE0,
+    Identify    = 0x12,
+    Read        = 0xA8,
+    Seek        = 0xAB,
+    Status      = 0xE0,
     AudioStream = 0xE1,
     AudioStatus = 0xE2,
-    StopMotor = 0xE3,
+    StopMotor   = 0xE3,
     AudioConfig = 0xE4,
-    Debug = 0xFE,
+    Debug       = 0xFE,
     DebugEnable = 0xFF,
 }
 

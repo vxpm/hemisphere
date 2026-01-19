@@ -1,13 +1,13 @@
 //! External interface (EXI).
+use std::io::Write;
+
+use bitos::bitos;
+use bitos::integer::{u2, u3};
+use gekko::Address;
+use util::boxed_array;
+
 use crate::Primitive;
 use crate::system::System;
-use bitos::{
-    bitos,
-    integer::{u2, u3},
-};
-use gekko::Address;
-use std::io::Write;
-use util::boxed_array;
 
 pub const SRAM_LEN: usize = 64;
 
@@ -92,10 +92,10 @@ impl Parameter {
 #[bitos(2)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TransferMode {
-    Read = 0b00,
-    Write = 0b01,
+    Read      = 0b00,
+    Write     = 0b01,
     ReadWrite = 0b10,
-    Reserved = 0b11,
+    Reserved  = 0b11,
 }
 
 #[bitos(32)]

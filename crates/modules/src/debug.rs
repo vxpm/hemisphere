@@ -1,10 +1,10 @@
+use std::borrow::Cow;
+use std::path::Path;
+
 use addr2line::gimli;
-use lazuli::{
-    Address,
-    modules::debug::{DebugModule, Location},
-};
+use lazuli::Address;
+use lazuli::modules::debug::{DebugModule, Location};
 use mapfile_parser::MapFile;
-use std::{borrow::Cow, path::Path};
 
 fn demangle(s: &str) -> String {
     let cw_options = cwdemangle::DemangleOptions {

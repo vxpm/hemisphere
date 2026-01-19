@@ -1,9 +1,9 @@
-use disks::{
-    binrw::{BinRead, io::BufReader},
-    dol::Dol,
-};
-use easyerr::{Error, ResultExt};
 use std::path::Path;
+
+use disks::binrw::BinRead;
+use disks::binrw::io::BufReader;
+use disks::dol::Dol;
+use easyerr::{Error, ResultExt};
 
 #[derive(Debug, Error)]
 pub enum OpenError {

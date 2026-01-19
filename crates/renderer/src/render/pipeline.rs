@@ -1,10 +1,13 @@
 mod settings;
 mod shader;
 
+use std::borrow::Cow;
+use std::collections::hash_map::Entry;
+
 use lazuli::system::gx::CullingMode;
 use rustc_hash::FxHashMap;
-use std::{borrow::Cow, collections::hash_map::Entry};
 
+#[rustfmt::skip]
 pub use settings::*;
 
 pub struct Cache {

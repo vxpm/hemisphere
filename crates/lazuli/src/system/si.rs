@@ -1,17 +1,16 @@
 //! Serial interface (SI).
-use crate::system::{System, pi};
-use bitos::{
-    BitUtils, bitos,
-    integer::{u2, u7, u10},
-};
+use bitos::integer::{u2, u7, u10};
+use bitos::{BitUtils, bitos};
 use strum::FromRepr;
 use zerocopy::IntoBytes;
+
+use crate::system::{System, pi};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, FromRepr)]
 #[repr(u8)]
 enum Command {
-    Info = 0x00,
-    Poll = 0x40,
+    Info      = 0x00,
+    Poll      = 0x40,
     GetOrigin = 0x41,
     Calibrate = 0x42,
 }

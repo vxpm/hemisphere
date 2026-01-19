@@ -1,21 +1,20 @@
 //! Texture Environment (TEV).
+use bitos::bitos;
+use bitos::integer::{u2, u3};
+
 use crate::system::gx::colors::Rgba16;
-use bitos::{
-    bitos,
-    integer::{u2, u3},
-};
 
 #[bitos(3)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ColorChannel {
-    Channel0 = 0x0,
-    Channel1 = 0x1,
-    Reserved0 = 0x2,
-    Reserved1 = 0x3,
-    Reserved2 = 0x4,
-    AlphaBump = 0x5,
+    Channel0            = 0x0,
+    Channel1            = 0x1,
+    Reserved0           = 0x2,
+    Reserved1           = 0x3,
+    Reserved2           = 0x4,
+    AlphaBump           = 0x5,
     AlphaBumpNormalized = 0x6,
-    Zero = 0x7,
+    Zero                = 0x7,
 }
 
 #[bitos(10)]
@@ -44,38 +43,38 @@ pub struct StageRefsPair {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum Constant {
     #[default]
-    One = 0x00,
+    One         = 0x00,
     SevenEights = 0x01,
-    SixEights = 0x02,
-    FiveEights = 0x03,
-    FourEights = 0x04,
+    SixEights   = 0x02,
+    FiveEights  = 0x03,
+    FourEights  = 0x04,
     ThreeEights = 0x05,
-    TwoEights = 0x06,
-    OneEight = 0x07,
-    Reserved0 = 0x08,
-    Reserved1 = 0x09,
-    Reserved2 = 0x0A,
-    Reserved3 = 0x0B,
-    Const0 = 0x0C,
-    Const1 = 0x0D,
-    Const2 = 0x0E,
-    Const3 = 0x0F,
-    Const0R = 0x10,
-    Const1R = 0x11,
-    Const2R = 0x12,
-    Const3R = 0x13,
-    Const0G = 0x14,
-    Const1G = 0x15,
-    Const2G = 0x16,
-    Const3G = 0x17,
-    Const0B = 0x18,
-    Const1B = 0x19,
-    Const2B = 0x1A,
-    Const3B = 0x1B,
-    Const0A = 0x1C,
-    Const1A = 0x1D,
-    Const2A = 0x1E,
-    Const3A = 0x1F,
+    TwoEights   = 0x06,
+    OneEight    = 0x07,
+    Reserved0   = 0x08,
+    Reserved1   = 0x09,
+    Reserved2   = 0x0A,
+    Reserved3   = 0x0B,
+    Const0      = 0x0C,
+    Const1      = 0x0D,
+    Const2      = 0x0E,
+    Const3      = 0x0F,
+    Const0R     = 0x10,
+    Const1R     = 0x11,
+    Const2R     = 0x12,
+    Const3R     = 0x13,
+    Const0G     = 0x14,
+    Const1G     = 0x15,
+    Const2G     = 0x16,
+    Const3G     = 0x17,
+    Const0B     = 0x18,
+    Const1B     = 0x19,
+    Const2B     = 0x1A,
+    Const3B     = 0x1B,
+    Const0A     = 0x1C,
+    Const1A     = 0x1D,
+    Const2A     = 0x1E,
+    Const3A     = 0x1F,
 }
 
 #[bitos(32)]
@@ -94,22 +93,22 @@ pub struct StageConstsPair {
 #[bitos(4)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ColorInputSrc {
-    R3Color = 0x0,
-    R3Alpha = 0x1,
-    R0Color = 0x2,
-    R0Alpha = 0x3,
-    R1Color = 0x4,
-    R1Alpha = 0x5,
-    R2Color = 0x6,
-    R2Alpha = 0x7,
-    TexColor = 0x8,
-    TexAlpha = 0x9,
+    R3Color   = 0x0,
+    R3Alpha   = 0x1,
+    R0Color   = 0x2,
+    R0Alpha   = 0x3,
+    R1Color   = 0x4,
+    R1Alpha   = 0x5,
+    R2Color   = 0x6,
+    R2Alpha   = 0x7,
+    TexColor  = 0x8,
+    TexAlpha  = 0x9,
     ChanColor = 0xA,
     ChanAlpha = 0xB,
-    One = 0xC,
-    Half = 0xD,
-    Constant = 0xE,
-    Zero = 0xF,
+    One       = 0xC,
+    Half      = 0xD,
+    Constant  = 0xE,
+    Zero      = 0xF,
 }
 
 impl std::fmt::Display for ColorInputSrc {
@@ -138,14 +137,14 @@ impl std::fmt::Display for ColorInputSrc {
 #[bitos(3)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AlphaInputSrc {
-    R3Alpha = 0x0,
-    R0Alpha = 0x1,
-    R1Alpha = 0x2,
-    R2Alpha = 0x3,
-    TexAlpha = 0x4,
+    R3Alpha   = 0x0,
+    R0Alpha   = 0x1,
+    R1Alpha   = 0x2,
+    R2Alpha   = 0x3,
+    TexAlpha  = 0x4,
     ChanAlpha = 0x5,
-    Constant = 0x6,
-    Zero = 0x7,
+    Constant  = 0x6,
+    Zero      = 0x7,
 }
 
 impl std::fmt::Display for AlphaInputSrc {
@@ -166,10 +165,10 @@ impl std::fmt::Display for AlphaInputSrc {
 #[bitos(2)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Bias {
-    Zero = 0b00,
+    Zero         = 0b00,
     PositiveHalf = 0b01,
     NegativeHalf = 0b10,
-    Comparative = 0b11,
+    Comparative  = 0b11,
 }
 
 impl Bias {
@@ -186,8 +185,8 @@ impl Bias {
 #[bitos(2)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Scale {
-    One = 0b00,
-    Two = 0b01,
+    One  = 0b00,
+    Two  = 0b01,
     Four = 0b10,
     Half = 0b11,
 }
@@ -207,7 +206,7 @@ impl Scale {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CompareOp {
     GreaterThan = 0b0,
-    Equal = 0b1,
+    Equal       = 0b1,
 }
 
 impl std::fmt::Display for CompareOp {
@@ -222,9 +221,9 @@ impl std::fmt::Display for CompareOp {
 #[bitos(2)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CompareTarget {
-    R8 = 0b00,
-    GR16 = 0b01,
-    BGR16 = 0b10,
+    R8        = 0b00,
+    GR16      = 0b01,
+    BGR16     = 0b10,
     Component = 0b11,
 }
 
@@ -284,8 +283,7 @@ impl StageColor {
     }
 
     pub fn pattern(&self) -> Option<StageColorPattern> {
-        use ColorInputSrc as Input;
-        use StageColorPattern as Pattern;
+        use {ColorInputSrc as Input, StageColorPattern as Pattern};
 
         if self.is_comparative() {
             return None;
@@ -498,23 +496,23 @@ pub struct StageOps {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum AlphaCompare {
     #[default]
-    Never = 0x0,
-    Less = 0x1,
-    Equal = 0x2,
-    LessOrEqual = 0x3,
-    Greater = 0x4,
-    NotEqual = 0x5,
+    Never          = 0x0,
+    Less           = 0x1,
+    Equal          = 0x2,
+    LessOrEqual    = 0x3,
+    Greater        = 0x4,
+    NotEqual       = 0x5,
     GreaterOrEqual = 0x6,
-    Always = 0x7,
+    Always         = 0x7,
 }
 
 #[bitos(2)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum AlphaLogic {
     #[default]
-    And = 0b00,
-    Or = 0b01,
-    Xor = 0b10,
+    And  = 0b00,
+    Or   = 0b01,
+    Xor  = 0b10,
     Xnor = 0b11,
 }
 

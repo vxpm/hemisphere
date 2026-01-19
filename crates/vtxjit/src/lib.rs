@@ -1,25 +1,25 @@
 mod builder;
 mod parser;
 
-use cranelift::{
-    codegen::{self, ir},
-    frontend, native,
-    prelude::{Configurable, isa::TargetIsa},
-};
+use std::collections::hash_map::Entry;
+use std::mem::MaybeUninit;
+use std::sync::Arc;
+
+use cranelift::codegen::{self, ir};
+use cranelift::prelude::Configurable;
+use cranelift::prelude::isa::TargetIsa;
+use cranelift::{frontend, native};
 use jitalloc::{Allocator, Exec};
-use lazuli::{
-    modules::vertex::{Ctx, VertexModule},
-    system::gx::{
-        MatrixId, MatrixSet, Vertex,
-        cmd::{VertexAttributeStream, VertexDescriptor, attributes::VertexAttributeTable},
-        xform::DefaultMatrices,
-    },
-};
+use lazuli::modules::vertex::{Ctx, VertexModule};
+use lazuli::system::gx::cmd::attributes::VertexAttributeTable;
+use lazuli::system::gx::cmd::{VertexAttributeStream, VertexDescriptor};
+use lazuli::system::gx::xform::DefaultMatrices;
+use lazuli::system::gx::{MatrixId, MatrixSet, Vertex};
 use parser::VertexParser;
 use rustc_hash::FxHashMap;
-use std::{collections::hash_map::Entry, mem::MaybeUninit, sync::Arc};
 
-use crate::{builder::ParserBuilder, parser::Config};
+use crate::builder::ParserBuilder;
+use crate::parser::Config;
 
 #[repr(C)]
 struct UnpackedDefaultMatrices {

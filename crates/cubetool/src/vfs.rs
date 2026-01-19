@@ -1,10 +1,10 @@
-use disks::{
-    binrw::{BinRead, NullString},
-    iso,
-};
-use eyre_pretty::Result;
-use petgraph::{Graph, graph::NodeIndex};
 use std::io::{Read, Seek, SeekFrom};
+
+use disks::binrw::{BinRead, NullString};
+use disks::iso;
+use eyre_pretty::Result;
+use petgraph::Graph;
+use petgraph::graph::NodeIndex;
 
 #[derive(Debug)]
 pub struct VirtualFile {
@@ -39,7 +39,9 @@ impl VirtualFileSystem {
         let filesystem = iso.filesystem()?;
         let mut reader = iso.reader();
         let mut graph = Graph::new();
-        let root = graph.add_node(VirtualEntry::Dir(VirtualDir { name: String::new() }));
+        let root = graph.add_node(VirtualEntry::Dir(VirtualDir {
+            name: String::new(),
+        }));
 
         let mut dir_stack = vec![root];
         let mut end_stack = vec![filesystem.root.entry_count];

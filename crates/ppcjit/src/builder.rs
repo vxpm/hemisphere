@@ -8,20 +8,22 @@ mod memory;
 mod others;
 mod util;
 
+use std::mem::offset_of;
+
+use cranelift::codegen::ir;
+use cranelift::frontend;
+use cranelift::prelude::InstBuilder;
+use easyerr::Error;
+use gekko::disasm::{Ins, Opcode};
+use gekko::{FPR, Reg, SPR};
+use rustc_hash::FxHashMap;
+
+use crate::block::Info;
+use crate::builder::util::IntoIrValue;
+use crate::hooks::{HookKind, Hooks};
 use crate::{
     Compiler, INTERNAL_RAISE_EXCEPTION, NAMESPACE_INTERNALS, NAMESPACE_USER_HOOKS, Sequence,
-    block::Info,
-    builder::util::IntoIrValue,
-    hooks::{HookKind, Hooks},
 };
-use cranelift::{codegen::ir, frontend, prelude::InstBuilder};
-use easyerr::Error;
-use gekko::{
-    FPR, Reg, SPR,
-    disasm::{Ins, Opcode},
-};
-use rustc_hash::FxHashMap;
-use std::mem::offset_of;
 
 const MEMFLAGS: ir::MemFlags = ir::MemFlags::trusted();
 const MEMFLAGS_READONLY: ir::MemFlags = MEMFLAGS.with_can_move().with_readonly();

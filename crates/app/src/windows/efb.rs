@@ -1,14 +1,11 @@
-use crate::{
-    State,
-    windows::{AppWindow, Ctx},
-};
-use eframe::{
-    egui::{self, Vec2},
-    egui_wgpu::{self, CallbackTrait},
-};
+use eframe::egui::{self, Vec2};
+use eframe::egui_wgpu::{self, CallbackTrait};
 use lazuli::system::gx::{EFB_HEIGHT, EFB_WIDTH};
 use renderer::Renderer;
 use serde::{Deserialize, Serialize};
+
+use crate::State;
+use crate::windows::{AppWindow, Ctx};
 
 pub struct RendererCallback {
     renderer: Renderer,

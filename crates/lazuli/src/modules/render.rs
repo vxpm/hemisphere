@@ -1,18 +1,18 @@
 //! Renderer module interface.
 
-use crate::system::gx::{
-    CullingMode, EFB_HEIGHT, EFB_WIDTH, Topology, VertexStream,
-    colors::{Abgr8, Rgba, Rgba8, Rgba16},
-    pix::{BlendMode, BufferFormat, ConstantAlpha, DepthMode},
-    tev::{AlphaFunction, Constant, StageOps, StageRefs},
-    tex::{Sampler, Scaling, TextureData},
-    xform::{BaseTexGen, ChannelControl, Light, ProjectionMat},
-};
 use glam::Mat4;
 use oneshot::Sender;
 use ordered_float::OrderedFloat;
 use static_assertions::const_assert;
 
+use crate::system::gx::colors::{Abgr8, Rgba, Rgba8, Rgba16};
+use crate::system::gx::pix::{BlendMode, BufferFormat, ConstantAlpha, DepthMode};
+use crate::system::gx::tev::{AlphaFunction, Constant, StageOps, StageRefs};
+use crate::system::gx::tex::{Sampler, Scaling, TextureData};
+use crate::system::gx::xform::{BaseTexGen, ChannelControl, Light, ProjectionMat};
+use crate::system::gx::{CullingMode, EFB_HEIGHT, EFB_WIDTH, Topology, VertexStream};
+
+#[rustfmt::skip]
 pub use oneshot;
 
 /// Wrapper around a [`Mat4`] that allows hashing through [`OrderedFloat`].

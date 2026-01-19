@@ -1,9 +1,7 @@
-use lazuli::{
-    modules::render::TexEnvStage,
-    system::gx::tev::{
-        AlphaCompare, AlphaInputSrc, AlphaLogic, ColorChannel, ColorInputSrc, CompareOp,
-        CompareTarget, Constant,
-    },
+use lazuli::modules::render::TexEnvStage;
+use lazuli::system::gx::tev::{
+    AlphaCompare, AlphaInputSrc, AlphaLogic, ColorChannel, ColorInputSrc, CompareOp, CompareTarget,
+    Constant,
 };
 use wesl_quote::quote_expression;
 

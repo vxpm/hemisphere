@@ -1,9 +1,11 @@
 //! Vertex attribute parsing.
-use crate::system::gx::cmd::{ArrayDescriptor, Arrays};
-use crate::system::gx::colors::Rgba;
-use crate::{stream::BinReader, system::gx::cmd::VertexDescriptor};
-use bitos::{BitUtils, bitos, integer::u5};
+use bitos::integer::u5;
+use bitos::{BitUtils, bitos};
 use glam::{Vec2, Vec3};
+
+use crate::stream::BinReader;
+use crate::system::gx::cmd::{ArrayDescriptor, Arrays, VertexDescriptor};
+use crate::system::gx::colors::Rgba;
 
 /// A vertex attribute descriptor. The descriptor defines how the attribute is encoded.
 pub trait AttributeDescriptor: std::fmt::Debug {
@@ -46,11 +48,11 @@ pub enum PositionKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum CoordsFormat {
     #[default]
-    U8 = 0b000,
-    I8 = 0b001,
-    U16 = 0b010,
-    I16 = 0b011,
-    F32 = 0b100,
+    U8        = 0b000,
+    I8        = 0b001,
+    U16       = 0b010,
+    I16       = 0b011,
+    F32       = 0b100,
     Reserved0 = 0b101,
     Reserved1 = 0b110,
     Reserved2 = 0b111,
@@ -178,7 +180,7 @@ impl AttributeDescriptor for NormalDescriptor {
 pub enum ColorKind {
     /// Three components (r, g, b).
     #[default]
-    Rgb = 0b0,
+    Rgb  = 0b0,
     /// Four components (r, g, b, a).
     Rgba = 0b1,
 }
@@ -187,12 +189,12 @@ pub enum ColorKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ColorFormat {
     #[default]
-    Rgb565 = 0b000,
-    Rgb888 = 0b001,
-    Rgb888x = 0b010,
-    Rgba4444 = 0b011,
-    Rgba6666 = 0b100,
-    Rgba8888 = 0b101,
+    Rgb565    = 0b000,
+    Rgb888    = 0b001,
+    Rgb888x   = 0b010,
+    Rgba4444  = 0b011,
+    Rgba6666  = 0b100,
+    Rgba8888  = 0b101,
     Reserved0 = 0b110,
     Reserved1 = 0b111,
 }
@@ -436,11 +438,11 @@ impl VertexAttributeTable {
 pub enum AttributeMode {
     /// Not present
     #[default]
-    None = 0b00,
+    None    = 0b00,
     /// Directly in the vertex attribute stream
-    Direct = 0b01,
+    Direct  = 0b01,
     /// Indirectly through a 8 bit index in the vertex attribute stream
-    Index8 = 0b10,
+    Index8  = 0b10,
     /// Indirectly through a 16 bit index in the vertex attribute stream
     Index16 = 0b11,
 }

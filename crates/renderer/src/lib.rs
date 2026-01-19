@@ -4,13 +4,15 @@ mod alloc;
 mod blit;
 mod render;
 
-use crate::{blit::XfbBlitter, render::Renderer as RendererInner};
+use std::sync::Arc;
+use std::sync::atomic::Ordering;
+
 use flume::{Receiver, Sender};
-use lazuli::{
-    modules::render::{Action, RenderModule},
-    system::gx::{EFB_HEIGHT, EFB_WIDTH},
-};
-use std::sync::{Arc, atomic::Ordering};
+use lazuli::modules::render::{Action, RenderModule};
+use lazuli::system::gx::{EFB_HEIGHT, EFB_WIDTH};
+
+use crate::blit::XfbBlitter;
+use crate::render::Renderer as RendererInner;
 
 #[expect(clippy::needless_pass_by_value, reason = "makes it clearer")]
 fn worker(mut renderer: RendererInner, receiver: Receiver<Action>) {

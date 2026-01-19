@@ -1,9 +1,9 @@
 //! Arena allocator for JITs.
-use std::{marker::PhantomData, ptr::NonNull};
+use std::marker::PhantomData;
+use std::ptr::NonNull;
 
 #[cfg(target_family = "unix")]
 use rustix::mm::{self as mman, MapFlags, ProtFlags};
-
 #[cfg(target_family = "windows")]
 use windows::Win32::System::{
     Diagnostics::Debug::FlushInstructionCache, Memory, Threading::GetCurrentProcess,

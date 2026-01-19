@@ -1,8 +1,7 @@
 use jitalloc::{Allocation, Exec};
-use lazuli::system::gx::{
-    MatrixSet, Vertex,
-    cmd::{Arrays, VertexDescriptor, attributes::VertexAttributeTable},
-};
+use lazuli::system::gx::cmd::attributes::VertexAttributeTable;
+use lazuli::system::gx::cmd::{Arrays, VertexDescriptor};
+use lazuli::system::gx::{MatrixSet, Vertex};
 
 use crate::UnpackedDefaultMatrices;
 

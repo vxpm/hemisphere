@@ -1,11 +1,7 @@
-use lazuli::{
-    modules::render::TexEnvStage,
-    system::gx::{
-        CullingMode,
-        tev::{AlphaCompare, AlphaLogic},
-        xform::BaseTexGen,
-    },
-};
+use lazuli::modules::render::TexEnvStage;
+use lazuli::system::gx::CullingMode;
+use lazuli::system::gx::tev::{AlphaCompare, AlphaLogic};
+use lazuli::system::gx::xform::BaseTexGen;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BlendSettings {

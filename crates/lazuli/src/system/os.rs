@@ -1,8 +1,10 @@
 //! Dolphin-OS
 
-use crate::system::System;
-use bitos::{BitUtils, TryBits, bitos, integer::u4};
+use bitos::integer::u4;
+use bitos::{BitUtils, TryBits, bitos};
 use gekko::Address;
+
+use crate::system::System;
 
 #[derive(Debug, Clone)]
 pub struct Context {
@@ -14,10 +16,10 @@ pub struct Context {
 #[derive(Debug, Clone, Copy, Default)]
 pub enum State {
     #[default]
-    Dead = 0b0000,
-    Ready = 0b0001,
-    Running = 0b0010,
-    Waiting = 0b0100,
+    Dead     = 0b0000,
+    Ready    = 0b0001,
+    Running  = 0b0010,
+    Waiting  = 0b0100,
     Moribund = 0b1000,
 }
 

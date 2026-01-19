@@ -1,16 +1,15 @@
-use crate::{
-    State,
-    windows::{AppWindow, Ctx},
-};
 use bytesize::ByteSize;
 use eframe::egui::{self, Color32};
 use egui_extras::{Column, TableBuilder};
 use indexmap::IndexMap;
-use lazuli::{
-    Address,
-    system::{self, eabi::CallStack, os::Thread},
-};
+use lazuli::Address;
+use lazuli::system::eabi::CallStack;
+use lazuli::system::os::Thread;
+use lazuli::system::{self};
 use serde::{Deserialize, Serialize};
+
+use crate::State;
+use crate::windows::{AppWindow, Ctx};
 
 #[derive(Debug)]
 enum ThreadKind {

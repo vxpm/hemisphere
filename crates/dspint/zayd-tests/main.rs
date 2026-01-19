@@ -2,16 +2,17 @@
 
 mod file;
 
-use dspint::{Interpreter, Registers};
-use lazuli::{
-    modules::{
-        audio::NopAudioModule, debug::NopDebugModule, disk::NopDiskModule, input::NopInputModule,
-        render::NopRenderModule, vertex::NopVertexModule,
-    },
-    system::{self, Modules, System},
-};
-use libtest_mimic::{Arguments, Failed, Trial};
 use std::fmt::Write;
+
+use dspint::{Interpreter, Registers};
+use lazuli::modules::audio::NopAudioModule;
+use lazuli::modules::debug::NopDebugModule;
+use lazuli::modules::disk::NopDiskModule;
+use lazuli::modules::input::NopInputModule;
+use lazuli::modules::render::NopRenderModule;
+use lazuli::modules::vertex::NopVertexModule;
+use lazuli::system::{self, Modules, System};
+use libtest_mimic::{Arguments, Failed, Trial};
 
 fn parse_code(mut words: &[u16]) -> Vec<dspint::Ins> {
     let mut ins = vec![];

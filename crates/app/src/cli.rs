@@ -1,5 +1,6 @@
-use clap::{Args, Parser};
 use std::path::PathBuf;
+
+use clap::{Args, Parser};
 
 #[derive(Args, Debug)]
 pub struct PpcjitConfig {

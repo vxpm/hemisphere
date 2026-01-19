@@ -1,10 +1,10 @@
+use cranelift::codegen::ir;
+use cranelift::prelude::{FloatCC, InstBuilder, IntCC};
+use gekko::disasm::Ins;
+use gekko::{InsExt, SPR};
+
 use super::BlockBuilder;
 use crate::builder::{Action, InstructionInfo};
-use cranelift::{
-    codegen::ir,
-    prelude::{FloatCC, InstBuilder, IntCC},
-};
-use gekko::{InsExt, SPR, disasm::Ins};
 
 const CMP_INFO: InstructionInfo = InstructionInfo {
     cycles: 2,

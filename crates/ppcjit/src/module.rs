@@ -1,5 +1,6 @@
-use jitalloc::{Allocation, Allocator, Exec, ReadWrite};
 use std::alloc::Layout;
+
+use jitalloc::{Allocation, Allocator, Exec, ReadWrite};
 
 pub struct Module {
     code_allocator: Allocator<Exec>,

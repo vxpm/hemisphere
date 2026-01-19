@@ -1,19 +1,14 @@
-use lazuli::{
-    modules::vertex::{Ctx, VertexModule},
-    stream::{BinReader, BinaryStream},
-    system::gx::{
-        MatrixId, MatrixSet, Vertex,
-        cmd::{
-            ArrayDescriptor, VertexAttributeStream, VertexDescriptor,
-            attributes::{
-                self, Attribute, AttributeDescriptor, AttributeMode, VertexAttributeTable,
-            },
-        },
-        glam::Vec2,
-    },
-};
-use seq_macro::seq;
 use std::mem::MaybeUninit;
+
+use lazuli::modules::vertex::{Ctx, VertexModule};
+use lazuli::stream::{BinReader, BinaryStream};
+use lazuli::system::gx::cmd::attributes::{
+    self, Attribute, AttributeDescriptor, AttributeMode, VertexAttributeTable,
+};
+use lazuli::system::gx::cmd::{ArrayDescriptor, VertexAttributeStream, VertexDescriptor};
+use lazuli::system::gx::glam::Vec2;
+use lazuli::system::gx::{MatrixId, MatrixSet, Vertex};
+use seq_macro::seq;
 
 #[inline(always)]
 fn read_attribute_from_array<D: AttributeDescriptor>(
