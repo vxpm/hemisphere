@@ -14,7 +14,7 @@ use crate::{
         gx::{
             cmd::VertexAttributeStream,
             colors::Rgba,
-            tex::{LoadLut, encode_color_texture, encode_depth_texture},
+            tex::{encode_color_texture, encode_depth_texture},
         },
         pi,
     },
@@ -727,14 +727,13 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
         Reg::PixelCopyCmd => {
             // TODO: proper masked
             let cmd = pix::CopyCmd::from_bits(value);
-            do_efb_copy(sys, cmd);
+            efb_copy(sys, cmd);
         }
 
         Reg::TexLutAddress => write_masked!(sys.gpu.tex.clut_addr.0),
         Reg::TexLutCount => {
-            let mut cmd = 0u32;
-            write_masked!(cmd);
-            update_clut(sys, LoadLut::from_bits(cmd));
+            write_masked!(sys.gpu.tex.clut_load);
+            tex::update_clut(sys);
         }
 
         Reg::TexSampler0 => {
@@ -1189,61 +1188,6 @@ fn extract_vertices(sys: &mut System, stream: &VertexAttributeStream) -> VertexS
     VertexStream { vertices, matrices }
 }
 
-fn update_texture(sys: &mut System, index: usize) {
-    let map = sys.gpu.tex.maps[index];
-    let texture_id = render::TextureId(map.address.value());
-    let clut_id = render::ClutId(map.lut.tmem_offset().value());
-
-    let base = map.address;
-    let len = map.format.size().value() as usize;
-    let data = &sys.mem.ram()[base.value() as usize..][..len];
-
-    if !sys.gpu.tex.is_tex_dirty(base, data) {
-        let data = tex::decode_texture(data, map.format);
-        sys.modules.render.exec(render::Action::LoadTexture {
-            id: texture_id,
-            texture: render::Texture {
-                width: map.format.width(),
-                height: map.format.height(),
-                data,
-            },
-        });
-    }
-
-    sys.modules.render.exec(render::Action::SetTextureSlot {
-        slot: index,
-        clut_id,
-        texture_id,
-        sampler: map.sampler,
-        scaling: map.scaling,
-    });
-}
-
-fn update_clut(sys: &mut System, cmd: LoadLut) {
-    let clut_id = render::ClutId(cmd.tmem_offset().value());
-
-    let base = sys.gpu.tex.clut_addr;
-    let len = cmd.count().value() as usize * 2;
-    let data = &sys.mem.ram()[base.value() as usize..][..len];
-
-    if !sys.gpu.tex.is_clut_dirty(base, data) {
-        let clut = data.into_iter().map(|x| *x as u16).collect();
-        sys.modules.render.exec(render::Action::LoadClut {
-            id: clut_id,
-            clut: render::Clut(clut),
-        });
-    }
-}
-
-fn call(sys: &mut System, address: Address, length: u32) {
-    tracing::debug!("called {} with length 0x{:08X}", address, length);
-    let address = address.value().with_bits(26, 32, 0) & !0x1F;
-    // TODO: consider this
-    // let length = length.value().with_bit(31, false) & !0x1F;
-    let data = &sys.mem.ram()[address.value() as usize..][..length as usize];
-    sys.gpu.cmd.queue.push_front_bytes(data);
-}
-
 fn draw(sys: &mut System, topology: Topology, stream: &VertexAttributeStream) {
     if std::mem::take(&mut sys.gpu.xform.internal.viewport_dirty) {
         sys.modules
@@ -1271,7 +1215,7 @@ fn draw(sys: &mut System, topology: Topology, stream: &VertexAttributeStream) {
 
     for map in 0..8 {
         if std::mem::take(&mut sys.gpu.tex.maps[map].dirty) {
-            self::update_texture(sys, map);
+            tex::update_texture(sys, map);
         }
     }
 
@@ -1281,7 +1225,16 @@ fn draw(sys: &mut System, topology: Topology, stream: &VertexAttributeStream) {
         .exec(render::Action::Draw(topology, vertices));
 }
 
-fn do_efb_copy(sys: &mut System, cmd: pix::CopyCmd) {
+fn call(sys: &mut System, address: Address, length: u32) {
+    tracing::debug!("called {} with length 0x{:08X}", address, length);
+    let address = address.value().with_bits(26, 32, 0) & !0x1F;
+    // TODO: consider this
+    // let length = length.value().with_bit(31, false) & !0x1F;
+    let data = &sys.mem.ram()[address.value() as usize..][..length as usize];
+    sys.gpu.cmd.queue.push_front_bytes(data);
+}
+
+fn efb_copy(sys: &mut System, cmd: pix::CopyCmd) {
     if cmd.to_xfb() {
         sys.modules
             .render

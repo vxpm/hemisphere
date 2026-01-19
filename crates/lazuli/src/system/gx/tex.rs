@@ -1,7 +1,13 @@
 //! Texture unit (TX).
-use crate::system::gx::{
-    colors::Rgba8,
-    pix::{ColorCopyFormat, DepthCopyFormat},
+use crate::{
+    modules::render,
+    system::{
+        System,
+        gx::{
+            colors::Rgba8,
+            pix::{ColorCopyFormat, DepthCopyFormat},
+        },
+    },
 };
 use bitos::{
     bitos,
@@ -185,7 +191,7 @@ pub struct TextureMap {
 
 #[bitos(2)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum LutFormat {
+pub enum ClutFormat {
     #[default]
     IA8 = 0b00,
     RGB565 = 0b01,
@@ -195,7 +201,7 @@ pub enum LutFormat {
 
 #[bitos(32)]
 #[derive(Debug, Clone, Copy, Default)]
-pub struct LoadLut {
+pub struct ClutLoad {
     #[bits(0..10)]
     pub tmem_offset: u10,
     #[bits(10..21)]
@@ -208,13 +214,14 @@ pub struct LutRef {
     #[bits(0..10)]
     pub tmem_offset: u10,
     #[bits(10..12)]
-    pub format: LutFormat,
+    pub format: ClutFormat,
 }
 
 #[derive(Default)]
 pub struct Interface {
     pub maps: [TextureMap; 8],
     pub clut_addr: Address,
+    pub clut_load: ClutLoad,
     pub tex_cache: HashMap<Address, u64>,
     pub clut_cache: HashMap<Address, u64>,
 }
@@ -260,7 +267,7 @@ impl Interface {
     }
 }
 
-pub fn decode_texture(data: &[u8], format: Encoding) -> TextureData {
+fn decode_texture(data: &[u8], format: Encoding) -> TextureData {
     use gxtex::{
         AlphaChannel, CI4, CI8, CI14X2, Cmpr, FastLuma, FastRgb565, I4, I8, IA4, IA8, Rgb5A3,
         Rgba8, decode,
@@ -386,5 +393,56 @@ pub fn encode_depth_texture(
         DepthCopyFormat::Z16A => encode!(IA8<GreenChannel, RedChannel>),
         DepthCopyFormat::Z16B => encode!(IA8<GreenChannel, RedChannel>),
         _ => panic!("reserved depth format"),
+    }
+}
+
+pub fn update_texture(sys: &mut System, index: usize) {
+    let map = sys.gpu.tex.maps[index];
+    let texture_id = render::TextureId(map.address.value());
+    let clut_id = render::ClutId(map.lut.tmem_offset().value());
+
+    let base = map.address;
+    let len = map.format.size() as usize;
+    let data = &sys.mem.ram()[base.value() as usize..][..len];
+
+    if !sys.gpu.tex.is_tex_dirty(base, data) {
+        let data = self::decode_texture(data, map.format);
+        sys.modules.render.exec(render::Action::LoadTexture {
+            id: texture_id,
+            texture: render::Texture {
+                width: map.format.width(),
+                height: map.format.height(),
+                data,
+            },
+        });
+    }
+
+    sys.modules.render.exec(render::Action::SetTextureSlot {
+        slot: index,
+        clut_id,
+        texture_id,
+        sampler: map.sampler,
+        scaling: map.scaling,
+    });
+}
+
+pub fn update_clut(sys: &mut System) {
+    let load = sys.gpu.tex.clut_load;
+    let clut_id = render::ClutId(load.tmem_offset().value());
+
+    let base = sys.gpu.tex.clut_addr;
+    let len = load.count().value() as usize * 2;
+    let data = &sys.mem.ram()[base.value() as usize..][..len];
+
+    if !sys.gpu.tex.is_clut_dirty(base, data) {
+        let clut = data
+            .chunks_exact(2)
+            .map(|x| u16::from_be_bytes([x[0], x[1]]))
+            .collect();
+
+        sys.modules.render.exec(render::Action::LoadClut {
+            id: clut_id,
+            clut: render::Clut(clut),
+        });
     }
 }

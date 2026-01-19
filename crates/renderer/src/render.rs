@@ -506,8 +506,8 @@ impl Renderer {
             .update_texture(&self.device, &self.queue, id, texture);
     }
 
-    pub fn load_clut(&mut self, id: ClutId, clut: Clut) {
-        todo!()
+    pub fn load_clut(&mut self, _id: ClutId, _clut: Clut) {
+        // todo!()
     }
 
     pub fn set_texture_slot(
