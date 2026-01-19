@@ -5,7 +5,7 @@ use crate::system::gx::{
     colors::{Abgr8, Rgba, Rgba8, Rgba16},
     pix::{BlendMode, BufferFormat, ConstantAlpha, DepthMode},
     tev::{AlphaFunction, Constant, StageOps, StageRefs},
-    tex::TextureData,
+    tex::{Sampler, Scaling, TextureData},
     xform::{BaseTexGen, ChannelControl, Light, ProjectionMat},
 };
 use glam::Mat4;
@@ -96,6 +96,22 @@ pub struct TexGenConfig {
     pub stages: Vec<TexGenStage>,
 }
 
+#[derive(Debug, Clone)]
+pub struct Texture {
+    pub width: u32,
+    pub height: u32,
+    pub data: TextureData,
+}
+
+#[derive(Debug, Clone)]
+pub struct Clut(pub Vec<u16>);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub struct TextureId(pub u32);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub struct ClutId(pub u16);
+
 pub enum Action {
     SetFramebufferFormat(BufferFormat),
     SetViewport(Viewport),
@@ -115,14 +131,19 @@ pub enum Action {
     SetAlphaChannel(u8, ChannelControl),
     SetLight(u8, Light),
     LoadTexture {
-        id: u32,
-        width: u32,
-        height: u32,
-        data: TextureData,
+        texture: Texture,
+        id: TextureId,
+    },
+    LoadClut {
+        clut: Clut,
+        id: ClutId,
     },
     SetTextureSlot {
         slot: usize,
-        id: u32,
+        clut_id: ClutId,
+        texture_id: TextureId,
+        sampler: Sampler,
+        scaling: Scaling,
     },
     Draw(Topology, VertexStream),
     ColorCopy {

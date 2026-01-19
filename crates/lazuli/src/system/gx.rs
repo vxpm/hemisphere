@@ -14,7 +14,7 @@ use crate::{
         gx::{
             cmd::VertexAttributeStream,
             colors::Rgba,
-            tex::{encode_color_texture, encode_depth_texture},
+            tex::{LoadLut, encode_color_texture, encode_depth_texture},
         },
         pi,
     },
@@ -153,14 +153,14 @@ pub enum Reg {
     TexFieldMode = 0x68,
     TexRefresh = 0x69,
 
-    TexMode0 = 0x80,
-    TexMode1 = 0x81,
-    TexMode2 = 0x82,
-    TexMode3 = 0x83,
-    TexMode0Lod = 0x84,
-    TexMode1Lod = 0x85,
-    TexMode2Lod = 0x86,
-    TexMode3Lod = 0x87,
+    TexSampler0 = 0x80,
+    TexSampler1 = 0x81,
+    TexSampler2 = 0x82,
+    TexSampler3 = 0x83,
+    TexSampler0Lod = 0x84,
+    TexSampler1Lod = 0x85,
+    TexSampler2Lod = 0x86,
+    TexSampler3Lod = 0x87,
     TexFormat0 = 0x88,
     TexFormat1 = 0x89,
     TexFormat2 = 0x8A,
@@ -182,14 +182,14 @@ pub enum Reg {
     TexLutRef2 = 0x9A,
     TexLutRef3 = 0x9B,
 
-    TexMode4 = 0xA0,
-    TexMode5 = 0xA1,
-    TexMode6 = 0xA2,
-    TexMode7 = 0xA3,
-    TexMode4Lod = 0xA4,
-    TexMode5Lod = 0xA5,
-    TexMode6Lod = 0xA6,
-    TexMode7Lod = 0xA7,
+    TexSampler4 = 0xA0,
+    TexSampler5 = 0xA1,
+    TexSampler6 = 0xA2,
+    TexSampler7 = 0xA3,
+    TexSampler4Lod = 0xA4,
+    TexSampler5Lod = 0xA5,
+    TexSampler6Lod = 0xA6,
+    TexSampler7Lod = 0xA7,
     TexFormat4 = 0xA8,
     TexFormat5 = 0xA9,
     TexFormat6 = 0xAA,
@@ -730,43 +730,43 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
             do_efb_copy(sys, cmd);
         }
 
-        Reg::TexLutAddress => {
-            // println!("lut address: {}", Address(value.bits(0, 21)));
-        }
+        Reg::TexLutAddress => write_masked!(sys.gpu.tex.clut_addr.0),
         Reg::TexLutCount => {
-            // println!("lut count: {:?}", LutCount::from_bits(value));
+            let mut cmd = 0u32;
+            write_masked!(cmd);
+            update_clut(sys, LoadLut::from_bits(cmd));
         }
 
-        Reg::TexMode0 => {
-            write_masked!(sys.gpu.tex.maps[0].sampling);
+        Reg::TexSampler0 => {
+            write_masked!(sys.gpu.tex.maps[0].sampler);
             sys.gpu.tex.maps[0].dirty = true;
         }
-        Reg::TexMode1 => {
-            write_masked!(sys.gpu.tex.maps[1].sampling);
+        Reg::TexSampler1 => {
+            write_masked!(sys.gpu.tex.maps[1].sampler);
             sys.gpu.tex.maps[1].dirty = true;
         }
-        Reg::TexMode2 => {
-            write_masked!(sys.gpu.tex.maps[2].sampling);
+        Reg::TexSampler2 => {
+            write_masked!(sys.gpu.tex.maps[2].sampler);
             sys.gpu.tex.maps[2].dirty = true;
         }
-        Reg::TexMode3 => {
-            write_masked!(sys.gpu.tex.maps[3].sampling);
+        Reg::TexSampler3 => {
+            write_masked!(sys.gpu.tex.maps[3].sampler);
             sys.gpu.tex.maps[3].dirty = true;
         }
-        Reg::TexMode4 => {
-            write_masked!(sys.gpu.tex.maps[4].sampling);
+        Reg::TexSampler4 => {
+            write_masked!(sys.gpu.tex.maps[4].sampler);
             sys.gpu.tex.maps[4].dirty = true;
         }
-        Reg::TexMode5 => {
-            write_masked!(sys.gpu.tex.maps[5].sampling);
+        Reg::TexSampler5 => {
+            write_masked!(sys.gpu.tex.maps[5].sampler);
             sys.gpu.tex.maps[5].dirty = true;
         }
-        Reg::TexMode6 => {
-            write_masked!(sys.gpu.tex.maps[6].sampling);
+        Reg::TexSampler6 => {
+            write_masked!(sys.gpu.tex.maps[6].sampler);
             sys.gpu.tex.maps[6].dirty = true;
         }
-        Reg::TexMode7 => {
-            write_masked!(sys.gpu.tex.maps[7].sampling);
+        Reg::TexSampler7 => {
+            write_masked!(sys.gpu.tex.maps[7].sampler);
             sys.gpu.tex.maps[7].dirty = true;
         }
 
@@ -1191,24 +1191,48 @@ fn extract_vertices(sys: &mut System, stream: &VertexAttributeStream) -> VertexS
 
 fn update_texture(sys: &mut System, index: usize) {
     let map = sys.gpu.tex.maps[index];
-    let start = map.address.value() as usize;
-    let len = map.format.size().value() as usize;
-    let slice = &sys.mem.ram()[start..][..len];
+    let texture_id = render::TextureId(map.address.value());
+    let clut_id = render::ClutId(map.lut.tmem_offset().value());
 
-    if !sys.gpu.tex.insert_cache(map.address, slice) {
-        let data = tex::decode_texture(slice, map.format);
+    let base = map.address;
+    let len = map.format.size().value() as usize;
+    let data = &sys.mem.ram()[base.value() as usize..][..len];
+
+    if !sys.gpu.tex.is_tex_dirty(base, data) {
+        let data = tex::decode_texture(data, map.format);
         sys.modules.render.exec(render::Action::LoadTexture {
-            id: map.address.value(),
-            width: map.format.width(),
-            height: map.format.height(),
-            data,
+            id: texture_id,
+            texture: render::Texture {
+                width: map.format.width(),
+                height: map.format.height(),
+                data,
+            },
         });
     }
 
     sys.modules.render.exec(render::Action::SetTextureSlot {
         slot: index,
-        id: map.address.value(),
+        clut_id,
+        texture_id,
+        sampler: map.sampler,
+        scaling: map.scaling,
     });
+}
+
+fn update_clut(sys: &mut System, cmd: LoadLut) {
+    let clut_id = render::ClutId(cmd.tmem_offset().value());
+
+    let base = sys.gpu.tex.clut_addr;
+    let len = cmd.count().value() as usize * 2;
+    let data = &sys.mem.ram()[base.value() as usize..][..len];
+
+    if !sys.gpu.tex.is_clut_dirty(base, data) {
+        let clut = data.into_iter().map(|x| *x as u16).collect();
+        sys.modules.render.exec(render::Action::LoadClut {
+            id: clut_id,
+            clut: render::Clut(clut),
+        });
+    }
 }
 
 fn call(sys: &mut System, address: Address, length: u32) {

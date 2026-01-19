@@ -15,7 +15,9 @@ use crate::{
 };
 use glam::Mat4;
 use lazuli::{
-    modules::render::{Action, TexEnvConfig, TexGenConfig, Viewport, oneshot},
+    modules::render::{
+        Action, Clut, ClutId, TexEnvConfig, TexGenConfig, Texture, TextureId, Viewport, oneshot,
+    },
     system::gx::{
         CullingMode, DEPTH_24_BIT_MAX, EFB_HEIGHT, EFB_WIDTH, MatrixId, Topology, Vertex,
         VertexStream,
@@ -24,7 +26,7 @@ use lazuli::{
             self, BlendMode, CompareMode, ConstantAlpha, DepthMode, DstBlendFactor, SrcBlendFactor,
         },
         tev::AlphaFunction,
-        tex::TextureData,
+        tex::{Sampler, Scaling},
         xform::{ChannelControl, Light},
     },
 };
@@ -205,13 +207,15 @@ impl Renderer {
             Action::SetProjectionMatrix(mat) => self.set_projection_mat(mat.value()),
             Action::SetTexEnvConfig(config) => self.set_texenv_config(config),
             Action::SetTexGenConfig(config) => self.set_texgen_config(config),
-            Action::LoadTexture {
-                id,
-                width,
-                height,
-                data,
-            } => self.load_texture(id, width, height, data),
-            Action::SetTextureSlot { slot: index, id } => self.set_texture(index, id),
+            Action::LoadTexture { id, texture } => self.load_texture(id, texture),
+            Action::LoadClut { id, clut } => self.load_clut(id, clut),
+            Action::SetTextureSlot {
+                slot,
+                clut_id,
+                texture_id,
+                sampler,
+                scaling,
+            } => self.set_texture_slot(slot, clut_id, texture_id, sampler, scaling),
             Action::Draw(topology, vertices) => match topology {
                 Topology::QuadList => self.draw_quad_list(&vertices),
                 Topology::TriangleList => self.draw_triangle_list(&vertices),
@@ -497,48 +501,27 @@ impl Renderer {
         self.current_config_dirty = true;
     }
 
-    pub fn load_texture(&mut self, id: u32, width: u32, height: u32, data: TextureData) {
-        match data {
-            TextureData::Direct(data) => {
-                let data = zerocopy::transmute_ref!(data.as_slice());
-                self.texture_cache.update_texture(
-                    &self.device,
-                    &self.queue,
-                    id,
-                    width,
-                    height,
-                    data,
-                );
-            }
-            TextureData::Indirect(data) => {
-                let pixels = data
-                    .into_iter()
-                    .map(|i| Rgba8 {
-                        r: i as u8,
-                        g: i as u8,
-                        b: i as u8,
-                        a: i as u8,
-                    })
-                    .collect::<Vec<_>>();
-
-                let data = zerocopy::transmute_ref!(pixels.as_slice());
-                self.texture_cache.update_texture(
-                    &self.device,
-                    &self.queue,
-                    id,
-                    width,
-                    height,
-                    data,
-                );
-            }
-        }
+    pub fn load_texture(&mut self, id: TextureId, texture: Texture) {
+        self.texture_cache
+            .update_texture(&self.device, &self.queue, id, texture);
     }
 
-    pub fn set_texture(&mut self, index: usize, id: u32) {
-        let in_slot = self.texture_cache.get_texture_slot(index);
+    pub fn load_clut(&mut self, id: ClutId, clut: Clut) {
+        todo!()
+    }
+
+    pub fn set_texture_slot(
+        &mut self,
+        slot: usize,
+        _clut_id: ClutId,
+        texture_id: TextureId,
+        _sampler: Sampler,
+        _scaling: Scaling,
+    ) {
+        let in_slot = self.texture_cache.get_texture_slot(slot);
         let handle = self
             .texture_cache
-            .get_texture(id)
+            .get_texture(texture_id)
             .expect("texture should exist before being set");
 
         if in_slot == handle {
@@ -546,7 +529,7 @@ impl Renderer {
         }
 
         self.flush("texture slot changed");
-        self.texture_cache.set_texture_slot(index, handle);
+        self.texture_cache.set_texture_slot(slot, handle);
     }
 
     fn flush_config(&mut self) {

@@ -19,6 +19,7 @@ pub enum TextureData {
 
 impl TextureData {
     fn direct(data: Vec<gxtex::Pixel>) -> Self {
+        // PERF: hopefully compiler optimizes this to a vec transmute
         Self::Direct(
             data.into_iter()
                 .map(|p| Rgba8 {
@@ -30,13 +31,6 @@ impl TextureData {
                 .collect(),
         )
     }
-}
-
-#[derive(Debug, Clone)]
-pub struct Texture {
-    pub width: u32,
-    pub height: u32,
-    pub data: TextureData,
 }
 
 #[bitos(2)]
@@ -129,11 +123,11 @@ impl Encoding {
     // Size, in bytes, of the texture.
     pub fn size(&self) -> u32 {
         let pixels = |n| self.width().next_multiple_of(n) * self.height().next_multiple_of(n);
-        let pixels_ab = |a, b| self.width().next_multiple_of(a) * self.height().next_multiple_of(b);
+        let pixels_xy = |x, y| self.width().next_multiple_of(x) * self.height().next_multiple_of(y);
 
         match self.format() {
             Format::I4 => pixels(8) / 2,
-            Format::I8 => pixels_ab(8, 4),
+            Format::I8 => pixels_xy(8, 4),
             Format::IA4 => pixels(8),
             Format::IA8 => pixels(4) * 2,
             Format::Rgb565 => pixels(4) * 2,
@@ -201,7 +195,7 @@ pub enum LutFormat {
 
 #[bitos(32)]
 #[derive(Debug, Clone, Copy, Default)]
-pub struct LutCount {
+pub struct LoadLut {
     #[bits(0..10)]
     pub tmem_offset: u10,
     #[bits(10..21)]
@@ -220,32 +214,47 @@ pub struct LutRef {
 #[derive(Default)]
 pub struct Interface {
     pub maps: [TextureMap; 8],
-    pub cache: HashMap<Address, u64>,
+    pub clut_addr: Address,
+    pub tex_cache: HashMap<Address, u64>,
+    pub clut_cache: HashMap<Address, u64>,
 }
 
 impl std::fmt::Debug for Interface {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Interface")
             .field("maps", &self.maps)
-            .field("cache", &self.cache)
+            .field("cache", &self.tex_cache)
             .finish()
     }
 }
 
 impl Interface {
-    /// Given an address and the texture data present there, returns whether the data hash matches
-    /// with the one in the cache. If not, the hash is inserted into the cache.
-    pub fn insert_cache(&mut self, addr: Address, data: &[u8]) -> bool {
+    pub fn is_tex_dirty(&mut self, addr: Address, data: &[u8]) -> bool {
         let new_hash = twox_hash::XxHash3_64::oneshot(data);
-        if let Some(old_hash) = self.cache.get(&addr) {
-            if *old_hash == new_hash {
-                true
-            } else {
-                self.cache.insert(addr, new_hash);
-                false
-            }
+        let Some(old_hash) = self.tex_cache.get(&addr) else {
+            self.tex_cache.insert(addr, new_hash);
+            return false;
+        };
+
+        if *old_hash == new_hash {
+            true
         } else {
-            self.cache.insert(addr, new_hash);
+            self.tex_cache.insert(addr, new_hash);
+            false
+        }
+    }
+
+    pub fn is_clut_dirty(&mut self, addr: Address, data: &[u8]) -> bool {
+        let new_hash = twox_hash::XxHash3_64::oneshot(data);
+        let Some(old_hash) = self.tex_cache.get(&addr) else {
+            self.tex_cache.insert(addr, new_hash);
+            return false;
+        };
+
+        if *old_hash == new_hash {
+            true
+        } else {
+            self.tex_cache.insert(addr, new_hash);
             false
         }
     }

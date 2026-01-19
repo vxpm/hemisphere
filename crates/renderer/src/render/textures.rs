@@ -1,5 +1,9 @@
 use std::collections::hash_map::Entry;
 
+use lazuli::{
+    modules::render::{Texture, TextureId},
+    system::gx::{colors::Rgba8, tex::TextureData},
+};
 use rustc_hash::FxHashMap;
 
 struct CachedTexture {
@@ -9,12 +13,12 @@ struct CachedTexture {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct TextureHandle {
-    pub id: u32,
+    pub id: TextureId,
     pub generation: u32,
 }
 
 pub struct TextureCache {
-    cached: FxHashMap<u32, CachedTexture>,
+    cached: FxHashMap<TextureId, CachedTexture>,
     current: [TextureHandle; 8],
     textures: [wgpu::Texture; 8],
     samplers: [wgpu::Sampler; 8],
@@ -74,18 +78,30 @@ impl TextureCache {
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        id: u32,
-        width: u32,
-        height: u32,
-        data: &[u8],
+        id: TextureId,
+        tex: Texture,
     ) -> TextureHandle {
+        let pixels = match tex.data {
+            TextureData::Direct(data) => data,
+            TextureData::Indirect(data) => data
+                .into_iter()
+                .map(|i| Rgba8 {
+                    r: i as u8,
+                    g: i as u8,
+                    b: i as u8,
+                    a: i as u8,
+                })
+                .collect::<Vec<_>>(),
+        };
+
+        let data = zerocopy::transmute_ref!(pixels.as_slice());
         let size = wgpu::Extent3d {
-            width,
-            height,
+            width: tex.width,
+            height: tex.height,
             depth_or_array_layers: 1,
         };
 
-        let texture = Self::create_texture(device, size, &format!("texture {id:08X}"));
+        let texture = Self::create_texture(device, size, &format!("texture {:08X}", id.0));
         queue.write_texture(
             wgpu::TexelCopyTextureInfo {
                 texture: &texture,
@@ -96,7 +112,7 @@ impl TextureCache {
             data,
             wgpu::TexelCopyBufferLayout {
                 offset: 0,
-                bytes_per_row: Some(width * 4),
+                bytes_per_row: Some(tex.width * 4),
                 rows_per_image: None,
             },
             size,
@@ -124,7 +140,7 @@ impl TextureCache {
         }
     }
 
-    pub fn get_texture(&self, id: u32) -> Option<TextureHandle> {
+    pub fn get_texture(&self, id: TextureId) -> Option<TextureHandle> {
         self.cached.get(&id).map(|c| TextureHandle {
             id,
             generation: c.generation,
