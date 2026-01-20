@@ -207,7 +207,7 @@ pub struct LutRef {
 #[derive(Default)]
 pub struct Interface {
     pub maps: [TextureMap; 8],
-    pub clut_addr: Address,
+    pub clut_base: u32,
     pub clut_load: ClutLoad,
     pub tex_cache: HashMap<Address, u64>,
     pub clut_cache: HashMap<Address, u64>,
@@ -419,8 +419,8 @@ pub fn update_clut(sys: &mut System) {
     let load = sys.gpu.tex.clut_load;
     let clut_id = render::ClutId(load.tmem_offset().value());
 
-    let base = sys.gpu.tex.clut_addr;
-    let len = load.count().value() as usize * 2;
+    let base = Address(sys.gpu.tex.clut_base << 5);
+    let len = load.count().value() as usize * 16 * 2;
     let data = &sys.mem.ram()[base.value() as usize..][..len];
 
     if !sys.gpu.tex.is_clut_dirty(base, data) {

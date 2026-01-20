@@ -71,8 +71,8 @@ impl Cache {
         let data = match &raw.value.data {
             TextureData::Direct(data) => zerocopy::transmute_ref!(data.as_slice()),
             TextureData::Indirect(data) => {
-                let create_addr = settings.clut_id.0 as usize * 16;
-                let clut = &tmem.0[create_addr..];
+                let clut_base = settings.clut_id.to_tmem_addr();
+                let clut = &tmem.0[clut_base..];
 
                 owned_data = Self::create_texture_data_indirect(&data, &clut, settings.clut_fmt);
 
@@ -133,20 +133,10 @@ impl Cache {
     }
 
     pub fn update_clut(&mut self, id: ClutId, clut: Clut) {
-        let addr = id.0 as usize * 16;
-
-        // let mut current = addr;
-        // for _ in 0..16 {
-        //     self.tmem.0[current..][..clut.0.len()].copy_from_slice(&clut.0);
-        //     current += clut.0.len();
-        // }
-
-        let mut current = addr;
-        for entry in &clut.0 {
-            for _ in 0..16 {
-                self.tmem.0[current] = *entry;
-                current += 1;
-            }
+        let mut current = id.to_tmem_addr();
+        for _ in 0..16 {
+            self.tmem.0[current..][..clut.0.len()].copy_from_slice(&clut.0);
+            current += clut.0.len();
         }
     }
 

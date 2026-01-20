@@ -140,7 +140,7 @@ pub enum Reg {
     TexLoadBlock2       = 0x62,
     TexLoadBlock3       = 0x63,
     TexLutAddress       = 0x64,
-    TexLutCount         = 0x65,
+    TexLutLoad          = 0x65,
     TexInvTags          = 0x66,
     TexPerfMode         = 0x67,
     TexFieldMode        = 0x68,
@@ -734,8 +734,8 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
             efb_copy(sys, cmd);
         }
 
-        Reg::TexLutAddress => write_masked!(sys.gpu.tex.clut_addr.0),
-        Reg::TexLutCount => {
+        Reg::TexLutAddress => write_masked!(sys.gpu.tex.clut_base),
+        Reg::TexLutLoad => {
             write_masked!(sys.gpu.tex.clut_load);
             tex::update_clut(sys);
         }
