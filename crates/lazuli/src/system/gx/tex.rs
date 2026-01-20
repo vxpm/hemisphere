@@ -1,8 +1,8 @@
 //! Texture unit (TX).
 use std::collections::HashMap;
 
-use bitos::bitos;
 use bitos::integer::{u2, u10, u11};
+use bitos::{BitUtils, bitos};
 use color::Rgba8;
 use gekko::Address;
 use gxtex::PaletteIndex;
@@ -419,7 +419,7 @@ pub fn update_clut(sys: &mut System) {
     let load = sys.gpu.tex.clut_load;
     let clut_id = render::ClutId(load.tmem_offset().value());
 
-    let base = Address(sys.gpu.tex.clut_base << 5);
+    let base = Address((sys.gpu.tex.clut_base << 5).with_bits(26, 32, 0));
     let len = load.count().value() as usize * 16 * 2;
     let data = &sys.mem.ram()[base.value() as usize..][..len];
 
