@@ -19,19 +19,22 @@ struct WithDeps<T> {
 
 const TMEM_HIGH_LEN: usize = 512 * 1024 / 2;
 
-struct TmemHigh(Box<[u16; TMEM_HIGH_LEN]>);
+type TmemHigh = Box<[u16; TMEM_HIGH_LEN]>;
 
-impl Default for TmemHigh {
-    fn default() -> Self {
-        Self(util::boxed_array(0))
-    }
-}
-
-#[derive(Default)]
 pub struct Cache {
     tmem: TmemHigh,
     raws: FxHashMap<TextureId, WithDeps<Texture>>,
     textures: FxHashMap<TextureSettings, wgpu::TextureView>,
+}
+
+impl Default for Cache {
+    fn default() -> Self {
+        Self {
+            tmem: util::boxed_array(0),
+            raws: Default::default(),
+            textures: Default::default(),
+        }
+    }
 }
 
 impl Cache {
@@ -72,7 +75,7 @@ impl Cache {
             TextureData::Direct(data) => zerocopy::transmute_ref!(data.as_slice()),
             TextureData::Indirect(data) => {
                 let clut_base = settings.clut_addr.to_tmem_addr();
-                let clut = &tmem.0[clut_base..];
+                let clut = &tmem[clut_base..];
 
                 owned_data = Self::create_texture_data_indirect(&data, &clut, settings.clut_fmt);
 
@@ -137,7 +140,7 @@ impl Cache {
 
         // each clut is replicated sequentially 16 times
         for _ in 0..16 {
-            self.tmem.0[current..][..clut.0.len()].copy_from_slice(&clut.0);
+            self.tmem[current..][..clut.0.len()].copy_from_slice(&clut.0);
             current += clut.0.len();
         }
     }
