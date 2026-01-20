@@ -386,7 +386,7 @@ pub fn encode_depth_texture(
 pub fn update_texture(sys: &mut System, index: usize) {
     let map = sys.gpu.tex.maps[index];
     let texture_id = render::TextureId(map.address.value());
-    let clut_id = render::ClutId(map.clut.tmem_offset().value());
+    let clut_addr = render::ClutAddress(map.clut.tmem_offset().value());
     let clut_fmt = map.clut.format();
 
     let base = map.address;
@@ -407,17 +407,17 @@ pub fn update_texture(sys: &mut System, index: usize) {
 
     sys.modules.render.exec(render::Action::SetTextureSlot {
         slot: index,
-        clut_id,
         texture_id,
         sampler: map.sampler,
         scaling: map.scaling,
+        clut_addr,
         clut_fmt,
     });
 }
 
 pub fn update_clut(sys: &mut System) {
     let load = sys.gpu.tex.clut_load;
-    let clut_id = render::ClutId(load.tmem_offset().value());
+    let clut_addr = render::ClutAddress(load.tmem_offset().value());
 
     let base = Address((sys.gpu.tex.clut_base << 5).with_bits(26, 32, 0));
     let len = load.count().value() as usize * 16 * 2;
@@ -430,7 +430,7 @@ pub fn update_clut(sys: &mut System) {
             .collect();
 
         sys.modules.render.exec(render::Action::LoadClut {
-            id: clut_id,
+            addr: clut_addr,
             clut: render::Clut(clut),
         });
     }

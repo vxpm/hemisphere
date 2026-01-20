@@ -10,7 +10,7 @@ use std::sync::{Arc, Mutex};
 
 use glam::Mat4;
 use lazuli::modules::render::{
-    Action, Clut, ClutId, TexEnvConfig, TexGenConfig, Texture, TextureId, Viewport, oneshot,
+    Action, Clut, ClutAddress, TexEnvConfig, TexGenConfig, Texture, TextureId, Viewport, oneshot,
 };
 use lazuli::system::gx::color::{Rgba, Rgba8};
 use lazuli::system::gx::pix::{
@@ -216,15 +216,15 @@ impl Renderer {
             Action::SetTexEnvConfig(config) => self.set_texenv_config(config),
             Action::SetTexGenConfig(config) => self.set_texgen_config(config),
             Action::LoadTexture { id, texture } => self.load_texture(id, texture),
-            Action::LoadClut { id, clut } => self.load_clut(id, clut),
+            Action::LoadClut { addr: id, clut } => self.load_clut(id, clut),
             Action::SetTextureSlot {
                 slot,
-                clut_id,
+                clut_addr,
                 texture_id,
                 sampler,
                 scaling,
                 clut_fmt,
-            } => self.set_texture_slot(slot, clut_id, texture_id, sampler, scaling, clut_fmt),
+            } => self.set_texture_slot(slot, texture_id, sampler, scaling, clut_addr, clut_fmt),
             Action::Draw(topology, vertices) => match topology {
                 Topology::QuadList => self.draw_quad_list(&vertices),
                 Topology::TriangleList => self.draw_triangle_list(&vertices),
@@ -512,23 +512,23 @@ impl Renderer {
         self.texture_cache.update_raw(id, texture);
     }
 
-    pub fn load_clut(&mut self, id: ClutId, clut: Clut) {
+    pub fn load_clut(&mut self, id: ClutAddress, clut: Clut) {
         self.texture_cache.update_clut(id, clut);
     }
 
     pub fn set_texture_slot(
         &mut self,
         slot: usize,
-        clut_id: ClutId,
         raw_id: TextureId,
         sampler: Sampler,
         _scaling: Scaling,
+        clut_addr: ClutAddress,
         clut_fmt: ClutFormat,
     ) {
         let new = TexSlotSettings {
             settings: TextureSettings {
                 raw_id,
-                clut_id,
+                clut_addr,
                 clut_fmt,
             },
             sampler,

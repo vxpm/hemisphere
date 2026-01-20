@@ -110,12 +110,14 @@ pub struct Clut(pub Vec<u16>);
 pub struct TextureId(pub u32);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-pub struct ClutId(pub u16);
+pub struct ClutAddress(pub u16);
 
-impl ClutId {
-    /// Returns the address of this CLUT in TMEM, assuming 16-bit addressing.
+impl ClutAddress {
+    /// Returns the address of this CLUT in the high bank of TMEM, assuming 16-bit addressing.
     pub fn to_tmem_addr(&self) -> usize {
-        self.0 as usize * 16 * 16
+        // the offset is in multiples of the CLUT length. since each CLUT has 16 entries that are
+        // replicated 16 times, the CLUT length is 256 16-bit words
+        self.0 as usize * 256
     }
 }
 
@@ -142,15 +144,15 @@ pub enum Action {
         id: TextureId,
     },
     LoadClut {
+        addr: ClutAddress,
         clut: Clut,
-        id: ClutId,
     },
     SetTextureSlot {
         slot: usize,
-        clut_id: ClutId,
         texture_id: TextureId,
         sampler: Sampler,
         scaling: Scaling,
+        clut_addr: ClutAddress,
         clut_fmt: ClutFormat,
     },
     Draw(Topology, VertexStream),

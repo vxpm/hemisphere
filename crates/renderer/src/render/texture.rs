@@ -1,6 +1,6 @@
 use std::collections::hash_map::Entry;
 
-use lazuli::modules::render::{Clut, ClutId, Texture, TextureId};
+use lazuli::modules::render::{Clut, ClutAddress, Texture, TextureId};
 use lazuli::system::gx::color::Rgba8;
 use lazuli::system::gx::tex::{ClutFormat, TextureData};
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -8,7 +8,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct TextureSettings {
     pub raw_id: TextureId,
-    pub clut_id: ClutId,
+    pub clut_addr: ClutAddress,
     pub clut_fmt: ClutFormat,
 }
 
@@ -17,11 +17,11 @@ struct WithDeps<T> {
     deps: FxHashSet<TextureSettings>,
 }
 
-const TMEM_LEN: usize = 1024 * 1024 / 2;
+const TMEM_HIGH_LEN: usize = 512 * 1024 / 2;
 
-struct Tmem(Box<[u16; TMEM_LEN]>);
+struct TmemHigh(Box<[u16; TMEM_HIGH_LEN]>);
 
-impl Default for Tmem {
+impl Default for TmemHigh {
     fn default() -> Self {
         Self(util::boxed_array(0))
     }
@@ -29,7 +29,7 @@ impl Default for Tmem {
 
 #[derive(Default)]
 pub struct Cache {
-    tmem: Tmem,
+    tmem: TmemHigh,
     raws: FxHashMap<TextureId, WithDeps<Texture>>,
     textures: FxHashMap<TextureSettings, wgpu::TextureView>,
 }
@@ -61,7 +61,7 @@ impl Cache {
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         raws: &mut FxHashMap<TextureId, WithDeps<Texture>>,
-        tmem: &mut Tmem,
+        tmem: &mut TmemHigh,
         settings: TextureSettings,
     ) -> wgpu::TextureView {
         let raw = raws.get_mut(&settings.raw_id).unwrap();
@@ -71,7 +71,7 @@ impl Cache {
         let data = match &raw.value.data {
             TextureData::Direct(data) => zerocopy::transmute_ref!(data.as_slice()),
             TextureData::Indirect(data) => {
-                let clut_base = settings.clut_id.to_tmem_addr();
+                let clut_base = settings.clut_addr.to_tmem_addr();
                 let clut = &tmem.0[clut_base..];
 
                 owned_data = Self::create_texture_data_indirect(&data, &clut, settings.clut_fmt);
@@ -132,8 +132,10 @@ impl Cache {
         }
     }
 
-    pub fn update_clut(&mut self, id: ClutId, clut: Clut) {
-        let mut current = id.to_tmem_addr();
+    pub fn update_clut(&mut self, addr: ClutAddress, clut: Clut) {
+        let mut current = addr.to_tmem_addr();
+
+        // each clut is replicated sequentially 16 times
         for _ in 0..16 {
             self.tmem.0[current..][..clut.0.len()].copy_from_slice(&clut.0);
             current += clut.0.len();
