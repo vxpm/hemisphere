@@ -26,7 +26,6 @@ pub type Pixel = color::Rgba8;
 pub type PaletteIndex = u16;
 
 pub trait Format {
-    const NIBBLES_PER_TEXEL: usize;
     const TILE_WIDTH: usize;
     const TILE_HEIGHT: usize;
     const BYTES_PER_TILE: usize = 32;
@@ -38,9 +37,9 @@ pub trait Format {
 }
 
 pub fn compute_size<F: Format>(width: usize, height: usize) -> usize {
-    let width = width.next_multiple_of(F::TILE_WIDTH);
-    let height = height.next_multiple_of(F::TILE_HEIGHT);
-    (width * height * <F as Format>::NIBBLES_PER_TEXEL).div_ceil(2)
+    let width = width.div_ceil(F::TILE_WIDTH);
+    let height = height.div_ceil(F::TILE_HEIGHT);
+    width * height * F::BYTES_PER_TILE
 }
 
 /// Stride is in cache lines.
@@ -52,7 +51,7 @@ pub fn encode<F: Format>(
     data: &[F::Texel],
     buffer: &mut [u8],
 ) {
-    assert!(buffer.len() >= ((width * height * F::NIBBLES_PER_TEXEL).div_ceil(2)));
+    assert!(buffer.len() >= compute_size::<F>(width, height));
 
     let cache_lines_per_tile = F::BYTES_PER_TILE / 32;
     let width_in_tiles = width.div_ceil(F::TILE_WIDTH);
@@ -90,7 +89,7 @@ pub fn decode<F: Format>(width: usize, height: usize, data: &[u8]) -> Vec<F::Tex
 
     let full_width = width_in_tiles * F::TILE_WIDTH;
     let full_height = height_in_tiles * F::TILE_HEIGHT;
-    assert!(data.len() >= ((full_width * full_height * F::NIBBLES_PER_TEXEL).div_ceil(2)));
+    assert!(data.len() >= compute_size::<F>(full_width, full_height));
 
     for tile_y in 0..height_in_tiles {
         for tile_x in 0..width_in_tiles {
@@ -178,7 +177,6 @@ impl ComponentSource for FastLuma {
 pub struct I4<Source = Luma>(PhantomData<Source>);
 
 impl<Source: ComponentSource> Format for I4<Source> {
-    const NIBBLES_PER_TEXEL: usize = 1;
     const TILE_WIDTH: usize = 8;
     const TILE_HEIGHT: usize = 8;
 
@@ -237,7 +235,6 @@ pub struct IA4<IntensitySource = Luma, AlphaSource = AlphaChannel>(
 impl<IntensitySource: ComponentSource, AlphaSource: ComponentSource> Format
     for IA4<IntensitySource, AlphaSource>
 {
-    const NIBBLES_PER_TEXEL: usize = 2;
     const TILE_WIDTH: usize = 8;
     const TILE_HEIGHT: usize = 4;
 
@@ -282,7 +279,6 @@ impl<IntensitySource: ComponentSource, AlphaSource: ComponentSource> Format
 pub struct I8<Source = Luma>(PhantomData<Source>);
 
 impl<Source: ComponentSource> Format for I8<Source> {
-    const NIBBLES_PER_TEXEL: usize = 2;
     const TILE_WIDTH: usize = 8;
     const TILE_HEIGHT: usize = 4;
 
@@ -328,7 +324,6 @@ pub struct IA8<IntensitySource = Luma, AlphaSource = AlphaChannel>(
 impl<IntensitySource: ComponentSource, AlphaSource: ComponentSource> Format
     for IA8<IntensitySource, AlphaSource>
 {
-    const NIBBLES_PER_TEXEL: usize = 4;
     const TILE_WIDTH: usize = 4;
     const TILE_HEIGHT: usize = 4;
 
@@ -375,7 +370,6 @@ impl<IntensitySource: ComponentSource, AlphaSource: ComponentSource> Format
 pub struct Rgb565;
 
 impl Format for Rgb565 {
-    const NIBBLES_PER_TEXEL: usize = 4;
     const TILE_WIDTH: usize = 4;
     const TILE_HEIGHT: usize = 4;
 
@@ -419,7 +413,6 @@ impl Format for Rgb565 {
 pub struct FastRgb565;
 
 impl Format for FastRgb565 {
-    const NIBBLES_PER_TEXEL: usize = 4;
     const TILE_WIDTH: usize = 4;
     const TILE_HEIGHT: usize = 4;
 
@@ -463,7 +456,6 @@ impl Format for FastRgb565 {
 pub struct Rgb5A3;
 
 impl Format for Rgb5A3 {
-    const NIBBLES_PER_TEXEL: usize = 4;
     const TILE_WIDTH: usize = 4;
     const TILE_HEIGHT: usize = 4;
 
@@ -496,7 +488,6 @@ impl Format for Rgb5A3 {
 pub struct Rgba8;
 
 impl Format for Rgba8 {
-    const NIBBLES_PER_TEXEL: usize = 8;
     const TILE_WIDTH: usize = 4;
     const TILE_HEIGHT: usize = 4;
     const BYTES_PER_TILE: usize = 64;
@@ -542,7 +533,6 @@ impl Format for Rgba8 {
 pub struct Cmpr;
 
 impl Format for Cmpr {
-    const NIBBLES_PER_TEXEL: usize = 1;
     const TILE_WIDTH: usize = 8;
     const TILE_HEIGHT: usize = 8;
 
@@ -599,7 +589,6 @@ impl Format for Cmpr {
 pub struct CI4;
 
 impl Format for CI4 {
-    const NIBBLES_PER_TEXEL: usize = 1;
     const TILE_WIDTH: usize = 8;
     const TILE_HEIGHT: usize = 8;
 
@@ -643,7 +632,6 @@ impl Format for CI4 {
 pub struct CI8;
 
 impl Format for CI8 {
-    const NIBBLES_PER_TEXEL: usize = 2;
     const TILE_WIDTH: usize = 8;
     const TILE_HEIGHT: usize = 4;
 
@@ -674,7 +662,6 @@ impl Format for CI8 {
 pub struct CI14X2;
 
 impl Format for CI14X2 {
-    const NIBBLES_PER_TEXEL: usize = 4;
     const TILE_WIDTH: usize = 4;
     const TILE_HEIGHT: usize = 4;
 
@@ -729,7 +716,7 @@ mod test {
 
         let required_width = (img.width() as usize).next_multiple_of(F::TILE_WIDTH);
         let required_height = (img.height() as usize).next_multiple_of(F::TILE_HEIGHT);
-        let mut encoded = vec![0; compute_size_packed::<F>(required_width, required_height)];
+        let mut encoded = vec![0; compute_size::<F>(required_width, required_height)];
 
         encode::<F>(
             required_width / F::TILE_WIDTH,
@@ -795,7 +782,7 @@ mod test {
         let height = 2 * img.height() as usize;
         let stride_cache = width / Rgba8::TILE_WIDTH * 2;
         let stride_bytes = stride_cache / 2 * Rgba8::BYTES_PER_TILE;
-        let mut encoded = vec![0; compute_size_packed::<Rgba8>(width, height)];
+        let mut encoded = vec![0; compute_size::<Rgba8>(width, height)];
 
         encode::<Rgba8>(
             stride_cache,

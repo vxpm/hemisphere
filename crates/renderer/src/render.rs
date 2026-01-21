@@ -558,11 +558,6 @@ impl Renderer {
         }
 
         self.flush_config();
-        self.debug(format!(
-            "drawing quad list with {} vertices",
-            vertices.len()
-        ));
-
         for vertices in vertices.iter().array_chunks::<4>() {
             let [v0, v1, v2, v3] = vertices.map(|v| self.insert_vertex(v, matrices));
             self.indices.extend_from_slice(&[v0, v1, v2]);
@@ -579,11 +574,6 @@ impl Renderer {
         }
 
         self.flush_config();
-        self.debug(format!(
-            "drawing triangle list with {} vertices",
-            vertices.len()
-        ));
-
         for vertices in vertices.iter().array_chunks::<3>() {
             let vertices = vertices.map(|v| self.insert_vertex(v, matrices));
             self.indices.extend_from_slice(&vertices);
@@ -599,11 +589,6 @@ impl Renderer {
         }
 
         self.flush_config();
-        self.debug(format!(
-            "drawing triangle strip with {} vertices",
-            vertices.len()
-        ));
-
         let mut iter = vertices.iter();
         let mut v0 = self.insert_vertex(iter.next().unwrap(), matrices);
         let mut v1 = self.insert_vertex(iter.next().unwrap(), matrices);
@@ -632,11 +617,6 @@ impl Renderer {
         }
 
         self.flush_config();
-        self.debug(format!(
-            "drawing triangle fan with {} vertices",
-            vertices.len()
-        ));
-
         let mut iter = vertices.iter();
         let v0 = self.insert_vertex(iter.next().unwrap(), matrices);
         let mut v1 = self.insert_vertex(iter.next().unwrap(), matrices);

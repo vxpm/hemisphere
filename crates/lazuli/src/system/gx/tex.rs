@@ -211,6 +211,13 @@ pub struct ScaleU {
     pub offset_points: bool,
 }
 
+impl ScaleU {
+    pub fn scale(&self) -> Option<u32> {
+        let scale = self.scale_minus_one();
+        (self.scale_minus_one() != 0).then_some(scale as u32 + 1)
+    }
+}
+
 #[bitos(32)]
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ScaleV {
@@ -220,6 +227,13 @@ pub struct ScaleV {
     pub range_bias_enable: bool,
     #[bits(17)]
     pub cylindrical_wrapping: bool,
+}
+
+impl ScaleV {
+    pub fn scale(&self) -> Option<u32> {
+        let scale = self.scale_minus_one();
+        (self.scale_minus_one() != 0).then_some(scale as u32 + 1)
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -303,14 +317,14 @@ impl Interface {
         let new_hash = twox_hash::XxHash3_64::oneshot(data);
         let Some(old_hash) = self.tex_cache.get(&addr) else {
             self.tex_cache.insert(addr, new_hash);
-            return false;
+            return true;
         };
 
         if *old_hash == new_hash {
-            true
+            false
         } else {
             self.tex_cache.insert(addr, new_hash);
-            false
+            true
         }
     }
 
@@ -318,14 +332,14 @@ impl Interface {
         let new_hash = twox_hash::XxHash3_64::oneshot(data);
         let Some(old_hash) = self.tex_cache.get(&addr) else {
             self.tex_cache.insert(addr, new_hash);
-            return false;
+            return true;
         };
 
         if *old_hash == new_hash {
-            true
+            false
         } else {
             self.tex_cache.insert(addr, new_hash);
-            false
+            true
         }
     }
 }
@@ -475,8 +489,28 @@ pub fn update_texture(sys: &mut System, index: usize) {
         (map.encoding.length() as usize, 1)
     };
 
+    if map
+        .scaling
+        .u
+        .scale()
+        .is_some_and(|s| s != map.encoding.width())
+        || map
+            .scaling
+            .v
+            .scale()
+            .is_some_and(|s| s != map.encoding.height())
+    {
+        println!(
+            "TEX: {}x{}   SCALE: {}x{}",
+            map.encoding.width(),
+            map.encoding.height(),
+            map.scaling.u.scale().unwrap_or(map.encoding.width()),
+            map.scaling.v.scale().unwrap_or(map.encoding.height()),
+        );
+    }
+
     let data = &sys.mem.ram()[base.value() as usize..][..len];
-    if !sys.gpu.tex.is_tex_dirty(base, data) {
+    if sys.gpu.tex.is_tex_dirty(base, data) {
         let mut mipmap = if map.encoding.format().is_direct() {
             MipmapData::Direct(Vec::with_capacity(lod_count))
         } else {
@@ -516,6 +550,7 @@ pub fn update_texture(sys: &mut System, index: usize) {
             texture: render::Texture {
                 width: map.encoding.width(),
                 height: map.encoding.height(),
+                format: map.encoding.format(),
                 data: mipmap,
             },
         });
@@ -539,7 +574,7 @@ pub fn update_clut(sys: &mut System) {
     let len = load.count().value() as usize * 16 * 2;
     let data = &sys.mem.ram()[base.value() as usize..][..len];
 
-    if !sys.gpu.tex.is_clut_dirty(base, data) {
+    if sys.gpu.tex.is_clut_dirty(base, data) {
         let clut = data
             .chunks_exact(2)
             .map(|x| u16::from_be_bytes([x[0], x[1]]))
