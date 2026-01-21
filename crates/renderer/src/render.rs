@@ -5,7 +5,6 @@ mod pipeline;
 mod sampler;
 mod texture;
 
-use std::num::NonZero;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -53,7 +52,14 @@ struct TexSlotSettings {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
-struct TexSlotsGroupEntries {
+struct DataGroupEntries {
+    vertices: wgpu::Buffer,
+    configs: wgpu::Buffer,
+    scaling: wgpu::Buffer,
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+struct TexturesGroupEntries {
     textures: [wgpu::TextureView; 8],
     samplers: [wgpu::Sampler; 8],
 }
@@ -82,7 +88,7 @@ pub struct Renderer {
     pipeline_cache: pipeline::Cache,
     texture_cache: texture::Cache,
     sampler_cache: sampler::Cache,
-    group_cache: GroupCache<TexSlotsGroupEntries>,
+    textures_group_cache: GroupCache<TexturesGroupEntries>,
 
     // state
     viewport: Viewport,
@@ -194,7 +200,10 @@ impl Renderer {
             pipeline_cache,
             texture_cache,
             sampler_cache,
-            group_cache: LruMap::with_hasher(ByLength::new(8192), FxBuildHasher::default()),
+            textures_group_cache: LruMap::with_hasher(
+                ByLength::new(8192),
+                FxBuildHasher::default(),
+            ),
 
             color_blitter,
             depth_blitter,
@@ -651,8 +660,41 @@ impl Renderer {
         self.current_config_dirty = true;
     }
 
-    fn get_texslots_group(&mut self, entries: TexSlotsGroupEntries) -> wgpu::BindGroup {
-        self.group_cache
+    fn get_data_group(&mut self, entries: DataGroupEntries) -> wgpu::BindGroup {
+        self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: None,
+            layout: self.pipeline_cache.data_group_layout(),
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                        buffer: &entries.vertices,
+                        offset: 0,
+                        size: None,
+                    }),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                        buffer: &entries.configs,
+                        offset: 0,
+                        size: None,
+                    }),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                        buffer: &entries.scaling,
+                        offset: 0,
+                        size: None,
+                    }),
+                },
+            ],
+        })
+    }
+
+    fn get_textures_group(&mut self, entries: TexturesGroupEntries) -> wgpu::BindGroup {
+        self.textures_group_cache
             .get_or_insert(entries.clone(), || {
                 let textures_group_entries: [wgpu::BindGroupEntry; 16] =
                     std::array::from_fn(|binding| {
@@ -685,6 +727,7 @@ impl Renderer {
         }
 
         self.debug(format!("[FLUSH]: {reason}"));
+        let scaling_array = self.tex_slots.map(|s| Vec2::new(s.scaling.u, s.scaling.v));
         let index_buf =
             self.allocators
                 .index
@@ -697,42 +740,15 @@ impl Renderer {
             self.allocators
                 .storage
                 .allocate(&self.device, &self.queue, self.configs.as_bytes());
-
-        let scaling_array = self.tex_slots.map(|s| Vec2::new(s.scaling.u, s.scaling.v));
         let scaling_buf =
             self.allocators
                 .storage
                 .allocate(&self.device, &self.queue, scaling_array.as_bytes());
 
-        let data_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: None,
-            layout: self.pipeline_cache.data_group_layout(),
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                        buffer: &vertices_buf,
-                        offset: 0,
-                        size: NonZero::new(self.vertices.as_bytes().len() as u64),
-                    }),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                        buffer: &configs_buf,
-                        offset: 0,
-                        size: NonZero::new(self.configs.as_bytes().len() as u64),
-                    }),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                        buffer: &scaling_buf,
-                        offset: 0,
-                        size: NonZero::new(scaling_array.as_bytes().len() as u64),
-                    }),
-                },
-            ],
+        let data_group = self.get_data_group(DataGroupEntries {
+            vertices: vertices_buf,
+            configs: configs_buf,
+            scaling: scaling_buf,
         });
 
         let textures = self.tex_slots.map(|s| {
@@ -745,7 +761,7 @@ impl Renderer {
             .tex_slots
             .map(|s| self.sampler_cache.get(&self.device, s.sampler).clone());
 
-        let textures_group = self.get_texslots_group(TexSlotsGroupEntries { textures, samplers });
+        let textures_group = self.get_textures_group(TexturesGroupEntries { textures, samplers });
 
         let pipeline = self
             .pipeline_cache
