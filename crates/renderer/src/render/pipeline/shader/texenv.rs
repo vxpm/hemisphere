@@ -10,13 +10,14 @@ use crate::render::pipeline::AlphaFunctionSettings;
 fn sample_tex(stage: &TexEnvStage) -> wesl::syntax::Expression {
     use wesl::syntax::*;
 
-    let map = stage.refs.map().value();
+    let map = stage.refs.map().value() as u32;
     let tex_ident = wesl::syntax::Ident::new(format!("base::texture{map}"));
     let sampler_ident = wesl::syntax::Ident::new(format!("base::sampler{map}"));
     let coord_ident = wesl::syntax::Ident::new(format!("in.tex_coord{map}"));
+    let scaling_ident = wesl::syntax::Ident::new("base::scaling".into());
 
     quote_expression! {
-        textureSample(#tex_ident, #sampler_ident, #coord_ident.xy / #coord_ident.z)
+        textureSample(#tex_ident, #sampler_ident, #scaling_ident[#map].value * #coord_ident.xy / #coord_ident.z)
     }
 }
 

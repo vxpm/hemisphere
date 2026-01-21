@@ -6,6 +6,15 @@ use zerocopy::{Immutable, IntoBytes};
 
 #[derive(Debug, Clone, Immutable, IntoBytes, Default)]
 #[repr(C)]
+pub struct Scaling {
+    pub u: f32,
+    pub v: f32,
+    pub _pad0: u32,
+    pub _pad1: u32,
+}
+
+#[derive(Debug, Clone, Immutable, IntoBytes, Default)]
+#[repr(C)]
 pub struct Vertex {
     pub position: Vec3,
     pub config_idx: u32,

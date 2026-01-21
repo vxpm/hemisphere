@@ -207,32 +207,37 @@ impl Cache {
             },
             count: None,
         };
+
         let sampler = |binding| wgpu::BindGroupLayoutEntry {
             binding,
             visibility: wgpu::ShaderStages::FRAGMENT,
             ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
             count: None,
         };
+
+        let buffer = |binding| wgpu::BindGroupLayoutEntry {
+            binding,
+            visibility: wgpu::ShaderStages::FRAGMENT,
+            ty: wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Uniform,
+                has_dynamic_offset: false,
+                min_binding_size: None,
+            },
+            count: None,
+        };
+
+        let mut current_binding = 0;
+        let mut entries = Vec::with_capacity(2 * 8);
+        for _ in 0..8 {
+            entries.push(tex(current_binding));
+            entries.push(sampler(current_binding + 1));
+            current_binding += 2;
+        }
+        entries.push(buffer(current_binding));
+
         let group1_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: None,
-            entries: &[
-                tex(0),
-                sampler(1),
-                tex(2),
-                sampler(3),
-                tex(4),
-                sampler(5),
-                tex(6),
-                sampler(7),
-                tex(8),
-                sampler(9),
-                tex(10),
-                sampler(11),
-                tex(12),
-                sampler(13),
-                tex(14),
-                sampler(15),
-            ],
+            entries: &entries,
         });
 
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {

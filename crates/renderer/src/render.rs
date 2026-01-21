@@ -40,6 +40,7 @@ pub struct Shared {
 struct Allocators {
     index: Allocator,
     storage: Allocator,
+    uniform: Allocator,
 }
 
 #[derive(Clone, Copy, PartialEq, Default)]
@@ -105,6 +106,7 @@ impl Renderer {
         let allocators = Allocators {
             index: Allocator::new(wgpu::BufferUsages::INDEX),
             storage: Allocator::new(wgpu::BufferUsages::STORAGE),
+            uniform: Allocator::new(wgpu::BufferUsages::UNIFORM),
         };
 
         let pipeline_cache = pipeline::Cache::new(&device);
@@ -657,15 +659,31 @@ impl Renderer {
                 .storage
                 .allocate(&self.device, &self.queue, self.configs.as_bytes());
 
-        let samplers = self
-            .tex_slots
-            .map(|s| self.sampler_cache.get(&self.device, s.sampler).clone());
-
         let textures = self.tex_slots.map(|s| {
             self.texture_cache
                 .get(&self.device, &self.queue, s.settings)
                 .clone()
         });
+
+        let samplers = self
+            .tex_slots
+            .map(|s| self.sampler_cache.get(&self.device, s.sampler).clone());
+
+        let scaling_array = self.tex_slots.map(|s| {
+            let scaling = data::Scaling {
+                u: s.scaling.u,
+                v: s.scaling.v,
+                _pad0: 0,
+                _pad1: 0,
+            };
+
+            scaling
+        });
+
+        let scaling_buffer =
+            self.allocators
+                .uniform
+                .allocate(&self.device, &self.queue, scaling_array.as_bytes());
 
         let primitives_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: None,
@@ -690,20 +708,28 @@ impl Renderer {
             ],
         });
 
-        let textures_group_entries: [wgpu::BindGroupEntry; 16] = std::array::from_fn(|binding| {
+        let textures_group_entries: [wgpu::BindGroupEntry; 17] = std::array::from_fn(|binding| {
             let tex = binding / 2;
-            if binding % 2 == 0 {
-                wgpu::BindGroupEntry {
-                    binding: binding as u32,
-                    resource: wgpu::BindingResource::TextureView(&textures[tex]),
-                }
+            let resource = if binding == 16 {
+                wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                    buffer: &scaling_buffer,
+                    offset: 0,
+                    size: None,
+                })
             } else {
-                wgpu::BindGroupEntry {
-                    binding: binding as u32,
-                    resource: wgpu::BindingResource::Sampler(&samplers[tex]),
+                match binding % 2 {
+                    0 => wgpu::BindingResource::TextureView(&textures[tex]),
+                    1 => wgpu::BindingResource::Sampler(&samplers[tex]),
+                    _ => unreachable!(),
                 }
+            };
+
+            wgpu::BindGroupEntry {
+                binding: binding as u32,
+                resource,
             }
         });
+
         let textures_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: None,
             layout: self.pipeline_cache.textures_group_layout(),
