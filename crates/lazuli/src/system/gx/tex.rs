@@ -514,26 +514,6 @@ pub fn update_texture(sys: &mut System, index: usize) {
         (map.encoding.length() as usize, 1)
     };
 
-    // if map
-    //     .scaling
-    //     .u
-    //     .scale()
-    //     .is_some_and(|s| s != map.encoding.width())
-    //     || map
-    //         .scaling
-    //         .v
-    //         .scale()
-    //         .is_some_and(|s| s != map.encoding.height())
-    // {
-    //     println!(
-    //         "TEX: {}x{}   SCALE: {}x{}",
-    //         map.encoding.width(),
-    //         map.encoding.height(),
-    //         map.scaling.u.scale().unwrap_or(map.encoding.width()),
-    //         map.scaling.v.scale().unwrap_or(map.encoding.height()),
-    //     );
-    // }
-
     let data = &sys.mem.ram()[base.value() as usize..][..len];
     if sys.gpu.tex.is_tex_dirty(base, data) {
         let mut mipmap = if map.encoding.format().is_direct() {

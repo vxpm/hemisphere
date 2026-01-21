@@ -93,7 +93,7 @@ impl Cache {
         };
 
         let texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: label.as_deref(),
+            label: None,
             dimension: wgpu::TextureDimension::D2,
             size: wgpu::Extent3d {
                 width: raw.value.width,
