@@ -44,34 +44,34 @@ pub enum Reg {
     GenFilter2          = 0x03,
     GenFilter3          = 0x04,
 
-    IndMatxA0           = 0x06,
-    IndMatxB0           = 0x07,
-    IndMatxC0           = 0x08,
-    IndMatxA1           = 0x09,
-    IndMatxB1           = 0x0A,
-    IndMatxC1           = 0x0B,
-    IndMatxA2           = 0x0C,
-    IndMatxB2           = 0x0D,
-    IndMatxC2           = 0x0E,
+    IndMtxA0            = 0x06,
+    IndMtxB0            = 0x07,
+    IndMtxC0            = 0x08,
+    IndMtxA1            = 0x09,
+    IndMtxB1            = 0x0A,
+    IndMtxC1            = 0x0B,
+    IndMtxA2            = 0x0C,
+    IndMtxB2            = 0x0D,
+    IndMtxC2            = 0x0E,
 
     BumpIMask           = 0x0F,
 
-    IndirectCmd0        = 0x10,
-    IndirectCmd1        = 0x11,
-    IndirectCmd2        = 0x12,
-    IndirectCmd3        = 0x13,
-    IndirectCmd4        = 0x14,
-    IndirectCmd5        = 0x15,
-    IndirectCmd6        = 0x16,
-    IndirectCmd7        = 0x17,
-    IndirectCmd8        = 0x18,
-    IndirectCmd9        = 0x19,
-    IndirectCmd10       = 0x1A,
-    IndirectCmd11       = 0x1B,
-    IndirectCmd12       = 0x1C,
-    IndirectCmd13       = 0x1D,
-    IndirectCmd14       = 0x1E,
-    IndirectCmd15       = 0x1F,
+    IndCmd0             = 0x10,
+    IndCmd1             = 0x11,
+    IndCmd2             = 0x12,
+    IndCmd3             = 0x13,
+    IndCmd4             = 0x14,
+    IndCmd5             = 0x15,
+    IndCmd6             = 0x16,
+    IndCmd7             = 0x17,
+    IndCmd8             = 0x18,
+    IndCmd9             = 0x19,
+    IndCmd10            = 0x1A,
+    IndCmd11            = 0x1B,
+    IndCmd12            = 0x1C,
+    IndCmd13            = 0x1D,
+    IndCmd14            = 0x1E,
+    IndCmd15            = 0x1F,
 
     ScissorTopLeft      = 0x20,
     ScissorBottomRight  = 0x21,
@@ -150,10 +150,10 @@ pub enum Reg {
     TexSampler1         = 0x81,
     TexSampler2         = 0x82,
     TexSampler3         = 0x83,
-    TexSampler0Lod      = 0x84,
-    TexSampler1Lod      = 0x85,
-    TexSampler2Lod      = 0x86,
-    TexSampler3Lod      = 0x87,
+    TexLod0             = 0x84,
+    TexLod1             = 0x85,
+    TexLod2             = 0x86,
+    TexLod3             = 0x87,
     TexFormat0          = 0x88,
     TexFormat1          = 0x89,
     TexFormat2          = 0x8A,
@@ -179,10 +179,10 @@ pub enum Reg {
     TexSampler5         = 0xA1,
     TexSampler6         = 0xA2,
     TexSampler7         = 0xA3,
-    TexSampler4Lod      = 0xA4,
-    TexSampler5Lod      = 0xA5,
-    TexSampler6Lod      = 0xA6,
-    TexSampler7Lod      = 0xA7,
+    TexLod4             = 0xA4,
+    TexLod5             = 0xA5,
+    TexLod6             = 0xA6,
+    TexLod7             = 0xA7,
     TexFormat4          = 0xA8,
     TexFormat5          = 0xA9,
     TexFormat6          = 0xAA,
@@ -773,36 +773,40 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
             sys.gpu.tex.maps[7].dirty = true;
         }
 
+        // Reg::TexLod0 => {
+        //     write_masked!(sys.gpu.tex.maps[0].lod);
+        //     sys.gpu.tex.maps[0].dirty = true;
+        // }
         Reg::TexFormat0 => {
-            write_masked!(sys.gpu.tex.maps[0].format);
+            write_masked!(sys.gpu.tex.maps[0].encoding);
             sys.gpu.tex.maps[0].dirty = true;
         }
         Reg::TexFormat1 => {
-            write_masked!(sys.gpu.tex.maps[1].format);
+            write_masked!(sys.gpu.tex.maps[1].encoding);
             sys.gpu.tex.maps[1].dirty = true;
         }
         Reg::TexFormat2 => {
-            write_masked!(sys.gpu.tex.maps[2].format);
+            write_masked!(sys.gpu.tex.maps[2].encoding);
             sys.gpu.tex.maps[2].dirty = true;
         }
         Reg::TexFormat3 => {
-            write_masked!(sys.gpu.tex.maps[3].format);
+            write_masked!(sys.gpu.tex.maps[3].encoding);
             sys.gpu.tex.maps[3].dirty = true;
         }
         Reg::TexFormat4 => {
-            write_masked!(sys.gpu.tex.maps[4].format);
+            write_masked!(sys.gpu.tex.maps[4].encoding);
             sys.gpu.tex.maps[4].dirty = true;
         }
         Reg::TexFormat5 => {
-            write_masked!(sys.gpu.tex.maps[5].format);
+            write_masked!(sys.gpu.tex.maps[5].encoding);
             sys.gpu.tex.maps[5].dirty = true;
         }
         Reg::TexFormat6 => {
-            write_masked!(sys.gpu.tex.maps[6].format);
+            write_masked!(sys.gpu.tex.maps[6].encoding);
             sys.gpu.tex.maps[6].dirty = true;
         }
         Reg::TexFormat7 => {
-            write_masked!(sys.gpu.tex.maps[7].format);
+            write_masked!(sys.gpu.tex.maps[7].encoding);
             sys.gpu.tex.maps[7].dirty = true;
         }
 

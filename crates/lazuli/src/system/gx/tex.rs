@@ -17,6 +17,29 @@ pub enum TextureData {
     Indirect(Vec<PaletteIndex>),
 }
 
+#[derive(Debug, Clone)]
+pub enum MipmapData {
+    Direct(Vec<Vec<Rgba8>>),
+    Indirect(Vec<Vec<PaletteIndex>>),
+}
+
+impl MipmapData {
+    fn push(&mut self, lod: TextureData) {
+        match (self, lod) {
+            (Self::Direct(lods), TextureData::Direct(lod)) => lods.push(lod),
+            (Self::Indirect(lods), TextureData::Indirect(lod)) => lods.push(lod),
+            _ => panic!("mismatched mipmap and texture formats - this is definitely a bug"),
+        }
+    }
+
+    pub fn lod_count(&self) -> u32 {
+        match self {
+            Self::Direct(lods) => lods.len() as u32,
+            Self::Indirect(lods) => lods.len() as u32,
+        }
+    }
+}
+
 #[bitos(2)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum WrapMode {
@@ -48,6 +71,13 @@ impl MinFilter {
             Self::Linear | Self::LinearMipNear | Self::LinearMipLinear
         )
     }
+
+    pub fn uses_lods(&self) -> bool {
+        matches!(
+            self,
+            Self::NearMipNear | Self::NearMipLinear | Self::LinearMipNear | Self::LinearMipLinear
+        )
+    }
 }
 
 #[bitos(4)]
@@ -70,6 +100,12 @@ pub enum Format {
     Reserved3 = 0xD,
     Cmp       = 0xE,
     Reserved4 = 0xF,
+}
+
+impl Format {
+    pub fn is_direct(&self) -> bool {
+        !matches!(self, Self::CI4 | Self::CI8 | Self::CI14X2)
+    }
 }
 
 #[bitos(32)]
@@ -113,12 +149,15 @@ impl Encoding {
         self.height_minus_one().value() as u32 + 1
     }
 
-    // Size, in bytes, of the texture.
-    pub fn size(&self) -> u32 {
-        let pixels = |n| self.width().next_multiple_of(n) * self.height().next_multiple_of(n);
-        let pixels_xy = |x, y| self.width().next_multiple_of(x) * self.height().next_multiple_of(y);
+    pub fn lod_count(&self) -> u32 {
+        self.width().ilog2().min(self.height().ilog2()) + 1
+    }
 
-        match self.format() {
+    pub fn length_for(width: u32, height: u32, format: Format) -> u32 {
+        let pixels = |n| width.next_multiple_of(n) * height.next_multiple_of(n);
+        let pixels_xy = |x, y| width.next_multiple_of(x) * height.next_multiple_of(y);
+
+        match format {
             Format::I4 => pixels(8) / 2,
             Format::I8 => pixels_xy(8, 4),
             Format::IA4 => pixels(8),
@@ -129,8 +168,28 @@ impl Encoding {
             Format::Cmp => pixels(8) / 2,
             Format::CI8 => pixels(1),
             Format::CI4 => pixels(1) / 2,
-            _ => todo!("format {:?}", self.format()),
+            _ => todo!("format {:?}", format),
         }
+    }
+
+    // Size, in bytes, of the texture.
+    pub fn length(&self) -> u32 {
+        Self::length_for(self.width(), self.height(), self.format())
+    }
+
+    // Size, in bytes, of the mipmap.
+    pub fn length_mipmap(&self) -> u32 {
+        let mut current_width = self.width();
+        let mut current_height = self.height();
+
+        let mut size = 0;
+        for _ in 0..self.lod_count() {
+            size += Self::length_for(current_width, current_height, self.format());
+            current_width /= 2;
+            current_height /= 2;
+        }
+
+        size
     }
 }
 
@@ -169,7 +228,7 @@ pub struct Scaling {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct TextureMap {
     pub address: Address,
-    pub format: Encoding,
+    pub encoding: Encoding,
     pub sampler: Sampler,
     pub scaling: Scaling,
     pub clut: LutRef,
@@ -254,16 +313,16 @@ impl Interface {
     }
 }
 
-fn decode_texture(data: &[u8], format: Encoding) -> TextureData {
+fn decode_texture(data: &[u8], width: u32, height: u32, format: Format) -> TextureData {
     use gxtex::{
         AlphaChannel, CI4, CI8, CI14X2, Cmpr, FastLuma, FastRgb565, I4, I8, IA4, IA8, Rgb5A3,
         Rgba8, decode,
     };
 
-    let width = format.width() as usize;
-    let height = format.height() as usize;
+    let width = width as usize;
+    let height = height as usize;
 
-    match format.format() {
+    match format {
         Format::I4 => TextureData::Direct(decode::<I4<FastLuma>>(width, height, data)),
         Format::IA4 => {
             TextureData::Direct(decode::<IA4<FastLuma, AlphaChannel>>(width, height, data))
@@ -390,17 +449,49 @@ pub fn update_texture(sys: &mut System, index: usize) {
     let clut_fmt = map.clut.format();
 
     let base = map.address;
-    let len = map.format.size() as usize;
-    let data = &sys.mem.ram()[base.value() as usize..][..len];
+    let (len, lod_count) = if map.sampler.min_filter().uses_lods() {
+        (
+            map.encoding.length_mipmap() as usize,
+            map.encoding.lod_count() as usize,
+        )
+    } else {
+        (map.encoding.length() as usize, 1)
+    };
 
+    let data = &sys.mem.ram()[base.value() as usize..][..len];
     if !sys.gpu.tex.is_tex_dirty(base, data) {
-        let data = self::decode_texture(data, map.format);
+        let mut current_data = data;
+        let mut current_width = map.encoding.width();
+        let mut current_height = map.encoding.height();
+
+        let mut mipmap = if map.encoding.format().is_direct() {
+            MipmapData::Direct(Vec::with_capacity(lod_count))
+        } else {
+            MipmapData::Indirect(Vec::with_capacity(lod_count))
+        };
+
+        for _ in 0..lod_count {
+            mipmap.push(self::decode_texture(
+                current_data,
+                current_width,
+                current_height,
+                map.encoding.format(),
+            ));
+
+            let consumed =
+                Encoding::length_for(current_width, current_height, map.encoding.format()) as usize;
+
+            current_data = &current_data[consumed..];
+            current_width /= 2;
+            current_height /= 2;
+        }
+
         sys.modules.render.exec(render::Action::LoadTexture {
             id: texture_id,
             texture: render::Texture {
-                width: map.format.width(),
-                height: map.format.height(),
-                data,
+                width: map.encoding.width(),
+                height: map.encoding.height(),
+                data: mipmap,
             },
         });
     }

@@ -8,7 +8,7 @@ use static_assertions::const_assert;
 
 use crate::system::gx::pix::{BlendMode, BufferFormat, ConstantAlpha, DepthMode};
 use crate::system::gx::tev::{AlphaFunction, Constant, StageOps, StageRefs};
-use crate::system::gx::tex::{ClutFormat, Sampler, Scaling, TextureData};
+use crate::system::gx::tex::{ClutFormat, MipmapData, Sampler, Scaling};
 use crate::system::gx::xform::{BaseTexGen, ChannelControl, Light, ProjectionMat};
 use crate::system::gx::{CullingMode, EFB_HEIGHT, EFB_WIDTH, Topology, VertexStream};
 
@@ -100,7 +100,7 @@ pub struct TexGenConfig {
 pub struct Texture {
     pub width: u32,
     pub height: u32,
-    pub data: TextureData,
+    pub data: MipmapData,
 }
 
 #[derive(Debug, Clone)]

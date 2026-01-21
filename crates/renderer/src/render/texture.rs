@@ -2,7 +2,7 @@ use std::collections::hash_map::Entry;
 
 use lazuli::modules::render::{Clut, ClutAddress, Texture, TextureId};
 use lazuli::system::gx::color::Rgba8;
-use lazuli::system::gx::tex::{ClutFormat, TextureData};
+use lazuli::system::gx::tex::{ClutFormat, MipmapData};
 use rustc_hash::{FxHashMap, FxHashSet};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -71,50 +71,68 @@ impl Cache {
         raw.deps.insert(settings);
 
         let owned_data;
-        let data = match &raw.value.data {
-            TextureData::Direct(data) => zerocopy::transmute_ref!(data.as_slice()),
-            TextureData::Indirect(data) => {
+        let data: Vec<&[u8]> = match &raw.value.data {
+            MipmapData::Direct(data) => data
+                .iter()
+                .map(|lod| zerocopy::transmute_ref!(lod.as_slice()))
+                .collect::<Vec<_>>(),
+            MipmapData::Indirect(data) => {
                 let clut_base = settings.clut_addr.to_tmem_addr();
                 let clut = &tmem[clut_base..];
 
-                owned_data = Self::create_texture_data_indirect(&data, &clut, settings.clut_fmt);
+                owned_data = data
+                    .iter()
+                    .map(|lod| Self::create_texture_data_indirect(&lod, &clut, settings.clut_fmt))
+                    .collect::<Vec<_>>();
 
-                zerocopy::transmute_ref!(owned_data.as_slice())
+                owned_data
+                    .iter()
+                    .map(|lod| zerocopy::transmute_ref!(lod.as_slice()))
+                    .collect::<Vec<_>>()
             }
-        };
-
-        let size = wgpu::Extent3d {
-            width: raw.value.width,
-            height: raw.value.height,
-            depth_or_array_layers: 1,
         };
 
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: None,
             dimension: wgpu::TextureDimension::D2,
-            size,
+            size: wgpu::Extent3d {
+                width: raw.value.width,
+                height: raw.value.height,
+                depth_or_array_layers: 1,
+            },
             format: wgpu::TextureFormat::Rgba8Unorm,
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
             view_formats: &[],
-            mip_level_count: 1,
+            mip_level_count: raw.value.data.lod_count(),
             sample_count: 1,
         });
 
-        queue.write_texture(
-            wgpu::TexelCopyTextureInfo {
-                texture: &texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::default(),
-            },
-            data,
-            wgpu::TexelCopyBufferLayout {
-                offset: 0,
-                bytes_per_row: Some(raw.value.width * 4),
-                rows_per_image: None,
-            },
-            size,
-        );
+        let mut current_width = raw.value.width;
+        let mut current_height = raw.value.height;
+        for (idx, lod) in data.iter().enumerate() {
+            queue.write_texture(
+                wgpu::TexelCopyTextureInfo {
+                    texture: &texture,
+                    mip_level: idx as u32,
+                    origin: wgpu::Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::default(),
+                },
+                lod,
+                wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(current_width * 4),
+                    rows_per_image: None,
+                },
+                wgpu::Extent3d {
+                    width: current_width,
+                    height: current_height,
+                    depth_or_array_layers: 1,
+                },
+            );
+
+            current_width /= 2;
+            current_height /= 2;
+        }
 
         texture.create_view(&Default::default())
     }
