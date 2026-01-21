@@ -8,7 +8,7 @@ use static_assertions::const_assert;
 
 use crate::system::gx::pix::{BlendMode, BufferFormat, ConstantAlpha, DepthMode};
 use crate::system::gx::tev::{AlphaFunction, Constant, StageOps, StageRefs};
-use crate::system::gx::tex::{ClutFormat, Format, MipmapData, Sampler, Scaling};
+use crate::system::gx::tex::{ClutFormat, Format, LodLimits, MipmapData, SamplerMode, Scaling};
 use crate::system::gx::xform::{BaseTexGen, ChannelControl, Light, ProjectionMat};
 use crate::system::gx::{CullingMode, EFB_HEIGHT, EFB_WIDTH, Topology, VertexStream};
 
@@ -104,6 +104,12 @@ pub struct Texture {
     pub data: MipmapData,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub struct Sampler {
+    pub mode: SamplerMode,
+    pub lods: LodLimits,
+}
+
 #[derive(Debug, Clone)]
 pub struct Clut(pub Vec<u16>);
 
@@ -152,7 +158,6 @@ pub enum Action {
         slot: usize,
         texture_id: TextureId,
         sampler: Sampler,
-        scaling: Scaling,
         clut_addr: ClutAddress,
         clut_fmt: ClutFormat,
     },

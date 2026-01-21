@@ -110,7 +110,7 @@ impl Format {
 
 #[bitos(32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-pub struct Sampler {
+pub struct SamplerMode {
     #[bits(0..2)]
     pub wrap_u: WrapMode,
     #[bits(2..4)]
@@ -197,7 +197,7 @@ impl Encoding {
 }
 
 #[bitos(32)]
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct ScaleU {
     #[bits(0..16)]
     pub scale_minus_one: u16,
@@ -219,7 +219,7 @@ impl ScaleU {
 }
 
 #[bitos(32)]
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct ScaleV {
     #[bits(0..16)]
     pub scale_minus_one: u16,
@@ -236,7 +236,7 @@ impl ScaleV {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Scaling {
     pub u: ScaleU,
     pub v: ScaleV,
@@ -255,14 +255,39 @@ impl OddLod {
     }
 }
 
+#[bitos(32)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub struct LodLimits {
+    #[bits(0..8)]
+    pub min_raw: u8,
+    #[bits(8..16)]
+    pub max_raw: u8,
+}
+
+impl LodLimits {
+    pub fn min(&self) -> f32 {
+        self.min_raw() as f32 / 16.0
+    }
+
+    pub fn max(&self) -> f32 {
+        self.max_raw() as f32 / 16.0
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default)]
+pub struct Lods {
+    pub limits: LodLimits,
+    pub odd: OddLod,
+}
+
+#[derive(Debug, Clone, Default)]
 pub struct TextureMap {
     pub address: Address,
     pub encoding: Encoding,
-    pub sampler: Sampler,
+    pub sampler: SamplerMode,
     pub scaling: Scaling,
     pub clut: LutRef,
-    pub odd_lod: OddLod,
+    pub lods: Lods,
     pub dirty: bool,
 }
 
@@ -474,7 +499,7 @@ pub fn encode_depth_texture(
 }
 
 pub fn update_texture(sys: &mut System, index: usize) {
-    let map = sys.gpu.tex.maps[index];
+    let map = sys.gpu.tex.maps[index].clone();
     let texture_id = render::TextureId(map.address.value());
     let clut_addr = render::ClutAddress(map.clut.tmem_offset().value());
     let clut_fmt = map.clut.format();
@@ -489,25 +514,25 @@ pub fn update_texture(sys: &mut System, index: usize) {
         (map.encoding.length() as usize, 1)
     };
 
-    if map
-        .scaling
-        .u
-        .scale()
-        .is_some_and(|s| s != map.encoding.width())
-        || map
-            .scaling
-            .v
-            .scale()
-            .is_some_and(|s| s != map.encoding.height())
-    {
-        println!(
-            "TEX: {}x{}   SCALE: {}x{}",
-            map.encoding.width(),
-            map.encoding.height(),
-            map.scaling.u.scale().unwrap_or(map.encoding.width()),
-            map.scaling.v.scale().unwrap_or(map.encoding.height()),
-        );
-    }
+    // if map
+    //     .scaling
+    //     .u
+    //     .scale()
+    //     .is_some_and(|s| s != map.encoding.width())
+    //     || map
+    //         .scaling
+    //         .v
+    //         .scale()
+    //         .is_some_and(|s| s != map.encoding.height())
+    // {
+    //     println!(
+    //         "TEX: {}x{}   SCALE: {}x{}",
+    //         map.encoding.width(),
+    //         map.encoding.height(),
+    //         map.scaling.u.scale().unwrap_or(map.encoding.width()),
+    //         map.scaling.v.scale().unwrap_or(map.encoding.height()),
+    //     );
+    // }
 
     let data = &sys.mem.ram()[base.value() as usize..][..len];
     if sys.gpu.tex.is_tex_dirty(base, data) {
@@ -520,19 +545,7 @@ pub fn update_texture(sys: &mut System, index: usize) {
         let mut current_data = data;
         let mut current_width = map.encoding.width();
         let mut current_height = map.encoding.height();
-        for i in 0..lod_count {
-            let consume =
-                Encoding::length_for(current_width, current_height, map.encoding.format()) as usize;
-
-            if lod_count > 1 {
-                println!(
-                    "decoding lod {i} ({:?}): {current_width}x{current_height} ({} bytes remaining, needs {} bytes)",
-                    map.encoding.format(),
-                    current_data.len(),
-                    consume,
-                );
-            }
-
+        for _ in 0..lod_count {
             mipmap.push(self::decode_texture(
                 current_data,
                 current_width,
@@ -540,7 +553,10 @@ pub fn update_texture(sys: &mut System, index: usize) {
                 map.encoding.format(),
             ));
 
-            current_data = &current_data[consume..];
+            let consumed =
+                Encoding::length_for(current_width, current_height, map.encoding.format()) as usize;
+
+            current_data = &current_data[consumed..];
             current_width = (current_width / 2).max(1);
             current_height = (current_height / 2).max(1);
         }
@@ -559,8 +575,10 @@ pub fn update_texture(sys: &mut System, index: usize) {
     sys.modules.render.exec(render::Action::SetTextureSlot {
         slot: index,
         texture_id,
-        sampler: map.sampler,
-        scaling: map.scaling,
+        sampler: render::Sampler {
+            mode: map.sampler,
+            lods: map.lods.limits,
+        },
         clut_addr,
         clut_fmt,
     });

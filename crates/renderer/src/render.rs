@@ -10,14 +10,15 @@ use std::sync::{Arc, Mutex};
 
 use glam::Mat4;
 use lazuli::modules::render::{
-    Action, Clut, ClutAddress, TexEnvConfig, TexGenConfig, Texture, TextureId, Viewport, oneshot,
+    Action, Clut, ClutAddress, Sampler, TexEnvConfig, TexGenConfig, Texture, TextureId, Viewport,
+    oneshot,
 };
 use lazuli::system::gx::color::{Rgba, Rgba8};
 use lazuli::system::gx::pix::{
     self, BlendMode, CompareMode, ConstantAlpha, DepthMode, DstBlendFactor, SrcBlendFactor,
 };
 use lazuli::system::gx::tev::AlphaFunction;
-use lazuli::system::gx::tex::{ClutFormat, Sampler, Scaling};
+use lazuli::system::gx::tex::ClutFormat;
 use lazuli::system::gx::xform::{ChannelControl, Light};
 use lazuli::system::gx::{
     CullingMode, DEPTH_24_BIT_MAX, EFB_HEIGHT, EFB_WIDTH, MatrixId, Topology, Vertex, VertexStream,
@@ -219,12 +220,11 @@ impl Renderer {
             Action::LoadClut { addr: id, clut } => self.load_clut(id, clut),
             Action::SetTextureSlot {
                 slot,
-                clut_addr,
                 texture_id,
                 sampler,
-                scaling,
+                clut_addr,
                 clut_fmt,
-            } => self.set_texture_slot(slot, texture_id, sampler, scaling, clut_addr, clut_fmt),
+            } => self.set_texture_slot(slot, texture_id, sampler, clut_addr, clut_fmt),
             Action::Draw(topology, vertices) => match topology {
                 Topology::QuadList => self.draw_quad_list(&vertices),
                 Topology::TriangleList => self.draw_triangle_list(&vertices),
@@ -521,7 +521,6 @@ impl Renderer {
         slot: usize,
         raw_id: TextureId,
         sampler: Sampler,
-        _scaling: Scaling,
         clut_addr: ClutAddress,
         clut_fmt: ClutFormat,
     ) {

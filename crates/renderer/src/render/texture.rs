@@ -92,12 +92,6 @@ impl Cache {
             }
         };
 
-        let label = if data.len() > 1 {
-            Some(format!("HAS MIPMAP, FORMAT {:?}", raw.value.format))
-        } else {
-            None
-        };
-
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: label.as_deref(),
             dimension: wgpu::TextureDimension::D2,
