@@ -15,6 +15,7 @@ use color::Rgba;
 use gekko::Address;
 use glam::{Mat4, Vec2, Vec3};
 use ring_arena::{Handle, RingArena};
+use seq_macro::seq;
 use strum::FromRepr;
 use zerocopy::IntoBytes;
 
@@ -275,6 +276,30 @@ pub enum Reg {
 }
 
 impl Reg {
+    #[inline]
+    pub fn texmap(&self) -> Option<u8> {
+        seq! {
+            N in 0..8 {
+                match self {
+                    #(
+                          Self::TexScaleU~N
+                        | Self::TexScaleV~N
+                        | Self::TexSampler~N
+                        | Self::TexLod~N
+                        | Self::TexFormat~N
+                        | Self::TexEvenLodAddress~N
+                        | Self::TexOddLodAddress~N
+                        | Self::TexAddress~N
+                        | Self::TexLutRef~N
+                        => Some(N),
+                    )*
+                    _ => None
+                }
+            }
+        }
+    }
+
+    #[inline]
     pub fn is_tev(&self) -> bool {
         matches!(
             self,
@@ -329,6 +354,7 @@ impl Reg {
         )
     }
 
+    #[inline]
     pub fn is_pixel_clear(&self) -> bool {
         matches!(
             self,
@@ -596,71 +622,22 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
         Reg::TevRefsAB => write_masked!(sys.gpu.env.stage_refs[5]),
         Reg::TevRefsCD => write_masked!(sys.gpu.env.stage_refs[6]),
         Reg::TevRefsEF => write_masked!(sys.gpu.env.stage_refs[7]),
-
-        Reg::TexScaleU0 => {
-            write_masked!(sys.gpu.tex.maps[0].scaling.u);
-            sys.gpu.tex.maps[0].dirty = true;
-        }
-        Reg::TexScaleV0 => {
-            write_masked!(sys.gpu.tex.maps[0].scaling.v);
-            sys.gpu.tex.maps[0].dirty = true;
-        }
-        Reg::TexScaleU1 => {
-            write_masked!(sys.gpu.tex.maps[1].scaling.u);
-            sys.gpu.tex.maps[1].dirty = true;
-        }
-        Reg::TexScaleV1 => {
-            write_masked!(sys.gpu.tex.maps[1].scaling.v);
-            sys.gpu.tex.maps[1].dirty = true;
-        }
-        Reg::TexScaleU2 => {
-            write_masked!(sys.gpu.tex.maps[2].scaling.u);
-            sys.gpu.tex.maps[2].dirty = true;
-        }
-        Reg::TexScaleV2 => {
-            write_masked!(sys.gpu.tex.maps[2].scaling.v);
-            sys.gpu.tex.maps[2].dirty = true;
-        }
-        Reg::TexScaleU3 => {
-            write_masked!(sys.gpu.tex.maps[3].scaling.u);
-            sys.gpu.tex.maps[3].dirty = true;
-        }
-        Reg::TexScaleV3 => {
-            write_masked!(sys.gpu.tex.maps[3].scaling.v);
-            sys.gpu.tex.maps[3].dirty = true;
-        }
-        Reg::TexScaleU4 => {
-            write_masked!(sys.gpu.tex.maps[4].scaling.u);
-            sys.gpu.tex.maps[4].dirty = true;
-        }
-        Reg::TexScaleV4 => {
-            write_masked!(sys.gpu.tex.maps[4].scaling.v);
-            sys.gpu.tex.maps[4].dirty = true;
-        }
-        Reg::TexScaleU5 => {
-            write_masked!(sys.gpu.tex.maps[5].scaling.u);
-            sys.gpu.tex.maps[5].dirty = true;
-        }
-        Reg::TexScaleV5 => {
-            write_masked!(sys.gpu.tex.maps[5].scaling.v);
-            sys.gpu.tex.maps[5].dirty = true;
-        }
-        Reg::TexScaleU6 => {
-            write_masked!(sys.gpu.tex.maps[6].scaling.u);
-            sys.gpu.tex.maps[6].dirty = true;
-        }
-        Reg::TexScaleV6 => {
-            write_masked!(sys.gpu.tex.maps[6].scaling.v);
-            sys.gpu.tex.maps[6].dirty = true;
-        }
-        Reg::TexScaleU7 => {
-            write_masked!(sys.gpu.tex.maps[7].scaling.u);
-            sys.gpu.tex.maps[7].dirty = true;
-        }
-        Reg::TexScaleV7 => {
-            write_masked!(sys.gpu.tex.maps[7].scaling.v);
-            sys.gpu.tex.maps[7].dirty = true;
-        }
+        Reg::TexScaleU0 => write_masked!(sys.gpu.tex.maps[0].scaling.u),
+        Reg::TexScaleV0 => write_masked!(sys.gpu.tex.maps[0].scaling.v),
+        Reg::TexScaleU1 => write_masked!(sys.gpu.tex.maps[1].scaling.u),
+        Reg::TexScaleV1 => write_masked!(sys.gpu.tex.maps[1].scaling.v),
+        Reg::TexScaleU2 => write_masked!(sys.gpu.tex.maps[2].scaling.u),
+        Reg::TexScaleV2 => write_masked!(sys.gpu.tex.maps[2].scaling.v),
+        Reg::TexScaleU3 => write_masked!(sys.gpu.tex.maps[3].scaling.u),
+        Reg::TexScaleV3 => write_masked!(sys.gpu.tex.maps[3].scaling.v),
+        Reg::TexScaleU4 => write_masked!(sys.gpu.tex.maps[4].scaling.u),
+        Reg::TexScaleV4 => write_masked!(sys.gpu.tex.maps[4].scaling.v),
+        Reg::TexScaleU5 => write_masked!(sys.gpu.tex.maps[5].scaling.u),
+        Reg::TexScaleV5 => write_masked!(sys.gpu.tex.maps[5].scaling.v),
+        Reg::TexScaleU6 => write_masked!(sys.gpu.tex.maps[6].scaling.u),
+        Reg::TexScaleV6 => write_masked!(sys.gpu.tex.maps[6].scaling.v),
+        Reg::TexScaleU7 => write_masked!(sys.gpu.tex.maps[7].scaling.u),
+        Reg::TexScaleV7 => write_masked!(sys.gpu.tex.maps[7].scaling.v),
 
         Reg::PixelZMode => {
             write_masked!(sys.gpu.pix.depth_mode);
@@ -703,7 +680,7 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
         Reg::PixelCopyDst => {
             let mut value = sys.gpu.pix.copy_dst.value() >> 5;
             write_masked!(value);
-            sys.gpu.pix.copy_dst = Address(value << 5);
+            sys.gpu.pix.copy_dst = Address((value << 5).with_bits(26, 32, 0));
         }
         Reg::PixelCopyDstStride => write_masked!(sys.gpu.pix.copy_stride),
         Reg::PixelCopyClearAr => {
@@ -734,322 +711,132 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
             efb_copy(sys, cmd);
         }
 
-        Reg::TexLutAddress => write_masked!(sys.gpu.tex.clut_base),
+        Reg::TexLutAddress => {
+            let mut value = sys.gpu.tex.clut_addr.value() >> 5;
+            write_masked!(value);
+            sys.gpu.tex.clut_addr = Address((value << 5).with_bits(26, 32, 0));
+        }
         Reg::TexLutLoad => {
             write_masked!(sys.gpu.tex.clut_load);
             tex::update_clut(sys);
         }
 
-        Reg::TexSampler0 => {
-            write_masked!(sys.gpu.tex.maps[0].sampler);
-            sys.gpu.tex.maps[0].dirty = true;
-        }
-        Reg::TexSampler1 => {
-            write_masked!(sys.gpu.tex.maps[1].sampler);
-            sys.gpu.tex.maps[1].dirty = true;
-        }
-        Reg::TexSampler2 => {
-            write_masked!(sys.gpu.tex.maps[2].sampler);
-            sys.gpu.tex.maps[2].dirty = true;
-        }
-        Reg::TexSampler3 => {
-            write_masked!(sys.gpu.tex.maps[3].sampler);
-            sys.gpu.tex.maps[3].dirty = true;
-        }
-        Reg::TexSampler4 => {
-            write_masked!(sys.gpu.tex.maps[4].sampler);
-            sys.gpu.tex.maps[4].dirty = true;
-        }
-        Reg::TexSampler5 => {
-            write_masked!(sys.gpu.tex.maps[5].sampler);
-            sys.gpu.tex.maps[5].dirty = true;
-        }
-        Reg::TexSampler6 => {
-            write_masked!(sys.gpu.tex.maps[6].sampler);
-            sys.gpu.tex.maps[6].dirty = true;
-        }
-        Reg::TexSampler7 => {
-            write_masked!(sys.gpu.tex.maps[7].sampler);
-            sys.gpu.tex.maps[7].dirty = true;
-        }
+        Reg::TexSampler0 => write_masked!(sys.gpu.tex.maps[0].sampler),
+        Reg::TexSampler1 => write_masked!(sys.gpu.tex.maps[1].sampler),
+        Reg::TexSampler2 => write_masked!(sys.gpu.tex.maps[2].sampler),
+        Reg::TexSampler3 => write_masked!(sys.gpu.tex.maps[3].sampler),
+        Reg::TexSampler4 => write_masked!(sys.gpu.tex.maps[4].sampler),
+        Reg::TexSampler5 => write_masked!(sys.gpu.tex.maps[5].sampler),
+        Reg::TexSampler6 => write_masked!(sys.gpu.tex.maps[6].sampler),
+        Reg::TexSampler7 => write_masked!(sys.gpu.tex.maps[7].sampler),
 
-        Reg::TexLod0 => {
-            write_masked!(sys.gpu.tex.maps[0].lods.limits);
-            sys.gpu.tex.maps[0].dirty = true;
-        }
-        Reg::TexLod1 => {
-            write_masked!(sys.gpu.tex.maps[1].lods.limits);
-            sys.gpu.tex.maps[1].dirty = true;
-        }
-        Reg::TexLod2 => {
-            write_masked!(sys.gpu.tex.maps[2].lods.limits);
-            sys.gpu.tex.maps[2].dirty = true;
-        }
-        Reg::TexLod3 => {
-            write_masked!(sys.gpu.tex.maps[3].lods.limits);
-            sys.gpu.tex.maps[3].dirty = true;
-        }
-        Reg::TexLod4 => {
-            write_masked!(sys.gpu.tex.maps[4].lods.limits);
-            sys.gpu.tex.maps[4].dirty = true;
-        }
-        Reg::TexLod5 => {
-            write_masked!(sys.gpu.tex.maps[5].lods.limits);
-            sys.gpu.tex.maps[5].dirty = true;
-        }
-        Reg::TexLod6 => {
-            write_masked!(sys.gpu.tex.maps[6].lods.limits);
-            sys.gpu.tex.maps[6].dirty = true;
-        }
-        Reg::TexLod7 => {
-            write_masked!(sys.gpu.tex.maps[7].lods.limits);
-            sys.gpu.tex.maps[7].dirty = true;
-        }
-
-        Reg::TexFormat0 => {
-            write_masked!(sys.gpu.tex.maps[0].encoding);
-            sys.gpu.tex.maps[0].dirty = true;
-        }
-        Reg::TexFormat1 => {
-            write_masked!(sys.gpu.tex.maps[1].encoding);
-            sys.gpu.tex.maps[1].dirty = true;
-        }
-        Reg::TexFormat2 => {
-            write_masked!(sys.gpu.tex.maps[2].encoding);
-            sys.gpu.tex.maps[2].dirty = true;
-        }
-        Reg::TexFormat3 => {
-            write_masked!(sys.gpu.tex.maps[3].encoding);
-            sys.gpu.tex.maps[3].dirty = true;
-        }
-        Reg::TexFormat4 => {
-            write_masked!(sys.gpu.tex.maps[4].encoding);
-            sys.gpu.tex.maps[4].dirty = true;
-        }
-        Reg::TexFormat5 => {
-            write_masked!(sys.gpu.tex.maps[5].encoding);
-            sys.gpu.tex.maps[5].dirty = true;
-        }
-        Reg::TexFormat6 => {
-            write_masked!(sys.gpu.tex.maps[6].encoding);
-            sys.gpu.tex.maps[6].dirty = true;
-        }
-        Reg::TexFormat7 => {
-            write_masked!(sys.gpu.tex.maps[7].encoding);
-            sys.gpu.tex.maps[7].dirty = true;
-        }
-
-        Reg::TexOddLodAddress0 => {
-            write_masked!(sys.gpu.tex.maps[0].lods.odd);
-            sys.gpu.tex.maps[0].dirty = true;
-        }
-        Reg::TexOddLodAddress1 => {
-            write_masked!(sys.gpu.tex.maps[1].lods.odd);
-            sys.gpu.tex.maps[1].dirty = true;
-        }
-        Reg::TexOddLodAddress2 => {
-            write_masked!(sys.gpu.tex.maps[2].lods.odd);
-            sys.gpu.tex.maps[2].dirty = true;
-        }
-        Reg::TexOddLodAddress3 => {
-            write_masked!(sys.gpu.tex.maps[3].lods.odd);
-            sys.gpu.tex.maps[3].dirty = true;
-        }
-        Reg::TexOddLodAddress4 => {
-            write_masked!(sys.gpu.tex.maps[4].lods.odd);
-            sys.gpu.tex.maps[4].dirty = true;
-        }
-        Reg::TexOddLodAddress5 => {
-            write_masked!(sys.gpu.tex.maps[5].lods.odd);
-            sys.gpu.tex.maps[5].dirty = true;
-        }
-        Reg::TexOddLodAddress6 => {
-            write_masked!(sys.gpu.tex.maps[6].lods.odd);
-            sys.gpu.tex.maps[6].dirty = true;
-        }
-        Reg::TexOddLodAddress7 => {
-            write_masked!(sys.gpu.tex.maps[7].lods.odd);
-            sys.gpu.tex.maps[7].dirty = true;
-        }
+        Reg::TexLod0 => write_masked!(sys.gpu.tex.maps[0].lods.limits),
+        Reg::TexLod1 => write_masked!(sys.gpu.tex.maps[1].lods.limits),
+        Reg::TexLod2 => write_masked!(sys.gpu.tex.maps[2].lods.limits),
+        Reg::TexLod3 => write_masked!(sys.gpu.tex.maps[3].lods.limits),
+        Reg::TexLod4 => write_masked!(sys.gpu.tex.maps[4].lods.limits),
+        Reg::TexLod5 => write_masked!(sys.gpu.tex.maps[5].lods.limits),
+        Reg::TexLod6 => write_masked!(sys.gpu.tex.maps[6].lods.limits),
+        Reg::TexLod7 => write_masked!(sys.gpu.tex.maps[7].lods.limits),
+        Reg::TexFormat0 => write_masked!(sys.gpu.tex.maps[0].encoding),
+        Reg::TexFormat1 => write_masked!(sys.gpu.tex.maps[1].encoding),
+        Reg::TexFormat2 => write_masked!(sys.gpu.tex.maps[2].encoding),
+        Reg::TexFormat3 => write_masked!(sys.gpu.tex.maps[3].encoding),
+        Reg::TexFormat4 => write_masked!(sys.gpu.tex.maps[4].encoding),
+        Reg::TexFormat5 => write_masked!(sys.gpu.tex.maps[5].encoding),
+        Reg::TexFormat6 => write_masked!(sys.gpu.tex.maps[6].encoding),
+        Reg::TexFormat7 => write_masked!(sys.gpu.tex.maps[7].encoding),
+        Reg::TexOddLodAddress0 => write_masked!(sys.gpu.tex.maps[0].lods.odd),
+        Reg::TexOddLodAddress1 => write_masked!(sys.gpu.tex.maps[1].lods.odd),
+        Reg::TexOddLodAddress2 => write_masked!(sys.gpu.tex.maps[2].lods.odd),
+        Reg::TexOddLodAddress3 => write_masked!(sys.gpu.tex.maps[3].lods.odd),
+        Reg::TexOddLodAddress4 => write_masked!(sys.gpu.tex.maps[4].lods.odd),
+        Reg::TexOddLodAddress5 => write_masked!(sys.gpu.tex.maps[5].lods.odd),
+        Reg::TexOddLodAddress6 => write_masked!(sys.gpu.tex.maps[6].lods.odd),
+        Reg::TexOddLodAddress7 => write_masked!(sys.gpu.tex.maps[7].lods.odd),
 
         Reg::TexAddress0 => {
             let mut value = sys.gpu.tex.maps[0].address.value() >> 5;
             write_masked!(value);
             sys.gpu.tex.maps[0].address = Address(value << 5);
-            sys.gpu.tex.maps[0].dirty = true;
         }
         Reg::TexAddress1 => {
             let mut value = sys.gpu.tex.maps[1].address.value() >> 5;
             write_masked!(value);
             sys.gpu.tex.maps[1].address = Address(value << 5);
-            sys.gpu.tex.maps[1].dirty = true;
         }
         Reg::TexAddress2 => {
             let mut value = sys.gpu.tex.maps[2].address.value() >> 5;
             write_masked!(value);
             sys.gpu.tex.maps[2].address = Address(value << 5);
-            sys.gpu.tex.maps[2].dirty = true;
         }
         Reg::TexAddress3 => {
             let mut value = sys.gpu.tex.maps[3].address.value() >> 5;
             write_masked!(value);
             sys.gpu.tex.maps[3].address = Address(value << 5);
-            sys.gpu.tex.maps[3].dirty = true;
         }
         Reg::TexAddress4 => {
             let mut value = sys.gpu.tex.maps[4].address.value() >> 5;
             write_masked!(value);
             sys.gpu.tex.maps[4].address = Address(value << 5);
-            sys.gpu.tex.maps[4].dirty = true;
         }
         Reg::TexAddress5 => {
             let mut value = sys.gpu.tex.maps[5].address.value() >> 5;
             write_masked!(value);
             sys.gpu.tex.maps[5].address = Address(value << 5);
-            sys.gpu.tex.maps[5].dirty = true;
         }
         Reg::TexAddress6 => {
             let mut value = sys.gpu.tex.maps[6].address.value() >> 5;
             write_masked!(value);
             sys.gpu.tex.maps[6].address = Address(value << 5);
-            sys.gpu.tex.maps[6].dirty = true;
         }
         Reg::TexAddress7 => {
             let mut value = sys.gpu.tex.maps[7].address.value() >> 5;
             write_masked!(value);
             sys.gpu.tex.maps[7].address = Address(value << 5);
-            sys.gpu.tex.maps[7].dirty = true;
         }
 
-        Reg::TexLutRef0 => {
-            write_masked!(sys.gpu.tex.maps[0].clut);
-            sys.gpu.tex.maps[0].dirty = true;
-        }
-        Reg::TexLutRef1 => {
-            write_masked!(sys.gpu.tex.maps[1].clut);
-            sys.gpu.tex.maps[1].dirty = true;
-        }
-        Reg::TexLutRef2 => {
-            write_masked!(sys.gpu.tex.maps[2].clut);
-            sys.gpu.tex.maps[2].dirty = true;
-        }
-        Reg::TexLutRef3 => {
-            write_masked!(sys.gpu.tex.maps[3].clut);
-            sys.gpu.tex.maps[3].dirty = true;
-        }
-        Reg::TexLutRef4 => {
-            write_masked!(sys.gpu.tex.maps[4].clut);
-            sys.gpu.tex.maps[4].dirty = true;
-        }
-        Reg::TexLutRef5 => {
-            write_masked!(sys.gpu.tex.maps[5].clut);
-            sys.gpu.tex.maps[5].dirty = true;
-        }
-        Reg::TexLutRef6 => {
-            write_masked!(sys.gpu.tex.maps[6].clut);
-            sys.gpu.tex.maps[6].dirty = true;
-        }
-        Reg::TexLutRef7 => {
-            write_masked!(sys.gpu.tex.maps[7].clut);
-            sys.gpu.tex.maps[7].dirty = true;
-        }
+        Reg::TexLutRef0 => write_masked!(sys.gpu.tex.maps[0].clut),
+        Reg::TexLutRef1 => write_masked!(sys.gpu.tex.maps[1].clut),
+        Reg::TexLutRef2 => write_masked!(sys.gpu.tex.maps[2].clut),
+        Reg::TexLutRef3 => write_masked!(sys.gpu.tex.maps[3].clut),
+        Reg::TexLutRef4 => write_masked!(sys.gpu.tex.maps[4].clut),
+        Reg::TexLutRef5 => write_masked!(sys.gpu.tex.maps[5].clut),
+        Reg::TexLutRef6 => write_masked!(sys.gpu.tex.maps[6].clut),
+        Reg::TexLutRef7 => write_masked!(sys.gpu.tex.maps[7].clut),
 
-        Reg::TevColor0 => {
-            write_masked!(sys.gpu.env.stage_ops[0].color);
-        }
-        Reg::TevAlpha0 => {
-            write_masked!(sys.gpu.env.stage_ops[0].alpha);
-        }
-        Reg::TevColor1 => {
-            write_masked!(sys.gpu.env.stage_ops[1].color);
-        }
-        Reg::TevAlpha1 => {
-            write_masked!(sys.gpu.env.stage_ops[1].alpha);
-        }
-        Reg::TevColor2 => {
-            write_masked!(sys.gpu.env.stage_ops[2].color);
-        }
-        Reg::TevAlpha2 => {
-            write_masked!(sys.gpu.env.stage_ops[2].alpha);
-        }
-        Reg::TevColor3 => {
-            write_masked!(sys.gpu.env.stage_ops[3].color);
-        }
-        Reg::TevAlpha3 => {
-            write_masked!(sys.gpu.env.stage_ops[3].alpha);
-        }
-        Reg::TevColor4 => {
-            write_masked!(sys.gpu.env.stage_ops[4].color);
-        }
-        Reg::TevAlpha4 => {
-            write_masked!(sys.gpu.env.stage_ops[4].alpha);
-        }
-        Reg::TevColor5 => {
-            write_masked!(sys.gpu.env.stage_ops[5].color);
-        }
-        Reg::TevAlpha5 => {
-            write_masked!(sys.gpu.env.stage_ops[5].alpha);
-        }
-        Reg::TevColor6 => {
-            write_masked!(sys.gpu.env.stage_ops[6].color);
-        }
-        Reg::TevAlpha6 => {
-            write_masked!(sys.gpu.env.stage_ops[6].alpha);
-        }
-        Reg::TevColor7 => {
-            write_masked!(sys.gpu.env.stage_ops[7].color);
-        }
-        Reg::TevAlpha7 => {
-            write_masked!(sys.gpu.env.stage_ops[7].alpha);
-        }
-        Reg::TevColor8 => {
-            write_masked!(sys.gpu.env.stage_ops[8].color);
-        }
-        Reg::TevAlpha8 => {
-            write_masked!(sys.gpu.env.stage_ops[8].alpha);
-        }
-        Reg::TevColor9 => {
-            write_masked!(sys.gpu.env.stage_ops[9].color);
-        }
-        Reg::TevAlpha9 => {
-            write_masked!(sys.gpu.env.stage_ops[9].alpha);
-        }
-        Reg::TevColor10 => {
-            write_masked!(sys.gpu.env.stage_ops[10].color);
-        }
-        Reg::TevAlpha10 => {
-            write_masked!(sys.gpu.env.stage_ops[10].alpha);
-        }
-        Reg::TevColor11 => {
-            write_masked!(sys.gpu.env.stage_ops[11].color);
-        }
-        Reg::TevAlpha11 => {
-            write_masked!(sys.gpu.env.stage_ops[11].alpha);
-        }
-        Reg::TevColor12 => {
-            write_masked!(sys.gpu.env.stage_ops[12].color);
-        }
-        Reg::TevAlpha12 => {
-            write_masked!(sys.gpu.env.stage_ops[12].alpha);
-        }
-        Reg::TevColor13 => {
-            write_masked!(sys.gpu.env.stage_ops[13].color);
-        }
-        Reg::TevAlpha13 => {
-            write_masked!(sys.gpu.env.stage_ops[13].alpha);
-        }
-        Reg::TevColor14 => {
-            write_masked!(sys.gpu.env.stage_ops[14].color);
-        }
-        Reg::TevAlpha14 => {
-            write_masked!(sys.gpu.env.stage_ops[14].alpha);
-        }
-        Reg::TevColor15 => {
-            write_masked!(sys.gpu.env.stage_ops[15].color);
-        }
-        Reg::TevAlpha15 => {
-            write_masked!(sys.gpu.env.stage_ops[15].alpha);
-        }
+        Reg::TevColor0 => write_masked!(sys.gpu.env.stage_ops[0].color),
+        Reg::TevAlpha0 => write_masked!(sys.gpu.env.stage_ops[0].alpha),
+        Reg::TevColor1 => write_masked!(sys.gpu.env.stage_ops[1].color),
+        Reg::TevAlpha1 => write_masked!(sys.gpu.env.stage_ops[1].alpha),
+        Reg::TevColor2 => write_masked!(sys.gpu.env.stage_ops[2].color),
+        Reg::TevAlpha2 => write_masked!(sys.gpu.env.stage_ops[2].alpha),
+        Reg::TevColor3 => write_masked!(sys.gpu.env.stage_ops[3].color),
+        Reg::TevAlpha3 => write_masked!(sys.gpu.env.stage_ops[3].alpha),
+        Reg::TevColor4 => write_masked!(sys.gpu.env.stage_ops[4].color),
+        Reg::TevAlpha4 => write_masked!(sys.gpu.env.stage_ops[4].alpha),
+        Reg::TevColor5 => write_masked!(sys.gpu.env.stage_ops[5].color),
+        Reg::TevAlpha5 => write_masked!(sys.gpu.env.stage_ops[5].alpha),
+        Reg::TevColor6 => write_masked!(sys.gpu.env.stage_ops[6].color),
+        Reg::TevAlpha6 => write_masked!(sys.gpu.env.stage_ops[6].alpha),
+        Reg::TevColor7 => write_masked!(sys.gpu.env.stage_ops[7].color),
+        Reg::TevAlpha7 => write_masked!(sys.gpu.env.stage_ops[7].alpha),
+        Reg::TevColor8 => write_masked!(sys.gpu.env.stage_ops[8].color),
+        Reg::TevAlpha8 => write_masked!(sys.gpu.env.stage_ops[8].alpha),
+        Reg::TevColor9 => write_masked!(sys.gpu.env.stage_ops[9].color),
+        Reg::TevAlpha9 => write_masked!(sys.gpu.env.stage_ops[9].alpha),
+        Reg::TevColor10 => write_masked!(sys.gpu.env.stage_ops[10].color),
+        Reg::TevAlpha10 => write_masked!(sys.gpu.env.stage_ops[10].alpha),
+        Reg::TevColor11 => write_masked!(sys.gpu.env.stage_ops[11].color),
+        Reg::TevAlpha11 => write_masked!(sys.gpu.env.stage_ops[11].alpha),
+        Reg::TevColor12 => write_masked!(sys.gpu.env.stage_ops[12].color),
+        Reg::TevAlpha12 => write_masked!(sys.gpu.env.stage_ops[12].alpha),
+        Reg::TevColor13 => write_masked!(sys.gpu.env.stage_ops[13].color),
+        Reg::TevAlpha13 => write_masked!(sys.gpu.env.stage_ops[13].alpha),
+        Reg::TevColor14 => write_masked!(sys.gpu.env.stage_ops[14].color),
+        Reg::TevAlpha14 => write_masked!(sys.gpu.env.stage_ops[14].alpha),
+        Reg::TevColor15 => write_masked!(sys.gpu.env.stage_ops[15].color),
+        Reg::TevAlpha15 => write_masked!(sys.gpu.env.stage_ops[15].alpha),
         Reg::TevConstant3AR => {
             if mask != 0x00FF_FFFF {
                 todo!();
@@ -1136,30 +923,14 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
                 sys.gpu.env.alpha_function.clone(),
             ));
         }
-        Reg::TevKSel0 => {
-            write_masked!(sys.gpu.env.stage_consts[0]);
-        }
-        Reg::TevKSel1 => {
-            write_masked!(sys.gpu.env.stage_consts[1]);
-        }
-        Reg::TevKSel2 => {
-            write_masked!(sys.gpu.env.stage_consts[2]);
-        }
-        Reg::TevKSel3 => {
-            write_masked!(sys.gpu.env.stage_consts[3]);
-        }
-        Reg::TevKSel4 => {
-            write_masked!(sys.gpu.env.stage_consts[4]);
-        }
-        Reg::TevKSel5 => {
-            write_masked!(sys.gpu.env.stage_consts[5]);
-        }
-        Reg::TevKSel6 => {
-            write_masked!(sys.gpu.env.stage_consts[6]);
-        }
-        Reg::TevKSel7 => {
-            write_masked!(sys.gpu.env.stage_consts[7]);
-        }
+        Reg::TevKSel0 => write_masked!(sys.gpu.env.stage_consts[0]),
+        Reg::TevKSel1 => write_masked!(sys.gpu.env.stage_consts[1]),
+        Reg::TevKSel2 => write_masked!(sys.gpu.env.stage_consts[2]),
+        Reg::TevKSel3 => write_masked!(sys.gpu.env.stage_consts[3]),
+        Reg::TevKSel4 => write_masked!(sys.gpu.env.stage_consts[4]),
+        Reg::TevKSel5 => write_masked!(sys.gpu.env.stage_consts[5]),
+        Reg::TevKSel6 => write_masked!(sys.gpu.env.stage_consts[6]),
+        Reg::TevKSel7 => write_masked!(sys.gpu.env.stage_consts[7]),
         Reg::WriteMask => {
             sys.gpu.write_mask = value;
         }
@@ -1174,6 +945,10 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
         sys.modules
             .render
             .exec(render::Action::SetCullingMode(sys.gpu.mode.culling_mode()));
+    }
+
+    if let Some(map) = reg.texmap() {
+        sys.gpu.tex.maps[map as usize].dirty = true;
     }
 
     if reg.is_tev() {

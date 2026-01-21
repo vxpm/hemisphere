@@ -1,8 +1,8 @@
 //! Texture unit (TX).
 use std::collections::HashMap;
 
+use bitos::bitos;
 use bitos::integer::{u2, u3, u10, u11};
-use bitos::{BitUtils, bitos};
 use color::Rgba8;
 use gekko::Address;
 use gxtex::PaletteIndex;
@@ -322,7 +322,7 @@ pub struct LutRef {
 #[derive(Default)]
 pub struct Interface {
     pub maps: [TextureMap; 8],
-    pub clut_base: u32,
+    pub clut_addr: Address,
     pub clut_load: ClutLoad,
     pub tex_cache: HashMap<Address, u64>,
     pub clut_cache: HashMap<Address, u64>,
@@ -500,11 +500,13 @@ pub fn encode_depth_texture(
 
 pub fn update_texture(sys: &mut System, index: usize) {
     let map = sys.gpu.tex.maps[index].clone();
-    let texture_id = render::TextureId(map.address.value());
+    let base = map.address;
+    let width = map.encoding.width();
+    let height = map.encoding.height();
+    let texture_id = render::TextureId(base.value());
     let clut_addr = render::ClutAddress(map.clut.tmem_offset().value());
     let clut_fmt = map.clut.format();
 
-    let base = map.address;
     let (len, lod_count) = if map.sampler.min_filter().uses_lods() {
         (
             map.encoding.length_mipmap() as usize,
@@ -523,8 +525,8 @@ pub fn update_texture(sys: &mut System, index: usize) {
         };
 
         let mut current_data = data;
-        let mut current_width = map.encoding.width();
-        let mut current_height = map.encoding.height();
+        let mut current_width = width;
+        let mut current_height = height;
         for _ in 0..lod_count {
             mipmap.push(self::decode_texture(
                 current_data,
@@ -544,13 +546,16 @@ pub fn update_texture(sys: &mut System, index: usize) {
         sys.modules.render.exec(render::Action::LoadTexture {
             id: texture_id,
             texture: render::Texture {
-                width: map.encoding.width(),
-                height: map.encoding.height(),
+                width: width,
+                height: height,
                 format: map.encoding.format(),
                 data: mipmap,
             },
         });
     }
+
+    let scale_u = map.scaling.u.scale().unwrap_or(width) as f32 / width as f32;
+    let scale_v = map.scaling.v.scale().unwrap_or(height) as f32 / height as f32;
 
     sys.modules.render.exec(render::Action::SetTextureSlot {
         slot: index,
@@ -558,6 +563,10 @@ pub fn update_texture(sys: &mut System, index: usize) {
         sampler: render::Sampler {
             mode: map.sampler,
             lods: map.lods.limits,
+        },
+        scaling: render::Scaling {
+            u: scale_u,
+            v: scale_v,
         },
         clut_addr,
         clut_fmt,
@@ -568,7 +577,7 @@ pub fn update_clut(sys: &mut System) {
     let load = sys.gpu.tex.clut_load;
     let clut_addr = render::ClutAddress(load.tmem_offset().value());
 
-    let base = Address((sys.gpu.tex.clut_base << 5).with_bits(26, 32, 0));
+    let base = sys.gpu.tex.clut_addr;
     let len = load.count().value() as usize * 16 * 2;
     let data = &sys.mem.ram()[base.value() as usize..][..len];
 

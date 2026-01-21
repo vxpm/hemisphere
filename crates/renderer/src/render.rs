@@ -10,8 +10,8 @@ use std::sync::{Arc, Mutex};
 
 use glam::Mat4;
 use lazuli::modules::render::{
-    Action, Clut, ClutAddress, Sampler, TexEnvConfig, TexGenConfig, Texture, TextureId, Viewport,
-    oneshot,
+    Action, Clut, ClutAddress, Sampler, Scaling, TexEnvConfig, TexGenConfig, Texture, TextureId,
+    Viewport, oneshot,
 };
 use lazuli::system::gx::color::{Rgba, Rgba8};
 use lazuli::system::gx::pix::{
@@ -42,10 +42,11 @@ struct Allocators {
     storage: Allocator,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Clone, Copy, PartialEq, Default)]
 struct TexSlotSettings {
     settings: TextureSettings,
     sampler: Sampler,
+    scaling: Scaling,
 }
 
 pub struct Renderer {
@@ -222,9 +223,10 @@ impl Renderer {
                 slot,
                 texture_id,
                 sampler,
+                scaling,
                 clut_addr,
                 clut_fmt,
-            } => self.set_texture_slot(slot, texture_id, sampler, clut_addr, clut_fmt),
+            } => self.set_texture_slot(slot, texture_id, sampler, scaling, clut_addr, clut_fmt),
             Action::Draw(topology, vertices) => match topology {
                 Topology::QuadList => self.draw_quad_list(&vertices),
                 Topology::TriangleList => self.draw_triangle_list(&vertices),
@@ -521,6 +523,7 @@ impl Renderer {
         slot: usize,
         raw_id: TextureId,
         sampler: Sampler,
+        scaling: Scaling,
         clut_addr: ClutAddress,
         clut_fmt: ClutFormat,
     ) {
@@ -531,6 +534,7 @@ impl Renderer {
                 clut_fmt,
             },
             sampler,
+            scaling,
         };
 
         if self.tex_slots[slot] == new {
