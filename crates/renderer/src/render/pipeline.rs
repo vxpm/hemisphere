@@ -194,6 +194,8 @@ impl Cache {
                 storage_buffer(0),
                 // configs
                 storage_buffer(1),
+                // texture scaling
+                storage_buffer(2),
             ],
         });
 
@@ -215,17 +217,6 @@ impl Cache {
             count: None,
         };
 
-        let buffer = |binding| wgpu::BindGroupLayoutEntry {
-            binding,
-            visibility: wgpu::ShaderStages::FRAGMENT,
-            ty: wgpu::BindingType::Buffer {
-                ty: wgpu::BufferBindingType::Uniform,
-                has_dynamic_offset: false,
-                min_binding_size: None,
-            },
-            count: None,
-        };
-
         let mut current_binding = 0;
         let mut entries = Vec::with_capacity(2 * 8);
         for _ in 0..8 {
@@ -233,7 +224,6 @@ impl Cache {
             entries.push(sampler(current_binding + 1));
             current_binding += 2;
         }
-        entries.push(buffer(current_binding));
 
         let group1_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: None,
@@ -255,7 +245,7 @@ impl Cache {
         }
     }
 
-    pub fn primitives_group_layout(&self) -> &wgpu::BindGroupLayout {
+    pub fn data_group_layout(&self) -> &wgpu::BindGroupLayout {
         &self.group0_layout
     }
 
