@@ -175,7 +175,7 @@ impl ComponentSource for FastLuma {
     }
 }
 
-pub struct I4<Source>(PhantomData<Source>);
+pub struct I4<Source = Luma>(PhantomData<Source>);
 
 impl<Source: ComponentSource> Format for I4<Source> {
     const NIBBLES_PER_TEXEL: usize = 1;
@@ -230,7 +230,9 @@ impl<Source: ComponentSource> Format for I4<Source> {
     }
 }
 
-pub struct IA4<IntensitySource, AlphaSource>(PhantomData<(IntensitySource, AlphaSource)>);
+pub struct IA4<IntensitySource = Luma, AlphaSource = AlphaChannel>(
+    PhantomData<(IntensitySource, AlphaSource)>,
+);
 
 impl<IntensitySource: ComponentSource, AlphaSource: ComponentSource> Format
     for IA4<IntensitySource, AlphaSource>
@@ -277,7 +279,7 @@ impl<IntensitySource: ComponentSource, AlphaSource: ComponentSource> Format
     }
 }
 
-pub struct I8<Source>(PhantomData<Source>);
+pub struct I8<Source = Luma>(PhantomData<Source>);
 
 impl<Source: ComponentSource> Format for I8<Source> {
     const NIBBLES_PER_TEXEL: usize = 2;
@@ -319,7 +321,9 @@ impl<Source: ComponentSource> Format for I8<Source> {
     }
 }
 
-pub struct IA8<IntensitySource, AlphaSource>(PhantomData<(IntensitySource, AlphaSource)>);
+pub struct IA8<IntensitySource = Luma, AlphaSource = AlphaChannel>(
+    PhantomData<(IntensitySource, AlphaSource)>,
+);
 
 impl<IntensitySource: ComponentSource, AlphaSource: ComponentSource> Format
     for IA8<IntensitySource, AlphaSource>

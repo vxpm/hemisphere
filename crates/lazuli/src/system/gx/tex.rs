@@ -150,26 +150,29 @@ impl Encoding {
     }
 
     pub fn lod_count(&self) -> u32 {
-        self.width().ilog2().min(self.height().ilog2()) + 1
+        self.width().ilog2().max(self.height().ilog2()) + 1
     }
 
     pub fn length_for(width: u32, height: u32, format: Format) -> u32 {
-        let pixels = |n| width.next_multiple_of(n) * height.next_multiple_of(n);
-        let pixels_xy = |x, y| width.next_multiple_of(x) * height.next_multiple_of(y);
+        use gxtex::{CI4, CI8, CI14X2, Cmpr, I4, I8, IA4, IA8, Rgb5A3, Rgb565, Rgba8};
 
-        match format {
-            Format::I4 => pixels(8) / 2,
-            Format::I8 => pixels_xy(8, 4),
-            Format::IA4 => pixels(8),
-            Format::IA8 => pixels(4) * 2,
-            Format::Rgb565 => pixels(4) * 2,
-            Format::Rgb5A3 => pixels(4) * 2,
-            Format::Rgba8 => pixels(4) * 4,
-            Format::Cmp => pixels(8) / 2,
-            Format::CI8 => pixels(1),
-            Format::CI4 => pixels(1) / 2,
+        let width = width as usize;
+        let height = height as usize;
+
+        (match format {
+            Format::I4 => gxtex::compute_size::<I4>(width, height),
+            Format::I8 => gxtex::compute_size::<I8>(width, height),
+            Format::IA4 => gxtex::compute_size::<IA4>(width, height),
+            Format::IA8 => gxtex::compute_size::<IA8>(width, height),
+            Format::Rgb565 => gxtex::compute_size::<Rgb565>(width, height),
+            Format::Rgb5A3 => gxtex::compute_size::<Rgb5A3>(width, height),
+            Format::Rgba8 => gxtex::compute_size::<Rgba8>(width, height),
+            Format::Cmp => gxtex::compute_size::<Cmpr>(width, height),
+            Format::CI4 => gxtex::compute_size::<CI4>(width, height),
+            Format::CI8 => gxtex::compute_size::<CI8>(width, height),
+            Format::CI14X2 => gxtex::compute_size::<CI14X2>(width, height),
             _ => todo!("format {:?}", format),
-        }
+        }) as u32
     }
 
     // Size, in bytes, of the texture.
@@ -185,8 +188,8 @@ impl Encoding {
         let mut size = 0;
         for _ in 0..self.lod_count() {
             size += Self::length_for(current_width, current_height, self.format());
-            current_width /= 2;
-            current_height /= 2;
+            current_width = (current_width / 2).max(1);
+            current_height = (current_height / 2).max(1);
         }
 
         size
@@ -470,7 +473,19 @@ pub fn update_texture(sys: &mut System, index: usize) {
             MipmapData::Indirect(Vec::with_capacity(lod_count))
         };
 
-        for _ in 0..lod_count {
+        for i in 0..lod_count {
+            let consume =
+                Encoding::length_for(current_width, current_height, map.encoding.format()) as usize;
+
+            if lod_count > 1 {
+                println!(
+                    "decoding lod {i} ({:?}): {current_width}x{current_height} ({} bytes remaining, needs {} bytes)",
+                    map.encoding.format(),
+                    current_data.len(),
+                    consume,
+                );
+            }
+
             mipmap.push(self::decode_texture(
                 current_data,
                 current_width,
@@ -478,12 +493,9 @@ pub fn update_texture(sys: &mut System, index: usize) {
                 map.encoding.format(),
             ));
 
-            let consumed =
-                Encoding::length_for(current_width, current_height, map.encoding.format()) as usize;
-
-            current_data = &current_data[consumed..];
-            current_width /= 2;
-            current_height /= 2;
+            current_data = &current_data[consume..];
+            current_width = (current_width / 2).max(1);
+            current_height = (current_height / 2).max(1);
         }
 
         sys.modules.render.exec(render::Action::LoadTexture {

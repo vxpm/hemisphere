@@ -130,8 +130,8 @@ impl Cache {
                 },
             );
 
-            current_width /= 2;
-            current_height /= 2;
+            current_width = (current_width / 2).max(1);
+            current_height = (current_height / 2).max(1);
         }
 
         texture.create_view(&Default::default())

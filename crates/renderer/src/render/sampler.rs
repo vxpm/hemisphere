@@ -42,7 +42,7 @@ impl Cache {
             address_mode_w: wgpu::AddressMode::ClampToEdge,
             mag_filter,
             min_filter,
-            mipmap_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: min_filter,
             anisotropy_clamp,
             ..Default::default()
         })
