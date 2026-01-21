@@ -40,7 +40,7 @@ pub trait Format {
 pub fn compute_size<F: Format>(width: usize, height: usize) -> usize {
     let width = width.next_multiple_of(F::TILE_WIDTH);
     let height = height.next_multiple_of(F::TILE_HEIGHT);
-    (width * height * F::NIBBLES_PER_TEXEL).div_ceil(2)
+    (width * height * <F as Format>::NIBBLES_PER_TEXEL).div_ceil(2)
 }
 
 /// Stride is in cache lines.
@@ -729,7 +729,7 @@ mod test {
 
         let required_width = (img.width() as usize).next_multiple_of(F::TILE_WIDTH);
         let required_height = (img.height() as usize).next_multiple_of(F::TILE_HEIGHT);
-        let mut encoded = vec![0; compute_size::<F>(required_width, required_height)];
+        let mut encoded = vec![0; compute_size_packed::<F>(required_width, required_height)];
 
         encode::<F>(
             required_width / F::TILE_WIDTH,
@@ -795,7 +795,7 @@ mod test {
         let height = 2 * img.height() as usize;
         let stride_cache = width / Rgba8::TILE_WIDTH * 2;
         let stride_bytes = stride_cache / 2 * Rgba8::BYTES_PER_TILE;
-        let mut encoded = vec![0; compute_size::<Rgba8>(width, height)];
+        let mut encoded = vec![0; compute_size_packed::<Rgba8>(width, height)];
 
         encode::<Rgba8>(
             stride_cache,

@@ -810,6 +810,39 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
             sys.gpu.tex.maps[7].dirty = true;
         }
 
+        Reg::TexOddLodAddress0 => {
+            write_masked!(sys.gpu.tex.maps[0].odd_lod);
+            sys.gpu.tex.maps[0].dirty = true;
+        }
+        Reg::TexOddLodAddress1 => {
+            write_masked!(sys.gpu.tex.maps[1].odd_lod);
+            sys.gpu.tex.maps[1].dirty = true;
+        }
+        Reg::TexOddLodAddress2 => {
+            write_masked!(sys.gpu.tex.maps[2].odd_lod);
+            sys.gpu.tex.maps[2].dirty = true;
+        }
+        Reg::TexOddLodAddress3 => {
+            write_masked!(sys.gpu.tex.maps[3].odd_lod);
+            sys.gpu.tex.maps[3].dirty = true;
+        }
+        Reg::TexOddLodAddress4 => {
+            write_masked!(sys.gpu.tex.maps[4].odd_lod);
+            sys.gpu.tex.maps[4].dirty = true;
+        }
+        Reg::TexOddLodAddress5 => {
+            write_masked!(sys.gpu.tex.maps[5].odd_lod);
+            sys.gpu.tex.maps[5].dirty = true;
+        }
+        Reg::TexOddLodAddress6 => {
+            write_masked!(sys.gpu.tex.maps[7].odd_lod);
+            sys.gpu.tex.maps[3].dirty = true;
+        }
+        Reg::TexOddLodAddress7 => {
+            write_masked!(sys.gpu.tex.maps[7].odd_lod);
+            sys.gpu.tex.maps[7].dirty = true;
+        }
+
         Reg::TexAddress0 => {
             let mut value = sys.gpu.tex.maps[0].address.value() >> 5;
             write_masked!(value);

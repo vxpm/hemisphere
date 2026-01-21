@@ -1,7 +1,7 @@
 //! Texture unit (TX).
 use std::collections::HashMap;
 
-use bitos::integer::{u2, u10, u11};
+use bitos::integer::{u2, u3, u10, u11};
 use bitos::{BitUtils, bitos};
 use color::Rgba8;
 use gekko::Address;
@@ -228,6 +228,19 @@ pub struct Scaling {
     pub v: ScaleV,
 }
 
+#[bitos(32)]
+#[derive(Debug, Clone, Copy, Default)]
+pub struct OddLod {
+    #[bits(18..21)]
+    pub cache_height: u3,
+}
+
+impl OddLod {
+    pub fn has_lods(&self) -> bool {
+        self.cache_height().value() != 0
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default)]
 pub struct TextureMap {
     pub address: Address,
@@ -235,6 +248,7 @@ pub struct TextureMap {
     pub sampler: Sampler,
     pub scaling: Scaling,
     pub clut: LutRef,
+    pub odd_lod: OddLod,
     pub dirty: bool,
 }
 
@@ -463,16 +477,15 @@ pub fn update_texture(sys: &mut System, index: usize) {
 
     let data = &sys.mem.ram()[base.value() as usize..][..len];
     if !sys.gpu.tex.is_tex_dirty(base, data) {
-        let mut current_data = data;
-        let mut current_width = map.encoding.width();
-        let mut current_height = map.encoding.height();
-
         let mut mipmap = if map.encoding.format().is_direct() {
             MipmapData::Direct(Vec::with_capacity(lod_count))
         } else {
             MipmapData::Indirect(Vec::with_capacity(lod_count))
         };
 
+        let mut current_data = data;
+        let mut current_width = map.encoding.width();
+        let mut current_height = map.encoding.height();
         for i in 0..lod_count {
             let consume =
                 Encoding::length_for(current_width, current_height, map.encoding.format()) as usize;
