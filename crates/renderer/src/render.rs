@@ -8,7 +8,7 @@ use std::num::NonZero;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
-use glam::Mat4;
+use glam::{Mat4, Vec2};
 use lazuli::modules::render::{
     Action, Clut, ClutAddress, Sampler, Scaling, TexEnvConfig, TexGenConfig, Texture, TextureId,
     Viewport, oneshot,
@@ -669,17 +669,7 @@ impl Renderer {
             .tex_slots
             .map(|s| self.sampler_cache.get(&self.device, s.sampler).clone());
 
-        let scaling_array = self.tex_slots.map(|s| {
-            let scaling = data::Scaling {
-                u: s.scaling.u,
-                v: s.scaling.v,
-                _pad0: 0,
-                _pad1: 0,
-            };
-
-            scaling
-        });
-
+        let scaling_array = self.tex_slots.map(|s| Vec2::new(s.scaling.u, s.scaling.v));
         let scaling_buffer =
             self.allocators
                 .uniform
@@ -846,6 +836,7 @@ impl Renderer {
 
         self.allocators.index.recall();
         self.allocators.storage.recall();
+        self.allocators.uniform.recall();
 
         self.shared.rendered_anything.store(true, Ordering::Relaxed);
     }

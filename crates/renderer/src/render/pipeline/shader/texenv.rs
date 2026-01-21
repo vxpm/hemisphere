@@ -16,8 +16,16 @@ fn sample_tex(stage: &TexEnvStage) -> wesl::syntax::Expression {
     let coord_ident = wesl::syntax::Ident::new(format!("in.tex_coord{map}"));
     let scaling_ident = wesl::syntax::Ident::new("base::scaling".into());
 
+    let index = map / 2;
+    let scaling_packed = quote_expression! { #scaling_ident[#index] };
+    let scaling = if map.is_multiple_of(2) {
+        quote_expression!(#scaling_packed.xy)
+    } else {
+        quote_expression!(#scaling_packed.zw)
+    };
+
     quote_expression! {
-        textureSample(#tex_ident, #sampler_ident, #scaling_ident[#map].value * #coord_ident.xy / #coord_ident.z)
+        textureSample(#tex_ident, #sampler_ident, #scaling * #coord_ident.xy / #coord_ident.z)
     }
 }
 
