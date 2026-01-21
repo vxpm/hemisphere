@@ -54,6 +54,7 @@ struct TexSlotSettings {
 #[derive(Clone, PartialEq, Eq, Hash)]
 struct DataGroupEntries {
     vertices: wgpu::Buffer,
+    matrices: wgpu::Buffer,
     configs: wgpu::Buffer,
     scaling: wgpu::Buffer,
 }
@@ -97,8 +98,9 @@ pub struct Renderer {
     current_config: data::Config,
     current_config_dirty: bool,
 
-    vertices: Vec<data::Vertex>,
     indices: Vec<u32>,
+    vertices: Vec<data::Vertex>,
+    matrices: Vec<Mat4>,
     configs: Vec<data::Config>,
 
     actions: u64,
@@ -217,6 +219,7 @@ impl Renderer {
             vertices: Vec::new(),
             indices: Vec::new(),
             configs: Vec::new(),
+            matrices: Vec::new(),
 
             actions: 0,
         };
@@ -300,7 +303,7 @@ impl Renderer {
         }
     }
 
-    fn insert_vertex(&mut self, vertex: &Vertex, matrices: &[(MatrixId, Mat4)]) -> u32 {
+    fn insert_vertex(&mut self, vertex: &Vertex, matrices: &[(MatrixId, data::MatrixIdx)]) -> u32 {
         let get_matrix = |idx| matrices.iter().find_map(|(i, m)| (*i == idx).then_some(*m));
         let vertex = data::Vertex {
             position: vertex.position,
@@ -310,6 +313,8 @@ impl Renderer {
 
             position_mat: get_matrix(vertex.pos_norm_matrix).unwrap(),
             normal_mat: get_matrix(vertex.pos_norm_matrix.normal()).unwrap(),
+            _pad1: 0,
+            _pad2: 0,
 
             chan0: vertex.chan0,
             chan1: vertex.chan1,
@@ -574,6 +579,21 @@ impl Renderer {
         }
     }
 
+    fn create_matrix_indices(
+        &mut self,
+        matrices: &[(MatrixId, Mat4)],
+    ) -> Vec<(MatrixId, data::MatrixIdx)> {
+        let mut indices = Vec::with_capacity(matrices.len());
+
+        for (id, mat) in matrices.iter().copied() {
+            let idx = self.matrices.len();
+            self.matrices.push(mat);
+            indices.push((id, idx as u32));
+        }
+
+        indices
+    }
+
     pub fn draw_quad_list(&mut self, stream: &VertexStream) {
         let matrices = stream.matrices();
         let vertices = stream.vertices();
@@ -583,8 +603,9 @@ impl Renderer {
         }
 
         self.flush_config();
+        let matrices = self.create_matrix_indices(matrices);
         for vertices in vertices.iter().array_chunks::<4>() {
-            let [v0, v1, v2, v3] = vertices.map(|v| self.insert_vertex(v, matrices));
+            let [v0, v1, v2, v3] = vertices.map(|v| self.insert_vertex(v, &matrices));
             self.indices.extend_from_slice(&[v0, v1, v2]);
             self.indices.extend_from_slice(&[v0, v2, v3]);
         }
@@ -599,8 +620,9 @@ impl Renderer {
         }
 
         self.flush_config();
+        let matrices = self.create_matrix_indices(matrices);
         for vertices in vertices.iter().array_chunks::<3>() {
-            let vertices = vertices.map(|v| self.insert_vertex(v, matrices));
+            let vertices = vertices.map(|v| self.insert_vertex(v, &matrices));
             self.indices.extend_from_slice(&vertices);
         }
     }
@@ -614,12 +636,13 @@ impl Renderer {
         }
 
         self.flush_config();
+        let matrices = self.create_matrix_indices(matrices);
         let mut iter = vertices.iter();
-        let mut v0 = self.insert_vertex(iter.next().unwrap(), matrices);
-        let mut v1 = self.insert_vertex(iter.next().unwrap(), matrices);
+        let mut v0 = self.insert_vertex(iter.next().unwrap(), &matrices);
+        let mut v1 = self.insert_vertex(iter.next().unwrap(), &matrices);
 
         for (i, v2) in iter.enumerate() {
-            let v2 = self.insert_vertex(v2, matrices);
+            let v2 = self.insert_vertex(v2, &matrices);
 
             // flip to preserve vertex order (cw)
             if i.is_multiple_of(2) {
@@ -642,11 +665,12 @@ impl Renderer {
         }
 
         self.flush_config();
+        let matrices = self.create_matrix_indices(matrices);
         let mut iter = vertices.iter();
-        let v0 = self.insert_vertex(iter.next().unwrap(), matrices);
-        let mut v1 = self.insert_vertex(iter.next().unwrap(), matrices);
+        let v0 = self.insert_vertex(iter.next().unwrap(), &matrices);
+        let mut v1 = self.insert_vertex(iter.next().unwrap(), &matrices);
         for v2 in iter {
-            let v2 = self.insert_vertex(v2, matrices);
+            let v2 = self.insert_vertex(v2, &matrices);
             self.indices.extend_from_slice(&[v0, v1, v2]);
 
             v1 = v2;
@@ -654,8 +678,9 @@ impl Renderer {
     }
 
     fn reset(&mut self) {
-        self.vertices.clear();
         self.indices.clear();
+        self.vertices.clear();
+        self.matrices.clear();
         self.configs.clear();
         self.current_config_dirty = true;
     }
@@ -676,13 +701,21 @@ impl Renderer {
                 wgpu::BindGroupEntry {
                     binding: 1,
                     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                        buffer: &entries.configs,
+                        buffer: &entries.matrices,
                         offset: 0,
                         size: None,
                     }),
                 },
                 wgpu::BindGroupEntry {
                     binding: 2,
+                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                        buffer: &entries.configs,
+                        offset: 0,
+                        size: None,
+                    }),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
                     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
                         buffer: &entries.scaling,
                         offset: 0,
@@ -736,6 +769,10 @@ impl Renderer {
             self.allocators
                 .storage
                 .allocate(&self.device, &self.queue, self.vertices.as_bytes());
+        let matrices_buf =
+            self.allocators
+                .storage
+                .allocate(&self.device, &self.queue, self.matrices.as_bytes());
         let configs_buf =
             self.allocators
                 .storage
@@ -747,6 +784,7 @@ impl Renderer {
 
         let data_group = self.get_data_group(DataGroupEntries {
             vertices: vertices_buf,
+            matrices: matrices_buf,
             configs: configs_buf,
             scaling: scaling_buf,
         });

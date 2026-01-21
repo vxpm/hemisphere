@@ -192,10 +192,12 @@ impl Cache {
             entries: &[
                 // vertices
                 storage_buffer(0),
-                // configs
+                // matrices
                 storage_buffer(1),
-                // texture scaling
+                // configs
                 storage_buffer(2),
+                // texture scaling
+                storage_buffer(3),
             ],
         });
 
