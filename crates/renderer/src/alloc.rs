@@ -10,7 +10,7 @@ struct BufferPair {
 
 pub struct Allocator {
     usages: wgpu::BufferUsages,
-    available: Vec<BufferPair>,
+    available: Vec<Vec<BufferPair>>,
     allocated: Vec<BufferPair>,
     sender: Sender<BufferPair>,
     receiver: Receiver<BufferPair>,
@@ -34,28 +34,41 @@ impl Allocator {
         }
 
         while let Ok(pair) = self.receiver.try_recv() {
-            self.available.push(pair);
-        }
+            let size = pair.main.size();
+            let bucket = size.ilog2() as usize;
 
-        self.available.sort_unstable_by_key(|b| b.main.size());
+            if self.available.len() <= bucket {
+                self.available.resize(bucket + 1, Vec::new());
+            }
+
+            self.available[bucket].push(pair);
+        }
     }
 
-    pub fn allocate(
+    fn allocate_inner(
         &mut self,
         device: &wgpu::Device,
         encoder: &mut wgpu::CommandEncoder,
         data: &[u8],
+        recall: bool,
     ) -> wgpu::Buffer {
-        self.recall();
-
         let size = data.len() as u64;
-        let to_remove = self.available.partition_point(|b| b.main.size() < size);
-        let pair = (to_remove < self.available.len()).then(|| self.available.remove(to_remove));
+        let buffer_size = size.next_power_of_two();
+        let bucket = buffer_size.ilog2() as usize;
+
+        let pair = self
+            .available
+            .get_mut(bucket)
+            .and_then(|bucket| bucket.pop());
 
         let pair = match pair {
             Some(pair) => pair,
             None => {
-                let buffer_size = size.next_multiple_of(256);
+                if recall {
+                    self.recall();
+                    return self.allocate_inner(device, encoder, data, false);
+                }
+
                 let main = device.create_buffer(&wgpu::BufferDescriptor {
                     label: None,
                     size: buffer_size,
@@ -86,6 +99,15 @@ impl Allocator {
         self.allocated.push(pair);
 
         buffer
+    }
+
+    pub fn allocate(
+        &mut self,
+        device: &wgpu::Device,
+        encoder: &mut wgpu::CommandEncoder,
+        data: &[u8],
+    ) -> wgpu::Buffer {
+        self.allocate_inner(device, encoder, data, true)
     }
 
     pub fn free(&mut self) {
