@@ -72,7 +72,8 @@ pub struct Renderer {
     queue: wgpu::Queue,
     shared: Arc<Shared>,
 
-    current_encoder: wgpu::CommandEncoder,
+    current_transfer_encoder: wgpu::CommandEncoder,
+    current_render_encoder: wgpu::CommandEncoder,
     current_pass: wgpu::RenderPass<'static>,
 
     // components
@@ -158,8 +159,9 @@ impl Renderer {
             mapped_at_creation: false,
         });
 
-        let mut encoder = device.create_command_encoder(&Default::default());
-        let pass = encoder
+        let transfer_encoder = device.create_command_encoder(&Default::default());
+        let mut render_encoder = device.create_command_encoder(&Default::default());
+        let pass = render_encoder
             .begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("lazuli render pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -189,7 +191,8 @@ impl Renderer {
             queue,
             shared: shared.clone(),
 
-            current_encoder: encoder,
+            current_transfer_encoder: transfer_encoder,
+            current_render_encoder: render_encoder,
             current_pass: pass,
 
             pipeline_settings: Default::default(),
@@ -761,26 +764,31 @@ impl Renderer {
 
         self.debug(format!("[FLUSH]: {reason}"));
         let scaling_array = self.tex_slots.map(|s| Vec2::new(s.scaling.u, s.scaling.v));
-        let index_buf =
-            self.allocators
-                .index
-                .allocate(&self.device, &self.queue, self.indices.as_bytes());
-        let vertices_buf =
-            self.allocators
-                .storage
-                .allocate(&self.device, &self.queue, self.vertices.as_bytes());
-        let matrices_buf =
-            self.allocators
-                .storage
-                .allocate(&self.device, &self.queue, self.matrices.as_bytes());
-        let configs_buf =
-            self.allocators
-                .storage
-                .allocate(&self.device, &self.queue, self.configs.as_bytes());
-        let scaling_buf =
-            self.allocators
-                .storage
-                .allocate(&self.device, &self.queue, scaling_array.as_bytes());
+        let index_buf = self.allocators.index.allocate(
+            &self.device,
+            &mut self.current_transfer_encoder,
+            self.indices.as_bytes(),
+        );
+        let vertices_buf = self.allocators.storage.allocate(
+            &self.device,
+            &mut self.current_transfer_encoder,
+            self.vertices.as_bytes(),
+        );
+        let matrices_buf = self.allocators.storage.allocate(
+            &self.device,
+            &mut self.current_transfer_encoder,
+            self.matrices.as_bytes(),
+        );
+        let configs_buf = self.allocators.storage.allocate(
+            &self.device,
+            &mut self.current_transfer_encoder,
+            self.configs.as_bytes(),
+        );
+        let scaling_buf = self.allocators.storage.allocate(
+            &self.device,
+            &mut self.current_transfer_encoder,
+            scaling_array.as_bytes(),
+        );
 
         let data_group = self.get_data_group(DataGroupEntries {
             vertices: vertices_buf,
@@ -854,8 +862,9 @@ impl Renderer {
             wgpu::LoadOp::Load
         };
 
-        let mut encoder = self.device.create_command_encoder(&Default::default());
-        let pass = encoder
+        let transfer_encoder = self.device.create_command_encoder(&Default::default());
+        let mut render_encoder = self.device.create_command_encoder(&Default::default());
+        let pass = render_encoder
             .begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("main render pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -880,14 +889,17 @@ impl Renderer {
             })
             .forget_lifetime();
 
-        let mut previous_encoder = std::mem::replace(&mut self.current_encoder, encoder);
+        let prev_transfer_encoder =
+            std::mem::replace(&mut self.current_transfer_encoder, transfer_encoder);
+        let mut prev_render_encoder =
+            std::mem::replace(&mut self.current_render_encoder, render_encoder);
         let previous_pass = std::mem::replace(&mut self.current_pass, pass);
 
         std::mem::drop(previous_pass);
 
         if copy_to_xfb {
             let external = self.framebuffer.external();
-            previous_encoder.copy_texture_to_texture(
+            prev_render_encoder.copy_texture_to_texture(
                 wgpu::TexelCopyTextureInfoBase {
                     texture: color.texture(),
                     mip_level: 0,
@@ -904,12 +916,14 @@ impl Renderer {
             );
         }
 
-        let buffer = previous_encoder.finish();
-        self.queue.submit([buffer]);
+        let transfer_cmds = prev_transfer_encoder.finish();
+        let render_cmds = prev_render_encoder.finish();
+
+        self.queue.submit([transfer_cmds, render_cmds]);
         self.device.poll(wgpu::PollType::Poll).unwrap();
 
-        self.allocators.index.recall();
-        self.allocators.storage.recall();
+        self.allocators.index.free();
+        self.allocators.storage.free();
 
         self.shared.rendered_anything.store(true, Ordering::Relaxed);
     }
