@@ -1,75 +1,72 @@
 //! Transform unit (XF).
-use crate::{
-    Primitive,
-    modules::render,
-    system::{
-        System,
-        gx::{DEPTH_24_BIT_MAX, cmd::ArrayDescriptor, colors::Abgr8},
-    },
-};
-use bitos::{
-    BitUtils, bitos,
-    integer::{u3, u6},
-};
+use bitos::integer::{u3, u6};
+use bitos::{BitUtils, bitos};
+use color::Abgr8;
 use glam::{Mat3, Mat4, Vec3};
 use strum::FromRepr;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, TryFromBytes};
+
+use crate::Primitive;
+use crate::modules::render;
+use crate::system::System;
+use crate::system::gx::DEPTH_24_BIT_MAX;
+use crate::system::gx::cmd::ArrayDescriptor;
 
 /// A transform unit register.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, FromRepr)]
 #[repr(u8)]
 pub enum Reg {
-    Error = 0x00,
-    Diagnostics = 0x01,
-    State0 = 0x02,
-    State1 = 0x03,
-    PowerSave = 0x04,
-    ClipDisable = 0x05,
-    Perf0 = 0x06,
-    Perf1 = 0x07,
-    InVertexSpec = 0x08,
-    NumColors = 0x09,
-    Ambient0 = 0x0A,
-    Ambient1 = 0x0B,
-    Material0 = 0x0C,
-    Material1 = 0x0D,
-    ColorControl0 = 0x0E,
-    ColorControl1 = 0x0F,
-    AlphaControl0 = 0x10,
-    AlphaControl1 = 0x11,
+    Error                = 0x00,
+    Diagnostics          = 0x01,
+    State0               = 0x02,
+    State1               = 0x03,
+    PowerSave            = 0x04,
+    ClipDisable          = 0x05,
+    Perf0                = 0x06,
+    Perf1                = 0x07,
+    InVertexSpec         = 0x08,
+    NumColors            = 0x09,
+    Ambient0             = 0x0A,
+    Ambient1             = 0x0B,
+    Material0            = 0x0C,
+    Material1            = 0x0D,
+    ColorControl0        = 0x0E,
+    ColorControl1        = 0x0F,
+    AlphaControl0        = 0x10,
+    AlphaControl1        = 0x11,
     DualTextureTransform = 0x12,
-    MatIndexLow = 0x18,
-    MatIndexHigh = 0x19,
-    ViewportScaleX = 0x1A,
-    ViewportScaleY = 0x1B,
-    ViewportScaleZ = 0x1C,
-    ViewportOffsetX = 0x1D,
-    ViewportOffsetY = 0x1E,
-    ViewportOffsetZ = 0x1F,
-    ProjectionParam0 = 0x20,
-    ProjectionParam1 = 0x21,
-    ProjectionParam2 = 0x22,
-    ProjectionParam3 = 0x23,
-    ProjectionParam4 = 0x24,
-    ProjectionParam5 = 0x25,
+    MatIndexLow          = 0x18,
+    MatIndexHigh         = 0x19,
+    ViewportScaleX       = 0x1A,
+    ViewportScaleY       = 0x1B,
+    ViewportScaleZ       = 0x1C,
+    ViewportOffsetX      = 0x1D,
+    ViewportOffsetY      = 0x1E,
+    ViewportOffsetZ      = 0x1F,
+    ProjectionParam0     = 0x20,
+    ProjectionParam1     = 0x21,
+    ProjectionParam2     = 0x22,
+    ProjectionParam3     = 0x23,
+    ProjectionParam4     = 0x24,
+    ProjectionParam5     = 0x25,
     ProjectionOrthographic = 0x26,
-    TexGenCount = 0x3F,
-    TexGen0 = 0x40,
-    TexGen1 = 0x41,
-    TexGen2 = 0x42,
-    TexGen3 = 0x43,
-    TexGen4 = 0x44,
-    TexGen5 = 0x45,
-    TexGen6 = 0x46,
-    TexGen7 = 0x47,
-    PostTexGen0 = 0x50,
-    PostTexGen1 = 0x51,
-    PostTexGen2 = 0x52,
-    PostTexGen3 = 0x53,
-    PostTexGen4 = 0x54,
-    PostTexGen5 = 0x55,
-    PostTexGen6 = 0x56,
-    PostTexGen7 = 0x57,
+    TexGenCount          = 0x3F,
+    TexGen0              = 0x40,
+    TexGen1              = 0x41,
+    TexGen2              = 0x42,
+    TexGen3              = 0x43,
+    TexGen4              = 0x44,
+    TexGen5              = 0x45,
+    TexGen6              = 0x46,
+    TexGen7              = 0x47,
+    PostTexGen0          = 0x50,
+    PostTexGen1          = 0x51,
+    PostTexGen2          = 0x52,
+    PostTexGen3          = 0x53,
+    PostTexGen4          = 0x54,
+    PostTexGen5          = 0x55,
+    PostTexGen6          = 0x56,
+    PostTexGen7          = 0x57,
 }
 
 impl Reg {
@@ -142,9 +139,9 @@ pub enum TexGenInputKind {
 #[derive(Debug, Clone, Copy, Default)]
 pub enum TexGenKind {
     #[default]
-    Transform = 0b00,
-    Emboss = 0b01,
-    ColorDiffuse = 0b10,
+    Transform     = 0b00,
+    Emboss        = 0b01,
+    ColorDiffuse  = 0b10,
     ColorSpecular = 0b11,
 }
 
@@ -152,9 +149,9 @@ pub enum TexGenKind {
 #[derive(Debug, Clone, Copy, Default)]
 pub enum TexGenSource {
     #[default]
-    Position = 0x0,
-    Normal = 0x1,
-    Color = 0x2,
+    Position  = 0x0,
+    Normal    = 0x1,
+    Color     = 0x2,
     BinormalT = 0x3,
     BinormalB = 0x4,
     TexCoord0 = 0x5,
@@ -217,10 +214,10 @@ pub struct Light {
 #[bitos(2)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DiffuseAttenuation {
-    One = 0b00,
-    Compute = 0b01,
+    One            = 0b00,
+    Compute        = 0b01,
     ComputeClamped = 0b10,
-    Reserved0 = 0b011,
+    Reserved0      = 0b011,
 }
 
 #[bitos(32)]
@@ -420,25 +417,25 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
         Reg::MatIndexHigh => value.write_ne_bytes(&mut xf.default_matrices.as_mut_bytes()[4..8]),
 
         Reg::Ambient0 => {
-            xf.ambient[0] = Abgr8::from_u32(value);
+            xf.ambient[0] = zerocopy::transmute!(value);
             sys.modules
                 .render
                 .exec(render::Action::SetAmbient(0, xf.ambient[0]));
         }
         Reg::Ambient1 => {
-            xf.ambient[1] = Abgr8::from_u32(value);
+            xf.ambient[1] = zerocopy::transmute!(value);
             sys.modules
                 .render
                 .exec(render::Action::SetAmbient(1, xf.ambient[1]));
         }
         Reg::Material0 => {
-            xf.material[0] = Abgr8::from_u32(value);
+            xf.material[0] = zerocopy::transmute!(value);
             sys.modules
                 .render
                 .exec(render::Action::SetMaterial(0, xf.material[0]));
         }
         Reg::Material1 => {
-            xf.material[1] = Abgr8::from_u32(value);
+            xf.material[1] = zerocopy::transmute!(value);
             sys.modules
                 .render
                 .exec(render::Action::SetMaterial(1, xf.material[1]));

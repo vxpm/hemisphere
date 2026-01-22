@@ -1,11 +1,10 @@
 mod texenv;
 mod texgen;
 
-use crate::render::pipeline::{
-    ShaderSettings,
-    settings::{TexEnvSettings, TexGenSettings},
-};
 use wesl::{VirtualResolver, Wesl};
+
+use crate::render::pipeline::ShaderSettings;
+use crate::render::pipeline::settings::{TexEnvSettings, TexGenSettings};
 
 fn base_module() -> wesl::syntax::TranslationUnit {
     use wesl::syntax::*;
@@ -62,19 +61,22 @@ fn base_module() -> wesl::syntax::TranslationUnit {
             normal: vec3f,
             _pad0: u32,
 
-            position_mat: mat4x4f,
-            normal_mat: mat4x4f,
+            position_mat: MatIdx,
+            normal_mat: MatIdx,
+            _pad1: u32,
+            _pad2: u32,
 
             chan0: vec4f,
             chan1: vec4f,
 
             tex_coord: array<vec2f, 8>,
-            tex_coord_mat: array<mat4x4f, 8>,
+            tex_coord_mat: array<MatIdx, 8>,
         };
 
-        // Primitives group
+        // Data group
         @group(0) @binding(0) var<storage> vertices: array<Vertex>;
-        @group(0) @binding(1) var<storage> configs: array<Config>;
+        @group(0) @binding(1) var<storage> matrices: array<mat4x4f>;
+        @group(0) @binding(2) var<storage> configs: array<Config>;
 
         // Textures group
         @group(1) @binding(0) var texture0: texture_2d<f32>;
@@ -94,6 +96,9 @@ fn base_module() -> wesl::syntax::TranslationUnit {
         @group(1) @binding(13) var sampler6: sampler;
         @group(1) @binding(14) var texture7: texture_2d<f32>;
         @group(1) @binding(15) var sampler7: sampler;
+
+        // Texture scaling
+        var<push_constant> scaling: array<vec4f, 4>;
 
         struct VertexOutput {
             @builtin(position) clip: vec4f,
@@ -319,7 +324,7 @@ fn vertex_stage(texgen: &TexGenSettings) -> wesl::syntax::GlobalDeclaration {
 
         stages.push(wesl_quote::quote_statement! {
             {
-                let matrix = vertex.tex_coord_mat[#index];
+                let matrix = base::matrices[vertex.tex_coord_mat[#index]];
                 tex_coords[#index] = #result;
             }
         });
@@ -374,11 +379,11 @@ fn vertex_stage(texgen: &TexGenSettings) -> wesl::syntax::GlobalDeclaration {
             out.config_idx = vertex.config_idx;
 
             let vertex_local_pos = vec4f(vertex.position, 1.0);
-            let vertex_world_pos = vertex.position_mat * vertex_local_pos;
+            let vertex_world_pos = base::matrices[vertex.position_mat] * vertex_local_pos;
             var vertex_view_pos = config.projection_mat * vertex_world_pos;
 
             let vertex_local_norm = vec4f(vertex.normal, 0.0);
-            let vertex_world_norm = normalize((vertex.normal_mat * vertex_local_norm).xyz);
+            let vertex_world_norm = normalize((base::matrices[vertex.normal_mat] * vertex_local_norm).xyz);
 
             // GameCube's normalized device coordinates are -1.0..1.0 in x/y and -1.0..0.0 in z,
             // while wgpu's normalized device coordinates are -1.0..1.0 in x/y and 0.0..1.0 in z.

@@ -18,25 +18,26 @@ pub mod pi;
 pub mod si;
 pub mod vi;
 
-use crate::{
-    modules::{
-        audio::AudioModule, debug::DebugModule, disk::DiskModule, input::InputModule,
-        render::RenderModule, vertex::VertexModule,
-    },
-    system::{
-        dspi::Dsp,
-        executable::Executable,
-        gx::Gpu,
-        ipl::Ipl,
-        lazy::Lazy,
-        mem::Memory,
-        scheduler::{HandlerCtx, Scheduler},
-    },
-};
-use disks::{apploader, binrw::BinRead, dol, iso};
+use std::io::{Cursor, SeekFrom};
+
+use disks::binrw::BinRead;
+use disks::{apploader, dol, iso};
 use easyerr::{Error, ResultExt};
 use gekko::{Address, Cpu, Cycles};
-use std::io::{Cursor, SeekFrom};
+
+use crate::modules::audio::AudioModule;
+use crate::modules::debug::DebugModule;
+use crate::modules::disk::DiskModule;
+use crate::modules::input::InputModule;
+use crate::modules::render::RenderModule;
+use crate::modules::vertex::VertexModule;
+use crate::system::dspi::Dsp;
+use crate::system::executable::Executable;
+use crate::system::gx::Gpu;
+use crate::system::ipl::Ipl;
+use crate::system::lazy::Lazy;
+use crate::system::mem::Memory;
+use crate::system::scheduler::{HandlerCtx, Scheduler};
 
 /// System configuration.
 pub struct Config {

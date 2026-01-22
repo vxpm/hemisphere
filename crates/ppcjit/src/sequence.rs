@@ -1,9 +1,9 @@
-use crate::block::Pattern;
-use gekko::{
-    Address, InsExt,
-    disasm::{Ins, Opcode, ParsedIns},
-};
 use std::ops::Deref;
+
+use gekko::disasm::{Ins, Opcode, ParsedIns};
+use gekko::{Address, InsExt};
+
+use crate::block::Pattern;
 
 /// A sequence of PowerPC instructions.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Hash)]

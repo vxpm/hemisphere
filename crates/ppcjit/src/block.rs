@@ -1,6 +1,10 @@
-use crate::{Sequence, hooks::Context};
+use std::ffi::c_void;
+use std::ptr::NonNull;
+
 use jitalloc::{Allocation, Exec};
-use std::{ffi::c_void, ptr::NonNull};
+
+use crate::Sequence;
+use crate::hooks::Context;
 
 #[derive(Debug)]
 #[repr(C)]

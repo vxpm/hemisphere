@@ -1,89 +1,85 @@
 //! Command processor (CP).
 pub mod attributes;
 
-use crate::{
-    Primitive,
-    stream::{BinRingBuffer, BinaryStream},
-    system::{
-        System,
-        gx::{
-            self, Gpu, Reg as GxReg, Topology,
-            cmd::attributes::{AttributeDescriptor, AttributeMode},
-        },
-    },
-};
 use attributes::VertexAttributeTable;
-use bitos::{BitUtils, bitos, integer::u3};
+use bitos::integer::u3;
+use bitos::{BitUtils, bitos};
 use gekko::Address;
 use strum::FromRepr;
 use zerocopy::IntoBytes;
+
+use crate::Primitive;
+use crate::stream::{BinRingBuffer, BinaryStream};
+use crate::system::System;
+use crate::system::gx::cmd::attributes::{AttributeDescriptor, AttributeMode};
+use crate::system::gx::{self, Gpu, Reg as GxReg, Topology};
 
 /// A command processor register.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, FromRepr)]
 #[repr(u8)]
 pub enum Reg {
-    Unknown00 = 0x00,
-    Unknown10 = 0x10,
-    Unknown20 = 0x20,
+    Unknown00       = 0x00,
+    Unknown10       = 0x10,
+    Unknown20       = 0x20,
 
-    MatIndexLow = 0x30,
-    MatIndexHigh = 0x40,
+    MatIndexLow     = 0x30,
+    MatIndexHigh    = 0x40,
 
     // VCD
-    VcdLow = 0x50,
-    VcdHigh = 0x60,
+    VcdLow          = 0x50,
+    VcdHigh         = 0x60,
 
     // VAT
-    Vat0A = 0x70,
-    Vat1A = 0x71,
-    Vat2A = 0x72,
-    Vat3A = 0x73,
-    Vat4A = 0x74,
-    Vat5A = 0x75,
-    Vat6A = 0x76,
-    Vat7A = 0x77,
+    Vat0A           = 0x70,
+    Vat1A           = 0x71,
+    Vat2A           = 0x72,
+    Vat3A           = 0x73,
+    Vat4A           = 0x74,
+    Vat5A           = 0x75,
+    Vat6A           = 0x76,
+    Vat7A           = 0x77,
 
-    Vat0B = 0x80,
-    Vat1B = 0x81,
-    Vat2B = 0x82,
-    Vat3B = 0x83,
-    Vat4B = 0x84,
-    Vat5B = 0x85,
-    Vat6B = 0x86,
-    Vat7B = 0x87,
+    Vat0B           = 0x80,
+    Vat1B           = 0x81,
+    Vat2B           = 0x82,
+    Vat3B           = 0x83,
+    Vat4B           = 0x84,
+    Vat5B           = 0x85,
+    Vat6B           = 0x86,
+    Vat7B           = 0x87,
 
-    Vat0C = 0x90,
-    Vat1C = 0x91,
-    Vat2C = 0x92,
-    Vat3C = 0x93,
-    Vat4C = 0x94,
-    Vat5C = 0x95,
-    Vat6C = 0x96,
-    Vat7C = 0x97,
+    Vat0C           = 0x90,
+    Vat1C           = 0x91,
+    Vat2C           = 0x92,
+    Vat3C           = 0x93,
+    Vat4C           = 0x94,
+    Vat5C           = 0x95,
+    Vat6C           = 0x96,
+    Vat7C           = 0x97,
 
     // Array Base
-    PositionPtr = 0xA0,
-    NormalPtr = 0xA1,
-    Chan0Ptr = 0xA2,
-    Chan1Ptr = 0xA3,
-    Tex0CoordPtr = 0xA4,
-    Tex1CoordPtr = 0xA5,
-    Tex2CoordPtr = 0xA6,
-    Tex3CoordPtr = 0xA7,
-    Tex4CoordPtr = 0xA8,
-    Tex5CoordPtr = 0xA9,
-    Tex6CoordPtr = 0xAA,
-    Tex7CoordPtr = 0xAB,
-    GpArr0Ptr = 0xAC,
-    GpArr1Ptr = 0xAD,
-    GpArr2Ptr = 0xAE,
-    GpArr3Ptr = 0xAF,
+    PositionPtr     = 0xA0,
+    NormalPtr       = 0xA1,
+    Chan0Ptr        = 0xA2,
+    Chan1Ptr        = 0xA3,
+    Tex0CoordPtr    = 0xA4,
+    Tex1CoordPtr    = 0xA5,
+    Tex2CoordPtr    = 0xA6,
+    Tex3CoordPtr    = 0xA7,
+    Tex4CoordPtr    = 0xA8,
+    Tex5CoordPtr    = 0xA9,
+    Tex6CoordPtr    = 0xAA,
+    Tex7CoordPtr    = 0xAB,
+    GpArr0Ptr       = 0xAC,
+    GpArr1Ptr       = 0xAD,
+    GpArr2Ptr       = 0xAE,
+    GpArr3Ptr       = 0xAF,
 
     // Array Stride
-    PositionStride = 0xB0,
-    NormalStride = 0xB1,
-    Chan0Stride = 0xB2,
-    Chan1Stride = 0xB3,
+    PositionStride  = 0xB0,
+    NormalStride    = 0xB1,
+    Chan0Stride     = 0xB2,
+    Chan1Stride     = 0xB3,
     Tex0CoordStride = 0xB4,
     Tex1CoordStride = 0xB5,
     Tex2CoordStride = 0xB6,
@@ -92,10 +88,10 @@ pub enum Reg {
     Tex5CoordStride = 0xB9,
     Tex6CoordStride = 0xBA,
     Tex7CoordStride = 0xBB,
-    GpArr0Stride = 0xBC,
-    GpArr1Stride = 0xBD,
-    GpArr2Stride = 0xBE,
-    GpArr3Stride = 0xBF,
+    GpArr0Stride    = 0xBC,
+    GpArr1Stride    = 0xBD,
+    GpArr2Stride    = 0xBE,
+    GpArr3Stride    = 0xBF,
 }
 
 impl Reg {
@@ -108,23 +104,23 @@ impl Reg {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Operation {
     #[default]
-    NOP = 0b0_0000,
-    SetCP = 0b0_0001,
-    SetXF = 0b0_0010,
-    IndexedSetXFA = 0b0_0100,
-    IndexedSetXFB = 0b0_0101,
-    IndexedSetXFC = 0b0_0110,
-    IndexedSetXFD = 0b0_0111,
-    Call = 0b0_1000,
+    NOP               = 0b0_0000,
+    SetCP             = 0b0_0001,
+    SetXF             = 0b0_0010,
+    IndexedSetXFA     = 0b0_0100,
+    IndexedSetXFB     = 0b0_0101,
+    IndexedSetXFC     = 0b0_0110,
+    IndexedSetXFD     = 0b0_0111,
+    Call              = 0b0_1000,
     InvalidateVertexCache = 0b0_1001,
-    SetBP = 0b0_1100,
-    DrawQuadList = 0b1_0000,
-    DrawTriangleList = 0b1_0010,
+    SetBP             = 0b0_1100,
+    DrawQuadList      = 0b1_0000,
+    DrawTriangleList  = 0b1_0010,
     DrawTriangleStrip = 0b1_0011,
-    DrawTriangleFan = 0b1_0100,
-    DrawLineList = 0b1_0101,
-    DrawLineStrip = 0b1_0110,
-    DrawPointList = 0b1_0111,
+    DrawTriangleFan   = 0b1_0100,
+    DrawLineList      = 0b1_0101,
+    DrawLineStrip     = 0b1_0110,
+    DrawPointList     = 0b1_0111,
 }
 
 #[bitos(8)]

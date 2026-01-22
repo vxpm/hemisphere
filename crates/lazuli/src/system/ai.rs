@@ -1,8 +1,11 @@
 //! Audio interface (AI).
-use crate::system::{System, pi, scheduler::HandlerCtx};
-use bitos::{BitUtils, bitos, integer::u15};
+use bitos::integer::u15;
+use bitos::{BitUtils, bitos};
 use gekko::Address;
 use zerocopy::{FromBytes, Immutable, IntoBytes};
+
+use crate::system::scheduler::HandlerCtx;
+use crate::system::{System, pi};
 
 #[bitos(1)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

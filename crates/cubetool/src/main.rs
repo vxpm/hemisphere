@@ -1,16 +1,14 @@
 mod inspect;
 mod vfs;
 
+use std::io::{BufWriter, Read, Seek, SeekFrom};
+use std::path::PathBuf;
+
 use clap::{Parser, Subcommand};
-use disks::{
-    binrw::{BinWrite, io::BufReader},
-    dol, iso,
-};
+use disks::binrw::BinWrite;
+use disks::binrw::io::BufReader;
+use disks::{dol, iso};
 use eyre_pretty::{Context, ContextCompat, Result, bail, eyre};
-use std::{
-    io::{BufWriter, Read, Seek, SeekFrom},
-    path::PathBuf,
-};
 
 #[derive(Debug, Subcommand)]
 enum Command {

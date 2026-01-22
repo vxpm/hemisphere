@@ -1,7 +1,8 @@
+use std::path::Path;
+
 use binrw::helpers::until_eof;
 use binrw::io::BufReader;
 use binrw::{BinRead, binread};
-use std::path::Path;
 
 #[derive(BinRead)]
 #[br(import(instructions: u16), little)]

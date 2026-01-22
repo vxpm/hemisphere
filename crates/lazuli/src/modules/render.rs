@@ -1,18 +1,18 @@
 //! Renderer module interface.
 
-use crate::system::gx::{
-    CullingMode, EFB_HEIGHT, EFB_WIDTH, Topology, VertexStream,
-    colors::{Abgr8, Rgba, Rgba8, Rgba16},
-    pix::{BlendMode, BufferFormat, ConstantAlpha, DepthMode},
-    tev::{AlphaFunction, Constant, StageOps, StageRefs},
-    tex::TextureData,
-    xform::{BaseTexGen, ChannelControl, Light, ProjectionMat},
-};
+use color::{Abgr8, Rgba, Rgba8, Rgba16};
 use glam::Mat4;
 use oneshot::Sender;
 use ordered_float::OrderedFloat;
 use static_assertions::const_assert;
 
+use crate::system::gx::pix::{BlendMode, BufferFormat, ConstantAlpha, DepthMode};
+use crate::system::gx::tev::{AlphaFunction, Constant, StageOps, StageRefs};
+use crate::system::gx::tex::{ClutFormat, Format, LodLimits, MipmapData, SamplerMode};
+use crate::system::gx::xform::{BaseTexGen, ChannelControl, Light, ProjectionMat};
+use crate::system::gx::{CullingMode, EFB_HEIGHT, EFB_WIDTH, Topology, VertexStream};
+
+#[rustfmt::skip]
 pub use oneshot;
 
 /// Wrapper around a [`Mat4`] that allows hashing through [`OrderedFloat`].
@@ -35,8 +35,8 @@ pub struct Viewport {
     pub height: f32,
     pub top_left_x: f32,
     pub top_left_y: f32,
-    pub near_z: f32,
-    pub far_z: f32,
+    pub near_depth: f32,
+    pub far_depth: f32,
 }
 
 impl Default for Viewport {
@@ -46,8 +46,8 @@ impl Default for Viewport {
             height: EFB_HEIGHT as f32,
             top_left_x: 0.0,
             top_left_y: 0.0,
-            near_z: 0.0,
-            far_z: 1.0,
+            near_depth: 0.0,
+            far_depth: 1.0,
         }
     }
 }
@@ -96,6 +96,44 @@ pub struct TexGenConfig {
     pub stages: Vec<TexGenStage>,
 }
 
+#[derive(Debug, Clone)]
+pub struct Texture {
+    pub width: u32,
+    pub height: u32,
+    pub format: Format,
+    pub data: MipmapData,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub struct Sampler {
+    pub mode: SamplerMode,
+    pub lods: LodLimits,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct Scaling {
+    pub u: f32,
+    pub v: f32,
+}
+
+#[derive(Debug, Clone)]
+pub struct Clut(pub Vec<u16>);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub struct TextureId(pub u32);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub struct ClutAddress(pub u16);
+
+impl ClutAddress {
+    /// Returns the address of this CLUT in the high bank of TMEM, assuming 16-bit addressing.
+    pub fn to_tmem_addr(&self) -> usize {
+        // the offset is in multiples of the CLUT length. since each CLUT has 16 entries that are
+        // replicated 16 times, the CLUT length is 256 16-bit words
+        self.0 as usize * 256
+    }
+}
+
 pub enum Action {
     SetFramebufferFormat(BufferFormat),
     SetViewport(Viewport),
@@ -115,14 +153,20 @@ pub enum Action {
     SetAlphaChannel(u8, ChannelControl),
     SetLight(u8, Light),
     LoadTexture {
-        id: u32,
-        width: u32,
-        height: u32,
-        data: TextureData,
+        texture: Texture,
+        id: TextureId,
     },
-    SetTexture {
-        index: usize,
-        id: u32,
+    LoadClut {
+        addr: ClutAddress,
+        clut: Clut,
+    },
+    SetTextureSlot {
+        slot: usize,
+        texture_id: TextureId,
+        sampler: Sampler,
+        scaling: Scaling,
+        clut_addr: ClutAddress,
+        clut_fmt: ClutFormat,
     },
     Draw(Topology, VertexStream),
     ColorCopy {

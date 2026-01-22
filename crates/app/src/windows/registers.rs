@@ -1,11 +1,10 @@
-use crate::{
-    State,
-    windows::{AppWindow, Ctx},
-};
 use eframe::egui::{self, Color32};
 use egui_extras::{Column, TableBuilder};
 use lazuli::gekko::Cpu;
 use serde::{Deserialize, Serialize};
+
+use crate::State;
+use crate::windows::{AppWindow, Ctx};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 enum Group {

@@ -1,19 +1,21 @@
 mod settings;
 mod shader;
 
+use std::borrow::Cow;
+use std::collections::hash_map::Entry;
+
 use lazuli::system::gx::CullingMode;
 use rustc_hash::FxHashMap;
-pub use settings::*;
-use std::{borrow::Cow, collections::hash_map::Entry};
 
-pub struct Pipeline {
-    pub settings: PipelineSettings,
+#[rustfmt::skip]
+pub use settings::*;
+
+pub struct Cache {
     group0_layout: wgpu::BindGroupLayout,
     group1_layout: wgpu::BindGroupLayout,
     layout: wgpu::PipelineLayout,
-    cached_pipelines: FxHashMap<PipelineSettings, wgpu::RenderPipeline>,
+    cached_pipelines: FxHashMap<Settings, wgpu::RenderPipeline>,
     cached_shaders: FxHashMap<ShaderSettings, wgpu::ShaderModule>,
-    pipeline: wgpu::RenderPipeline,
 }
 
 fn split_factor(factor: wgpu::BlendFactor) -> (wgpu::BlendFactor, wgpu::BlendFactor) {
@@ -40,12 +42,12 @@ fn remove_dst_alpha(factor: wgpu::BlendFactor) -> wgpu::BlendFactor {
     }
 }
 
-impl Pipeline {
+impl Cache {
     fn create_pipeline(
         cached_shaders: &mut FxHashMap<ShaderSettings, wgpu::ShaderModule>,
         device: &wgpu::Device,
         layout: &wgpu::PipelineLayout,
-        settings: &PipelineSettings,
+        settings: &Settings,
         id: u32,
     ) -> wgpu::RenderPipeline {
         let depth_stencil = if settings.depth.enabled {
@@ -190,8 +192,10 @@ impl Pipeline {
             entries: &[
                 // vertices
                 storage_buffer(0),
-                // configs
+                // matrices
                 storage_buffer(1),
+                // configs
+                storage_buffer(2),
             ],
         });
 
@@ -205,59 +209,46 @@ impl Pipeline {
             },
             count: None,
         };
+
         let sampler = |binding| wgpu::BindGroupLayoutEntry {
             binding,
             visibility: wgpu::ShaderStages::FRAGMENT,
             ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
             count: None,
         };
+
+        let mut current_binding = 0;
+        let mut entries = Vec::with_capacity(2 * 8);
+        for _ in 0..8 {
+            entries.push(tex(current_binding));
+            entries.push(sampler(current_binding + 1));
+            current_binding += 2;
+        }
+
         let group1_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: None,
-            entries: &[
-                tex(0),
-                sampler(1),
-                tex(2),
-                sampler(3),
-                tex(4),
-                sampler(5),
-                tex(6),
-                sampler(7),
-                tex(8),
-                sampler(9),
-                tex(10),
-                sampler(11),
-                tex(12),
-                sampler(13),
-                tex(14),
-                sampler(15),
-            ],
+            entries: &entries,
         });
 
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: None,
             bind_group_layouts: &[&group0_layout, &group1_layout],
-            push_constant_ranges: &[],
+            push_constant_ranges: &[wgpu::PushConstantRange {
+                stages: wgpu::ShaderStages::FRAGMENT,
+                range: 0..64,
+            }],
         });
 
-        let settings = PipelineSettings::default();
-        let mut cached_pipelines = FxHashMap::default();
-        let mut cached_shaders = FxHashMap::default();
-
-        let pipeline = Self::create_pipeline(&mut cached_shaders, device, &layout, &settings, 0);
-        cached_pipelines.insert(settings.clone(), pipeline.clone());
-
         Self {
-            settings,
             group0_layout,
             group1_layout,
             layout,
-            cached_pipelines,
-            cached_shaders,
-            pipeline,
+            cached_pipelines: Default::default(),
+            cached_shaders: Default::default(),
         }
     }
 
-    pub fn primitives_group_layout(&self) -> &wgpu::BindGroupLayout {
+    pub fn data_group_layout(&self) -> &wgpu::BindGroupLayout {
         &self.group0_layout
     }
 
@@ -265,23 +256,17 @@ impl Pipeline {
         &self.group1_layout
     }
 
-    pub fn pipeline(&self) -> &wgpu::RenderPipeline {
-        &self.pipeline
-    }
-
-    pub fn update(&mut self, device: &wgpu::Device) {
+    pub fn get(&mut self, device: &wgpu::Device, settings: &Settings) -> &wgpu::RenderPipeline {
         let len = self.cached_pipelines.len() as u32;
-        self.pipeline = match self.cached_pipelines.entry(self.settings.clone()) {
-            Entry::Occupied(o) => o.get().clone(),
-            Entry::Vacant(v) => v
-                .insert(Self::create_pipeline(
-                    &mut self.cached_shaders,
-                    device,
-                    &self.layout,
-                    &self.settings,
-                    len,
-                ))
-                .clone(),
-        };
+        match self.cached_pipelines.entry(settings.clone()) {
+            Entry::Occupied(o) => o.into_mut(),
+            Entry::Vacant(v) => v.insert(Self::create_pipeline(
+                &mut self.cached_shaders,
+                device,
+                &self.layout,
+                settings,
+                len,
+            )),
+        }
     }
 }

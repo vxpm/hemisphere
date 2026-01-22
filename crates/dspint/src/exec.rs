@@ -1,6 +1,8 @@
-use crate::{Acc40, Ins, Interpreter, Reg, Registers, Status, ins::CondCode};
 use bitos::BitUtils;
 use lazuli::system::System;
+
+use crate::ins::CondCode;
+use crate::{Acc40, Ins, Interpreter, Reg, Registers, Status};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum MultiplyMode {

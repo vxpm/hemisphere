@@ -55,8 +55,9 @@ impl Ins {
 
 #[cfg(test)]
 mod test {
-    use super::{ExtensionOpcode, Opcode};
     use strum::VariantArray;
+
+    use super::{ExtensionOpcode, Opcode};
 
     #[test]
     fn unique_opcodes() {

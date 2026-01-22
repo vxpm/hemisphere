@@ -1,11 +1,15 @@
 #![expect(clippy::identity_op, reason = "seq expanded code")]
 #![expect(clippy::erasing_op, reason = "seq expanded code")]
 
+use std::marker::PhantomData;
+
 use bitut::BitUtils;
+use color::convert_range;
 use multiversion::multiversion;
 use seq_macro::seq;
-use std::marker::PhantomData;
-use zerocopy::{FromBytes, Immutable, IntoBytes};
+
+#[rustfmt::skip]
+pub use color;
 
 // const DITHER: [[i8; 8]; 8] = [
 //     [0, 32, 8, 40, 2, 34, 10, 42],
@@ -18,165 +22,10 @@ use zerocopy::{FromBytes, Immutable, IntoBytes};
 //     [63, 31, 55, 23, 61, 29, 53, 21],
 // ];
 
+pub type Pixel = color::Rgba8;
 pub type PaletteIndex = u16;
 
-/// Converts a value in range `0..=OLD_MAX` to a value in the range `0..=NEW_MAX`.
-#[inline(always)]
-fn range_conv<const OLD_MAX: u32, const NEW_MAX: u32>(value: u8) -> u8 {
-    const {
-        assert!(OLD_MAX != 0);
-        assert!(OLD_MAX <= 255);
-        assert!(NEW_MAX <= 255);
-    };
-
-    let value = value as u32;
-    ((value * NEW_MAX + OLD_MAX / 2) / OLD_MAX) as u8
-}
-
-#[inline(always)]
-fn fast_range_conv_31_to_255(value: u8) -> u8 {
-    // 255 / 31 is approx 8.25, so multiply value by 8 and divide by 4 then add them
-    (value << 3) | (value >> 2)
-}
-
-#[inline(always)]
-fn fast_range_conv_63_to_255(value: u8) -> u8 {
-    // 255 / 63 is approx 4.0625, so multiply value by 4 and divide by 16 then add them
-    (value << 2) | (value >> 4)
-}
-
-#[inline(always)]
-fn fast_range_conv_255_to_31(value: u8) -> u8 {
-    // 31 / 255 is approx 0.125, so divide by 8
-    value >> 3
-}
-
-#[inline(always)]
-fn fast_range_conv_255_to_63(value: u8) -> u8 {
-    // 63 / 255 is approx 0.25, so divide by 4
-    value >> 2
-}
-
-/// A single RGBA8 pixel.
-#[derive(Debug, Clone, Copy, Default, Immutable, IntoBytes, FromBytes)]
-#[repr(C)]
-pub struct Pixel {
-    pub r: u8,
-    pub g: u8,
-    pub b: u8,
-    pub a: u8,
-}
-
-impl Pixel {
-    #[inline(always)]
-    pub fn from_rgb565(value: u16) -> Self {
-        Self {
-            r: range_conv::<31, 255>(value.bits(11, 16) as u8),
-            g: range_conv::<63, 255>(value.bits(5, 11) as u8),
-            b: range_conv::<31, 255>(value.bits(0, 5) as u8),
-            a: 255,
-        }
-    }
-
-    #[inline(always)]
-    pub fn from_rgb565_fast(value: u16) -> Self {
-        Self {
-            r: fast_range_conv_31_to_255(value.bits(11, 16) as u8),
-            g: fast_range_conv_63_to_255(value.bits(5, 11) as u8),
-            b: fast_range_conv_31_to_255(value.bits(0, 5) as u8),
-            a: 255,
-        }
-    }
-
-    #[inline(always)]
-    pub fn to_rgb565(self) -> u16 {
-        let r = range_conv::<255, 31>(self.r);
-        let g = range_conv::<255, 63>(self.g);
-        let b = range_conv::<255, 31>(self.b);
-        0u16.with_bits(0, 5, b as u16)
-            .with_bits(5, 11, g as u16)
-            .with_bits(11, 16, r as u16)
-    }
-
-    #[inline(always)]
-    pub fn to_rgb565_fast(self) -> u16 {
-        let r = fast_range_conv_255_to_31(self.r);
-        let g = fast_range_conv_255_to_63(self.g);
-        let b = fast_range_conv_255_to_31(self.b);
-        0u16.with_bits(0, 5, b as u16)
-            .with_bits(5, 11, g as u16)
-            .with_bits(11, 16, r as u16)
-    }
-
-    #[inline(always)]
-    pub fn from_rgb5a3(value: u16) -> Self {
-        if value.bit(15) {
-            Pixel {
-                r: range_conv::<31, 255>(value.bits(10, 15) as u8),
-                g: range_conv::<31, 255>(value.bits(5, 10) as u8),
-                b: range_conv::<31, 255>(value.bits(0, 5) as u8),
-                a: 255,
-            }
-        } else {
-            Pixel {
-                r: range_conv::<15, 255>(value.bits(8, 12) as u8),
-                g: range_conv::<15, 255>(value.bits(4, 8) as u8),
-                b: range_conv::<15, 255>(value.bits(0, 4) as u8),
-                a: value.bits(12, 15) as u8 * 32,
-            }
-        }
-    }
-
-    #[inline(always)]
-    pub fn to_rgb5a3(self) -> u16 {
-        if self.a == 255 {
-            let r = range_conv::<255, 31>(self.r);
-            let g = range_conv::<255, 31>(self.g);
-            let b = range_conv::<255, 31>(self.b);
-            0u16.with_bits(0, 5, b as u16)
-                .with_bits(5, 10, g as u16)
-                .with_bits(10, 15, r as u16)
-                .with_bit(15, true)
-        } else {
-            let r = range_conv::<255, 15>(self.r);
-            let g = range_conv::<255, 15>(self.g);
-            let b = range_conv::<255, 15>(self.b);
-            let a = self.a / 32;
-
-            0u16.with_bits(0, 4, b as u16)
-                .with_bits(4, 8, g as u16)
-                .with_bits(8, 12, r as u16)
-                .with_bits(12, 15, a as u16)
-                .with_bit(15, false)
-        }
-    }
-
-    #[inline(always)]
-    pub fn lerp(self, rhs: Self, t: f32) -> Self {
-        let lerp = |a, b, t| a * (1.0 - t) + b * t;
-        Self {
-            r: lerp(self.r as f32, rhs.r as f32, t).round() as u8,
-            g: lerp(self.g as f32, rhs.g as f32, t).round() as u8,
-            b: lerp(self.b as f32, rhs.b as f32, t).round() as u8,
-            a: lerp(self.a as f32, rhs.a as f32, t).round() as u8,
-        }
-    }
-
-    #[inline(always)]
-    pub fn y(self) -> u8 {
-        let (r, g, b) = (self.r as f32, self.g as f32, self.b as f32);
-        (0.257 * r + 0.504 * g + 0.098 * b + 16.0) as u8
-    }
-
-    #[inline(always)]
-    pub fn fast_y(self) -> u8 {
-        let (r, g, b) = (self.r as u16, self.g as u16, self.b as u16);
-        (r / 4 + g / 2 + b / 8 + 16).min(255) as u8
-    }
-}
-
 pub trait Format {
-    const NIBBLES_PER_TEXEL: usize;
     const TILE_WIDTH: usize;
     const TILE_HEIGHT: usize;
     const BYTES_PER_TILE: usize = 32;
@@ -188,9 +37,9 @@ pub trait Format {
 }
 
 pub fn compute_size<F: Format>(width: usize, height: usize) -> usize {
-    let width = width.next_multiple_of(F::TILE_WIDTH);
-    let height = height.next_multiple_of(F::TILE_HEIGHT);
-    (width * height * F::NIBBLES_PER_TEXEL).div_ceil(2)
+    let width = width.div_ceil(F::TILE_WIDTH);
+    let height = height.div_ceil(F::TILE_HEIGHT);
+    width * height * F::BYTES_PER_TILE
 }
 
 /// Stride is in cache lines.
@@ -202,16 +51,17 @@ pub fn encode<F: Format>(
     data: &[F::Texel],
     buffer: &mut [u8],
 ) {
-    assert!(buffer.len() >= ((width * height * F::NIBBLES_PER_TEXEL).div_ceil(2)));
+    assert!(buffer.len() >= compute_size::<F>(width, height));
 
     let cache_lines_per_tile = F::BYTES_PER_TILE / 32;
+    let stride_in_tiles = stride / cache_lines_per_tile;
     let width_in_tiles = width.div_ceil(F::TILE_WIDTH);
     let height_in_tiles = height.div_ceil(F::TILE_HEIGHT);
 
     for tile_y in 0..height_in_tiles {
         for tile_x in 0..width_in_tiles {
             // where should data be written to?
-            let tile_index = tile_y * stride / cache_lines_per_tile + tile_x;
+            let tile_index = tile_y * stride_in_tiles + tile_x;
             let tile_offset = tile_index * F::BYTES_PER_TILE;
             let out = &mut buffer[tile_offset..][..F::BYTES_PER_TILE];
 
@@ -240,7 +90,7 @@ pub fn decode<F: Format>(width: usize, height: usize, data: &[u8]) -> Vec<F::Tex
 
     let full_width = width_in_tiles * F::TILE_WIDTH;
     let full_height = height_in_tiles * F::TILE_HEIGHT;
-    assert!(data.len() >= ((full_width * full_height * F::NIBBLES_PER_TEXEL).div_ceil(2)));
+    assert!(data.len() >= compute_size::<F>(full_width, full_height));
 
     for tile_y in 0..height_in_tiles {
         for tile_x in 0..width_in_tiles {
@@ -325,10 +175,9 @@ impl ComponentSource for FastLuma {
     }
 }
 
-pub struct I4<Source>(PhantomData<Source>);
+pub struct I4<Source = Luma>(PhantomData<Source>);
 
 impl<Source: ComponentSource> Format for I4<Source> {
-    const NIBBLES_PER_TEXEL: usize = 1;
     const TILE_WIDTH: usize = 8;
     const TILE_HEIGHT: usize = 8;
 
@@ -338,7 +187,7 @@ impl<Source: ComponentSource> Format for I4<Source> {
         for y in 0..Self::TILE_HEIGHT {
             for x in 0..Self::TILE_WIDTH {
                 let pixel = get(x, y);
-                let intensity = range_conv::<255, 15>(Source::get(pixel));
+                let intensity = convert_range::<255, 15>(Source::get(pixel));
 
                 let index = y * Self::TILE_WIDTH + x;
                 let current = data[index / 2];
@@ -359,7 +208,7 @@ impl<Source: ComponentSource> Format for I4<Source> {
             for x in 0..Self::TILE_WIDTH {
                 let index = y * Self::TILE_WIDTH + x;
                 let value = data[index / 2];
-                let intensity = range_conv::<15, 255>(if index % 2 == 0 {
+                let intensity = convert_range::<15, 255>(if index % 2 == 0 {
                     value.bits(4, 8)
                 } else {
                     value.bits(0, 4)
@@ -380,12 +229,13 @@ impl<Source: ComponentSource> Format for I4<Source> {
     }
 }
 
-pub struct IA4<IntensitySource, AlphaSource>(PhantomData<(IntensitySource, AlphaSource)>);
+pub struct IA4<IntensitySource = Luma, AlphaSource = AlphaChannel>(
+    PhantomData<(IntensitySource, AlphaSource)>,
+);
 
 impl<IntensitySource: ComponentSource, AlphaSource: ComponentSource> Format
     for IA4<IntensitySource, AlphaSource>
 {
-    const NIBBLES_PER_TEXEL: usize = 2;
     const TILE_WIDTH: usize = 8;
     const TILE_HEIGHT: usize = 4;
 
@@ -395,8 +245,8 @@ impl<IntensitySource: ComponentSource, AlphaSource: ComponentSource> Format
         for y in 0..Self::TILE_HEIGHT {
             for x in 0..Self::TILE_WIDTH {
                 let pixel = get(x, y);
-                let intensity = range_conv::<255, 15>(IntensitySource::get(pixel));
-                let alpha = range_conv::<255, 15>(AlphaSource::get(pixel));
+                let intensity = convert_range::<255, 15>(IntensitySource::get(pixel));
+                let alpha = convert_range::<255, 15>(AlphaSource::get(pixel));
 
                 let index = y * Self::TILE_WIDTH + x;
                 data[index] = 0.with_bits(0, 4, intensity).with_bits(4, 8, alpha);
@@ -409,8 +259,8 @@ impl<IntensitySource: ComponentSource, AlphaSource: ComponentSource> Format
             for x in 0..Self::TILE_WIDTH {
                 let index = y * Self::TILE_WIDTH + x;
                 let value = data[index];
-                let intensity = range_conv::<15, 255>(value.bits(0, 4));
-                let alpha = range_conv::<15, 255>(value.bits(4, 8));
+                let intensity = convert_range::<15, 255>(value.bits(0, 4));
+                let alpha = convert_range::<15, 255>(value.bits(4, 8));
 
                 set(
                     x,
@@ -427,10 +277,9 @@ impl<IntensitySource: ComponentSource, AlphaSource: ComponentSource> Format
     }
 }
 
-pub struct I8<Source>(PhantomData<Source>);
+pub struct I8<Source = Luma>(PhantomData<Source>);
 
 impl<Source: ComponentSource> Format for I8<Source> {
-    const NIBBLES_PER_TEXEL: usize = 2;
     const TILE_WIDTH: usize = 8;
     const TILE_HEIGHT: usize = 4;
 
@@ -469,12 +318,13 @@ impl<Source: ComponentSource> Format for I8<Source> {
     }
 }
 
-pub struct IA8<IntensitySource, AlphaSource>(PhantomData<(IntensitySource, AlphaSource)>);
+pub struct IA8<IntensitySource = Luma, AlphaSource = AlphaChannel>(
+    PhantomData<(IntensitySource, AlphaSource)>,
+);
 
 impl<IntensitySource: ComponentSource, AlphaSource: ComponentSource> Format
     for IA8<IntensitySource, AlphaSource>
 {
-    const NIBBLES_PER_TEXEL: usize = 4;
     const TILE_WIDTH: usize = 4;
     const TILE_HEIGHT: usize = 4;
 
@@ -521,7 +371,6 @@ impl<IntensitySource: ComponentSource, AlphaSource: ComponentSource> Format
 pub struct Rgb565;
 
 impl Format for Rgb565 {
-    const NIBBLES_PER_TEXEL: usize = 4;
     const TILE_WIDTH: usize = 4;
     const TILE_HEIGHT: usize = 4;
 
@@ -565,7 +414,6 @@ impl Format for Rgb565 {
 pub struct FastRgb565;
 
 impl Format for FastRgb565 {
-    const NIBBLES_PER_TEXEL: usize = 4;
     const TILE_WIDTH: usize = 4;
     const TILE_HEIGHT: usize = 4;
 
@@ -609,7 +457,6 @@ impl Format for FastRgb565 {
 pub struct Rgb5A3;
 
 impl Format for Rgb5A3 {
-    const NIBBLES_PER_TEXEL: usize = 4;
     const TILE_WIDTH: usize = 4;
     const TILE_HEIGHT: usize = 4;
 
@@ -642,7 +489,6 @@ impl Format for Rgb5A3 {
 pub struct Rgba8;
 
 impl Format for Rgba8 {
-    const NIBBLES_PER_TEXEL: usize = 8;
     const TILE_WIDTH: usize = 4;
     const TILE_HEIGHT: usize = 4;
     const BYTES_PER_TILE: usize = 64;
@@ -688,7 +534,6 @@ impl Format for Rgba8 {
 pub struct Cmpr;
 
 impl Format for Cmpr {
-    const NIBBLES_PER_TEXEL: usize = 1;
     const TILE_WIDTH: usize = 8;
     const TILE_HEIGHT: usize = 8;
 
@@ -745,7 +590,6 @@ impl Format for Cmpr {
 pub struct CI4;
 
 impl Format for CI4 {
-    const NIBBLES_PER_TEXEL: usize = 1;
     const TILE_WIDTH: usize = 8;
     const TILE_HEIGHT: usize = 8;
 
@@ -789,7 +633,6 @@ impl Format for CI4 {
 pub struct CI8;
 
 impl Format for CI8 {
-    const NIBBLES_PER_TEXEL: usize = 2;
     const TILE_WIDTH: usize = 8;
     const TILE_HEIGHT: usize = 4;
 
@@ -820,7 +663,6 @@ impl Format for CI8 {
 pub struct CI14X2;
 
 impl Format for CI14X2 {
-    const NIBBLES_PER_TEXEL: usize = 4;
     const TILE_WIDTH: usize = 4;
     const TILE_HEIGHT: usize = 4;
 

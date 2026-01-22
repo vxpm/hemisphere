@@ -714,6 +714,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "color"
+version = "0.1.0"
+dependencies = [
+ "bitut",
+ "ordered-float",
+ "zerocopy",
+]
+
+[[package]]
 name = "color-backtrace"
 version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2152,6 +2161,7 @@ name = "gxtex"
 version = "0.1.0"
 dependencies = [
  "bitut",
+ "color",
  "criterion",
  "image",
  "multiversion",
@@ -2170,6 +2180,12 @@ dependencies = [
  "num-traits",
  "zerocopy",
 ]
+
+[[package]]
+name = "hashbrown"
+version = "0.13.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "43a3c133739dddd0d2990f9a4bdf8eb4b21ef50e4851ca85ab661199821d510e"
 
 [[package]]
 name = "hashbrown"
@@ -2568,6 +2584,7 @@ dependencies = [
  "bitos",
  "bitvec",
  "bytesize",
+ "color",
  "color-backtrace",
  "disks",
  "easyerr",
@@ -4056,8 +4073,10 @@ dependencies = [
  "glam",
  "lazuli",
  "rustc-hash 2.1.1",
+ "schnellru",
  "seq-macro",
  "tracing",
+ "util",
  "wesl",
  "wesl-quote",
  "wgpu",
@@ -4167,6 +4186,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "93fc1dc3aaa9bfed95e02e6eadabb4baf7e3078b0bd1b4d7b6b0b68378900502"
 dependencies = [
  "winapi-util",
+]
+
+[[package]]
+name = "schnellru"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "356285bbf17bea63d9e52e96bd18f039672ac92b55b8cb997d6162a2a37d1649"
+dependencies = [
+ "ahash",
+ "cfg-if",
+ "hashbrown 0.13.2",
 ]
 
 [[package]]

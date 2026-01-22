@@ -1,3 +1,5 @@
+//! Framebuffer (EFB color, EFB depth, XFB).
+
 use lazuli::system::gx::{EFB_HEIGHT, EFB_WIDTH};
 
 pub struct Framebuffer {
@@ -20,7 +22,7 @@ impl Framebuffer {
         };
 
         let color = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("efb color"),
+            label: Some("efb color resolved"),
             dimension: wgpu::TextureDimension::D2,
             size,
             format: wgpu::TextureFormat::Rgba8UnormSrgb,

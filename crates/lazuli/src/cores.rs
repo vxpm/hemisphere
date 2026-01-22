@@ -1,5 +1,6 @@
-use crate::system::System;
 use gekko::{Address, Cycles};
+
+use crate::system::System;
 
 #[derive(Default, Clone, Copy)]
 pub struct Executed {

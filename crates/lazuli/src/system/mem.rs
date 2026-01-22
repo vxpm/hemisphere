@@ -1,9 +1,11 @@
 //! Memory of the system.
+use std::alloc::Layout;
+use std::ptr::NonNull;
+
 use bitos::BitUtils;
 use gekko::{Address, Bat, MemoryManagement};
 
 use crate::system::ipl::Ipl;
-use std::{alloc::Layout, ptr::NonNull};
 
 pub const RAM_LEN: usize = 24 * bytesize::MIB as usize;
 pub const L2C_LEN: usize = 16 * bytesize::KIB as usize;

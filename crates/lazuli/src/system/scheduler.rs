@@ -1,6 +1,8 @@
-use crate::system::System;
-use gekko::Cycles;
 use std::collections::VecDeque;
+
+use gekko::Cycles;
+
+use crate::system::System;
 
 pub struct HandlerCtx {
     pub cycles_late: Cycles,

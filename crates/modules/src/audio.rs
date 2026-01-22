@@ -1,16 +1,11 @@
-use cpal::{
-    Device, Stream, SupportedStreamConfigRange,
-    traits::{DeviceTrait, HostTrait, StreamTrait},
-};
-use lazuli::{
-    modules::audio::AudioModule,
-    system::ai::{Frame, SampleRate},
-};
+use std::collections::VecDeque;
+use std::sync::{Arc, Mutex};
+
+use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use cpal::{Device, Stream, SupportedStreamConfigRange};
+use lazuli::modules::audio::AudioModule;
+use lazuli::system::ai::{Frame, SampleRate};
 use resampler::ResamplerFir;
-use std::{
-    collections::VecDeque,
-    sync::{Arc, Mutex},
-};
 use zerocopy::{FromBytes, Immutable, IntoBytes};
 
 #[derive(Debug, Clone, Copy, Default, FromBytes, IntoBytes, Immutable)]

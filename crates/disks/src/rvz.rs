@@ -1,10 +1,12 @@
 //! A `.rvz` file is a disc format designed to store the same data as `.iso` files in a
 //! space-efficient manner.
 
-use crate::{Console, apploader, dol, iso};
+use std::io::{Cursor, Read, Seek, SeekFrom};
+
 use binrw::{BinRead, BinResult, binread};
 use easyerr::{Error, ResultExt};
-use std::io::{Cursor, Read, Seek, SeekFrom};
+
+use crate::{Console, apploader, dol, iso};
 
 /// A SHA1 hash.
 #[derive(Clone, BinRead)]

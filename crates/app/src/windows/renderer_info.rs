@@ -1,10 +1,10 @@
-use crate::{
-    State,
-    windows::{AppWindow, Ctx},
-};
+use std::cell::Cell;
+
 use eframe::egui;
 use serde::{Deserialize, Serialize};
-use std::cell::Cell;
+
+use crate::State;
+use crate::windows::{AppWindow, Ctx};
 
 type RenderDoc = renderdoc::RenderDoc<renderdoc::V140>;
 

@@ -9,17 +9,15 @@ pub mod modules;
 pub mod panic;
 pub mod system;
 
-use crate::{
-    cores::Cores,
-    system::{Modules, System},
-};
-
 pub use disks;
 pub use gekko::{self, Address, Cycles};
 pub use primitive::Primitive;
 
+use crate::cores::Cores;
+use crate::system::{Modules, System};
+
 /// How many DSP instructions to execute per cycle.
-const DSP_INST_PER_CYCLE: f64 = 7.0 / 8.0;
+const DSP_INST_PER_CYCLE: f64 = 15.0 / 16.0;
 /// How many DSP cycles to execute per step.
 const DSP_STEP: u32 = 512;
 /// How many DSP instructions to execute per step.

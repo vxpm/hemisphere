@@ -1,34 +1,42 @@
 //! Texture unit (TX).
-use crate::system::gx::{
-    colors::Rgba8,
-    pix::{ColorCopyFormat, DepthCopyFormat},
-};
-use bitos::{
-    bitos,
-    integer::{u2, u10, u11},
-};
-use gekko::Address;
-use gxtex::PaletteIndex;
 use std::collections::HashMap;
 
+use bitos::bitos;
+use bitos::integer::{u2, u3, u10, u11};
+use color::Rgba8;
+use gekko::Address;
+use gxtex::PaletteIndex;
+
+use crate::modules::render;
+use crate::system::System;
+use crate::system::gx::pix::{ColorCopyFormat, DepthCopyFormat};
+
 #[derive(Debug, Clone)]
-pub enum TextureData {
+pub enum PlanarData {
     Direct(Vec<Rgba8>),
     Indirect(Vec<PaletteIndex>),
 }
 
-impl TextureData {
-    fn direct(data: Vec<gxtex::Pixel>) -> Self {
-        Self::Direct(
-            data.into_iter()
-                .map(|p| Rgba8 {
-                    r: p.r,
-                    g: p.g,
-                    b: p.b,
-                    a: p.a,
-                })
-                .collect(),
-        )
+#[derive(Debug, Clone)]
+pub enum MipmapData {
+    Direct(Vec<Vec<Rgba8>>),
+    Indirect(Vec<Vec<PaletteIndex>>),
+}
+
+impl MipmapData {
+    fn push(&mut self, lod: PlanarData) {
+        match (self, lod) {
+            (Self::Direct(lods), PlanarData::Direct(lod)) => lods.push(lod),
+            (Self::Indirect(lods), PlanarData::Indirect(lod)) => lods.push(lod),
+            _ => panic!("mismatched texture and planar formats - this is definitely a bug"),
+        }
+    }
+
+    pub fn lod_count(&self) -> u32 {
+        match self {
+            Self::Direct(lods) => lods.len() as u32,
+            Self::Indirect(lods) => lods.len() as u32,
+        }
     }
 }
 
@@ -36,9 +44,9 @@ impl TextureData {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum WrapMode {
     #[default]
-    Clamp = 0x0,
-    Repeat = 0x1,
-    Mirror = 0x2,
+    Clamp    = 0x0,
+    Repeat   = 0x1,
+    Mirror   = 0x2,
     Reserved = 0x3,
 }
 
@@ -46,45 +54,67 @@ pub enum WrapMode {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum MinFilter {
     #[default]
-    Near = 0x0,
-    NearMipNear = 0x1,
-    NearMipLinear = 0x2,
-    Reserved0 = 0x3,
-    Linear = 0x4,
-    LinearMipNear = 0x5,
+    Near            = 0x0,
+    NearMipNear     = 0x1,
+    NearMipLinear   = 0x2,
+    Reserved0       = 0x3,
+    Linear          = 0x4,
+    LinearMipNear   = 0x5,
     LinearMipLinear = 0x6,
-    Reserved = 0x7,
+    Reserved        = 0x7,
+}
+
+impl MinFilter {
+    pub fn is_linear(&self) -> bool {
+        matches!(
+            self,
+            Self::Linear | Self::LinearMipNear | Self::LinearMipLinear
+        )
+    }
+
+    pub fn uses_lods(&self) -> bool {
+        matches!(
+            self,
+            Self::NearMipNear | Self::NearMipLinear | Self::LinearMipNear | Self::LinearMipLinear
+        )
+    }
 }
 
 #[bitos(4)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Format {
     #[default]
-    I4 = 0x0,
-    I8 = 0x1,
-    IA4 = 0x2,
-    IA8 = 0x3,
-    Rgb565 = 0x4,
-    Rgb5A3 = 0x5,
-    Rgba8 = 0x6,
+    I4        = 0x0,
+    I8        = 0x1,
+    IA4       = 0x2,
+    IA8       = 0x3,
+    Rgb565    = 0x4,
+    Rgb5A3    = 0x5,
+    Rgba8     = 0x6,
     Reserved0 = 0x7,
-    CI4 = 0x8,
-    CI8 = 0x9,
-    CI14X2 = 0xA,
+    CI4       = 0x8,
+    CI8       = 0x9,
+    CI14X2    = 0xA,
     Reserved1 = 0xB,
     Reserved2 = 0xC,
     Reserved3 = 0xD,
-    Cmp = 0xE,
+    Cmp       = 0xE,
     Reserved4 = 0xF,
 }
 
+impl Format {
+    pub fn is_direct(&self) -> bool {
+        !matches!(self, Self::CI4 | Self::CI8 | Self::CI14X2)
+    }
+}
+
 #[bitos(32)]
-#[derive(Debug, Clone, Copy, Default)]
-pub struct Mode {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub struct SamplerMode {
     #[bits(0..2)]
-    pub wrap_s: WrapMode,
+    pub wrap_u: WrapMode,
     #[bits(2..4)]
-    pub wrap_t: WrapMode,
+    pub wrap_v: WrapMode,
     #[bits(4)]
     pub mag_linear: bool,
     #[bits(5..8)]
@@ -119,30 +149,56 @@ impl Encoding {
         self.height_minus_one().value() as u32 + 1
     }
 
-    // Size, in bytes, of the texture.
-    pub fn size(&self) -> u32 {
-        let pixels = |n| self.width().next_multiple_of(n) * self.height().next_multiple_of(n);
-        let pixels_ab = |a, b| self.width().next_multiple_of(a) * self.height().next_multiple_of(b);
+    pub fn lod_count(&self) -> u32 {
+        self.width().ilog2().max(self.height().ilog2()) + 1
+    }
 
-        match self.format() {
-            Format::I4 => pixels(8) / 2,
-            Format::I8 => pixels_ab(8, 4),
-            Format::IA4 => pixels(8),
-            Format::IA8 => pixels(4) * 2,
-            Format::Rgb565 => pixels(4) * 2,
-            Format::Rgb5A3 => pixels(4) * 2,
-            Format::Rgba8 => pixels(4) * 4,
-            Format::Cmp => pixels(8) / 2,
-            Format::CI8 => pixels(1),
-            Format::CI4 => pixels(1) / 2,
-            _ => todo!("format {:?}", self.format()),
+    pub fn length_for(width: u32, height: u32, format: Format) -> u32 {
+        use gxtex::{CI4, CI8, CI14X2, Cmpr, I4, I8, IA4, IA8, Rgb5A3, Rgb565, Rgba8};
+
+        let width = width as usize;
+        let height = height as usize;
+
+        (match format {
+            Format::I4 => gxtex::compute_size::<I4>(width, height),
+            Format::I8 => gxtex::compute_size::<I8>(width, height),
+            Format::IA4 => gxtex::compute_size::<IA4>(width, height),
+            Format::IA8 => gxtex::compute_size::<IA8>(width, height),
+            Format::Rgb565 => gxtex::compute_size::<Rgb565>(width, height),
+            Format::Rgb5A3 => gxtex::compute_size::<Rgb5A3>(width, height),
+            Format::Rgba8 => gxtex::compute_size::<Rgba8>(width, height),
+            Format::Cmp => gxtex::compute_size::<Cmpr>(width, height),
+            Format::CI4 => gxtex::compute_size::<CI4>(width, height),
+            Format::CI8 => gxtex::compute_size::<CI8>(width, height),
+            Format::CI14X2 => gxtex::compute_size::<CI14X2>(width, height),
+            _ => todo!("format {:?}", format),
+        }) as u32
+    }
+
+    // Size, in bytes, of the texture.
+    pub fn length(&self) -> u32 {
+        Self::length_for(self.width(), self.height(), self.format())
+    }
+
+    // Size, in bytes, of the texture, considering it as a mipmap.
+    pub fn length_mipmap(&self) -> u32 {
+        let mut current_width = self.width();
+        let mut current_height = self.height();
+
+        let mut size = 0;
+        for _ in 0..self.lod_count() {
+            size += Self::length_for(current_width, current_height, self.format());
+            current_width = (current_width / 2).max(1);
+            current_height = (current_height / 2).max(1);
         }
+
+        size
     }
 }
 
 #[bitos(32)]
-#[derive(Debug, Clone, Copy, Default)]
-pub struct ScaleS {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ScaleU {
     #[bits(0..16)]
     pub scale_minus_one: u16,
     #[bits(16)]
@@ -155,9 +211,16 @@ pub struct ScaleS {
     pub offset_points: bool,
 }
 
+impl ScaleU {
+    pub fn scale(&self) -> Option<u32> {
+        let scale = self.scale_minus_one();
+        (self.scale_minus_one() != 0).then_some(scale as u32 + 1)
+    }
+}
+
 #[bitos(32)]
-#[derive(Debug, Clone, Copy, Default)]
-pub struct ScaleT {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ScaleV {
     #[bits(0..16)]
     pub scale_minus_one: u16,
     #[bits(16)]
@@ -166,35 +229,81 @@ pub struct ScaleT {
     pub cylindrical_wrapping: bool,
 }
 
-#[derive(Debug, Clone, Copy, Default)]
+impl ScaleV {
+    pub fn scale(&self) -> Option<u32> {
+        let scale = self.scale_minus_one();
+        (self.scale_minus_one() != 0).then_some(scale as u32 + 1)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Scaling {
-    pub s: ScaleS,
-    pub t: ScaleT,
+    pub u: ScaleU,
+    pub v: ScaleV,
+}
+
+#[bitos(32)]
+#[derive(Debug, Clone, Copy, Default)]
+pub struct OddLod {
+    #[bits(18..21)]
+    pub cache_height: u3,
+}
+
+impl OddLod {
+    pub fn has_lods(&self) -> bool {
+        self.cache_height().value() != 0
+    }
+}
+
+#[bitos(32)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub struct LodLimits {
+    #[bits(0..8)]
+    pub min_raw: u8,
+    #[bits(8..16)]
+    pub max_raw: u8,
+}
+
+impl LodLimits {
+    pub fn min(&self) -> f32 {
+        self.min_raw() as f32 / 16.0
+    }
+
+    pub fn max(&self) -> f32 {
+        self.max_raw() as f32 / 16.0
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default)]
+pub struct Lods {
+    pub limits: LodLimits,
+    pub odd: OddLod,
+}
+
+#[derive(Debug, Clone, Default)]
 pub struct TextureMap {
     pub address: Address,
-    pub format: Encoding,
-    pub mode: Mode,
+    pub encoding: Encoding,
+    pub sampler: SamplerMode,
     pub scaling: Scaling,
-    pub lut: LutRef,
+    pub clut: LutRef,
+    pub lods: Lods,
     pub dirty: bool,
 }
 
 #[bitos(2)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum LutFormat {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum ClutFormat {
     #[default]
-    IA8 = 0b00,
-    RGB565 = 0b01,
-    RGB5A3 = 0b10,
+    IA8       = 0b00,
+    RGB565    = 0b01,
+    RGB5A3    = 0b10,
     Reserved0 = 0b11,
 }
 
 #[bitos(32)]
 #[derive(Debug, Clone, Copy, Default)]
-pub struct LutCount {
+pub struct ClutLoad {
     #[bits(0..10)]
     pub tmem_offset: u10,
     #[bits(10..21)]
@@ -207,70 +316,115 @@ pub struct LutRef {
     #[bits(0..10)]
     pub tmem_offset: u10,
     #[bits(10..12)]
-    pub format: LutFormat,
+    pub format: ClutFormat,
 }
 
 #[derive(Default)]
 pub struct Interface {
     pub maps: [TextureMap; 8],
-    pub cache: HashMap<Address, u64>,
+    pub clut_addr: Address,
+    pub clut_load: ClutLoad,
+    pub tex_cache: HashMap<Address, u64>,
+    pub clut_cache: HashMap<Address, u64>,
 }
 
 impl std::fmt::Debug for Interface {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Interface")
             .field("maps", &self.maps)
-            .field("cache", &self.cache)
+            .field("cache", &self.tex_cache)
             .finish()
     }
 }
 
 impl Interface {
-    /// Given an address and the texture data present there, returns whether the data hash matches
-    /// with the one in the cache. If not, the hash is inserted into the cache.
-    pub fn insert_cache(&mut self, addr: Address, data: &[u8]) -> bool {
+    pub fn is_tex_dirty(&mut self, addr: Address, data: &[u8]) -> bool {
         let new_hash = twox_hash::XxHash3_64::oneshot(data);
-        if let Some(old_hash) = self.cache.get(&addr) {
-            if *old_hash == new_hash {
-                true
-            } else {
-                self.cache.insert(addr, new_hash);
-                false
-            }
-        } else {
-            self.cache.insert(addr, new_hash);
+        let Some(old_hash) = self.tex_cache.get(&addr) else {
+            self.tex_cache.insert(addr, new_hash);
+            return true;
+        };
+
+        if *old_hash == new_hash {
             false
+        } else {
+            self.tex_cache.insert(addr, new_hash);
+            true
+        }
+    }
+
+    pub fn is_clut_dirty(&mut self, addr: Address, data: &[u8]) -> bool {
+        let new_hash = twox_hash::XxHash3_64::oneshot(data);
+        let Some(old_hash) = self.tex_cache.get(&addr) else {
+            self.tex_cache.insert(addr, new_hash);
+            return true;
+        };
+
+        if *old_hash == new_hash {
+            false
+        } else {
+            self.tex_cache.insert(addr, new_hash);
+            true
         }
     }
 }
 
-pub fn decode_texture(data: &[u8], format: Encoding) -> TextureData {
+/// Decodes a planar texture.
+fn decode_planar(data: &[u8], width: u32, height: u32, format: Format) -> PlanarData {
     use gxtex::{
         AlphaChannel, CI4, CI8, CI14X2, Cmpr, FastLuma, FastRgb565, I4, I8, IA4, IA8, Rgb5A3,
         Rgba8, decode,
     };
 
-    let width = format.width() as usize;
-    let height = format.height() as usize;
+    let width = width as usize;
+    let height = height as usize;
 
-    match format.format() {
-        Format::I4 => TextureData::direct(decode::<I4<FastLuma>>(width, height, data)),
+    match format {
+        Format::I4 => PlanarData::Direct(decode::<I4<FastLuma>>(width, height, data)),
         Format::IA4 => {
-            TextureData::direct(decode::<IA4<FastLuma, AlphaChannel>>(width, height, data))
+            PlanarData::Direct(decode::<IA4<FastLuma, AlphaChannel>>(width, height, data))
         }
-        Format::I8 => TextureData::direct(decode::<I8<FastLuma>>(width, height, data)),
+        Format::I8 => PlanarData::Direct(decode::<I8<FastLuma>>(width, height, data)),
         Format::IA8 => {
-            TextureData::direct(decode::<IA8<FastLuma, AlphaChannel>>(width, height, data))
+            PlanarData::Direct(decode::<IA8<FastLuma, AlphaChannel>>(width, height, data))
         }
-        Format::Rgb565 => TextureData::direct(decode::<FastRgb565>(width, height, data)),
-        Format::Rgb5A3 => TextureData::direct(decode::<Rgb5A3>(width, height, data)),
-        Format::Rgba8 => TextureData::direct(decode::<Rgba8>(width, height, data)),
-        Format::Cmp => TextureData::direct(decode::<Cmpr>(width, height, data)),
-        Format::CI4 => TextureData::Indirect(decode::<CI4>(width, height, data)),
-        Format::CI8 => TextureData::Indirect(decode::<CI8>(width, height, data)),
-        Format::CI14X2 => TextureData::Indirect(decode::<CI14X2>(width, height, data)),
+        Format::Rgb565 => PlanarData::Direct(decode::<FastRgb565>(width, height, data)),
+        Format::Rgb5A3 => PlanarData::Direct(decode::<Rgb5A3>(width, height, data)),
+        Format::Rgba8 => PlanarData::Direct(decode::<Rgba8>(width, height, data)),
+        Format::Cmp => PlanarData::Direct(decode::<Cmpr>(width, height, data)),
+        Format::CI4 => PlanarData::Indirect(decode::<CI4>(width, height, data)),
+        Format::CI8 => PlanarData::Indirect(decode::<CI8>(width, height, data)),
+        Format::CI14X2 => PlanarData::Indirect(decode::<CI14X2>(width, height, data)),
         _ => todo!("reserved texture format"),
     }
+}
+
+/// Decodes a mipmap texture with `count` levels.
+fn decode_mipmap(data: &[u8], width: u32, height: u32, format: Format, count: usize) -> MipmapData {
+    let mut mipmap = if format.is_direct() {
+        MipmapData::Direct(Vec::with_capacity(count))
+    } else {
+        MipmapData::Indirect(Vec::with_capacity(count))
+    };
+
+    let mut current_data = data;
+    let mut current_width = width;
+    let mut current_height = height;
+    for _ in 0..count {
+        mipmap.push(self::decode_planar(
+            current_data,
+            current_width,
+            current_height,
+            format,
+        ));
+
+        let consumed = Encoding::length_for(current_width, current_height, format) as usize;
+        current_data = &current_data[consumed..];
+        current_width = (current_width / 2).max(1);
+        current_height = (current_height / 2).max(1);
+    }
+
+    mipmap
 }
 
 pub fn encode_color_texture(
@@ -367,8 +521,81 @@ pub fn encode_depth_texture(
         DepthCopyFormat::Z8H => encode!(I8<BlueChannel>),
         DepthCopyFormat::Z8M => encode!(I8<GreenChannel>),
         DepthCopyFormat::Z8L => encode!(I8<RedChannel>),
-        DepthCopyFormat::Z16A => encode!(IA8<GreenChannel, RedChannel>),
+        DepthCopyFormat::Z16A => encode!(IA8<RedChannel, GreenChannel>),
         DepthCopyFormat::Z16B => encode!(IA8<GreenChannel, RedChannel>),
         _ => panic!("reserved depth format"),
+    }
+}
+
+pub fn update_texture(sys: &mut System, index: usize) {
+    let map = sys.gpu.tex.maps[index].clone();
+    let base = map.address;
+    let width = map.encoding.width();
+    let height = map.encoding.height();
+    let format = map.encoding.format();
+    let texture_id = render::TextureId(base.value());
+    let clut_addr = render::ClutAddress(map.clut.tmem_offset().value());
+    let clut_fmt = map.clut.format();
+
+    let (len, lods) = if map.sampler.min_filter().uses_lods() {
+        (
+            map.encoding.length_mipmap() as usize,
+            map.encoding.lod_count() as usize,
+        )
+    } else {
+        (map.encoding.length() as usize, 1)
+    };
+
+    let data = &sys.mem.ram()[base.value() as usize..][..len];
+    if sys.gpu.tex.is_tex_dirty(base, data) {
+        let data = self::decode_mipmap(data, width, height, format, lods);
+        sys.modules.render.exec(render::Action::LoadTexture {
+            id: texture_id,
+            texture: render::Texture {
+                width,
+                height,
+                format,
+                data,
+            },
+        });
+    }
+
+    let scale_u = map.scaling.u.scale().unwrap_or(width) as f32 / width as f32;
+    let scale_v = map.scaling.v.scale().unwrap_or(height) as f32 / height as f32;
+
+    sys.modules.render.exec(render::Action::SetTextureSlot {
+        slot: index,
+        texture_id,
+        sampler: render::Sampler {
+            mode: map.sampler,
+            lods: map.lods.limits,
+        },
+        scaling: render::Scaling {
+            u: scale_u,
+            v: scale_v,
+        },
+        clut_addr,
+        clut_fmt,
+    });
+}
+
+pub fn update_clut(sys: &mut System) {
+    let load = sys.gpu.tex.clut_load;
+    let clut_addr = render::ClutAddress(load.tmem_offset().value());
+
+    let base = sys.gpu.tex.clut_addr;
+    let len = load.count().value() as usize * 16 * 2;
+    let data = &sys.mem.ram()[base.value() as usize..][..len];
+
+    if sys.gpu.tex.is_clut_dirty(base, data) {
+        let clut = data
+            .chunks_exact(2)
+            .map(|x| u16::from_be_bytes([x[0], x[1]]))
+            .collect();
+
+        sys.modules.render.exec(render::Action::LoadClut {
+            addr: clut_addr,
+            clut: render::Clut(clut),
+        });
     }
 }

@@ -1,10 +1,8 @@
 //! Thread-local panic hooks.
 
-use std::{
-    cell::RefCell,
-    panic::PanicHookInfo,
-    sync::atomic::{AtomicBool, Ordering},
-};
+use std::cell::RefCell;
+use std::panic::PanicHookInfo;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use color_backtrace::{BacktracePrinter, default_output_stream};
 

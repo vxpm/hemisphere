@@ -1,10 +1,9 @@
 //! Video interface (VI).
-use crate::system::{System, pi, si};
-use bitos::{
-    bitos,
-    integer::{u4, u7, u9, u10, u24},
-};
+use bitos::bitos;
+use bitos::integer::{u4, u7, u9, u10, u24};
 use gekko::{Address, FREQUENCY};
+
+use crate::system::{System, pi, si};
 
 #[bitos(16)]
 #[derive(Debug, Clone, Copy, Default)]
@@ -21,9 +20,9 @@ pub struct VerticalTiming {
 #[derive(Debug, Clone, Copy, Default)]
 pub enum DisplayLatchMode {
     #[default]
-    Off = 0,
-    Once = 1,
-    Twice = 2,
+    Off    = 0,
+    Once   = 1,
+    Twice  = 2,
     Always = 3,
 }
 
@@ -31,7 +30,7 @@ pub enum DisplayLatchMode {
 #[derive(Debug, Clone, Copy, Default)]
 pub enum VideoFormat {
     #[default]
-    NTSC = 0,
+    NTSC  = 0,
     Pal50 = 1,
     Pal60 = 2,
     Debug = 3,

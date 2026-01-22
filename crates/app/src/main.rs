@@ -4,42 +4,32 @@ mod cli;
 mod runner;
 mod windows;
 
-use crate::{
-    runner::Runner,
-    windows::{AppWindow, AppWindowState},
-};
+use std::io::BufReader;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+
 use clap::Parser;
-use eframe::{
-    egui,
-    egui_wgpu::{WgpuConfiguration, WgpuSetup, WgpuSetupCreateNew},
-};
+use eframe::egui;
+use eframe::egui_wgpu::{WgpuConfiguration, WgpuSetup, WgpuSetupCreateNew};
 use eyre_pretty::eyre::Result;
-use lazuli::{
-    Lazuli,
-    cores::Cores,
-    disks::rvz::Rvz,
-    modules::{
-        debug::{DebugModule, NopDebugModule},
-        disk::{DiskModule, NopDiskModule},
-    },
-    system::{self, Modules, executable::Executable},
-};
+use lazuli::Lazuli;
+use lazuli::cores::Cores;
+use lazuli::disks::rvz::Rvz;
+use lazuli::modules::debug::{DebugModule, NopDebugModule};
+use lazuli::modules::disk::{DiskModule, NopDiskModule};
+use lazuli::system::executable::Executable;
+use lazuli::system::{self, Modules};
+use modules::audio::CpalModule;
+use modules::debug::{Addr2LineModule, MapFileModule};
+use modules::disk::{IsoModule, RvzModule};
+use modules::input::GilrsModule;
 use nanorand::Rng;
 use renderer::Renderer;
 use runner::State;
-use std::{
-    io::BufReader,
-    sync::Arc,
-    time::{Duration, Instant},
-};
 use vtxjit::JitVertexModule;
 
-use modules::{
-    audio::CpalModule,
-    debug::{Addr2LineModule, MapFileModule},
-    disk::{IsoModule, RvzModule},
-    input::GilrsModule,
-};
+use crate::runner::Runner;
+use crate::windows::{AppWindow, AppWindowState};
 
 struct App {
     last_update: Instant,
@@ -363,7 +353,9 @@ impl eframe::App for App {
 }
 
 fn setup_tracing() -> tracing_appender::non_blocking::WorkerGuard {
-    use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
+    use tracing_subscriber::layer::SubscriberExt;
+    use tracing_subscriber::util::SubscriberInitExt;
+    use tracing_subscriber::{EnvFilter, fmt};
 
     let file = std::fs::File::options()
         .truncate(true)
@@ -396,9 +388,11 @@ fn main() -> Result<()> {
         let mut required_features = wgpu::Features::empty();
         required_features |= wgpu::Features::DUAL_SOURCE_BLENDING;
         required_features |= wgpu::Features::FLOAT32_FILTERABLE;
+        required_features |= wgpu::Features::PUSH_CONSTANTS;
 
         let mut required_limits = wgpu::Limits::defaults();
         required_limits.max_texture_dimension_2d = 8192;
+        required_limits.max_push_constant_size = 64;
 
         wgpu::DeviceDescriptor {
             label: Some("lazuli wgpu device"),

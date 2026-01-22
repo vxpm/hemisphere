@@ -1,10 +1,10 @@
 //! Vertex parsing module interface.
-use crate::system::gx::{
-    MatrixSet, Vertex,
-    cmd::{Arrays, VertexAttributeStream, VertexDescriptor, attributes::VertexAttributeTable},
-    xform::DefaultMatrices,
-};
 use std::mem::MaybeUninit;
+
+use crate::system::gx::cmd::attributes::VertexAttributeTable;
+use crate::system::gx::cmd::{Arrays, VertexAttributeStream, VertexDescriptor};
+use crate::system::gx::xform::DefaultMatrices;
+use crate::system::gx::{MatrixSet, Vertex};
 
 #[derive(Clone, Copy)]
 pub struct Ctx<'ctx> {

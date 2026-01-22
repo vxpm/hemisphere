@@ -12,7 +12,9 @@ workspace = true
 wesl.workspace = true
 
 [dependencies]
-lazuli = { path = "../lazuli/" }
+lazuli.workspace = true
+util.workspace = true
+
 tracing.workspace = true
 wgpu.workspace = true
 zerocopy.workspace = true
@@ -23,6 +25,7 @@ rustc-hash.workspace = true
 seq-macro.workspace = true
 
 flume = "0.12"
+schnellru = { version = "0.2", default-features = false }
 
 # some target specific stuff for better build times i hope?
 [target.'cfg(target_os = "linux")'.dependencies]

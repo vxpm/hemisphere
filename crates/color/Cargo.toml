@@ -1,0 +1,14 @@
+[package]
+name = "color"
+description = "Color types"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[lints]
+workspace = true
+
+[dependencies]
+bitut.workspace = true
+ordered-float.workspace = true
+zerocopy.workspace = true

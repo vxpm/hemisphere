@@ -1,13 +1,10 @@
+use cranelift::codegen::ir;
+use cranelift::prelude::{FloatCC, FunctionBuilder, InstBuilder, IntCC};
+use gekko::disasm::{Ins, ParsedIns};
+use gekko::{Reg, SPR};
+
 use super::{Action, BlockBuilder};
 use crate::builder::InstructionInfo;
-use cranelift::{
-    codegen::ir,
-    prelude::{FloatCC, FunctionBuilder, InstBuilder, IntCC},
-};
-use gekko::{
-    Reg, SPR,
-    disasm::{Ins, ParsedIns},
-};
 
 /// Trait for transforming values into an IR value in a function.
 pub trait IntoIrValue {

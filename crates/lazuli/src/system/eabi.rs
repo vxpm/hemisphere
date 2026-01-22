@@ -1,5 +1,6 @@
-use crate::system::System;
 use gekko::Address;
+
+use crate::system::System;
 
 #[derive(Debug)]
 pub struct CallFrame {

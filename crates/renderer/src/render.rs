@@ -1,42 +1,38 @@
-mod allocator;
 mod data;
 mod framebuffer;
+mod group;
 mod pipeline;
-mod textures;
+mod sampler;
+mod texture;
 
-use crate::{
-    render::{
-        allocator::Allocator,
-        framebuffer::Framebuffer,
-        pipeline::{Pipeline, TexGenStageSettings},
-        textures::TextureCache,
-    },
-    util::blit::{ColorBlitter, DepthBlitter},
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+
+use glam::{Mat4, Vec2};
+use lazuli::modules::render::{
+    Action, Clut, ClutAddress, Sampler, Scaling, TexEnvConfig, TexGenConfig, Texture, TextureId,
+    Viewport, oneshot,
 };
-use glam::Mat4;
-use lazuli::{
-    modules::render::{Action, TexEnvConfig, TexGenConfig, Viewport, oneshot},
-    system::gx::{
-        CullingMode, DEPTH_24_BIT_MAX, EFB_HEIGHT, EFB_WIDTH, MatrixId, Topology, Vertex,
-        VertexStream,
-        colors::{Rgba, Rgba8},
-        pix::{
-            self, BlendMode, CompareMode, ConstantAlpha, DepthMode, DstBlendFactor, SrcBlendFactor,
-        },
-        tev::AlphaFunction,
-        tex::TextureData,
-        xform::{ChannelControl, Light},
-    },
+use lazuli::system::gx::color::{Rgba, Rgba8};
+use lazuli::system::gx::pix::{
+    self, BlendMode, CompareMode, ConstantAlpha, DepthMode, DstBlendFactor, SrcBlendFactor,
 };
+use lazuli::system::gx::tev::AlphaFunction;
+use lazuli::system::gx::tex::ClutFormat;
+use lazuli::system::gx::xform::{ChannelControl, Light};
+use lazuli::system::gx::{
+    CullingMode, DEPTH_24_BIT_MAX, EFB_HEIGHT, EFB_WIDTH, MatrixId, Topology, Vertex, VertexStream,
+};
+use rustc_hash::FxBuildHasher;
+use schnellru::{ByLength, LruMap};
 use seq_macro::seq;
-use std::{
-    num::NonZero,
-    sync::{
-        Arc, Mutex,
-        atomic::{AtomicBool, Ordering},
-    },
-};
 use zerocopy::IntoBytes;
+
+use crate::alloc::Allocator;
+use crate::blit::{ColorBlitter, DepthBlitter};
+use crate::render::framebuffer::Framebuffer;
+use crate::render::pipeline::TexGenStageSettings;
+use crate::render::texture::TextureSettings;
 
 pub struct Shared {
     pub xfb: Mutex<wgpu::TextureView>,
@@ -48,23 +44,52 @@ struct Allocators {
     storage: Allocator,
 }
 
+#[derive(Clone, Copy, PartialEq, Default)]
+struct TexSlotSettings {
+    settings: TextureSettings,
+    sampler: Sampler,
+    scaling: Scaling,
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+struct DataGroupEntries {
+    vertices: wgpu::Buffer,
+    matrices: wgpu::Buffer,
+    configs: wgpu::Buffer,
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+struct TexturesGroupEntries {
+    textures: [wgpu::TextureView; 8],
+    samplers: [wgpu::Sampler; 8],
+}
+
+type GroupCache<K> = LruMap<K, wgpu::BindGroup, ByLength, FxBuildHasher>;
+
 pub struct Renderer {
     device: wgpu::Device,
     queue: wgpu::Queue,
     shared: Arc<Shared>,
 
-    current_encoder: wgpu::CommandEncoder,
+    current_transfer_encoder: wgpu::CommandEncoder,
+    current_render_encoder: wgpu::CommandEncoder,
     current_pass: wgpu::RenderPass<'static>,
 
     // components
-    pipeline: Pipeline,
+    pipeline_settings: pipeline::Settings,
     framebuffer: Framebuffer,
-    texture_cache: TextureCache,
     allocators: Allocators,
+    tex_slots: [TexSlotSettings; 8],
     color_blitter: ColorBlitter,
     depth_blitter: DepthBlitter,
     color_copy_buffer: wgpu::Buffer,
     depth_copy_buffer: wgpu::Buffer,
+
+    // caches
+    pipeline_cache: pipeline::Cache,
+    texture_cache: texture::Cache,
+    sampler_cache: sampler::Cache,
+    textures_group_cache: GroupCache<TexturesGroupEntries>,
 
     // state
     viewport: Viewport,
@@ -73,8 +98,9 @@ pub struct Renderer {
     current_config: data::Config,
     current_config_dirty: bool,
 
-    vertices: Vec<data::Vertex>,
     indices: Vec<u32>,
+    vertices: Vec<data::Vertex>,
+    matrices: Vec<Mat4>,
     configs: Vec<data::Config>,
 
     actions: u64,
@@ -96,12 +122,14 @@ fn set_channel(channel: &mut data::Channel, control: ChannelControl) {
 impl Renderer {
     pub fn new(device: wgpu::Device, queue: wgpu::Queue) -> (Self, Arc<Shared>) {
         let framebuffer = Framebuffer::new(&device);
-        let pipeline = Pipeline::new(&device);
-        let texture_cache = TextureCache::new(&device);
         let allocators = Allocators {
             index: Allocator::new(wgpu::BufferUsages::INDEX),
             storage: Allocator::new(wgpu::BufferUsages::STORAGE),
         };
+
+        let pipeline_cache = pipeline::Cache::new(&device);
+        let texture_cache = texture::Cache::default();
+        let sampler_cache = sampler::Cache::default();
 
         let color = framebuffer.color();
         let multisampled_color = framebuffer.multisampled_color();
@@ -113,8 +141,26 @@ impl Renderer {
             rendered_anything: AtomicBool::new(false),
         });
 
-        let mut encoder = device.create_command_encoder(&Default::default());
-        let pass = encoder
+        let color_blitter = ColorBlitter::new(&device);
+        let depth_blitter = DepthBlitter::new(&device);
+
+        let color_copy_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("color copy buffer"),
+            size: EFB_WIDTH * EFB_HEIGHT * 4,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+
+        let depth_copy_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("depth copy buffer"),
+            size: EFB_WIDTH * EFB_HEIGHT * 4,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+
+        let transfer_encoder = device.create_command_encoder(&Default::default());
+        let mut render_encoder = device.create_command_encoder(&Default::default());
+        let pass = render_encoder
             .begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("lazuli render pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -139,37 +185,29 @@ impl Renderer {
             })
             .forget_lifetime();
 
-        let color_blitter = ColorBlitter::new(&device);
-        let depth_blitter = DepthBlitter::new(&device);
-
-        let color_copy_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("color copy buffer"),
-            size: EFB_WIDTH * EFB_HEIGHT * 4,
-            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-            mapped_at_creation: false,
-        });
-
-        let depth_copy_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("depth copy buffer"),
-            size: EFB_WIDTH * EFB_HEIGHT * 4,
-            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-            mapped_at_creation: false,
-        });
-
         let mut value = Self {
             device,
             queue,
             shared: shared.clone(),
 
-            current_encoder: encoder,
+            current_transfer_encoder: transfer_encoder,
+            current_render_encoder: render_encoder,
             current_pass: pass,
 
-            pipeline,
+            pipeline_settings: Default::default(),
             framebuffer,
-            texture_cache,
             allocators,
+            tex_slots: Default::default(),
             color_copy_buffer,
             depth_copy_buffer,
+
+            pipeline_cache,
+            texture_cache,
+            sampler_cache,
+            textures_group_cache: LruMap::with_hasher(
+                ByLength::new(8192),
+                FxBuildHasher::default(),
+            ),
 
             color_blitter,
             depth_blitter,
@@ -183,6 +221,7 @@ impl Renderer {
             vertices: Vec::new(),
             indices: Vec::new(),
             configs: Vec::new(),
+            matrices: Vec::new(),
 
             actions: 0,
         };
@@ -205,13 +244,16 @@ impl Renderer {
             Action::SetProjectionMatrix(mat) => self.set_projection_mat(mat.value()),
             Action::SetTexEnvConfig(config) => self.set_texenv_config(config),
             Action::SetTexGenConfig(config) => self.set_texgen_config(config),
-            Action::LoadTexture {
-                id,
-                width,
-                height,
-                data,
-            } => self.load_texture(id, width, height, data),
-            Action::SetTexture { index, id } => self.set_texture(index, id),
+            Action::LoadTexture { id, texture } => self.load_texture(id, texture),
+            Action::LoadClut { addr: id, clut } => self.load_clut(id, clut),
+            Action::SetTextureSlot {
+                slot,
+                texture_id,
+                sampler,
+                scaling,
+                clut_addr,
+                clut_fmt,
+            } => self.set_texture_slot(slot, texture_id, sampler, scaling, clut_addr, clut_fmt),
             Action::Draw(topology, vertices) => match topology {
                 Topology::QuadList => self.draw_quad_list(&vertices),
                 Topology::TriangleList => self.draw_triangle_list(&vertices),
@@ -263,17 +305,18 @@ impl Renderer {
         }
     }
 
-    fn insert_vertex(&mut self, vertex: &Vertex, matrices: &[(MatrixId, Mat4)]) -> u32 {
+    fn insert_vertex(&mut self, vertex: &Vertex, matrices: &[(MatrixId, data::MatrixIdx)]) -> u32 {
         let get_matrix = |idx| matrices.iter().find_map(|(i, m)| (*i == idx).then_some(*m));
         let vertex = data::Vertex {
             position: vertex.position,
             config_idx: self.configs.len() as u32 - 1,
             normal: vertex.normal,
-
             _pad0: 0,
 
             position_mat: get_matrix(vertex.pos_norm_matrix).unwrap(),
             normal_mat: get_matrix(vertex.pos_norm_matrix.normal()).unwrap(),
+            _pad1: 0,
+            _pad2: 0,
 
             chan0: vertex.chan0,
             chan1: vertex.chan1,
@@ -298,9 +341,9 @@ impl Renderer {
 
         match format {
             pix::BufferFormat::RGB8Z24 | pix::BufferFormat::RGB565Z16 => {
-                self.pipeline.settings.has_alpha = false
+                self.pipeline_settings.has_alpha = false
             }
-            pix::BufferFormat::RGBA6Z24 => self.pipeline.settings.has_alpha = true,
+            pix::BufferFormat::RGBA6Z24 => self.pipeline_settings.has_alpha = true,
             _ => (),
         }
     }
@@ -312,16 +355,18 @@ impl Renderer {
             viewport.top_left_y,
             viewport.width,
             viewport.height,
-            viewport.near_z.clamp(0.0, 1.0),
-            viewport.far_z.clamp(0.0, 1.0),
+            viewport.near_depth.clamp(0.0, 1.0),
+            viewport.far_depth.clamp(0.0, 1.0),
         );
 
         self.viewport = viewport;
     }
 
     pub fn set_culling_mode(&mut self, mode: CullingMode) {
-        self.flush("changed culling mode");
-        self.pipeline.settings.culling = mode;
+        if self.pipeline_settings.culling != mode {
+            self.flush("changed culling mode");
+            self.pipeline_settings.culling = mode;
+        }
     }
 
     pub fn set_clear_color(&mut self, rgba: Rgba) {
@@ -373,8 +418,10 @@ impl Renderer {
         };
 
         self.debug(format!("set blend settings to {blend:?}"));
-        self.flush("changed blend settings");
-        self.pipeline.settings.blend = blend;
+        if self.pipeline_settings.blend != blend {
+            self.flush("changed blend settings");
+            self.pipeline_settings.blend = blend;
+        }
     }
 
     pub fn set_depth_mode(&mut self, mode: DepthMode) {
@@ -396,15 +443,24 @@ impl Renderer {
         };
 
         self.debug(format!("set depth settings to {depth:?}"));
-        self.flush("depth settings changed");
-        self.pipeline.settings.depth = depth;
+        if self.pipeline_settings.depth != depth {
+            self.flush("depth settings changed");
+            self.pipeline_settings.depth = depth;
+        }
     }
 
     pub fn set_alpha_function(&mut self, func: AlphaFunction) {
+        let settings = pipeline::AlphaFunctionSettings {
+            comparison: func.comparison(),
+            logic: func.logic(),
+        };
+
         self.debug(format!("set alpha function to {func:?}"));
-        self.flush("alpha function changed");
-        self.pipeline.settings.shader.texenv.alpha_func.comparison = func.comparison();
-        self.pipeline.settings.shader.texenv.alpha_func.logic = func.logic();
+        if self.pipeline_settings.shader.texenv.alpha_func != settings {
+            self.flush("alpha function changed");
+            self.pipeline_settings.shader.texenv.alpha_func = settings;
+        }
+
         self.current_config.alpha_refs = func.refs().map(|x| x as u32);
         self.current_config_dirty = true;
     }
@@ -463,8 +519,7 @@ impl Renderer {
     pub fn set_texenv_config(&mut self, config: TexEnvConfig) {
         self.debug("changed texenv");
         self.flush("texenv changed");
-        self.pipeline
-            .settings
+        self.pipeline_settings
             .shader
             .texenv
             .stages
@@ -476,7 +531,7 @@ impl Renderer {
     pub fn set_texgen_config(&mut self, config: TexGenConfig) {
         self.debug("changed texgen");
         self.flush("texgen changed");
-        self.pipeline.settings.shader.texgen.stages = config
+        self.pipeline_settings.shader.texgen.stages = config
             .stages
             .iter()
             .map(|s| TexGenStageSettings {
@@ -497,56 +552,39 @@ impl Renderer {
         self.current_config_dirty = true;
     }
 
-    pub fn load_texture(&mut self, id: u32, width: u32, height: u32, data: TextureData) {
-        match data {
-            TextureData::Direct(data) => {
-                let data = zerocopy::transmute_ref!(data.as_slice());
-                self.texture_cache.update_texture(
-                    &self.device,
-                    &self.queue,
-                    id,
-                    width,
-                    height,
-                    data,
-                );
-            }
-            TextureData::Indirect(data) => {
-                let pixels = data
-                    .into_iter()
-                    .map(|i| Rgba8 {
-                        r: i as u8,
-                        g: i as u8,
-                        b: i as u8,
-                        a: i as u8,
-                    })
-                    .collect::<Vec<_>>();
-
-                let data = zerocopy::transmute_ref!(pixels.as_slice());
-                self.texture_cache.update_texture(
-                    &self.device,
-                    &self.queue,
-                    id,
-                    width,
-                    height,
-                    data,
-                );
-            }
-        }
+    pub fn load_texture(&mut self, id: TextureId, texture: Texture) {
+        self.texture_cache.update_raw(id, texture);
     }
 
-    pub fn set_texture(&mut self, index: usize, id: u32) {
-        let in_slot = self.texture_cache.get_texture_slot(index);
-        let handle = self
-            .texture_cache
-            .get_texture(id)
-            .expect("texture should exist before being set");
+    pub fn load_clut(&mut self, id: ClutAddress, clut: Clut) {
+        self.texture_cache.update_clut(id, clut);
+    }
 
-        if in_slot == handle {
+    pub fn set_texture_slot(
+        &mut self,
+        slot: usize,
+        raw_id: TextureId,
+        sampler: Sampler,
+        scaling: Scaling,
+        clut_addr: ClutAddress,
+        clut_fmt: ClutFormat,
+    ) {
+        let new = TexSlotSettings {
+            settings: TextureSettings {
+                raw_id,
+                clut_addr,
+                clut_fmt,
+            },
+            sampler,
+            scaling,
+        };
+
+        if self.tex_slots[slot] == new {
             return;
         }
 
         self.flush("texture slot changed");
-        self.texture_cache.set_texture_slot(index, handle);
+        self.tex_slots[slot] = new;
     }
 
     fn flush_config(&mut self) {
@@ -554,6 +592,21 @@ impl Renderer {
             self.debug("flushing config");
             self.configs.push(self.current_config.clone());
         }
+    }
+
+    fn create_matrix_indices(
+        &mut self,
+        matrices: &[(MatrixId, Mat4)],
+    ) -> Vec<(MatrixId, data::MatrixIdx)> {
+        let mut indices = Vec::with_capacity(matrices.len());
+
+        for (id, mat) in matrices.iter().copied() {
+            let idx = self.matrices.len();
+            self.matrices.push(mat);
+            indices.push((id, idx as u32));
+        }
+
+        indices
     }
 
     pub fn draw_quad_list(&mut self, stream: &VertexStream) {
@@ -565,13 +618,9 @@ impl Renderer {
         }
 
         self.flush_config();
-        self.debug(format!(
-            "drawing quad list with {} vertices",
-            vertices.len()
-        ));
-
+        let matrices = self.create_matrix_indices(matrices);
         for vertices in vertices.iter().array_chunks::<4>() {
-            let [v0, v1, v2, v3] = vertices.map(|v| self.insert_vertex(v, matrices));
+            let [v0, v1, v2, v3] = vertices.map(|v| self.insert_vertex(v, &matrices));
             self.indices.extend_from_slice(&[v0, v1, v2]);
             self.indices.extend_from_slice(&[v0, v2, v3]);
         }
@@ -586,13 +635,9 @@ impl Renderer {
         }
 
         self.flush_config();
-        self.debug(format!(
-            "drawing triangle list with {} vertices",
-            vertices.len()
-        ));
-
+        let matrices = self.create_matrix_indices(matrices);
         for vertices in vertices.iter().array_chunks::<3>() {
-            let vertices = vertices.map(|v| self.insert_vertex(v, matrices));
+            let vertices = vertices.map(|v| self.insert_vertex(v, &matrices));
             self.indices.extend_from_slice(&vertices);
         }
     }
@@ -606,17 +651,13 @@ impl Renderer {
         }
 
         self.flush_config();
-        self.debug(format!(
-            "drawing triangle strip with {} vertices",
-            vertices.len()
-        ));
-
+        let matrices = self.create_matrix_indices(matrices);
         let mut iter = vertices.iter();
-        let mut v0 = self.insert_vertex(iter.next().unwrap(), matrices);
-        let mut v1 = self.insert_vertex(iter.next().unwrap(), matrices);
+        let mut v0 = self.insert_vertex(iter.next().unwrap(), &matrices);
+        let mut v1 = self.insert_vertex(iter.next().unwrap(), &matrices);
 
         for (i, v2) in iter.enumerate() {
-            let v2 = self.insert_vertex(v2, matrices);
+            let v2 = self.insert_vertex(v2, &matrices);
 
             // flip to preserve vertex order (cw)
             if i.is_multiple_of(2) {
@@ -639,16 +680,12 @@ impl Renderer {
         }
 
         self.flush_config();
-        self.debug(format!(
-            "drawing triangle fan with {} vertices",
-            vertices.len()
-        ));
-
+        let matrices = self.create_matrix_indices(matrices);
         let mut iter = vertices.iter();
-        let v0 = self.insert_vertex(iter.next().unwrap(), matrices);
-        let mut v1 = self.insert_vertex(iter.next().unwrap(), matrices);
+        let v0 = self.insert_vertex(iter.next().unwrap(), &matrices);
+        let mut v1 = self.insert_vertex(iter.next().unwrap(), &matrices);
         for v2 in iter {
-            let v2 = self.insert_vertex(v2, matrices);
+            let v2 = self.insert_vertex(v2, &matrices);
             self.indices.extend_from_slice(&[v0, v1, v2]);
 
             v1 = v2;
@@ -656,10 +693,72 @@ impl Renderer {
     }
 
     fn reset(&mut self) {
-        self.vertices.clear();
         self.indices.clear();
+        self.vertices.clear();
+        self.matrices.clear();
         self.configs.clear();
         self.current_config_dirty = true;
+    }
+
+    fn get_data_group(&mut self, entries: DataGroupEntries) -> wgpu::BindGroup {
+        self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: None,
+            layout: self.pipeline_cache.data_group_layout(),
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                        buffer: &entries.vertices,
+                        offset: 0,
+                        size: None,
+                    }),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                        buffer: &entries.matrices,
+                        offset: 0,
+                        size: None,
+                    }),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                        buffer: &entries.configs,
+                        offset: 0,
+                        size: None,
+                    }),
+                },
+            ],
+        })
+    }
+
+    fn get_textures_group(&mut self, entries: TexturesGroupEntries) -> wgpu::BindGroup {
+        self.textures_group_cache
+            .get_or_insert(entries.clone(), || {
+                let textures_group_entries: [wgpu::BindGroupEntry; 16] =
+                    std::array::from_fn(|binding| {
+                        let tex = binding / 2;
+                        let resource = match binding % 2 {
+                            0 => wgpu::BindingResource::TextureView(&entries.textures[tex]),
+                            1 => wgpu::BindingResource::Sampler(&entries.samplers[tex]),
+                            _ => unreachable!(),
+                        };
+
+                        wgpu::BindGroupEntry {
+                            binding: binding as u32,
+                            resource,
+                        }
+                    });
+
+                self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: None,
+                    layout: self.pipeline_cache.textures_group_layout(),
+                    entries: &textures_group_entries,
+                })
+            })
+            .unwrap()
+            .clone()
     }
 
     pub fn flush(&mut self, reason: &str) {
@@ -668,74 +767,57 @@ impl Renderer {
         }
 
         self.debug(format!("[FLUSH]: {reason}"));
-        self.pipeline.update(&self.device);
+        let scaling_array = self.tex_slots.map(|s| Vec2::new(s.scaling.u, s.scaling.v));
+        let index_buf = self.allocators.index.allocate(
+            &self.device,
+            &mut self.current_transfer_encoder,
+            self.indices.as_bytes(),
+        );
+        let vertices_buf = self.allocators.storage.allocate(
+            &self.device,
+            &mut self.current_transfer_encoder,
+            self.vertices.as_bytes(),
+        );
+        let matrices_buf = self.allocators.storage.allocate(
+            &self.device,
+            &mut self.current_transfer_encoder,
+            self.matrices.as_bytes(),
+        );
+        let configs_buf = self.allocators.storage.allocate(
+            &self.device,
+            &mut self.current_transfer_encoder,
+            self.configs.as_bytes(),
+        );
 
-        let index_buf =
-            self.allocators
-                .index
-                .allocate(&self.device, &self.queue, self.indices.as_bytes());
-        let vertices_buf =
-            self.allocators
-                .storage
-                .allocate(&self.device, &self.queue, self.vertices.as_bytes());
-        let configs_buf =
-            self.allocators
-                .storage
-                .allocate(&self.device, &self.queue, self.configs.as_bytes());
-
-        let samplers = self.texture_cache.samplers();
-        let textures = self
-            .texture_cache
-            .textures()
-            .clone()
-            .map(|tex| tex.create_view(&Default::default()));
-
-        let primitives_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: None,
-            layout: self.pipeline.primitives_group_layout(),
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                        buffer: &vertices_buf,
-                        offset: 0,
-                        size: NonZero::new(self.vertices.as_bytes().len() as u64),
-                    }),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                        buffer: &configs_buf,
-                        offset: 0,
-                        size: NonZero::new(self.configs.as_bytes().len() as u64),
-                    }),
-                },
-            ],
+        let data_group = self.get_data_group(DataGroupEntries {
+            vertices: vertices_buf,
+            matrices: matrices_buf,
+            configs: configs_buf,
         });
 
-        let textures_group_entries: [wgpu::BindGroupEntry; 16] = std::array::from_fn(|binding| {
-            let tex = binding / 2;
-            if binding % 2 == 0 {
-                wgpu::BindGroupEntry {
-                    binding: binding as u32,
-                    resource: wgpu::BindingResource::TextureView(&textures[tex]),
-                }
-            } else {
-                wgpu::BindGroupEntry {
-                    binding: binding as u32,
-                    resource: wgpu::BindingResource::Sampler(&samplers[tex]),
-                }
-            }
-        });
-        let textures_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: None,
-            layout: self.pipeline.textures_group_layout(),
-            entries: &textures_group_entries,
+        let textures = self.tex_slots.map(|s| {
+            self.texture_cache
+                .get(&self.device, &self.queue, s.settings)
+                .clone()
         });
 
-        self.current_pass.set_pipeline(self.pipeline.pipeline());
-        self.current_pass
-            .set_bind_group(0, Some(&primitives_group), &[]);
+        let samplers = self
+            .tex_slots
+            .map(|s| self.sampler_cache.get(&self.device, s.sampler).clone());
+
+        let textures_group = self.get_textures_group(TexturesGroupEntries { textures, samplers });
+
+        let pipeline = self
+            .pipeline_cache
+            .get(&self.device, &self.pipeline_settings);
+
+        self.current_pass.set_pipeline(pipeline);
+        self.current_pass.set_push_constants(
+            wgpu::ShaderStages::FRAGMENT,
+            0,
+            scaling_array.as_bytes(),
+        );
+        self.current_pass.set_bind_group(0, Some(&data_group), &[]);
         self.current_pass
             .set_bind_group(1, Some(&textures_group), &[]);
         self.current_pass.set_index_buffer(
@@ -756,12 +838,12 @@ impl Renderer {
         let depth = self.framebuffer.depth();
         let multisampled_color = self.framebuffer.multisampled_color();
 
-        let color_op = if clear && self.pipeline.settings.blend.color_write {
-            if !self.pipeline.settings.blend.alpha_write {
+        let color_op = if clear && self.pipeline_settings.blend.color_write {
+            if !self.pipeline_settings.blend.alpha_write {
                 tracing::warn!("clearing alpha and color when only color should be cleared!");
             }
 
-            let color = if self.pipeline.settings.has_alpha {
+            let color = if self.pipeline_settings.has_alpha {
                 self.clear_color
             } else {
                 wgpu::Color {
@@ -777,14 +859,15 @@ impl Renderer {
             wgpu::LoadOp::Load
         };
 
-        let depth_op = if clear && self.pipeline.settings.depth.write {
+        let depth_op = if clear && self.pipeline_settings.depth.write {
             wgpu::LoadOp::Clear(self.clear_depth)
         } else {
             wgpu::LoadOp::Load
         };
 
-        let mut encoder = self.device.create_command_encoder(&Default::default());
-        let pass = encoder
+        let transfer_encoder = self.device.create_command_encoder(&Default::default());
+        let mut render_encoder = self.device.create_command_encoder(&Default::default());
+        let mut pass = render_encoder
             .begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("main render pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -809,14 +892,26 @@ impl Renderer {
             })
             .forget_lifetime();
 
-        let mut previous_encoder = std::mem::replace(&mut self.current_encoder, encoder);
+        pass.set_viewport(
+            self.viewport.top_left_x,
+            self.viewport.top_left_y,
+            self.viewport.width,
+            self.viewport.height,
+            self.viewport.near_depth.clamp(0.0, 1.0),
+            self.viewport.far_depth.clamp(0.0, 1.0),
+        );
+
+        let prev_transfer_encoder =
+            std::mem::replace(&mut self.current_transfer_encoder, transfer_encoder);
+        let mut prev_render_encoder =
+            std::mem::replace(&mut self.current_render_encoder, render_encoder);
         let previous_pass = std::mem::replace(&mut self.current_pass, pass);
 
         std::mem::drop(previous_pass);
 
         if copy_to_xfb {
             let external = self.framebuffer.external();
-            previous_encoder.copy_texture_to_texture(
+            prev_render_encoder.copy_texture_to_texture(
                 wgpu::TexelCopyTextureInfoBase {
                     texture: color.texture(),
                     mip_level: 0,
@@ -833,12 +928,14 @@ impl Renderer {
             );
         }
 
-        let buffer = previous_encoder.finish();
-        self.queue.submit([buffer]);
+        let transfer_cmds = prev_transfer_encoder.finish();
+        let render_cmds = prev_render_encoder.finish();
+
+        self.queue.submit([transfer_cmds, render_cmds]);
         self.device.poll(wgpu::PollType::Poll).unwrap();
 
-        self.allocators.index.recall();
-        self.allocators.storage.recall();
+        self.allocators.index.free();
+        self.allocators.storage.free();
 
         self.shared.rendered_anything.store(true, Ordering::Relaxed);
     }

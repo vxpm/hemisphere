@@ -1,7 +1,8 @@
 //! Debug module interface.
 
-use gekko::Address;
 use std::borrow::Cow;
+
+use gekko::Address;
 
 pub struct Location<'a> {
     pub file: Option<Cow<'a, str>>,

@@ -1,11 +1,11 @@
-use crate::{
-    State,
-    windows::{AppWindow, Ctx},
-};
+use std::collections::HashMap;
+
 use eframe::egui::{self, RichText};
 use lazuli::Address;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+
+use crate::State;
+use crate::windows::{AppWindow, Ctx};
 
 #[derive(Default, Serialize, Deserialize)]
 pub struct Window {

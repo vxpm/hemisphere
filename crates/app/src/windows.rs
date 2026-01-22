@@ -9,10 +9,11 @@ mod threads;
 mod variables;
 mod xfb;
 
-use crate::runner::State;
 use eframe::egui::{self, Vec2};
 use renderer::Renderer;
 use serde::{Deserialize, Serialize};
+
+use crate::runner::State;
 
 pub struct Ctx<'a> {
     pub step: bool,

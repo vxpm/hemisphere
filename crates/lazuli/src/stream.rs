@@ -1,5 +1,6 @@
-use crate::Primitive;
 use std::collections::VecDeque;
+
+use crate::Primitive;
 
 /// Trait for types which can be seen as a binary data source.
 pub trait BinaryStream {

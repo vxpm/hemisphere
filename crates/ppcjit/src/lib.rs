@@ -9,34 +9,37 @@ mod unwind;
 pub mod block;
 pub mod hooks;
 
-use crate::{
-    block::{BlockFn, Info, LinkData, Meta, Trampoline},
-    builder::BlockBuilder,
-    cache::{Cache, CompiledKey},
-    hooks::{Context, HookKind, Hooks},
-    module::Module,
-    unwind::UnwindHandle,
-};
-use cranelift::{
-    codegen::{self, binemit::Reloc, ir},
-    frontend, native,
-    prelude::{
-        Configurable, InstBuilder,
-        isa::{TargetIsa, unwind::UnwindInfo},
-    },
-};
-use cranelift_codegen::{
-    FinalizedMachReloc, FinalizedRelocTarget,
-    entity::PrimaryMap,
-    ir::{UserExternalName, UserExternalNameRef},
-};
-use easyerr::{Error, ResultExt};
-use gekko::{Cpu, Exception, disasm::Ins};
-use serde::{Deserialize, Serialize};
-use std::{alloc::Layout, path::PathBuf, ptr::NonNull, sync::Arc};
+use std::alloc::Layout;
+use std::path::PathBuf;
+use std::ptr::NonNull;
+use std::sync::Arc;
 
-pub use block::Block;
-pub use sequence::Sequence;
+use cranelift::codegen::binemit::Reloc;
+use cranelift::codegen::{self, ir};
+use cranelift::prelude::isa::TargetIsa;
+use cranelift::prelude::isa::unwind::UnwindInfo;
+use cranelift::prelude::{Configurable, InstBuilder};
+use cranelift::{frontend, native};
+use cranelift_codegen::entity::PrimaryMap;
+use cranelift_codegen::ir::{UserExternalName, UserExternalNameRef};
+use cranelift_codegen::{FinalizedMachReloc, FinalizedRelocTarget};
+use easyerr::{Error, ResultExt};
+use gekko::disasm::Ins;
+use gekko::{Cpu, Exception};
+use serde::{Deserialize, Serialize};
+
+use crate::block::{BlockFn, Info, LinkData, Meta, Trampoline};
+use crate::builder::BlockBuilder;
+use crate::cache::{Cache, CompiledKey};
+use crate::hooks::{Context, HookKind, Hooks};
+use crate::module::Module;
+use crate::unwind::UnwindHandle;
+
+#[rustfmt::skip]
+pub use crate::{
+    block::Block,
+    sequence::Sequence,
+};
 
 #[derive(Debug, Clone, PartialEq, Default, Hash)]
 pub struct CompilerSettings {

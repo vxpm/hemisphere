@@ -1,11 +1,10 @@
 //! DSP interface (DSPI).
-use crate::system::System;
-use bitos::{
-    BitUtils, bitos,
-    integer::{u15, u31},
-};
+use bitos::integer::{u15, u31};
+use bitos::{BitUtils, bitos};
 use gekko::Address;
 use util::boxed_array;
+
+use crate::system::System;
 
 pub const ARAM_LEN: usize = 16 * bytesize::MIB as usize;
 

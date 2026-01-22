@@ -1,14 +1,11 @@
-use crate::{
-    State,
-    windows::{AppWindow, Ctx},
-};
 use eframe::egui;
 use egui_extras::{Column, TableBuilder};
-use lazuli::{
-    Address,
-    gekko::disasm::{Extensions, Ins, ParsedIns},
-};
+use lazuli::Address;
+use lazuli::gekko::disasm::{Extensions, Ins, ParsedIns};
 use serde::{Deserialize, Serialize};
+
+use crate::State;
+use crate::windows::{AppWindow, Ctx};
 
 #[derive(Serialize, Deserialize)]
 pub struct Window {

@@ -2,16 +2,13 @@ use std::ops::RangeInclusive;
 
 use gekko::{Address, MemoryManagement};
 use indicatif::ProgressBar;
-use lazuli::{
-    modules::{
-        audio::NopAudioModule, debug::NopDebugModule, disk::NopDiskModule, input::NopInputModule,
-        render::NopRenderModule,
-    },
-    system::{
-        self, Modules, System,
-        mem::{RAM_END, RAM_LEN, RAM_START},
-    },
-};
+use lazuli::modules::audio::NopAudioModule;
+use lazuli::modules::debug::NopDebugModule;
+use lazuli::modules::disk::NopDiskModule;
+use lazuli::modules::input::NopInputModule;
+use lazuli::modules::render::NopRenderModule;
+use lazuli::system::mem::{RAM_END, RAM_LEN, RAM_START};
+use lazuli::system::{self, Modules, System};
 
 fn test_inner(sys: &mut System, range: RangeInclusive<u32>) {
     let bar = ProgressBar::new(RAM_LEN as u64);

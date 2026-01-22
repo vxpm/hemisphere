@@ -1,7 +1,5 @@
-use std::{
-    ffi::CStr,
-    ops::{Deref, DerefMut},
-};
+use std::ffi::CStr;
+use std::ops::{Deref, DerefMut};
 
 use crate::system::mem;
 

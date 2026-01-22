@@ -1,17 +1,16 @@
 mod mmio;
 
-use crate::Primitive;
-use crate::system::mem::L2C_LEN;
-use crate::system::{
-    System, di, exi,
-    mem::{IPL_LEN, RAM_LEN},
-};
-use crate::system::{ai, dspi, gx, pi, si, vi};
+use std::ops::Range;
+
 use bitos::BitUtils;
 use gekko::Address;
-use std::ops::Range;
 use zerocopy::IntoBytes;
 
+use crate::Primitive;
+use crate::system::mem::{IPL_LEN, L2C_LEN, RAM_LEN};
+use crate::system::{System, ai, di, dspi, exi, gx, pi, si, vi};
+
+#[rustfmt::skip]
 pub use mmio::Mmio;
 
 fn range_overlap(a: Range<usize>, b: Range<usize>) -> bool {

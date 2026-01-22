@@ -1,17 +1,18 @@
 mod attr;
 
-use crate::{Compiler, UnpackedDefaultMatrices, builder::attr::AttributeExt, parser::Config};
-use cranelift::{codegen::ir, frontend, prelude::InstBuilder};
-use lazuli::system::gx::{
-    Vertex,
-    cmd::{
-        ArrayDescriptor,
-        attributes::{self, AttributeMode},
-    },
-};
+use cranelift::codegen::ir;
+use cranelift::frontend;
+use cranelift::prelude::InstBuilder;
+use lazuli::system::gx::Vertex;
+use lazuli::system::gx::cmd::ArrayDescriptor;
+use lazuli::system::gx::cmd::attributes::{self, AttributeMode};
 use rustc_hash::FxHashMap;
 use seq_macro::seq;
 use util::offset_of;
+
+use crate::builder::attr::AttributeExt;
+use crate::parser::Config;
+use crate::{Compiler, UnpackedDefaultMatrices};
 
 const MEMFLAGS: ir::MemFlags = ir::MemFlags::new().with_notrap().with_can_move();
 const MEMFLAGS_READONLY: ir::MemFlags = ir::MemFlags::new()

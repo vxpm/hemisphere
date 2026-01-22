@@ -4,20 +4,20 @@ mod exec;
 
 pub mod ins;
 
-use crate::ins::{ExtensionOpcode, Opcode};
-use bitos::integer::{u3, u4};
-use bitos::{BitUtils, bitos, integer::u15};
+use bitos::integer::{u3, u4, u15};
+use bitos::{BitUtils, bitos};
 use lazuli::Primitive;
-use lazuli::system::{
-    System,
-    dspi::{DspDmaControl, DspDmaDirection, DspDmaTarget, Mailbox},
-};
+use lazuli::system::System;
+use lazuli::system::dspi::{DspDmaControl, DspDmaDirection, DspDmaTarget, Mailbox};
 use strum::FromRepr;
 use tinyvec::ArrayVec;
 use util::boxed_array;
-
-pub use ins::Ins;
 use zerocopy::IntoBytes;
+
+use crate::ins::{ExtensionOpcode, Opcode};
+
+#[rustfmt::skip]
+pub use crate::ins::Ins;
 
 const IRAM_LEN: usize = 0x1000;
 const IROM_LEN: usize = 0x1000;
@@ -44,14 +44,14 @@ impl Default for Memory {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Interrupt {
-    Reset = 0,
-    StackOverflow = 1,
-    Unknown0 = 2,
+    Reset                = 0,
+    StackOverflow        = 1,
+    Unknown0             = 2,
     AccelRawReadOverflow = 3,
     AccelRawWriteOverflow = 4,
     AccelSampleReadOverflow = 5,
-    Unknown1 = 6,
-    External = 7,
+    Unknown1             = 6,
+    External             = 7,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -355,9 +355,9 @@ impl Registers {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum SampleSize {
     #[default]
-    Nibble = 0b00,
-    Byte = 0b01,
-    Word = 0b10,
+    Nibble   = 0b00,
+    Byte     = 0b01,
+    Word     = 0b10,
     Reserved = 0b11,
 }
 
@@ -376,9 +376,9 @@ impl SampleSize {
 #[derive(Debug, Clone, Copy, Default)]
 pub enum SampleDecoding {
     #[default]
-    AramAdpcm = 0b00,
-    AcinPcm = 0b01,
-    AramPcm = 0b10,
+    AramAdpcm  = 0b00,
+    AcinPcm    = 0b01,
+    AramPcm    = 0b10,
     AcinPcmInc = 0b11,
 }
 
@@ -386,9 +386,9 @@ pub enum SampleDecoding {
 #[derive(Debug, Clone, Copy, Default)]
 pub enum PcmDivisor {
     #[default]
-    D2048 = 0b00,
-    D1 = 0b01,
-    D65536 = 0b10,
+    D2048    = 0b00,
+    D1       = 0b01,
+    D65536   = 0b10,
     Reserved = 0b11,
 }
 

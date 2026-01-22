@@ -1,23 +1,23 @@
 //! Pixel engine (PE).
-use crate::system::gx::{colors::Abgr8, tex};
-use bitos::{
-    Bits, bitos,
-    integer::{u2, u3, u4, u10},
-};
+use bitos::integer::{u2, u3, u4, u10};
+use bitos::{Bits, bitos};
+use color::Abgr8;
 use gekko::Address;
+
+use crate::system::gx::tex;
 
 #[bitos(3)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum BufferFormat {
     #[default]
-    RGB8Z24 = 0x0,
-    RGBA6Z24 = 0x1,
+    RGB8Z24   = 0x0,
+    RGBA6Z24  = 0x1,
     RGB565Z16 = 0x2,
-    Z24 = 0x3,
-    Y8 = 0x4,
-    U8 = 0x5,
-    V8 = 0x6,
-    YUV420 = 0x7,
+    Z24       = 0x3,
+    Y8        = 0x4,
+    U8        = 0x5,
+    V8        = 0x6,
+    YUV420    = 0x7,
 }
 
 impl BufferFormat {
@@ -35,9 +35,9 @@ impl BufferFormat {
 pub enum DepthCompression {
     #[default]
     Linear = 0b00,
-    Near = 0b01,
-    Mid = 0b10,
-    Far = 0b11,
+    Near   = 0b01,
+    Mid    = 0b10,
+    Far    = 0b11,
 }
 
 #[bitos(32)]
@@ -92,19 +92,19 @@ impl CopyDimensions {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum DepthCopyFormat {
     #[default]
-    Z4 = 0x0,
-    Z8 = 0x1,
+    Z4        = 0x0,
+    Z8        = 0x1,
     Reserved0 = 0x2,
-    Z16C = 0x3,
+    Z16C      = 0x3,
     Reserved1 = 0x4,
     Reserved2 = 0x5,
-    Z24X8 = 0x6,
+    Z24X8     = 0x6,
     Reserved3 = 0x7,
-    Z8H = 0x8,
-    Z8M = 0x9,
-    Z8L = 0xA,
-    Z16A = 0xB,
-    Z16B = 0xC,
+    Z8H       = 0x8,
+    Z8M       = 0x9,
+    Z8L       = 0xA,
+    Z16A      = 0xB,
+    Z16B      = 0xC,
     Reserved4 = 0xD,
     Reserved5 = 0xE,
     Reserved6 = 0xF,
@@ -132,19 +132,19 @@ impl DepthCopyFormat {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ColorCopyFormat {
     #[default]
-    R4 = 0x0,
-    Y8 = 0x1,
-    RA4 = 0x2,
-    RA8 = 0x3,
-    RGB565 = 0x4,
-    RGB5A3 = 0x5,
-    RGBA8 = 0x6,
-    A8 = 0x7,
-    R8 = 0x8,
-    G8 = 0x9,
-    B8 = 0xA,
-    RG8 = 0xB,
-    GB8 = 0xC,
+    R4        = 0x0,
+    Y8        = 0x1,
+    RA4       = 0x2,
+    RA8       = 0x3,
+    RGB565    = 0x4,
+    RGB5A3    = 0x5,
+    RGBA8     = 0x6,
+    A8        = 0x7,
+    R8        = 0x8,
+    G8        = 0x9,
+    B8        = 0xA,
+    RG8       = 0xB,
+    GB8       = 0xC,
     Reserved0 = 0xD,
     Reserved1 = 0xE,
     Reserved2 = 0xF,
@@ -219,14 +219,14 @@ pub struct InterruptStatus {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum CompareMode {
     #[default]
-    Never = 0x0,
-    Less = 0x1,
-    Equal = 0x2,
-    LessOrEqual = 0x3,
-    Greater = 0x4,
-    NotEqual = 0x5,
+    Never          = 0x0,
+    Less           = 0x1,
+    Equal          = 0x2,
+    LessOrEqual    = 0x3,
+    Greater        = 0x4,
+    NotEqual       = 0x5,
     GreaterOrEqual = 0x6,
-    Always = 0x7,
+    Always         = 0x7,
 }
 
 #[bitos(32)]
@@ -244,13 +244,13 @@ pub struct DepthMode {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum SrcBlendFactor {
     #[default]
-    Zero = 0x0,
-    One = 0x1,
-    DstColor = 0x2,
+    Zero            = 0x0,
+    One             = 0x1,
+    DstColor        = 0x2,
     InverseDstColor = 0x3,
-    SrcAlpha = 0x4,
+    SrcAlpha        = 0x4,
     InverseSrcAlpha = 0x5,
-    DstAlpha = 0x6,
+    DstAlpha        = 0x6,
     InverseDstAlpha = 0x7,
 }
 
@@ -258,13 +258,13 @@ pub enum SrcBlendFactor {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum DstBlendFactor {
     #[default]
-    Zero = 0x0,
-    One = 0x1,
-    SrcColor = 0x2,
+    Zero            = 0x0,
+    One             = 0x1,
+    SrcColor        = 0x2,
     InverseSrcColor = 0x3,
-    SrcAlpha = 0x4,
+    SrcAlpha        = 0x4,
     InverseSrcAlpha = 0x5,
-    DstAlpha = 0x6,
+    DstAlpha        = 0x6,
     InverseDstAlpha = 0x7,
 }
 
@@ -272,22 +272,22 @@ pub enum DstBlendFactor {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum BlendLogicOp {
     #[default]
-    Clear = 0x0,
-    And = 0x1,
-    ReverseAnd = 0x2,
-    Copy = 0x3,
-    InverseAnd = 0x4,
-    Noop = 0x5,
-    Xor = 0x6,
-    Or = 0x7,
-    Nor = 0x8,
-    Equiv = 0x9,
-    Inverse = 0xA,
-    ReverseOr = 0xB,
+    Clear       = 0x0,
+    And         = 0x1,
+    ReverseAnd  = 0x2,
+    Copy        = 0x3,
+    InverseAnd  = 0x4,
+    Noop        = 0x5,
+    Xor         = 0x6,
+    Or          = 0x7,
+    Nor         = 0x8,
+    Equiv       = 0x9,
+    Inverse     = 0xA,
+    ReverseOr   = 0xB,
     InverseCopy = 0xC,
-    InverseOr = 0xD,
-    Nand = 0xE,
-    Set = 0xF,
+    InverseOr   = 0xD,
+    Nand        = 0xE,
+    Set         = 0xF,
 }
 
 #[bitos(32)]

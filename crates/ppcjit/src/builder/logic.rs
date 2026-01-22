@@ -1,11 +1,11 @@
+use bitos::BitUtils;
+use cranelift::codegen::ir;
+use cranelift::prelude::{InstBuilder, IntCC};
+use gekko::InsExt;
+use gekko::disasm::Ins;
+
 use super::BlockBuilder;
 use crate::builder::{Action, InstructionInfo};
-use bitos::BitUtils;
-use cranelift::{
-    codegen::ir,
-    prelude::{InstBuilder, IntCC},
-};
-use gekko::{InsExt, disasm::Ins};
 
 const LOGIC_INFO: InstructionInfo = InstructionInfo {
     cycles: 1,

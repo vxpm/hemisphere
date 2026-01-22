@@ -2,10 +2,12 @@
 
 pub mod filesystem;
 
-use crate::{Console, apploader, dol};
+use std::io::{Read, Seek, SeekFrom};
+
 use binrw::{BinRead, BinWrite, NullString};
 use filesystem::FileSystem;
-use std::io::{Read, Seek, SeekFrom};
+
+use crate::{Console, apploader, dol};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, BinRead, BinWrite)]
 #[brw(big, magic = 0xC233_9F3D_u32)]

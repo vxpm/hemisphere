@@ -1,10 +1,9 @@
-use crate::{
-    State,
-    windows::{AppWindow, Ctx},
-};
 use eframe::egui::{self, Vec2};
 use lazuli::system;
 use serde::{Deserialize, Serialize};
+
+use crate::State;
+use crate::windows::{AppWindow, Ctx};
 
 #[inline]
 fn ycbcr_to_rgb(y: u8, cb: u8, cr: u8) -> [u8; 3] {

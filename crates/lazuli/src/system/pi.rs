@@ -1,10 +1,10 @@
 //! Processor interface (PI).
-use crate::{
-    Primitive,
-    system::{System, gx},
-};
-use bitos::{bitos, integer::u26};
+use bitos::bitos;
+use bitos::integer::u26;
 use gekko::{Address, Exception};
+
+use crate::Primitive;
+use crate::system::{System, gx};
 
 #[bitos(14)]
 #[derive(Default, Clone, Copy)]

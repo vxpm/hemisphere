@@ -3,16 +3,16 @@
 
 #![feature(cold_path)]
 
-use bitos::{
-    BitUtils, bitos,
-    integer::{i6, u2, u4, u5, u7, u11, u15, u27},
-};
 use std::time::Duration;
+
+use bitos::integer::{i6, u2, u4, u5, u7, u11, u15, u27};
+use bitos::{BitUtils, bitos};
 use strum::{FromRepr, VariantArray};
 use util::offset_of;
 use zerocopy::{FromBytes, Immutable, IntoBytes};
 
 /// Disassembling of PowerPC instructions. Re-export of the [`powerpc`] crate.
+#[rustfmt::skip]
 pub use powerpc as disasm;
 
 /// An address in the Gekko's memory address space. This is a thin wrapper around an [`u32`].
@@ -426,19 +426,19 @@ impl InsExt for disasm::Ins {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u16)]
 pub enum Exception {
-    Reset = 0x0100,
-    MachineCheck = 0x0200,
-    DSI = 0x0300,
-    ISI = 0x0400,
-    Interrupt = 0x0500,
-    Alignment = 0x0600,
-    Program = 0x0700,
-    FloatUnavailable = 0x0800,
-    Decrementer = 0x0900,
-    Syscall = 0x0C00,
-    Trace = 0x0D00,
+    Reset              = 0x0100,
+    MachineCheck       = 0x0200,
+    DSI                = 0x0300,
+    ISI                = 0x0400,
+    Interrupt          = 0x0500,
+    Alignment          = 0x0600,
+    Program            = 0x0700,
+    FloatUnavailable   = 0x0800,
+    Decrementer        = 0x0900,
+    Syscall            = 0x0C00,
+    Trace              = 0x0D00,
     PerformanceMonitor = 0x0F00,
-    Breakpoint = 0x1300,
+    Breakpoint         = 0x1300,
 }
 
 impl Exception {
@@ -581,16 +581,16 @@ pub struct XerReg {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum FloatCond {
     UnordedOrNaN = 0b0001,
-    Equal = 0b0010,
-    GreaterThan = 0b0100,
-    LessThan = 0b1000,
+    Equal        = 0b0010,
+    GreaterThan  = 0b0100,
+    LessThan     = 0b1000,
 }
 
 #[bitos(2)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum FloatRounding {
-    Nearest = 0b00,
-    TowardsZero = 0b01,
+    Nearest       = 0b00,
+    TowardsZero   = 0b01,
     TowardsPosInf = 0b10,
     TowardsNegInf = 0b11,
 }
@@ -830,10 +830,8 @@ impl MemoryManagement {
     /// Default configuration for BATs used by the Dolphin OS.
     pub fn setup_default_bats(&mut self) {
         let bat = |upper, lower| {
-            use zerocopy::{
-                big_endian::{U32, U64},
-                transmute,
-            };
+            use zerocopy::big_endian::{U32, U64};
+            use zerocopy::transmute;
 
             let data: U64 = transmute!([U32::new(upper), U32::new(lower)]);
             Bat::from_bits(data.get())
@@ -1237,21 +1235,21 @@ impl FPR {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, FromRepr, VariantArray)]
 #[repr(u16)]
 pub enum SPR {
-    XER = 1,
-    LR = 8,
-    CTR = 9,
-    DSISR = 18,
-    DAR = 19,
-    DEC = 22,
-    SDR1 = 25,
-    SRR0 = 26,
-    SRR1 = 27,
-    SPRG0 = 272,
-    SPRG1 = 273,
-    SPRG2 = 274,
-    SPRG3 = 275,
-    TBL = 284,
-    TBU = 285,
+    XER    = 1,
+    LR     = 8,
+    CTR    = 9,
+    DSISR  = 18,
+    DAR    = 19,
+    DEC    = 22,
+    SDR1   = 25,
+    SRR0   = 26,
+    SRR1   = 27,
+    SPRG0  = 272,
+    SPRG1  = 273,
+    SPRG2  = 274,
+    SPRG3  = 275,
+    TBL    = 284,
+    TBU    = 285,
     IBAT0U = 528,
     IBAT0L = 529,
     IBAT1U = 530,
@@ -1268,27 +1266,27 @@ pub enum SPR {
     DBAT2L = 541,
     DBAT3U = 542,
     DBAT3L = 543,
-    GQR0 = 912,
-    GQR1 = 913,
-    GQR2 = 914,
-    GQR3 = 915,
-    GQR4 = 916,
-    GQR5 = 917,
-    GQR6 = 918,
-    GQR7 = 919,
-    HID2 = 920,
-    WPAR = 921,
-    DMAU = 922,
-    DMAL = 923,
-    MMCR0 = 952,
-    PMC1 = 953,
-    PMC2 = 954,
-    MMCR1 = 956,
-    PMC3 = 957,
-    PMC4 = 958,
-    HID0 = 1008,
-    HID1 = 1009,
-    L2CR = 1017,
+    GQR0   = 912,
+    GQR1   = 913,
+    GQR2   = 914,
+    GQR3   = 915,
+    GQR4   = 916,
+    GQR5   = 917,
+    GQR6   = 918,
+    GQR7   = 919,
+    HID2   = 920,
+    WPAR   = 921,
+    DMAU   = 922,
+    DMAL   = 923,
+    MMCR0  = 952,
+    PMC1   = 953,
+    PMC2   = 954,
+    MMCR1  = 956,
+    PMC3   = 957,
+    PMC4   = 958,
+    HID0   = 1008,
+    HID1   = 1009,
+    L2CR   = 1017,
 }
 
 impl SPR {
