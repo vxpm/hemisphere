@@ -363,8 +363,10 @@ impl Renderer {
     }
 
     pub fn set_culling_mode(&mut self, mode: CullingMode) {
-        self.flush("changed culling mode");
-        self.pipeline_settings.culling = mode;
+        if self.pipeline_settings.culling != mode {
+            self.flush("changed culling mode");
+            self.pipeline_settings.culling = mode;
+        }
     }
 
     pub fn set_clear_color(&mut self, rgba: Rgba) {
@@ -416,8 +418,10 @@ impl Renderer {
         };
 
         self.debug(format!("set blend settings to {blend:?}"));
-        self.flush("changed blend settings");
-        self.pipeline_settings.blend = blend;
+        if self.pipeline_settings.blend != blend {
+            self.flush("changed blend settings");
+            self.pipeline_settings.blend = blend;
+        }
     }
 
     pub fn set_depth_mode(&mut self, mode: DepthMode) {
@@ -439,15 +443,24 @@ impl Renderer {
         };
 
         self.debug(format!("set depth settings to {depth:?}"));
-        self.flush("depth settings changed");
-        self.pipeline_settings.depth = depth;
+        if self.pipeline_settings.depth != depth {
+            self.flush("depth settings changed");
+            self.pipeline_settings.depth = depth;
+        }
     }
 
     pub fn set_alpha_function(&mut self, func: AlphaFunction) {
+        let settings = pipeline::AlphaFunctionSettings {
+            comparison: func.comparison(),
+            logic: func.logic(),
+        };
+
         self.debug(format!("set alpha function to {func:?}"));
-        self.flush("alpha function changed");
-        self.pipeline_settings.shader.texenv.alpha_func.comparison = func.comparison();
-        self.pipeline_settings.shader.texenv.alpha_func.logic = func.logic();
+        if self.pipeline_settings.shader.texenv.alpha_func != settings {
+            self.flush("alpha function changed");
+            self.pipeline_settings.shader.texenv.alpha_func = settings;
+        }
+
         self.current_config.alpha_refs = func.refs().map(|x| x as u32);
         self.current_config_dirty = true;
     }
