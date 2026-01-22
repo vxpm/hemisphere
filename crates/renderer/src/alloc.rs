@@ -16,6 +16,10 @@ pub struct Allocator {
     receiver: Receiver<BufferPair>,
 }
 
+fn bucket_for(size: u64) -> usize {
+    size.ilog2() as usize - 4
+}
+
 impl Allocator {
     pub fn new(usages: wgpu::BufferUsages) -> Self {
         let (sender, receiver) = flume::unbounded();
@@ -35,7 +39,7 @@ impl Allocator {
 
         while let Ok(pair) = self.receiver.try_recv() {
             let size = pair.main.size();
-            let bucket = size.ilog2() as usize;
+            let bucket = bucket_for(size);
 
             if self.available.len() <= bucket {
                 self.available.resize(bucket + 1, Vec::new());
@@ -53,8 +57,8 @@ impl Allocator {
         recall: bool,
     ) -> wgpu::Buffer {
         let size = data.len() as u64;
-        let buffer_size = size.next_power_of_two();
-        let bucket = buffer_size.ilog2() as usize;
+        let buffer_size = size.next_power_of_two().max(16);
+        let bucket = bucket_for(buffer_size);
 
         let pair = self
             .available

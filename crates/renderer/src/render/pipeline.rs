@@ -196,8 +196,6 @@ impl Cache {
                 storage_buffer(1),
                 // configs
                 storage_buffer(2),
-                // texture scaling
-                storage_buffer(3),
             ],
         });
 
@@ -235,7 +233,10 @@ impl Cache {
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: None,
             bind_group_layouts: &[&group0_layout, &group1_layout],
-            push_constant_ranges: &[],
+            push_constant_ranges: &[wgpu::PushConstantRange {
+                stages: wgpu::ShaderStages::FRAGMENT,
+                range: 0..64,
+            }],
         });
 
         Self {

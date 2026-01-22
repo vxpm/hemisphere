@@ -172,7 +172,10 @@ twox-hash = { version = "2.1", default-features = false, features = [
     "xxhash3_128",
     "std",
 ] }
-wesl = { version = "0.3", default-features = false, features = ["eval"] }
+wesl = { version = "0.3", default-features = false, features = [
+    "eval",
+    "naga-ext",
+] }
 wesl-quote = { version = "0.3" }
 wgpu = { version = "27.0", default-features = false }
 zerocopy = { version = "0.8", features = ["derive"] }

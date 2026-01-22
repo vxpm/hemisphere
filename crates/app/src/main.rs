@@ -388,9 +388,11 @@ fn main() -> Result<()> {
         let mut required_features = wgpu::Features::empty();
         required_features |= wgpu::Features::DUAL_SOURCE_BLENDING;
         required_features |= wgpu::Features::FLOAT32_FILTERABLE;
+        required_features |= wgpu::Features::PUSH_CONSTANTS;
 
         let mut required_limits = wgpu::Limits::defaults();
         required_limits.max_texture_dimension_2d = 8192;
+        required_limits.max_push_constant_size = 64;
 
         wgpu::DeviceDescriptor {
             label: Some("lazuli wgpu device"),

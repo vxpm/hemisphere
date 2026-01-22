@@ -77,7 +77,6 @@ fn base_module() -> wesl::syntax::TranslationUnit {
         @group(0) @binding(0) var<storage> vertices: array<Vertex>;
         @group(0) @binding(1) var<storage> matrices: array<mat4x4f>;
         @group(0) @binding(2) var<storage> configs: array<Config>;
-        @group(0) @binding(3) var<storage> scaling: array<vec4f, 4>;
 
         // Textures group
         @group(1) @binding(0) var texture0: texture_2d<f32>;
@@ -97,6 +96,9 @@ fn base_module() -> wesl::syntax::TranslationUnit {
         @group(1) @binding(13) var sampler6: sampler;
         @group(1) @binding(14) var texture7: texture_2d<f32>;
         @group(1) @binding(15) var sampler7: sampler;
+
+        // Texture scaling
+        var<push_constant> scaling: array<vec4f, 4>;
 
         struct VertexOutput {
             @builtin(position) clip: vec4f,

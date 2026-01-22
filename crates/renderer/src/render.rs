@@ -56,7 +56,6 @@ struct DataGroupEntries {
     vertices: wgpu::Buffer,
     matrices: wgpu::Buffer,
     configs: wgpu::Buffer,
-    scaling: wgpu::Buffer,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -717,14 +716,6 @@ impl Renderer {
                         size: None,
                     }),
                 },
-                wgpu::BindGroupEntry {
-                    binding: 3,
-                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                        buffer: &entries.scaling,
-                        offset: 0,
-                        size: None,
-                    }),
-                },
             ],
         })
     }
@@ -784,17 +775,11 @@ impl Renderer {
             &mut self.current_transfer_encoder,
             self.configs.as_bytes(),
         );
-        let scaling_buf = self.allocators.storage.allocate(
-            &self.device,
-            &mut self.current_transfer_encoder,
-            scaling_array.as_bytes(),
-        );
 
         let data_group = self.get_data_group(DataGroupEntries {
             vertices: vertices_buf,
             matrices: matrices_buf,
             configs: configs_buf,
-            scaling: scaling_buf,
         });
 
         let textures = self.tex_slots.map(|s| {
@@ -814,6 +799,11 @@ impl Renderer {
             .get(&self.device, &self.pipeline_settings);
 
         self.current_pass.set_pipeline(pipeline);
+        self.current_pass.set_push_constants(
+            wgpu::ShaderStages::FRAGMENT,
+            0,
+            scaling_array.as_bytes(),
+        );
         self.current_pass.set_bind_group(0, Some(&data_group), &[]);
         self.current_pass
             .set_bind_group(1, Some(&textures_group), &[]);
