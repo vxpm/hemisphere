@@ -12,7 +12,7 @@ use crate::system::System;
 use crate::system::gx::pix::{ColorCopyFormat, DepthCopyFormat};
 
 #[derive(Debug, Clone)]
-pub enum TextureData {
+pub enum PlanarData {
     Direct(Vec<Rgba8>),
     Indirect(Vec<PaletteIndex>),
 }
@@ -24,11 +24,11 @@ pub enum MipmapData {
 }
 
 impl MipmapData {
-    fn push(&mut self, lod: TextureData) {
+    fn push(&mut self, lod: PlanarData) {
         match (self, lod) {
-            (Self::Direct(lods), TextureData::Direct(lod)) => lods.push(lod),
-            (Self::Indirect(lods), TextureData::Indirect(lod)) => lods.push(lod),
-            _ => panic!("mismatched mipmap and texture formats - this is definitely a bug"),
+            (Self::Direct(lods), PlanarData::Direct(lod)) => lods.push(lod),
+            (Self::Indirect(lods), PlanarData::Indirect(lod)) => lods.push(lod),
+            _ => panic!("mismatched texture and planar formats - this is definitely a bug"),
         }
     }
 
@@ -180,7 +180,7 @@ impl Encoding {
         Self::length_for(self.width(), self.height(), self.format())
     }
 
-    // Size, in bytes, of the mipmap.
+    // Size, in bytes, of the texture, considering it as a mipmap.
     pub fn length_mipmap(&self) -> u32 {
         let mut current_width = self.width();
         let mut current_height = self.height();
@@ -369,7 +369,8 @@ impl Interface {
     }
 }
 
-fn decode_texture(data: &[u8], width: u32, height: u32, format: Format) -> TextureData {
+/// Decodes a planar texture.
+fn decode_planar(data: &[u8], width: u32, height: u32, format: Format) -> PlanarData {
     use gxtex::{
         AlphaChannel, CI4, CI8, CI14X2, Cmpr, FastLuma, FastRgb565, I4, I8, IA4, IA8, Rgb5A3,
         Rgba8, decode,
@@ -379,23 +380,51 @@ fn decode_texture(data: &[u8], width: u32, height: u32, format: Format) -> Textu
     let height = height as usize;
 
     match format {
-        Format::I4 => TextureData::Direct(decode::<I4<FastLuma>>(width, height, data)),
+        Format::I4 => PlanarData::Direct(decode::<I4<FastLuma>>(width, height, data)),
         Format::IA4 => {
-            TextureData::Direct(decode::<IA4<FastLuma, AlphaChannel>>(width, height, data))
+            PlanarData::Direct(decode::<IA4<FastLuma, AlphaChannel>>(width, height, data))
         }
-        Format::I8 => TextureData::Direct(decode::<I8<FastLuma>>(width, height, data)),
+        Format::I8 => PlanarData::Direct(decode::<I8<FastLuma>>(width, height, data)),
         Format::IA8 => {
-            TextureData::Direct(decode::<IA8<FastLuma, AlphaChannel>>(width, height, data))
+            PlanarData::Direct(decode::<IA8<FastLuma, AlphaChannel>>(width, height, data))
         }
-        Format::Rgb565 => TextureData::Direct(decode::<FastRgb565>(width, height, data)),
-        Format::Rgb5A3 => TextureData::Direct(decode::<Rgb5A3>(width, height, data)),
-        Format::Rgba8 => TextureData::Direct(decode::<Rgba8>(width, height, data)),
-        Format::Cmp => TextureData::Direct(decode::<Cmpr>(width, height, data)),
-        Format::CI4 => TextureData::Indirect(decode::<CI4>(width, height, data)),
-        Format::CI8 => TextureData::Indirect(decode::<CI8>(width, height, data)),
-        Format::CI14X2 => TextureData::Indirect(decode::<CI14X2>(width, height, data)),
+        Format::Rgb565 => PlanarData::Direct(decode::<FastRgb565>(width, height, data)),
+        Format::Rgb5A3 => PlanarData::Direct(decode::<Rgb5A3>(width, height, data)),
+        Format::Rgba8 => PlanarData::Direct(decode::<Rgba8>(width, height, data)),
+        Format::Cmp => PlanarData::Direct(decode::<Cmpr>(width, height, data)),
+        Format::CI4 => PlanarData::Indirect(decode::<CI4>(width, height, data)),
+        Format::CI8 => PlanarData::Indirect(decode::<CI8>(width, height, data)),
+        Format::CI14X2 => PlanarData::Indirect(decode::<CI14X2>(width, height, data)),
         _ => todo!("reserved texture format"),
     }
+}
+
+/// Decodes a mipmap texture with `count` levels.
+fn decode_mipmap(data: &[u8], width: u32, height: u32, format: Format, count: usize) -> MipmapData {
+    let mut mipmap = if format.is_direct() {
+        MipmapData::Direct(Vec::with_capacity(count))
+    } else {
+        MipmapData::Indirect(Vec::with_capacity(count))
+    };
+
+    let mut current_data = data;
+    let mut current_width = width;
+    let mut current_height = height;
+    for _ in 0..count {
+        mipmap.push(self::decode_planar(
+            current_data,
+            current_width,
+            current_height,
+            format,
+        ));
+
+        let consumed = Encoding::length_for(current_width, current_height, format) as usize;
+        current_data = &current_data[consumed..];
+        current_width = (current_width / 2).max(1);
+        current_height = (current_height / 2).max(1);
+    }
+
+    mipmap
 }
 
 pub fn encode_color_texture(
@@ -503,11 +532,12 @@ pub fn update_texture(sys: &mut System, index: usize) {
     let base = map.address;
     let width = map.encoding.width();
     let height = map.encoding.height();
+    let format = map.encoding.format();
     let texture_id = render::TextureId(base.value());
     let clut_addr = render::ClutAddress(map.clut.tmem_offset().value());
     let clut_fmt = map.clut.format();
 
-    let (len, lod_count) = if map.sampler.min_filter().uses_lods() {
+    let (len, lods) = if map.sampler.min_filter().uses_lods() {
         (
             map.encoding.length_mipmap() as usize,
             map.encoding.lod_count() as usize,
@@ -518,38 +548,14 @@ pub fn update_texture(sys: &mut System, index: usize) {
 
     let data = &sys.mem.ram()[base.value() as usize..][..len];
     if sys.gpu.tex.is_tex_dirty(base, data) {
-        let mut mipmap = if map.encoding.format().is_direct() {
-            MipmapData::Direct(Vec::with_capacity(lod_count))
-        } else {
-            MipmapData::Indirect(Vec::with_capacity(lod_count))
-        };
-
-        let mut current_data = data;
-        let mut current_width = width;
-        let mut current_height = height;
-        for _ in 0..lod_count {
-            mipmap.push(self::decode_texture(
-                current_data,
-                current_width,
-                current_height,
-                map.encoding.format(),
-            ));
-
-            let consumed =
-                Encoding::length_for(current_width, current_height, map.encoding.format()) as usize;
-
-            current_data = &current_data[consumed..];
-            current_width = (current_width / 2).max(1);
-            current_height = (current_height / 2).max(1);
-        }
-
+        let data = self::decode_mipmap(data, width, height, format, lods);
         sys.modules.render.exec(render::Action::LoadTexture {
             id: texture_id,
             texture: render::Texture {
-                width: width,
-                height: height,
-                format: map.encoding.format(),
-                data: mipmap,
+                width,
+                height,
+                format,
+                data,
             },
         });
     }
