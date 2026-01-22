@@ -867,7 +867,7 @@ impl Renderer {
 
         let transfer_encoder = self.device.create_command_encoder(&Default::default());
         let mut render_encoder = self.device.create_command_encoder(&Default::default());
-        let pass = render_encoder
+        let mut pass = render_encoder
             .begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("main render pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -891,6 +891,15 @@ impl Renderer {
                 occlusion_query_set: None,
             })
             .forget_lifetime();
+
+        pass.set_viewport(
+            self.viewport.top_left_x,
+            self.viewport.top_left_y,
+            self.viewport.width,
+            self.viewport.height,
+            self.viewport.near_depth.clamp(0.0, 1.0),
+            self.viewport.far_depth.clamp(0.0, 1.0),
+        );
 
         let prev_transfer_encoder =
             std::mem::replace(&mut self.current_transfer_encoder, transfer_encoder);

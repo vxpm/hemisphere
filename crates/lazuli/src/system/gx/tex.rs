@@ -521,7 +521,7 @@ pub fn encode_depth_texture(
         DepthCopyFormat::Z8H => encode!(I8<BlueChannel>),
         DepthCopyFormat::Z8M => encode!(I8<GreenChannel>),
         DepthCopyFormat::Z8L => encode!(I8<RedChannel>),
-        DepthCopyFormat::Z16A => encode!(IA8<GreenChannel, RedChannel>),
+        DepthCopyFormat::Z16A => encode!(IA8<RedChannel, GreenChannel>),
         DepthCopyFormat::Z16B => encode!(IA8<GreenChannel, RedChannel>),
         _ => panic!("reserved depth format"),
     }

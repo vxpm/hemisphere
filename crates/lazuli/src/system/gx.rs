@@ -21,7 +21,6 @@ use zerocopy::IntoBytes;
 
 use crate::modules::{render, vertex};
 use crate::system::gx::cmd::VertexAttributeStream;
-use crate::system::gx::tex::{encode_color_texture, encode_depth_texture};
 use crate::system::pi;
 use crate::{Primitive, System};
 
@@ -1081,12 +1080,16 @@ fn efb_copy(sys: &mut System, cmd: pix::CopyCmd) {
 
     if sys.gpu.pix.control.format().is_depth() {
         let (sender, receiver) = oneshot::channel();
+        let x = sys.gpu.pix.copy_src.x().value();
+        let y = sys.gpu.pix.copy_src.y().value();
         let width = sys.gpu.pix.copy_dimensions.width();
         let height = sys.gpu.pix.copy_dimensions.height();
+        let stride = sys.gpu.pix.copy_stride;
+        let dst = sys.gpu.pix.copy_dst;
 
         sys.modules.render.exec(render::Action::DepthCopy {
-            x: sys.gpu.pix.copy_src.x().value(),
-            y: sys.gpu.pix.copy_src.y().value(),
+            x,
+            y,
             width,
             height,
             half: cmd.half(),
@@ -1099,19 +1102,22 @@ fn efb_copy(sys: &mut System, cmd: pix::CopyCmd) {
         };
 
         let divisor = if cmd.half() { 2 } else { 1 };
-        let stride = sys.gpu.pix.copy_stride;
-        let width = sys.gpu.pix.copy_dimensions.width() as u32 / divisor;
-        let height = sys.gpu.pix.copy_dimensions.height() as u32 / divisor;
-        let output = &mut sys.mem.ram_mut()[sys.gpu.pix.copy_dst.value() as usize..];
-        encode_depth_texture(pixels, cmd.depth_format(), stride, width, height, output);
+        let width = width as u32 / divisor;
+        let height = height as u32 / divisor;
+        let output = &mut sys.mem.ram_mut()[dst.value() as usize..];
+        tex::encode_depth_texture(pixels, cmd.depth_format(), stride, width, height, output);
     } else {
         let (sender, receiver) = oneshot::channel();
+        let x = sys.gpu.pix.copy_src.x().value();
+        let y = sys.gpu.pix.copy_src.y().value();
         let width = sys.gpu.pix.copy_dimensions.width();
         let height = sys.gpu.pix.copy_dimensions.height();
+        let stride = sys.gpu.pix.copy_stride;
+        let dst = sys.gpu.pix.copy_dst;
 
         sys.modules.render.exec(render::Action::ColorCopy {
-            x: sys.gpu.pix.copy_src.x().value(),
-            y: sys.gpu.pix.copy_src.y().value(),
+            x,
+            y,
             width,
             height,
             half: cmd.half(),
@@ -1124,10 +1130,9 @@ fn efb_copy(sys: &mut System, cmd: pix::CopyCmd) {
         };
 
         let divisor = if cmd.half() { 2 } else { 1 };
-        let stride = sys.gpu.pix.copy_stride;
-        let width = sys.gpu.pix.copy_dimensions.width() as u32 / divisor;
-        let height = sys.gpu.pix.copy_dimensions.height() as u32 / divisor;
-        let output = &mut sys.mem.ram_mut()[sys.gpu.pix.copy_dst.value() as usize..];
-        encode_color_texture(pixels, cmd.color_format(), stride, width, height, output);
+        let width = width as u32 / divisor;
+        let height = height as u32 / divisor;
+        let output = &mut sys.mem.ram_mut()[dst.value() as usize..];
+        tex::encode_color_texture(pixels, cmd.color_format(), stride, width, height, output);
     }
 }

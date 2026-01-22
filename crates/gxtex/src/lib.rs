@@ -54,13 +54,14 @@ pub fn encode<F: Format>(
     assert!(buffer.len() >= compute_size::<F>(width, height));
 
     let cache_lines_per_tile = F::BYTES_PER_TILE / 32;
+    let stride_in_tiles = stride / cache_lines_per_tile;
     let width_in_tiles = width.div_ceil(F::TILE_WIDTH);
     let height_in_tiles = height.div_ceil(F::TILE_HEIGHT);
 
     for tile_y in 0..height_in_tiles {
         for tile_x in 0..width_in_tiles {
             // where should data be written to?
-            let tile_index = tile_y * stride / cache_lines_per_tile + tile_x;
+            let tile_index = tile_y * stride_in_tiles + tile_x;
             let tile_offset = tile_index * F::BYTES_PER_TILE;
             let out = &mut buffer[tile_offset..][..F::BYTES_PER_TILE];
 
