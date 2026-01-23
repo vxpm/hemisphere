@@ -105,9 +105,7 @@ impl BinRingBuffer {
     }
 
     pub fn push_front_bytes(&mut self, bytes: &[u8]) {
-        for byte in bytes.iter().rev() {
-            self.data.push_front(*byte);
-        }
+        self.data.prepend(bytes.into_iter().copied());
     }
 
     /// Current length of the buffer.
