@@ -116,7 +116,7 @@ impl Compiler {
         let builder = ParserBuilder::new(self, func_builder, config);
         builder.build();
 
-        println!("{:?}", config);
+        // println!("{:?}", config);
         // println!("{}", func.display());
 
         code_ctx.clear();
@@ -127,8 +127,8 @@ impl Compiler {
             .unwrap();
 
         let compiled = code_ctx.take_compiled_code().unwrap();
-        println!("{}", code_ctx.func.display());
-        println!("{}", compiled.vcode.as_ref().unwrap());
+        // println!("{}", code_ctx.func.display());
+        // println!("{}", compiled.vcode.as_ref().unwrap());
 
         let alloc = self.allocator.allocate(64, compiled.code_buffer());
         VertexParser::new(alloc)
