@@ -45,7 +45,11 @@ fn coord_int(
 
     // 02. byteswap and extend
     let value = parser.bd.ins().bswap(value);
-    let value = parser.bd.ins().uextend(ir::types::I32, value);
+    let value = if signed {
+        parser.bd.ins().sextend(ir::types::I32, value)
+    } else {
+        parser.bd.ins().uextend(ir::types::I32, value)
+    };
 
     // 03. convert to F32
     let value = if signed {
@@ -104,7 +108,7 @@ fn vec_int(
         parser
             .bd
             .ins()
-            .load(ty, MEMFLAGS_READONLY, ptr, 2 * ty.bytes() as i32)
+            .load(ty, MEMFLAGS_READONLY, ptr, pair_ty.bytes() as i32)
     } else {
         parser.bd.ins().iconst(ty, 0)
     };
@@ -154,7 +158,14 @@ fn vec_int(
         vector
     };
 
-    // 04. convert to F32X4
+    // 04. sign extend and convert to F32X4
+    let vector = if signed {
+        let left = parser.bd.ins().ishl_imm(vector, 32 - ty.bits() as i64);
+        parser.bd.ins().sshr_imm(left, 32 - ty.bits() as i64)
+    } else {
+        vector
+    };
+
     let vector = if signed {
         parser.bd.ins().fcvt_from_sint(ir::types::F32X4, vector)
     } else {
@@ -182,10 +193,12 @@ fn vec_float(parser: &mut ParserBuilder, ptr: ir::Value, triplet: bool) -> [ir::
         .load(ir::types::I64, MEMFLAGS_READONLY, ptr, 0);
     let (first, second) = split_i64(parser, pair);
     let third = if triplet {
-        parser
-            .bd
-            .ins()
-            .load(ir::types::I32, MEMFLAGS_READONLY, ptr, 8)
+        parser.bd.ins().load(
+            ir::types::I32,
+            MEMFLAGS_READONLY,
+            ptr,
+            2 * size_of::<i32>() as i32,
+        )
     } else {
         parser.bd.ins().iconst(ir::types::I32, 0)
     };
