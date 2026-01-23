@@ -11,68 +11,6 @@ use zerocopy::IntoBytes;
 
 use crate::builder::{MEMFLAGS, MEMFLAGS_READONLY, ParserBuilder};
 
-pub trait AttributeExt: Attribute {
-    const ARRAY_OFFSET: usize;
-
-    fn set_default(_parser: &mut ParserBuilder) {}
-    fn parse(desc: &Self::Descriptor, parser: &mut ParserBuilder, ptr: ir::Value) -> u32;
-}
-
-impl AttributeExt for attributes::PosMatrixIndex {
-    const ARRAY_OFFSET: usize = usize::MAX;
-
-    fn set_default(parser: &mut ParserBuilder) {
-        parser.bd.ins().store(
-            MEMFLAGS,
-            parser.consts.default_pos,
-            parser.vars.vertex_ptr,
-            offset_of!(Vertex, pos_norm_matrix) as i32,
-        );
-    }
-
-    fn parse(_: &Self::Descriptor, parser: &mut ParserBuilder, ptr: ir::Value) -> u32 {
-        let index = parser
-            .bd
-            .ins()
-            .load(ir::types::I8, MEMFLAGS_READONLY, ptr, 0);
-
-        parser.include_matrix(false, index);
-        parser.include_matrix(true, index);
-
-        parser.bd.ins().store(
-            MEMFLAGS,
-            index,
-            parser.vars.vertex_ptr,
-            offset_of!(Vertex, pos_norm_matrix) as i32,
-        );
-
-        1
-    }
-}
-
-impl<const N: usize> AttributeExt for attributes::TexMatrixIndex<N> {
-    const ARRAY_OFFSET: usize = usize::MAX;
-
-    fn parse(_: &Self::Descriptor, parser: &mut ParserBuilder, ptr: ir::Value) -> u32 {
-        let index = parser
-            .bd
-            .ins()
-            .load(ir::types::I8, MEMFLAGS_READONLY, ptr, 0);
-
-        parser.include_matrix(false, index);
-        parser.include_matrix(true, index);
-
-        parser.bd.ins().store(
-            MEMFLAGS,
-            index,
-            parser.vars.vertex_ptr,
-            offset_of!(Vertex, tex_coords_matrix) as i32 + size_of::<u8>() as i32 * N as i32,
-        );
-
-        1
-    }
-}
-
 fn split_i16(parser: &mut ParserBuilder, value: ir::Value) -> (ir::Value, ir::Value) {
     let low = parser.bd.ins().ireduce(ir::types::I8, value);
     let high = parser.bd.ins().ushr_imm(value, 8);
@@ -94,7 +32,53 @@ fn split_i64(parser: &mut ParserBuilder, value: ir::Value) -> (ir::Value, ir::Va
     (low, high)
 }
 
-fn coordinates_int(
+/// Parses a single vector coordinate encoded as U8/I8/U16/I16.
+fn coord_int(
+    parser: &mut ParserBuilder,
+    ptr: ir::Value,
+    ty: ir::Type,
+    signed: bool,
+    scale: ir::Value,
+) -> ir::Value {
+    // 01. load the integer value
+    let value = parser.bd.ins().load(ty, MEMFLAGS_READONLY, ptr, 0);
+
+    // 02. byteswap and extend
+    let value = parser.bd.ins().bswap(value);
+    let value = parser.bd.ins().uextend(ir::types::I32, value);
+
+    // 03. convert to F32
+    let value = if signed {
+        parser.bd.ins().fcvt_from_sint(ir::types::F32, value)
+    } else {
+        parser.bd.ins().fcvt_from_uint(ir::types::F32, value)
+    };
+
+    // 05. multiply by scale
+    let value = parser.bd.ins().fmul(value, scale);
+    value
+}
+
+/// Parses a single vector coordinate encoded as F32.
+fn coord_float(parser: &mut ParserBuilder, ptr: ir::Value) -> ir::Value {
+    // 01. load the value as an integer
+    let value = parser
+        .bd
+        .ins()
+        .load(ir::types::I32, MEMFLAGS_READONLY, ptr, 0);
+
+    // 02. byteswap and bitcast
+    let value = parser.bd.ins().bswap(value);
+    let value = parser
+        .bd
+        .ins()
+        .bitcast(ir::types::F32, ir::MemFlags::new(), value);
+
+    value
+}
+
+/// Parses a vec2/vec3 with components encoded as U8/I8/U16/I16.
+fn vec_int(
     parser: &mut ParserBuilder,
     ptr: ir::Value,
     ty: ir::Type,
@@ -189,7 +173,8 @@ fn coordinates_int(
     [first, second, third]
 }
 
-fn coordinates_float(parser: &mut ParserBuilder, ptr: ir::Value, triplet: bool) -> [ir::Value; 3] {
+/// Parses a vec2/vec3 with components encoded as F32.
+fn vec_float(parser: &mut ParserBuilder, ptr: ir::Value, triplet: bool) -> [ir::Value; 3] {
     // 01. load the float values as I32s
     let pair = parser
         .bd
@@ -248,102 +233,6 @@ fn coordinates_float(parser: &mut ParserBuilder, ptr: ir::Value, triplet: bool) 
     let third = parser.bd.ins().extractlane(vector, 2);
 
     [first, second, third]
-}
-
-impl AttributeExt for attributes::Position {
-    const ARRAY_OFFSET: usize = offset_of!(Arrays, position);
-
-    fn parse(desc: &Self::Descriptor, parser: &mut ParserBuilder, ptr: ir::Value) -> u32 {
-        let (ty, signed) = match desc.format() {
-            CoordsFormat::U8 => (ir::types::I8, false),
-            CoordsFormat::I8 => (ir::types::I8, true),
-            CoordsFormat::U16 => (ir::types::I16, false),
-            CoordsFormat::I16 => (ir::types::I16, true),
-            CoordsFormat::F32 => (ir::types::F32, true),
-            _ => panic!("reserved format"),
-        };
-
-        let scale = 1.0 / 2.0f32.powi(desc.shift().value() as i32);
-        let scale = parser.bd.ins().f32const(scale);
-        let triplet = desc.kind() == PositionKind::Vec3;
-
-        let [x, y, z] = match ty {
-            ir::types::I8 | ir::types::I16 => {
-                coordinates_int(parser, ptr, ty, signed, triplet, scale)
-            }
-            _ => coordinates_float(parser, ptr, triplet),
-        };
-
-        parser.bd.ins().store(
-            MEMFLAGS,
-            x,
-            parser.vars.vertex_ptr,
-            offset_of!(Vertex, position.x) as i32,
-        );
-
-        parser.bd.ins().store(
-            MEMFLAGS,
-            y,
-            parser.vars.vertex_ptr,
-            offset_of!(Vertex, position.y) as i32,
-        );
-
-        parser.bd.ins().store(
-            MEMFLAGS,
-            z,
-            parser.vars.vertex_ptr,
-            offset_of!(Vertex, position.z) as i32,
-        );
-
-        desc.size()
-    }
-}
-
-impl AttributeExt for attributes::Normal {
-    const ARRAY_OFFSET: usize = offset_of!(Arrays, normal);
-
-    fn parse(desc: &Self::Descriptor, parser: &mut ParserBuilder, ptr: ir::Value) -> u32 {
-        let (ty, signed) = match desc.format() {
-            CoordsFormat::U8 => (ir::types::I8, false),
-            CoordsFormat::I8 => (ir::types::I8, true),
-            CoordsFormat::U16 => (ir::types::I16, false),
-            CoordsFormat::I16 => (ir::types::I16, true),
-            CoordsFormat::F32 => (ir::types::F32, true),
-            _ => panic!("reserved format"),
-        };
-
-        let exp = if ty.bytes() == 1 { 6 } else { 14 };
-        let scale = 1.0 / 2.0f32.powi(exp);
-        let scale = parser.bd.ins().f32const(scale);
-
-        let [x, y, z] = match ty {
-            ir::types::I8 | ir::types::I16 => coordinates_int(parser, ptr, ty, signed, true, scale),
-            _ => coordinates_float(parser, ptr, true),
-        };
-
-        parser.bd.ins().store(
-            MEMFLAGS,
-            x,
-            parser.vars.vertex_ptr,
-            offset_of!(Vertex, normal.x) as i32,
-        );
-
-        parser.bd.ins().store(
-            MEMFLAGS,
-            y,
-            parser.vars.vertex_ptr,
-            offset_of!(Vertex, normal.y) as i32,
-        );
-
-        parser.bd.ins().store(
-            MEMFLAGS,
-            z,
-            parser.vars.vertex_ptr,
-            offset_of!(Vertex, normal.z) as i32,
-        );
-
-        desc.size()
-    }
 }
 
 fn rgba_vector(
@@ -476,6 +365,162 @@ fn read_rgba(format: ColorFormat, parser: &mut ParserBuilder, ptr: ir::Value) ->
     }
 }
 
+pub trait AttributeExt: Attribute {
+    const ARRAY_OFFSET: usize;
+
+    fn set_default(_parser: &mut ParserBuilder) {}
+    fn parse(desc: &Self::Descriptor, parser: &mut ParserBuilder, ptr: ir::Value) -> u32;
+}
+
+impl AttributeExt for attributes::PosMatrixIndex {
+    const ARRAY_OFFSET: usize = usize::MAX;
+
+    fn set_default(parser: &mut ParserBuilder) {
+        parser.bd.ins().store(
+            MEMFLAGS,
+            parser.consts.default_pos,
+            parser.vars.vertex_ptr,
+            offset_of!(Vertex, pos_norm_matrix) as i32,
+        );
+    }
+
+    fn parse(_: &Self::Descriptor, parser: &mut ParserBuilder, ptr: ir::Value) -> u32 {
+        let index = parser
+            .bd
+            .ins()
+            .load(ir::types::I8, MEMFLAGS_READONLY, ptr, 0);
+
+        parser.include_matrix(false, index);
+        parser.include_matrix(true, index);
+
+        parser.bd.ins().store(
+            MEMFLAGS,
+            index,
+            parser.vars.vertex_ptr,
+            offset_of!(Vertex, pos_norm_matrix) as i32,
+        );
+
+        1
+    }
+}
+
+impl<const N: usize> AttributeExt for attributes::TexMatrixIndex<N> {
+    const ARRAY_OFFSET: usize = usize::MAX;
+
+    fn parse(_: &Self::Descriptor, parser: &mut ParserBuilder, ptr: ir::Value) -> u32 {
+        let index = parser
+            .bd
+            .ins()
+            .load(ir::types::I8, MEMFLAGS_READONLY, ptr, 0);
+
+        parser.include_matrix(false, index);
+        parser.include_matrix(true, index);
+
+        parser.bd.ins().store(
+            MEMFLAGS,
+            index,
+            parser.vars.vertex_ptr,
+            offset_of!(Vertex, tex_coords_matrix) as i32 + size_of::<u8>() as i32 * N as i32,
+        );
+
+        1
+    }
+}
+
+impl AttributeExt for attributes::Position {
+    const ARRAY_OFFSET: usize = offset_of!(Arrays, position);
+
+    fn parse(desc: &Self::Descriptor, parser: &mut ParserBuilder, ptr: ir::Value) -> u32 {
+        let (ty, signed) = match desc.format() {
+            CoordsFormat::U8 => (ir::types::I8, false),
+            CoordsFormat::I8 => (ir::types::I8, true),
+            CoordsFormat::U16 => (ir::types::I16, false),
+            CoordsFormat::I16 => (ir::types::I16, true),
+            CoordsFormat::F32 => (ir::types::F32, true),
+            _ => panic!("reserved format"),
+        };
+
+        let scale = 1.0 / 2.0f32.powi(desc.shift().value() as i32);
+        let scale = parser.bd.ins().f32const(scale);
+        let triplet = desc.kind() == PositionKind::Vec3;
+
+        let [x, y, z] = match ty {
+            ir::types::I8 | ir::types::I16 => vec_int(parser, ptr, ty, signed, triplet, scale),
+            _ => vec_float(parser, ptr, triplet),
+        };
+
+        parser.bd.ins().store(
+            MEMFLAGS,
+            x,
+            parser.vars.vertex_ptr,
+            offset_of!(Vertex, position.x) as i32,
+        );
+
+        parser.bd.ins().store(
+            MEMFLAGS,
+            y,
+            parser.vars.vertex_ptr,
+            offset_of!(Vertex, position.y) as i32,
+        );
+
+        parser.bd.ins().store(
+            MEMFLAGS,
+            z,
+            parser.vars.vertex_ptr,
+            offset_of!(Vertex, position.z) as i32,
+        );
+
+        desc.size()
+    }
+}
+
+impl AttributeExt for attributes::Normal {
+    const ARRAY_OFFSET: usize = offset_of!(Arrays, normal);
+
+    fn parse(desc: &Self::Descriptor, parser: &mut ParserBuilder, ptr: ir::Value) -> u32 {
+        let (ty, signed) = match desc.format() {
+            CoordsFormat::U8 => (ir::types::I8, false),
+            CoordsFormat::I8 => (ir::types::I8, true),
+            CoordsFormat::U16 => (ir::types::I16, false),
+            CoordsFormat::I16 => (ir::types::I16, true),
+            CoordsFormat::F32 => (ir::types::F32, true),
+            _ => panic!("reserved format"),
+        };
+
+        let exp = if ty.bytes() == 1 { 6 } else { 14 };
+        let scale = 1.0 / 2.0f32.powi(exp);
+        let scale = parser.bd.ins().f32const(scale);
+
+        let [x, y, z] = match ty {
+            ir::types::I8 | ir::types::I16 => vec_int(parser, ptr, ty, signed, true, scale),
+            _ => vec_float(parser, ptr, true),
+        };
+
+        parser.bd.ins().store(
+            MEMFLAGS,
+            x,
+            parser.vars.vertex_ptr,
+            offset_of!(Vertex, normal.x) as i32,
+        );
+
+        parser.bd.ins().store(
+            MEMFLAGS,
+            y,
+            parser.vars.vertex_ptr,
+            offset_of!(Vertex, normal.y) as i32,
+        );
+
+        parser.bd.ins().store(
+            MEMFLAGS,
+            z,
+            parser.vars.vertex_ptr,
+            offset_of!(Vertex, normal.z) as i32,
+        );
+
+        desc.size()
+    }
+}
+
 impl AttributeExt for attributes::Chan0 {
     const ARRAY_OFFSET: usize = offset_of!(Arrays, chan0);
 
@@ -528,9 +573,6 @@ impl<const N: usize> AttributeExt for attributes::TexCoords<N> {
     const ARRAY_OFFSET: usize = offset_of!(Arrays, tex_coords) + size_of::<ArrayDescriptor>() * N;
 
     fn parse(desc: &Self::Descriptor, parser: &mut ParserBuilder, ptr: ir::Value) -> u32 {
-        let shift = 1.0 / 2.0f32.powi(desc.shift().value() as i32);
-        let shift = parser.bd.ins().f32const(shift);
-
         let (ty, signed) = match desc.format() {
             CoordsFormat::U8 => (ir::types::I8, false),
             CoordsFormat::I8 => (ir::types::I8, true),
@@ -540,45 +582,29 @@ impl<const N: usize> AttributeExt for attributes::TexCoords<N> {
             _ => panic!("reserved format"),
         };
 
-        let mut load_as_float = |index| {
-            let value = parser.bd.ins().load(
-                if ty.is_float() { ir::types::I32 } else { ty },
-                MEMFLAGS_READONLY,
-                ptr,
-                index * ty.bytes() as i32,
-            );
+        let scale = 1.0 / 2.0f32.powi(desc.shift().value() as i32);
+        let scale = parser.bd.ins().f32const(scale);
 
-            let value = if ty.bytes() == 1 {
-                value
-            } else if ty.is_float() {
-                let value = parser.bd.ins().bswap(value);
-                parser
-                    .bd
-                    .ins()
-                    .bitcast(ir::types::F32, ir::MemFlags::new(), value)
-            } else {
-                parser.bd.ins().bswap(value)
-            };
+        let [s, t] = match desc.kind() {
+            TexCoordsKind::Vec1 => {
+                let s = match ty {
+                    ir::types::I8 | ir::types::I16 => coord_int(parser, ptr, ty, signed, scale),
+                    _ => coord_float(parser, ptr),
+                };
+                let t = parser.bd.ins().f32const(0.0);
 
-            let value = if ty.is_float() {
-                value
-            } else if signed {
-                parser.bd.ins().fcvt_from_sint(ir::types::F32, value)
-            } else {
-                parser.bd.ins().fcvt_from_uint(ir::types::F32, value)
-            };
-
-            if ty.is_float() {
-                value
-            } else {
-                parser.bd.ins().fmul(value, shift)
+                [s, t]
             }
-        };
+            TexCoordsKind::Vec2 => {
+                let [s, t, _] = match ty {
+                    ir::types::I8 | ir::types::I16 => {
+                        vec_int(parser, ptr, ty, signed, false, scale)
+                    }
+                    _ => vec_float(parser, ptr, false),
+                };
 
-        let s = load_as_float(0);
-        let t = match desc.kind() {
-            TexCoordsKind::Vec1 => parser.bd.ins().f32const(0.0),
-            TexCoordsKind::Vec2 => load_as_float(1),
+                [s, t]
+            }
         };
 
         parser.bd.ins().store(
