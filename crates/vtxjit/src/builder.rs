@@ -42,6 +42,7 @@ struct Vars {
     arrays: FxHashMap<usize, Array>,
     data_ptr: ir::Value,
     vertex_ptr: ir::Value,
+    mtx_set_marked: ir::Value,
 }
 
 pub struct ParserBuilder<'ctx> {
@@ -101,11 +102,15 @@ impl<'ctx> ParserBuilder<'ctx> {
             count,
         };
 
+        let zero = bd.ins().iconst(ir::types::I64, 0);
+        let mtx_set_marked = bd.ins().scalar_to_vector(ir::types::I64X2, zero);
+
         let arrays = FxHashMap::default();
         let vars = Vars {
             arrays,
             data_ptr,
             vertex_ptr: vertices_ptr,
+            mtx_set_marked,
         };
 
         Self {
@@ -124,22 +129,34 @@ impl<'ctx> ParserBuilder<'ctx> {
 
     fn shift_mask(&mut self, value: ir::Value, shift: i64, mask: i64) -> ir::Value {
         let shifted = self.bd.ins().ushr_imm(value, shift);
-
         self.bd.ins().band_imm(shifted, mask)
     }
 
-    fn include_matrix(&mut self, is_normal: bool, mat_idx: ir::Value) {
-        let bit_idx = self.bd.ins().uextend(self.consts.ptr_type, mat_idx);
-        let ptr = self
-            .bd
-            .ins()
-            .iadd_imm(self.consts.mtx_set_ptr, if is_normal { 8 } else { 0 });
+    fn include_matrix(&mut self, is_normal: bool, mtx_idx: ir::Value) {
+        let curr = self.vars.mtx_set_marked;
 
-        let curr = self.bd.ins().load(ir::types::I64, MEMFLAGS, ptr, 0);
+        let mtx_idx = self.bd.ins().uextend(ir::types::I64, mtx_idx);
+        let bit_idx = if is_normal {
+            let masked = self.bd.ins().band_imm(mtx_idx, 0x3F);
+            let offset = self.bd.ins().iadd_imm(masked, 64);
+            offset
+        } else {
+            mtx_idx
+        };
+
         let one = self.bd.ins().iconst(ir::types::I64, 1);
         let bit = self.bd.ins().ishl(one, bit_idx);
-        let new = self.bd.ins().bor(curr, bit);
-        self.bd.ins().store(MEMFLAGS, new, ptr, 0);
+        let new = if is_normal {
+            let zero = self.bd.ins().iconst(ir::types::I64, 0);
+            let zero = self.bd.ins().splat(ir::types::I64X2, zero);
+            let bit = self.bd.ins().insertlane(zero, bit, 1);
+            self.bd.ins().bor(curr, bit)
+        } else {
+            let bit = self.bd.ins().scalar_to_vector(ir::types::I64X2, bit);
+            self.bd.ins().bor(curr, bit)
+        };
+
+        self.vars.mtx_set_marked = new;
     }
 
     fn parse_direct<A: AttributeExt>(&mut self) {
@@ -281,21 +298,25 @@ impl<'ctx> ParserBuilder<'ctx> {
 
         // setup the loop
         let iter_bb = self.bd.create_block();
-        let body_bb = self.bd.create_block();
-        let exit_bb = self.bd.create_block();
-
-        self.bd.set_cold_block(exit_bb);
         self.bd.append_block_param(iter_bb, self.consts.ptr_type); // data ptr
         self.bd.append_block_param(iter_bb, self.consts.ptr_type); // vertex ptr
+        self.bd.append_block_param(iter_bb, ir::types::I64X2); // matrix set marked
         self.bd.append_block_param(iter_bb, ir::types::I32); // loop iter
 
-        let zero = self.bd.ins().iconst(ir::types::I32, 0);
+        let body_bb = self.bd.create_block();
+
+        let exit_bb = self.bd.create_block();
+        self.bd.set_cold_block(exit_bb);
+        self.bd.append_block_param(exit_bb, ir::types::I64X2); // matrix set marked
+
+        let zero_32 = self.bd.ins().iconst(ir::types::I32, 0);
         self.bd.ins().jump(
             iter_bb,
             &[
                 ir::BlockArg::Value(self.consts.data_ptr),
                 ir::BlockArg::Value(self.consts.vertices_ptr),
-                ir::BlockArg::Value(zero),
+                ir::BlockArg::Value(self.vars.mtx_set_marked),
+                ir::BlockArg::Value(zero_32),
             ],
         );
 
@@ -304,7 +325,8 @@ impl<'ctx> ParserBuilder<'ctx> {
         let params = self.bd.block_params(iter_bb);
         self.vars.data_ptr = params[0];
         self.vars.vertex_ptr = params[1];
-        let loop_iter = params[2];
+        self.vars.mtx_set_marked = params[2];
+        let loop_iter = params[3];
 
         // first, check if loop iter < count, otherwise exit
         let loop_cond = self.bd.ins().icmp(
@@ -312,7 +334,13 @@ impl<'ctx> ParserBuilder<'ctx> {
             loop_iter,
             self.consts.count,
         );
-        self.bd.ins().brif(loop_cond, body_bb, &[], exit_bb, &[]);
+        self.bd.ins().brif(
+            loop_cond,
+            body_bb,
+            &[],
+            exit_bb,
+            &[ir::BlockArg::Value(self.vars.mtx_set_marked)],
+        );
 
         self.bd.seal_block(body_bb);
         self.bd.seal_block(exit_bb);
@@ -332,6 +360,7 @@ impl<'ctx> ParserBuilder<'ctx> {
             &[
                 ir::BlockArg::Value(self.vars.data_ptr),
                 ir::BlockArg::Value(self.vars.vertex_ptr),
+                ir::BlockArg::Value(self.vars.mtx_set_marked),
                 ir::BlockArg::Value(loop_iter),
             ],
         );
@@ -340,6 +369,18 @@ impl<'ctx> ParserBuilder<'ctx> {
 
         // exit
         self.switch_to_bb(exit_bb);
+        let mtx_set_marked = self.bd.block_params(exit_bb)[0];
+
+        // flush matrix set
+        let curr = self
+            .bd
+            .ins()
+            .load(ir::types::I64X2, MEMFLAGS, self.consts.mtx_set_ptr, 0);
+        let new = self.bd.ins().bor(curr, mtx_set_marked);
+        self.bd
+            .ins()
+            .store(MEMFLAGS, new, self.consts.mtx_set_ptr, 0);
+
         self.bd.ins().return_(&[]);
         self.bd.finalize();
     }
