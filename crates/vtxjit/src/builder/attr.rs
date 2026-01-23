@@ -25,13 +25,6 @@ fn split_i32(parser: &mut ParserBuilder, value: ir::Value) -> (ir::Value, ir::Va
     (low, high)
 }
 
-fn split_i64(parser: &mut ParserBuilder, value: ir::Value) -> (ir::Value, ir::Value) {
-    let low = parser.bd.ins().ireduce(ir::types::I32, value);
-    let high = parser.bd.ins().ushr_imm(value, 32);
-    let high = parser.bd.ins().ireduce(ir::types::I32, high);
-    (low, high)
-}
-
 /// Parses a single vector coordinate encoded as U8/I8/U16/I16.
 fn coord_int(
     parser: &mut ParserBuilder,
@@ -187,30 +180,20 @@ fn vec_int(
 /// Parses a vec2/vec3 with components encoded as F32.
 fn vec_float(parser: &mut ParserBuilder, ptr: ir::Value, triplet: bool) -> [ir::Value; 3] {
     // 01. load the float values as I32s
-    let pair = parser
+    let vector = parser
         .bd
         .ins()
-        .load(ir::types::I64, MEMFLAGS_READONLY, ptr, 0);
-    let (first, second) = split_i64(parser, pair);
-    let third = if triplet {
-        parser.bd.ins().load(
-            ir::types::I32,
-            MEMFLAGS_READONLY,
-            ptr,
-            2 * size_of::<i32>() as i32,
-        )
-    } else {
-        parser.bd.ins().iconst(ir::types::I32, 0)
-    };
+        .load(ir::types::I32X4, MEMFLAGS_READONLY, ptr, 0);
 
-    // 02. put them in a I32X4
-    let vector = parser.bd.ins().scalar_to_vector(ir::types::I32X4, first);
-    let vector = parser.bd.ins().insertlane(vector, second, 1);
-    let vector = parser.bd.ins().insertlane(vector, third, 2);
-
-    // 03. BE -> LE
+    // 02. BE -> LE
     const ZEROED: u8 = 0xFF;
-    const SHUFFLE_CONST: [u8; 16] = [
+    const SHUFFLE_CONST_VEC2: [u8; 16] = [
+        3, 2, 1, 0, // lane 0 (first value)
+        7, 6, 5, 4, // lane 1 (second value)
+        ZEROED, ZEROED, ZEROED, ZEROED, // lane 2 (zeroed)
+        ZEROED, ZEROED, ZEROED, ZEROED, // lane 3 (dont care)
+    ];
+    const SHUFFLE_CONST_VEC3: [u8; 16] = [
         3, 2, 1, 0, // lane 0 (first value)
         7, 6, 5, 4, // lane 1 (second value)
         11, 10, 9, 8, // lane 2 (third value)
@@ -223,12 +206,18 @@ fn vec_float(parser: &mut ParserBuilder, ptr: ir::Value, triplet: bool) -> [ir::
         vector,
     );
 
+    let shuffle_const = if triplet {
+        SHUFFLE_CONST_VEC3
+    } else {
+        SHUFFLE_CONST_VEC2
+    };
+
     let shuffle_const = parser
         .bd
         .func
         .dfg
         .constants
-        .insert(ir::ConstantData::from(SHUFFLE_CONST.as_bytes()));
+        .insert(ir::ConstantData::from(shuffle_const.as_bytes()));
 
     let shuffle_mask = parser.bd.ins().vconst(ir::types::I8X16, shuffle_const);
     let shuffled = parser.bd.ins().x86_pshufb(bytes, shuffle_mask);

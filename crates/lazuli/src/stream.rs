@@ -56,11 +56,19 @@ impl<'a> BinReader<'a> {
     }
 
     /// Reads a sequence of `length` bytes if there is enough data for it.
+    ///
+    /// # Note
+    /// The returned vector will have capacity equal to `length + 16`. This guarantees safety for
+    /// reading a little bit past the end of the vector when parsing the attributes in a JIT, for
+    /// example.
     pub fn read_bytes(&mut self, length: usize) -> Option<Vec<u8>> {
         let slice = &self.data.data()[self.read..];
         (slice.len() >= length).then(|| {
             self.read += length;
-            slice[..length].to_vec()
+
+            let mut vec = Vec::with_capacity(length + 16);
+            vec.extend_from_slice(&slice[..length]);
+            vec
         })
     }
 
