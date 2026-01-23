@@ -73,13 +73,187 @@ impl<const N: usize> AttributeExt for attributes::TexMatrixIndex<N> {
     }
 }
 
+fn split_i16(parser: &mut ParserBuilder, value: ir::Value) -> (ir::Value, ir::Value) {
+    let low = parser.bd.ins().ireduce(ir::types::I8, value);
+    let high = parser.bd.ins().ushr_imm(value, 8);
+    let high = parser.bd.ins().ireduce(ir::types::I8, high);
+    (low, high)
+}
+
+fn split_i32(parser: &mut ParserBuilder, value: ir::Value) -> (ir::Value, ir::Value) {
+    let low = parser.bd.ins().ireduce(ir::types::I16, value);
+    let high = parser.bd.ins().ushr_imm(value, 16);
+    let high = parser.bd.ins().ireduce(ir::types::I16, high);
+    (low, high)
+}
+
+fn split_i64(parser: &mut ParserBuilder, value: ir::Value) -> (ir::Value, ir::Value) {
+    let low = parser.bd.ins().ireduce(ir::types::I32, value);
+    let high = parser.bd.ins().ushr_imm(value, 32);
+    let high = parser.bd.ins().ireduce(ir::types::I32, high);
+    (low, high)
+}
+
+fn coordinates_int(
+    parser: &mut ParserBuilder,
+    ptr: ir::Value,
+    ty: ir::Type,
+    signed: bool,
+    triplet: bool,
+    scale: ir::Value,
+) -> [ir::Value; 3] {
+    // 01. load the integer values
+    let pair_ty = match ty {
+        ir::types::I8 => ir::types::I16,
+        ir::types::I16 => ir::types::I32,
+        _ => unreachable!(),
+    };
+    let pair = parser.bd.ins().load(pair_ty, MEMFLAGS_READONLY, ptr, 0);
+
+    let (first, second) = if pair_ty == ir::types::I16 {
+        split_i16(parser, pair)
+    } else {
+        split_i32(parser, pair)
+    };
+
+    let third = if triplet {
+        parser
+            .bd
+            .ins()
+            .load(ty, MEMFLAGS_READONLY, ptr, 2 * ty.bytes() as i32)
+    } else {
+        parser.bd.ins().iconst(ty, 0)
+    };
+
+    // 02. extend them to I32
+    let first = parser.bd.ins().uextend(ir::types::I32, first);
+    let second = parser.bd.ins().uextend(ir::types::I32, second);
+    let third = parser.bd.ins().uextend(ir::types::I32, third);
+
+    // 03. put them in a I32X4
+    let vector = parser.bd.ins().scalar_to_vector(ir::types::I32X4, first);
+    let vector = parser.bd.ins().insertlane(vector, second, 1);
+    let vector = parser.bd.ins().insertlane(vector, third, 2);
+
+    // 04. BE -> LE
+    let vector = if ty == ir::types::I16 {
+        const ZEROED: u8 = 0xFF;
+        const SHUFFLE_CONST: [u8; 16] = [
+            1, 0, ZEROED, ZEROED, // lane 0 (first value)
+            5, 4, ZEROED, ZEROED, // lane 1 (second value)
+            9, 8, ZEROED, ZEROED, // lane 2 (third value)
+            ZEROED, ZEROED, ZEROED, ZEROED, // lane 3 (dont care)
+        ];
+
+        let bytes = parser.bd.ins().bitcast(
+            ir::types::I8X16,
+            ir::MemFlags::new().with_endianness(ir::Endianness::Little),
+            vector,
+        );
+
+        let shuffle_const = parser
+            .bd
+            .func
+            .dfg
+            .constants
+            .insert(ir::ConstantData::from(SHUFFLE_CONST.as_bytes()));
+
+        let shuffle_mask = parser.bd.ins().vconst(ir::types::I8X16, shuffle_const);
+        let shuffled = parser.bd.ins().x86_pshufb(bytes, shuffle_mask);
+
+        parser.bd.ins().bitcast(
+            ir::types::I32X4,
+            ir::MemFlags::new().with_endianness(ir::Endianness::Little),
+            shuffled,
+        )
+    } else {
+        vector
+    };
+
+    // 04. convert to F32X4
+    let vector = if signed {
+        parser.bd.ins().fcvt_from_sint(ir::types::F32X4, vector)
+    } else {
+        parser.bd.ins().fcvt_from_uint(ir::types::F32X4, vector)
+    };
+
+    // 05. multiply by scale
+    let scale = parser.bd.ins().splat(ir::types::F32X4, scale);
+    let vector = parser.bd.ins().fmul(vector, scale);
+
+    // 06. split it
+    let first = parser.bd.ins().extractlane(vector, 0);
+    let second = parser.bd.ins().extractlane(vector, 1);
+    let third = parser.bd.ins().extractlane(vector, 2);
+
+    [first, second, third]
+}
+
+fn coordinates_float(parser: &mut ParserBuilder, ptr: ir::Value, triplet: bool) -> [ir::Value; 3] {
+    // 01. load the float values as I32s
+    let pair = parser
+        .bd
+        .ins()
+        .load(ir::types::I64, MEMFLAGS_READONLY, ptr, 0);
+    let (first, second) = split_i64(parser, pair);
+    let third = if triplet {
+        parser
+            .bd
+            .ins()
+            .load(ir::types::I32, MEMFLAGS_READONLY, ptr, 8)
+    } else {
+        parser.bd.ins().iconst(ir::types::I32, 0)
+    };
+
+    // 02. put them in a I32X4
+    let vector = parser.bd.ins().scalar_to_vector(ir::types::I32X4, first);
+    let vector = parser.bd.ins().insertlane(vector, second, 1);
+    let vector = parser.bd.ins().insertlane(vector, third, 2);
+
+    // 03. BE -> LE
+    const ZEROED: u8 = 0xFF;
+    const SHUFFLE_CONST: [u8; 16] = [
+        3, 2, 1, 0, // lane 0 (first value)
+        7, 6, 5, 4, // lane 1 (second value)
+        11, 10, 9, 8, // lane 2 (third value)
+        ZEROED, ZEROED, ZEROED, ZEROED, // lane 3 (dont care)
+    ];
+
+    let bytes = parser.bd.ins().bitcast(
+        ir::types::I8X16,
+        ir::MemFlags::new().with_endianness(ir::Endianness::Little),
+        vector,
+    );
+
+    let shuffle_const = parser
+        .bd
+        .func
+        .dfg
+        .constants
+        .insert(ir::ConstantData::from(SHUFFLE_CONST.as_bytes()));
+
+    let shuffle_mask = parser.bd.ins().vconst(ir::types::I8X16, shuffle_const);
+    let shuffled = parser.bd.ins().x86_pshufb(bytes, shuffle_mask);
+
+    // 04. convert to F32X4
+    let vector = parser.bd.ins().bitcast(
+        ir::types::F32X4,
+        ir::MemFlags::new().with_endianness(ir::Endianness::Little),
+        shuffled,
+    );
+
+    // 05. split it
+    let first = parser.bd.ins().extractlane(vector, 0);
+    let second = parser.bd.ins().extractlane(vector, 1);
+    let third = parser.bd.ins().extractlane(vector, 2);
+
+    [first, second, third]
+}
+
 impl AttributeExt for attributes::Position {
     const ARRAY_OFFSET: usize = offset_of!(Arrays, position);
 
     fn parse(desc: &Self::Descriptor, parser: &mut ParserBuilder, ptr: ir::Value) -> u32 {
-        let shift = 1.0 / 2.0f32.powi(desc.shift().value() as i32);
-        let shift = parser.bd.ins().f32const(shift);
-
         let (ty, signed) = match desc.format() {
             CoordsFormat::U8 => (ir::types::I8, false),
             CoordsFormat::I8 => (ir::types::I8, true),
@@ -89,47 +263,15 @@ impl AttributeExt for attributes::Position {
             _ => panic!("reserved format"),
         };
 
-        let mut load_as_float = |index| {
-            let value = parser.bd.ins().load(
-                if ty.is_float() { ir::types::I32 } else { ty },
-                MEMFLAGS_READONLY,
-                ptr,
-                index * ty.bytes() as i32,
-            );
+        let scale = 1.0 / 2.0f32.powi(desc.shift().value() as i32);
+        let scale = parser.bd.ins().f32const(scale);
+        let triplet = desc.kind() == PositionKind::Vec3;
 
-            let value = if ty.bytes() == 1 {
-                value
-            } else if ty.is_float() {
-                let value = parser.bd.ins().bswap(value);
-                parser
-                    .bd
-                    .ins()
-                    .bitcast(ir::types::F32, ir::MemFlags::new(), value)
-            } else {
-                parser.bd.ins().bswap(value)
-            };
-
-            let value = if ty.is_float() {
-                value
-            } else if signed {
-                parser.bd.ins().fcvt_from_sint(ir::types::F32, value)
-            } else {
-                parser.bd.ins().fcvt_from_uint(ir::types::F32, value)
-            };
-
-            if ty.is_float() {
-                value
-            } else {
-                parser.bd.ins().fmul(value, shift)
+        let [x, y, z] = match ty {
+            ir::types::I8 | ir::types::I16 => {
+                coordinates_int(parser, ptr, ty, signed, triplet, scale)
             }
-        };
-
-        let x = load_as_float(0);
-        let y = load_as_float(1);
-
-        let z = match desc.kind() {
-            PositionKind::Vec2 => parser.bd.ins().f32const(0.0),
-            PositionKind::Vec3 => load_as_float(2),
+            _ => coordinates_float(parser, ptr, triplet),
         };
 
         parser.bd.ins().store(
@@ -171,47 +313,13 @@ impl AttributeExt for attributes::Normal {
         };
 
         let exp = if ty.bytes() == 1 { 6 } else { 14 };
-        let shift = 1.0 / 2.0f32.powi(exp);
-        let shift = parser.bd.ins().f32const(shift);
+        let scale = 1.0 / 2.0f32.powi(exp);
+        let scale = parser.bd.ins().f32const(scale);
 
-        let mut load_as_float = |index| {
-            let value = parser.bd.ins().load(
-                if ty.is_float() { ir::types::I32 } else { ty },
-                MEMFLAGS_READONLY,
-                ptr,
-                index * ty.bytes() as i32,
-            );
-
-            let value = if ty.bytes() == 1 {
-                value
-            } else if ty.is_float() {
-                let value = parser.bd.ins().bswap(value);
-                parser
-                    .bd
-                    .ins()
-                    .bitcast(ir::types::F32, ir::MemFlags::new(), value)
-            } else {
-                parser.bd.ins().bswap(value)
-            };
-
-            let value = if ty.is_float() {
-                value
-            } else if signed {
-                parser.bd.ins().fcvt_from_sint(ir::types::F32, value)
-            } else {
-                parser.bd.ins().fcvt_from_uint(ir::types::F32, value)
-            };
-
-            if ty.is_float() {
-                value
-            } else {
-                parser.bd.ins().fmul(value, shift)
-            }
+        let [x, y, z] = match ty {
+            ir::types::I8 | ir::types::I16 => coordinates_int(parser, ptr, ty, signed, true, scale),
+            _ => coordinates_float(parser, ptr, true),
         };
-
-        let x = load_as_float(0);
-        let y = load_as_float(1);
-        let z = load_as_float(2);
 
         parser.bd.ins().store(
             MEMFLAGS,
@@ -282,13 +390,13 @@ fn read_rgba(format: ColorFormat, parser: &mut ParserBuilder, ptr: ir::Value) ->
             let a = parser.bd.ins().iconst(ir::types::I16, 255);
             let rgba = rgba_vector(parser, r, g, b, a);
 
-            const SIMD_CONST: [f32; 4] = [1.0 / 31.0, 1.0 / 63.0, 1.0 / 31.0, 1.0 / 255.0];
+            const RECIP_CONST: [f32; 4] = [1.0 / 31.0, 1.0 / 63.0, 1.0 / 31.0, 1.0 / 255.0];
             let recip_const = parser
                 .bd
                 .func
                 .dfg
                 .constants
-                .insert(ir::ConstantData::from(SIMD_CONST.as_bytes()));
+                .insert(ir::ConstantData::from(RECIP_CONST.as_bytes()));
             let recip = parser.bd.ins().vconst(ir::types::F32X4, recip_const);
 
             to_float(parser, rgba, recip)
