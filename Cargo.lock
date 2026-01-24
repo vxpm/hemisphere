@@ -391,7 +391,7 @@ dependencies = [
 [[package]]
 name = "bitos"
 version = "0.1.0"
-source = "git+https://github.com/vxpm/bitos.git#7c7cbf9496bf0faad594c4766268c01cd22d410a"
+source = "git+https://github.com/vxpm/bitos.git#6a9d7be0fed9b08f0126e9a94c21f47053ea062f"
 dependencies = [
  "bitos_core",
  "bitos_macro",
@@ -401,7 +401,7 @@ dependencies = [
 [[package]]
 name = "bitos_core"
 version = "0.1.0"
-source = "git+https://github.com/vxpm/bitos.git#7c7cbf9496bf0faad594c4766268c01cd22d410a"
+source = "git+https://github.com/vxpm/bitos.git#6a9d7be0fed9b08f0126e9a94c21f47053ea062f"
 dependencies = [
  "bitut",
  "num-traits",
@@ -412,7 +412,7 @@ dependencies = [
 [[package]]
 name = "bitos_macro"
 version = "0.1.0"
-source = "git+https://github.com/vxpm/bitos.git#7c7cbf9496bf0faad594c4766268c01cd22d410a"
+source = "git+https://github.com/vxpm/bitos.git#6a9d7be0fed9b08f0126e9a94c21f47053ea062f"
 dependencies = [
  "bitos_macro_core",
  "proc-macro2",
@@ -421,7 +421,7 @@ dependencies = [
 [[package]]
 name = "bitos_macro_core"
 version = "0.1.0"
-source = "git+https://github.com/vxpm/bitos.git#7c7cbf9496bf0faad594c4766268c01cd22d410a"
+source = "git+https://github.com/vxpm/bitos.git#6a9d7be0fed9b08f0126e9a94c21f47053ea062f"
 dependencies = [
  "heck",
  "proc-macro2",
@@ -432,7 +432,7 @@ dependencies = [
 [[package]]
 name = "bitut"
 version = "0.2.1"
-source = "git+https://github.com/vxpm/bitut.git#09c995c5b116179c9cae8dd2588faed8f67241b5"
+source = "git+https://github.com/vxpm/bitut.git#9eaf270f49130780619e648083a6d3948666d3c3"
 
 [[package]]
 name = "bitvec"
@@ -1702,7 +1702,7 @@ dependencies = [
 [[package]]
 name = "eyre-pretty"
 version = "0.1.0"
-source = "git+https://github.com/vxpm/eyre-pretty.git#f58287ca3c33ab99659543cb918d4253e1464f60"
+source = "git+https://github.com/vxpm/eyre-pretty.git#0378c4057a814e1165de93e6c87217ba453b56a6"
 dependencies = [
  "eyre",
  "owo-colors",
@@ -2694,9 +2694,9 @@ dependencies = [
 
 [[package]]
 name = "libm"
-version = "0.2.15"
+version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f9fbbcab51052fe104eb5e5d351cf728d30a5be1fe14d9be8a3b097481fb97de"
+checksum = "b6d2cec3eae94f9f509c767b45932f1ada8350c4bdb85af2fcab4a3c14807981"
 
 [[package]]
 name = "libredox"
@@ -3074,9 +3074,9 @@ dependencies = [
 
 [[package]]
 name = "num-conv"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "51d515d32fb182ee37cda2ccdcb92950d6a3c2893aa280e540671c2cd0f3b1d9"
+checksum = "cf97ec579c3c42f953ef76dbf8d55ac91fb219dde70e49aa4a6b7d74e9919050"
 
 [[package]]
 name = "num-derive"
@@ -4092,7 +4092,7 @@ checksum = "80f5ab61459422b1a350caae1aadef48ebae234b12e80248e9ba9557018ef060"
 [[package]]
 name = "ring-arena"
 version = "0.1.0"
-source = "git+https://github.com/vxpm/ring-arena.git#75d965dbdcd2feedb166621e6ae29501f43a1346"
+source = "git+https://github.com/vxpm/ring-arena.git#ed453cb1f7f90b570c84c5e66170d076a17b07aa"
 dependencies = [
  "flume",
  "triomphe",
@@ -4639,9 +4639,9 @@ dependencies = [
 
 [[package]]
 name = "time"
-version = "0.3.45"
+version = "0.3.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f9e442fc33d7fdb45aa9bfeb312c095964abdf596f7567261062b2a7107aaabd"
+checksum = "9da98b7d9b7dad93488a84b8248efc35352b0b2657397d4167e7ad67e5d535e5"
 dependencies = [
  "deranged",
  "itoa",
@@ -4654,15 +4654,15 @@ dependencies = [
 
 [[package]]
 name = "time-core"
-version = "0.1.7"
+version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b36ee98fd31ec7426d599183e8fe26932a8dc1fb76ddb6214d05493377d34ca"
+checksum = "7694e1cfe791f8d31026952abf09c69ca6f6fa4e1a1229e18988f06a04a12dca"
 
 [[package]]
 name = "time-macros"
-version = "0.2.25"
+version = "0.2.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "71e552d1249bf61ac2a52db88179fd0673def1e1ad8243a00d9ec9ed71fee3dd"
+checksum = "78cc610bac2dcee56805c99642447d4c5dbde4d01f752ffea0199aee1f601dc4"
 dependencies = [
  "num-conv",
  "time-core",
