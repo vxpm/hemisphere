@@ -18,7 +18,7 @@ use crate::cores::Cores;
 use crate::system::{Modules, System};
 
 /// How many DSP instructions to execute per cycle.
-const DSP_INST_PER_CYCLE: f64 = 15.0 / 16.0;
+const DSP_INST_PER_CYCLE: f64 = 1.0;
 /// How many DSP cycles to execute per step.
 const DSP_STEP: u32 = 512;
 /// How many DSP instructions to execute per step.

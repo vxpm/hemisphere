@@ -442,14 +442,8 @@ const CTX_HOOKS: Hooks = {
             }
         }
 
-        ctx.sys
-            .cpu
-            .supervisor
-            .config
-            .dma
-            .lower
-            .set_trigger(false)
-            .set_flush(false);
+        ctx.sys.cpu.supervisor.config.dma.lower.set_trigger(false);
+        ctx.sys.cpu.supervisor.config.dma.lower.set_flush(false);
     }
 
     extern "sysv64-unwind" fn msr_changed(ctx: &mut Context) {

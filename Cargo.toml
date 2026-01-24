@@ -137,8 +137,8 @@ bitvec = "1.0"
 bytesize = "2"
 ciborium = "0.2"
 clap = { version = "4.5", features = ["derive"] }
-cranelift = { version = "0.127", features = ["frontend", "native"] }
-cranelift-codegen = { version = "0.127", default-features = false, features = [
+cranelift = { version = "0.128", features = ["frontend", "native"] }
+cranelift-codegen = { version = "0.128", default-features = false, features = [
     "std",
     "unwind",
     "host-arch",
@@ -146,7 +146,7 @@ cranelift-codegen = { version = "0.127", default-features = false, features = [
 ] }
 easyerr = "0.1"
 eyre-pretty = { git = "https://github.com/vxpm/eyre-pretty.git" }
-glam = { version = "0.30", features = ["zerocopy"] }
+glam = { version = "0.31", features = ["zerocopy"] }
 indexmap = "2"
 nanorand = { version = "0.8", features = ["tls"], default-features = false }
 oneshot = { version = "0.1", default-features = false, features = ["std"] }

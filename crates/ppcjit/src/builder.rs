@@ -229,6 +229,7 @@ impl<'ctx> BlockBuilder<'ctx> {
                 name: ir::ExternalName::User(name),
                 signature: sigs.raise_exception,
                 colocated: false,
+                patchable: false,
             })
         };
 
@@ -244,6 +245,7 @@ impl<'ctx> BlockBuilder<'ctx> {
                 name: ir::ExternalName::User(name),
                 signature: sig,
                 colocated: false,
+                patchable: false,
             })
         };
 
