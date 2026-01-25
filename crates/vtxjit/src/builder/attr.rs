@@ -241,14 +241,14 @@ fn vec_float(parser: &mut ParserBuilder, ptr: ir::Value, triplet: bool) -> [ir::
     let shuffle_mask = parser.bd.ins().vconst(ir::types::I8X16, shuffle_const);
     let shuffled = parser.bd.ins().x86_pshufb(bytes, shuffle_mask);
 
-    // 04. convert to F32X4
+    // 03. convert to F32X4
     let vector = parser.bd.ins().bitcast(
         ir::types::F32X4,
         ir::MemFlags::new().with_endianness(ir::Endianness::Little),
         shuffled,
     );
 
-    // 05. split it
+    // 04. split it
     let first = parser.bd.ins().extractlane(vector, 0);
     let second = parser.bd.ins().extractlane(vector, 1);
     let third = parser.bd.ins().extractlane(vector, 2);
@@ -257,11 +257,13 @@ fn vec_float(parser: &mut ParserBuilder, ptr: ir::Value, triplet: bool) -> [ir::
 }
 
 fn rgba4444(parser: &mut ParserBuilder, ptr: ir::Value) -> ir::Value {
+    // 01. load the packed bytes
     let bytes = parser
         .bd
         .ins()
         .load(ir::types::I8X16, MEMFLAGS_READONLY, ptr, 0);
 
+    // 02. unpack into lanes
     const ZEROED: u8 = 0xFF;
     const SHUFFLE_CONST: [u8; 16] = [
         0, ZEROED, ZEROED, ZEROED, // lane 0 (rg)
@@ -285,6 +287,7 @@ fn rgba4444(parser: &mut ParserBuilder, ptr: ir::Value) -> ir::Value {
         shuffled,
     );
 
+    // 03. unpack nibbles
     const LOW_LANE: u32 = 0;
     const HIGH_LANE: u32 = u32::MAX;
     const BLEND_CONST: [u32; 4] = [LOW_LANE, HIGH_LANE, LOW_LANE, HIGH_LANE];
@@ -309,6 +312,7 @@ fn rgba4444(parser: &mut ParserBuilder, ptr: ir::Value) -> ir::Value {
         .ins()
         .x86_blendv(blend_mask, high_nibbles, low_nibbles);
 
+    // 04. convert to F32X4
     let vector = parser.bd.ins().fcvt_from_uint(ir::types::F32X4, rgba);
     let recip = parser.bd.ins().f32const(1.0 / 15.0);
     let recip = parser.bd.ins().splat(ir::types::F32X4, recip);
@@ -316,11 +320,13 @@ fn rgba4444(parser: &mut ParserBuilder, ptr: ir::Value) -> ir::Value {
 }
 
 fn rgb6666(parser: &mut ParserBuilder, ptr: ir::Value) -> ir::Value {
+    // 01. load the packed bytes
     let bytes = parser
         .bd
         .ins()
         .load(ir::types::I8X16, MEMFLAGS_READONLY, ptr, 0);
 
+    // 02. unpack into lanes
     const ZEROED: u8 = 0xFF;
     const SHUFFLE_CONST: [u8; 16] = [
         0, 1, 2, ZEROED, // lane 0 (r)
@@ -344,6 +350,12 @@ fn rgb6666(parser: &mut ParserBuilder, ptr: ir::Value) -> ir::Value {
         shuffled,
     );
 
+    // 03. unpack nibbles
+    // since you can't shift each lane by differen amounts, we first multiply by powers of 2
+    // (shift left) by different amounts, then shift right by the same amount
+    //
+    // we could avoid the mul by instead using division by 2 (shift right), but i bet thats way
+    // slower than a mul
     const MUL_CONST: [u32; 4] = [1 << (18 - 0), 1 << (18 - 6), 1 << (18 - 12), 1 << (18 - 18)];
     let mul_const = parser
         .bd
@@ -359,19 +371,22 @@ fn rgb6666(parser: &mut ParserBuilder, ptr: ir::Value) -> ir::Value {
     let mask = parser.bd.ins().iconst(ir::types::I32, 0x3F);
     let mask = parser.bd.ins().splat(ir::types::I32X4, mask);
     let vector = parser.bd.ins().band(vector, mask);
-    let vector = parser.bd.ins().fcvt_from_uint(ir::types::F32X4, vector);
 
+    // 04. convert to F32X4
+    let vector = parser.bd.ins().fcvt_from_uint(ir::types::F32X4, vector);
     let recip = parser.bd.ins().f32const(1.0 / 63.0);
     let recip = parser.bd.ins().splat(ir::types::F32X4, recip);
     parser.bd.ins().fmul(vector, recip)
 }
 
 fn rgba8888(parser: &mut ParserBuilder, ptr: ir::Value) -> ir::Value {
+    // 01. load the packed bytes
     let bytes = parser
         .bd
         .ins()
         .load(ir::types::I8X16, MEMFLAGS_READONLY, ptr, 0);
 
+    // 02. unpack into lanes
     const ZEROED: u8 = 0xFF;
     const SHUFFLE_CONST: [u8; 16] = [
         0, ZEROED, ZEROED, ZEROED, // lane 0 (r)
@@ -396,6 +411,7 @@ fn rgba8888(parser: &mut ParserBuilder, ptr: ir::Value) -> ir::Value {
         shuffled,
     );
 
+    // 03. convert to F32X4
     let vector = parser.bd.ins().fcvt_from_uint(ir::types::F32X4, vector);
     let recip = parser.bd.ins().f32const(1.0 / 255.0);
     let recip = parser.bd.ins().splat(ir::types::F32X4, recip);
@@ -403,11 +419,13 @@ fn rgba8888(parser: &mut ParserBuilder, ptr: ir::Value) -> ir::Value {
 }
 
 fn rgb565(parser: &mut ParserBuilder, ptr: ir::Value) -> ir::Value {
+    // 01. load the packed bytes
     let bytes = parser
         .bd
         .ins()
         .load(ir::types::I8X16, MEMFLAGS_READONLY, ptr, 0);
 
+    // 02. unpack into lanes
     const ZEROED: u8 = 0xFF;
     const SHUFFLE_CONST: [u8; 16] = [
         0, 1, ZEROED, ZEROED, // lane 0 (r)
@@ -432,6 +450,12 @@ fn rgb565(parser: &mut ParserBuilder, ptr: ir::Value) -> ir::Value {
         shuffled,
     );
 
+    // 03. unpack nibbles
+    // since you can't shift each lane by differen amounts, we first multiply by powers of 2
+    // (shift left) by different amounts, then shift right by the same amount
+    //
+    // we could avoid the mul by instead using division by 2 (shift right), but i bet thats way
+    // slower than a mul
     const MUL_CONST: [u32; 4] = [1 << (11 - 0), 1 << (11 - 5), 1 << (11 - 11), 0];
     const AND_CONST: [u32; 4] = [0x1F, 0x3F, 0x1F, 0];
     const RECIP_CONST: [f32; 4] = [1.0 / 31.0, 1.0 / 63.0, 1.0 / 31.0, 0.0];
@@ -461,11 +485,11 @@ fn rgb565(parser: &mut ParserBuilder, ptr: ir::Value) -> ir::Value {
     let vector = parser.bd.ins().imul(vector, mul_const);
     let vector = parser.bd.ins().ushr_imm(vector, 11);
     let vector = parser.bd.ins().band(vector, and_const);
-    let vector = parser.bd.ins().fcvt_from_uint(ir::types::F32X4, vector);
 
+    // 04. convert to F32X4
+    let vector = parser.bd.ins().fcvt_from_uint(ir::types::F32X4, vector);
     let recip = parser.bd.ins().vconst(ir::types::F32X4, recip_const);
     let vector = parser.bd.ins().fmul(vector, recip);
-
     let max = parser.bd.ins().f32const(1.0);
     parser.bd.ins().insertlane(vector, max, 3)
 }
@@ -533,7 +557,6 @@ impl<const N: usize> AttributeExt for attributes::TexMatrixIndex<N> {
             .ins()
             .load(ir::types::I8, MEMFLAGS_READONLY, ptr, 0);
 
-        parser.include_matrix(false, index);
         parser.include_matrix(true, index);
 
         parser.bd.ins().store(
