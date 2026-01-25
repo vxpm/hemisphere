@@ -11,20 +11,6 @@ use zerocopy::IntoBytes;
 
 use crate::builder::{MEMFLAGS, MEMFLAGS_READONLY, ParserBuilder};
 
-fn split_i16(parser: &mut ParserBuilder, value: ir::Value) -> (ir::Value, ir::Value) {
-    let low = parser.bd.ins().ireduce(ir::types::I8, value);
-    let high = parser.bd.ins().ushr_imm(value, 8);
-    let high = parser.bd.ins().ireduce(ir::types::I8, high);
-    (low, high)
-}
-
-fn split_i32(parser: &mut ParserBuilder, value: ir::Value) -> (ir::Value, ir::Value) {
-    let low = parser.bd.ins().ireduce(ir::types::I16, value);
-    let high = parser.bd.ins().ushr_imm(value, 16);
-    let high = parser.bd.ins().ireduce(ir::types::I16, high);
-    (low, high)
-}
-
 /// Parses a single vector coordinate encoded as U8/I8/U16/I16.
 fn coord_int(
     parser: &mut ParserBuilder,
@@ -83,61 +69,53 @@ fn vec_int(
     triplet: bool,
     scale: ir::Value,
 ) -> [ir::Value; 3] {
-    // 01. load the integer values
-    let pair_ty = match ty {
-        ir::types::I8 => ir::types::I16,
-        ir::types::I16 => ir::types::I32,
-        _ => unreachable!(),
-    };
-    let pair = parser.bd.ins().load(pair_ty, MEMFLAGS_READONLY, ptr, 0);
+    // 01. load the packed value bytes
+    let bytes = parser
+        .bd
+        .ins()
+        .load(ir::types::I8X16, MEMFLAGS_READONLY, ptr, 0);
 
-    let (first, second) = if pair_ty == ir::types::I16 {
-        split_i16(parser, pair)
-    } else {
-        split_i32(parser, pair)
-    };
-
-    let third = if triplet {
-        parser
-            .bd
-            .ins()
-            .load(ty, MEMFLAGS_READONLY, ptr, pair_ty.bytes() as i32)
-    } else {
-        parser.bd.ins().iconst(ty, 0)
-    };
-
-    // 02. extend them to I32
-    let first = parser.bd.ins().uextend(ir::types::I32, first);
-    let second = parser.bd.ins().uextend(ir::types::I32, second);
-    let third = parser.bd.ins().uextend(ir::types::I32, third);
-
-    // 03. put them in a I32X4
-    let vector = parser.bd.ins().scalar_to_vector(ir::types::I32X4, first);
-    let vector = parser.bd.ins().insertlane(vector, second, 1);
-    let vector = parser.bd.ins().insertlane(vector, third, 2);
-
-    // 04. BE -> LE
+    // 02. convert to little endian and prepare for sign extension if needed
     let vector = if ty == ir::types::I16 {
         const ZEROED: u8 = 0xFF;
-        const SHUFFLE_CONST: [u8; 16] = [
+        const SHUFFLE_CONST_SIGNED_VEC2: [u8; 16] = [
+            ZEROED, ZEROED, 1, 0, // lane 0 (first value)
+            ZEROED, ZEROED, 3, 2, // lane 1 (second value)
+            ZEROED, ZEROED, ZEROED, ZEROED, // lane 2 (zeroed)
+            ZEROED, ZEROED, ZEROED, ZEROED, // lane 3 (dont care)
+        ];
+        const SHUFFLE_CONST_UNSIGNED_VEC2: [u8; 16] = [
             1, 0, ZEROED, ZEROED, // lane 0 (first value)
-            5, 4, ZEROED, ZEROED, // lane 1 (second value)
-            9, 8, ZEROED, ZEROED, // lane 2 (third value)
+            3, 2, ZEROED, ZEROED, // lane 1 (second value)
+            ZEROED, ZEROED, ZEROED, ZEROED, // lane 2 (zeroed)
+            ZEROED, ZEROED, ZEROED, ZEROED, // lane 3 (dont care)
+        ];
+        const SHUFFLE_CONST_SIGNED_VEC3: [u8; 16] = [
+            ZEROED, ZEROED, 1, 0, // lane 0 (first value)
+            ZEROED, ZEROED, 3, 2, // lane 1 (second value)
+            ZEROED, ZEROED, 5, 4, // lane 2 (third value)
+            ZEROED, ZEROED, ZEROED, ZEROED, // lane 3 (dont care)
+        ];
+        const SHUFFLE_CONST_UNSIGNED_VEC3: [u8; 16] = [
+            1, 0, ZEROED, ZEROED, // lane 0 (first value)
+            3, 2, ZEROED, ZEROED, // lane 1 (second value)
+            5, 4, ZEROED, ZEROED, // lane 2 (third value)
             ZEROED, ZEROED, ZEROED, ZEROED, // lane 3 (dont care)
         ];
 
-        let bytes = parser.bd.ins().bitcast(
-            ir::types::I8X16,
-            ir::MemFlags::new().with_endianness(ir::Endianness::Little),
-            vector,
-        );
+        let shuffle_const = match (signed, triplet) {
+            (true, true) => SHUFFLE_CONST_SIGNED_VEC3,
+            (true, false) => SHUFFLE_CONST_SIGNED_VEC2,
+            (false, true) => SHUFFLE_CONST_UNSIGNED_VEC3,
+            (false, false) => SHUFFLE_CONST_UNSIGNED_VEC2,
+        };
 
         let shuffle_const = parser
             .bd
             .func
             .dfg
             .constants
-            .insert(ir::ConstantData::from(SHUFFLE_CONST.as_bytes()));
+            .insert(ir::ConstantData::from(shuffle_const.as_bytes()));
 
         let shuffle_mask = parser.bd.ins().vconst(ir::types::I8X16, shuffle_const);
         let shuffled = parser.bd.ins().x86_pshufb(bytes, shuffle_mask);
@@ -148,28 +126,69 @@ fn vec_int(
             shuffled,
         )
     } else {
-        vector
+        const ZEROED: u8 = 0xFF;
+        const SHUFFLE_CONST_SIGNED_VEC2: [u8; 16] = [
+            ZEROED, ZEROED, ZEROED, 0, // lane 0 (first value)
+            ZEROED, ZEROED, ZEROED, 1, // lane 1 (second value)
+            ZEROED, ZEROED, ZEROED, ZEROED, // lane 2 (zeroed)
+            ZEROED, ZEROED, ZEROED, ZEROED, // lane 3 (dont care)
+        ];
+        const SHUFFLE_CONST_UNSIGNED_VEC2: [u8; 16] = [
+            0, ZEROED, ZEROED, ZEROED, // lane 0 (first value)
+            1, ZEROED, ZEROED, ZEROED, // lane 1 (second value)
+            ZEROED, ZEROED, ZEROED, ZEROED, // lane 2 (zeroed)
+            ZEROED, ZEROED, ZEROED, ZEROED, // lane 3 (dont care)
+        ];
+        const SHUFFLE_CONST_SIGNED_VEC3: [u8; 16] = [
+            ZEROED, ZEROED, ZEROED, 0, // lane 0 (first value)
+            ZEROED, ZEROED, ZEROED, 1, // lane 1 (second value)
+            ZEROED, ZEROED, ZEROED, 2, // lane 2 (third value)
+            ZEROED, ZEROED, ZEROED, ZEROED, // lane 3 (dont care)
+        ];
+        const SHUFFLE_CONST_UNSIGNED_VEC3: [u8; 16] = [
+            0, ZEROED, ZEROED, ZEROED, // lane 0 (first value)
+            1, ZEROED, ZEROED, ZEROED, // lane 1 (second value)
+            2, ZEROED, ZEROED, ZEROED, // lane 2 (third value)
+            ZEROED, ZEROED, ZEROED, ZEROED, // lane 3 (dont care)
+        ];
+
+        let shuffle_const = match (signed, triplet) {
+            (true, true) => SHUFFLE_CONST_SIGNED_VEC3,
+            (true, false) => SHUFFLE_CONST_SIGNED_VEC2,
+            (false, true) => SHUFFLE_CONST_UNSIGNED_VEC3,
+            (false, false) => SHUFFLE_CONST_UNSIGNED_VEC2,
+        };
+
+        let shuffle_const = parser
+            .bd
+            .func
+            .dfg
+            .constants
+            .insert(ir::ConstantData::from(shuffle_const.as_bytes()));
+
+        let shuffle_mask = parser.bd.ins().vconst(ir::types::I8X16, shuffle_const);
+        let shuffled = parser.bd.ins().x86_pshufb(bytes, shuffle_mask);
+
+        parser.bd.ins().bitcast(
+            ir::types::I32X4,
+            ir::MemFlags::new().with_endianness(ir::Endianness::Little),
+            shuffled,
+        )
     };
 
-    // 04. sign extend and convert to F32X4
+    // 03. sign extend if needed and convert to F32X4
     let vector = if signed {
-        let left = parser.bd.ins().ishl_imm(vector, 32 - ty.bits() as i64);
-        parser.bd.ins().sshr_imm(left, 32 - ty.bits() as i64)
-    } else {
-        vector
-    };
-
-    let vector = if signed {
+        let vector = parser.bd.ins().sshr_imm(vector, 32 - ty.bits() as i64);
         parser.bd.ins().fcvt_from_sint(ir::types::F32X4, vector)
     } else {
         parser.bd.ins().fcvt_from_uint(ir::types::F32X4, vector)
     };
 
-    // 05. multiply by scale
+    // 04. multiply by scale
     let scale = parser.bd.ins().splat(ir::types::F32X4, scale);
     let vector = parser.bd.ins().fmul(vector, scale);
 
-    // 06. split it
+    // 05. split it
     let first = parser.bd.ins().extractlane(vector, 0);
     let second = parser.bd.ins().extractlane(vector, 1);
     let third = parser.bd.ins().extractlane(vector, 2);
@@ -185,7 +204,7 @@ fn vec_float(parser: &mut ParserBuilder, ptr: ir::Value, triplet: bool) -> [ir::
         .ins()
         .load(ir::types::I32X4, MEMFLAGS_READONLY, ptr, 0);
 
-    // 02. BE -> LE
+    // 02. convert to little endian
     const ZEROED: u8 = 0xFF;
     const SHUFFLE_CONST_VEC2: [u8; 16] = [
         3, 2, 1, 0, // lane 0 (first value)
