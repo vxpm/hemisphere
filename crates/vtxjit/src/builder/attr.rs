@@ -280,6 +280,102 @@ fn rgba_vector(
     parser.bd.ins().insertlane(rgba, a, 3)
 }
 
+fn rgba4444(parser: &mut ParserBuilder, ptr: ir::Value) -> ir::Value {
+    let bytes = parser
+        .bd
+        .ins()
+        .load(ir::types::I8X16, MEMFLAGS_READONLY, ptr, 0);
+
+    const ZEROED: u8 = 0xFF;
+    const SHUFFLE_CONST: [u8; 16] = [
+        0, ZEROED, ZEROED, ZEROED, // lane 0 (rg)
+        0, ZEROED, ZEROED, ZEROED, // lane 1 (rg)
+        1, ZEROED, ZEROED, ZEROED, // lane 2 (ba)
+        1, ZEROED, ZEROED, ZEROED, // lane 3 (ba)
+    ];
+
+    let shuffle_const = parser
+        .bd
+        .func
+        .dfg
+        .constants
+        .insert(ir::ConstantData::from(SHUFFLE_CONST.as_bytes()));
+
+    let shuffle_mask = parser.bd.ins().vconst(ir::types::I8X16, shuffle_const);
+    let shuffled = parser.bd.ins().x86_pshufb(bytes, shuffle_mask);
+
+    let vector = parser.bd.ins().bitcast(
+        ir::types::I32X4,
+        ir::MemFlags::new().with_endianness(ir::Endianness::Little),
+        shuffled,
+    );
+
+    const LOW_LANE: u32 = 0;
+    const HIGH_LANE: u32 = u32::MAX;
+    const BLEND_CONST: [u32; 4] = [LOW_LANE, HIGH_LANE, LOW_LANE, HIGH_LANE];
+
+    let blend_const = parser
+        .bd
+        .func
+        .dfg
+        .constants
+        .insert(ir::ConstantData::from(BLEND_CONST.as_bytes()));
+
+    let blend_mask = parser.bd.ins().vconst(ir::types::I32X4, blend_const);
+    let band_value = parser.bd.ins().iconst(ir::types::I32, 15);
+    let band_value = parser
+        .bd
+        .ins()
+        .scalar_to_vector(ir::types::I32X4, band_value);
+    let low_nibbles = parser.bd.ins().band(vector, band_value);
+    let high_nibbles = parser.bd.ins().ushr_imm(vector, 4);
+    let rgba = parser
+        .bd
+        .ins()
+        .x86_blendv(blend_mask, high_nibbles, low_nibbles);
+
+    let rgba = parser.bd.ins().fcvt_from_uint(ir::types::F32X4, rgba);
+    let recip = parser.bd.ins().f32const(1.0 / 15.0);
+    let recip = parser.bd.ins().splat(ir::types::F32X4, recip);
+    parser.bd.ins().fmul(rgba, recip)
+}
+
+fn rgba8888(parser: &mut ParserBuilder, ptr: ir::Value) -> ir::Value {
+    let bytes = parser
+        .bd
+        .ins()
+        .load(ir::types::I8X16, MEMFLAGS_READONLY, ptr, 0);
+
+    const ZEROED: u8 = 0xFF;
+    const SHUFFLE_CONST: [u8; 16] = [
+        0, ZEROED, ZEROED, ZEROED, // lane 0 (r)
+        1, ZEROED, ZEROED, ZEROED, // lane 1 (g)
+        2, ZEROED, ZEROED, ZEROED, // lane 2 (b)
+        3, ZEROED, ZEROED, ZEROED, // lane 3 (a)
+    ];
+
+    let shuffle_const = parser
+        .bd
+        .func
+        .dfg
+        .constants
+        .insert(ir::ConstantData::from(SHUFFLE_CONST.as_bytes()));
+
+    let shuffle_mask = parser.bd.ins().vconst(ir::types::I8X16, shuffle_const);
+    let shuffled = parser.bd.ins().x86_pshufb(bytes, shuffle_mask);
+
+    let rgba = parser.bd.ins().bitcast(
+        ir::types::I32X4,
+        ir::MemFlags::new().with_endianness(ir::Endianness::Little),
+        shuffled,
+    );
+
+    let rgba = parser.bd.ins().fcvt_from_uint(ir::types::F32X4, rgba);
+    let recip = parser.bd.ins().f32const(1.0 / 255.0);
+    let recip = parser.bd.ins().splat(ir::types::F32X4, recip);
+    parser.bd.ins().fmul(rgba, recip)
+}
+
 fn read_rgba(format: ColorFormat, parser: &mut ParserBuilder, ptr: ir::Value) -> ir::Value {
     let to_float = |parser: &mut ParserBuilder, rgba, recip| {
         let rgba = parser.bd.ins().fcvt_from_uint(ir::types::F32X4, rgba);
@@ -312,37 +408,11 @@ fn read_rgba(format: ColorFormat, parser: &mut ParserBuilder, ptr: ir::Value) ->
             to_float(parser, rgba, recip)
         }
         ColorFormat::Rgb888 | ColorFormat::Rgb888x => {
-            let rg = parser
-                .bd
-                .ins()
-                .load(ir::types::I16, MEMFLAGS_READONLY, ptr, 0);
-            let b = parser.bd.ins().load(ir::types::I8, MEMFLAGS, ptr, 2);
-            let a = parser.bd.ins().iconst(ir::types::I8, 255);
-            let r = parser.bd.ins().band_imm(rg, 255);
-            let g = parser.bd.ins().ushr_imm(rg, 8);
-
-            let rgba = rgba_vector(parser, r, g, b, a);
-            let recip = parser.bd.ins().f32const(1.0 / 255.0);
-            let recip = parser.bd.ins().splat(ir::types::F32X4, recip);
-
-            to_float(parser, rgba, recip)
+            let rgba = rgba8888(parser, ptr);
+            let max = parser.bd.ins().f32const(1.0);
+            parser.bd.ins().insertlane(rgba, max, 3)
         }
-        ColorFormat::Rgba4444 => {
-            let value = parser
-                .bd
-                .ins()
-                .load(ir::types::I16, MEMFLAGS_READONLY, ptr, 0);
-            let r = parser.shift_mask(value, 0, 15);
-            let g = parser.shift_mask(value, 4, 15);
-            let b = parser.shift_mask(value, 8, 15);
-            let a = parser.shift_mask(value, 12, 15);
-
-            let rgba = rgba_vector(parser, r, g, b, a);
-            let recip = parser.bd.ins().f32const(1.0 / 15.0);
-            let recip = parser.bd.ins().splat(ir::types::F32X4, recip);
-
-            to_float(parser, rgba, recip)
-        }
+        ColorFormat::Rgba4444 => rgba4444(parser, ptr),
         ColorFormat::Rgba6666 => {
             let low = parser
                 .bd
@@ -366,22 +436,7 @@ fn read_rgba(format: ColorFormat, parser: &mut ParserBuilder, ptr: ir::Value) ->
 
             to_float(parser, rgba, recip)
         }
-        ColorFormat::Rgba8888 => {
-            let value = parser
-                .bd
-                .ins()
-                .load(ir::types::I32, MEMFLAGS_READONLY, ptr, 0);
-            let r = parser.shift_mask(value, 0, 255);
-            let g = parser.shift_mask(value, 8, 255);
-            let b = parser.shift_mask(value, 16, 255);
-            let a = parser.shift_mask(value, 24, 255);
-
-            let rgba = rgba_vector(parser, r, g, b, a);
-            let recip = parser.bd.ins().f32const(1.0 / 255.0);
-            let recip = parser.bd.ins().splat(ir::types::F32X4, recip);
-
-            to_float(parser, rgba, recip)
-        }
+        ColorFormat::Rgba8888 => rgba8888(parser, ptr),
         _ => panic!("reserved color format"),
     }
 }
