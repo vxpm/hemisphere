@@ -208,6 +208,10 @@ impl ColorFormat {
             _ => panic!("reserved format"),
         }
     }
+
+    pub fn has_alpha(self) -> bool {
+        matches!(self, Self::Rgba4444 | Self::Rgba6666 | Self::Rgba8888)
+    }
 }
 
 #[bitos(4)]
