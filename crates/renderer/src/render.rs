@@ -1,6 +1,5 @@
 mod data;
 mod framebuffer;
-mod group;
 mod pipeline;
 mod sampler;
 mod texture;
@@ -204,7 +203,7 @@ impl Renderer {
             pipeline_cache,
             texture_cache,
             sampler_cache,
-            textures_group_cache: LruMap::with_hasher(ByLength::new(256), FxBuildHasher::default()),
+            textures_group_cache: LruMap::with_hasher(ByLength::new(512), FxBuildHasher::default()),
 
             color_blitter,
             depth_blitter,
