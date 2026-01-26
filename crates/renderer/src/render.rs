@@ -768,6 +768,8 @@ impl Renderer {
 
         self.debug(format!("[FLUSH]: {reason}"));
         let scaling_array = self.tex_slots.map(|s| Vec2::new(s.scaling.u, s.scaling.v));
+        let lodbias_array = self.tex_slots.map(|s| s.sampler.mode.lod_bias());
+
         let index_buf = self.allocators.index.allocate(
             &self.device,
             &mut self.current_transfer_encoder,
@@ -816,6 +818,11 @@ impl Renderer {
             wgpu::ShaderStages::FRAGMENT,
             0,
             scaling_array.as_bytes(),
+        );
+        self.current_pass.set_push_constants(
+            wgpu::ShaderStages::FRAGMENT,
+            64,
+            lodbias_array.as_bytes(),
         );
         self.current_pass.set_bind_group(0, Some(&data_group), &[]);
         self.current_pass

@@ -392,7 +392,7 @@ fn main() -> Result<()> {
 
         let mut required_limits = wgpu::Limits::defaults();
         required_limits.max_texture_dimension_2d = 8192;
-        required_limits.max_push_constant_size = 64;
+        required_limits.max_push_constant_size = 64 + 32;
 
         wgpu::DeviceDescriptor {
             label: Some("lazuli wgpu device"),

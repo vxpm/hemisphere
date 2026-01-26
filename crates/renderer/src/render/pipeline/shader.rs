@@ -68,7 +68,7 @@ fn base_module(settings: &ShaderSettings) -> wesl::syntax::TranslationUnit {
             _pad0: u32,
         }
 
-        // A primitive vertex
+        // An input vertex
         struct Vertex {
             position: vec3f,
             config_idx: u32,
@@ -111,9 +111,14 @@ fn base_module(settings: &ShaderSettings) -> wesl::syntax::TranslationUnit {
         @group(1) @binding(14) var texture7: texture_2d<f32>;
         @group(1) @binding(15) var sampler7: sampler;
 
-        // Texture scaling
-        var<push_constant> scaling: array<vec4f, 4>;
+        // Pipeline immediates
+        struct PipelineImmediates {
+            scaling: array<vec4f, 4>,
+            lodbias: array<vec4f, 2>,
+        }
+        var<push_constant> pipeline_immediates: PipelineImmediates;
 
+        // A vertex stage output
         struct VertexOutput {
             @builtin(position) clip: vec4f,
             @location(0) config_idx: u32,

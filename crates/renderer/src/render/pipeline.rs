@@ -235,7 +235,7 @@ impl Cache {
             bind_group_layouts: &[&group0_layout, &group1_layout],
             push_constant_ranges: &[wgpu::PushConstantRange {
                 stages: wgpu::ShaderStages::FRAGMENT,
-                range: 0..64,
+                range: 0..96,
             }],
         });
 

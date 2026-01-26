@@ -122,11 +122,22 @@ pub struct SamplerMode {
     #[bits(8)]
     pub diagonal_lod: bool,
     #[bits(9..17)]
-    pub lod_bias: u8,
+    pub lod_bias_raw: u8,
     #[bits(19..21)]
     pub max_anisotropy_log2: u2,
     #[bits(21)]
     pub lod_and_bias_clamp: bool,
+}
+
+impl SamplerMode {
+    pub fn lod_bias(&self) -> f32 {
+        let raw = self.lod_bias_raw() as i8 as i32;
+        let bias = raw as f32 / 32.0;
+        assert!(bias >= -4.0);
+        assert!(bias <= 4.0);
+
+        bias
+    }
 }
 
 #[bitos(32)]

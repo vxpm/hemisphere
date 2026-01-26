@@ -14,18 +14,28 @@ fn sample_tex(stage: &TexEnvStage) -> wesl::syntax::Expression {
     let tex_ident = wesl::syntax::Ident::new(format!("base::texture{map}"));
     let sampler_ident = wesl::syntax::Ident::new(format!("base::sampler{map}"));
     let coord_ident = wesl::syntax::Ident::new(format!("in.tex_coord{map}"));
-    let scaling_ident = wesl::syntax::Ident::new("base::scaling".into());
+    let pipeline_immediates_ident = wesl::syntax::Ident::new("base::pipeline_immediates".into());
 
     let index = map / 2;
-    let scaling_packed = quote_expression! { #scaling_ident[#index] };
+    let scaling_packed = quote_expression! { #pipeline_immediates_ident.scaling[#index] };
     let scaling = if map.is_multiple_of(2) {
         quote_expression!(#scaling_packed.xy)
     } else {
         quote_expression!(#scaling_packed.zw)
     };
 
+    let index = map / 4;
+    let lodbias_packed = quote_expression! { #pipeline_immediates_ident.lodbias[#index] };
+    let lodbias = match map % 4 {
+        0 => quote_expression!(#lodbias_packed.x),
+        1 => quote_expression!(#lodbias_packed.y),
+        2 => quote_expression!(#lodbias_packed.z),
+        3 => quote_expression!(#lodbias_packed.w),
+        _ => unreachable!(),
+    };
+
     quote_expression! {
-        textureSample(#tex_ident, #sampler_ident, #scaling * #coord_ident.xy / #coord_ident.z)
+        textureSampleBias(#tex_ident, #sampler_ident, #scaling * #coord_ident.xy / #coord_ident.z, #lodbias)
     }
 }
 
