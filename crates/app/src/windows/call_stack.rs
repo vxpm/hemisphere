@@ -23,7 +23,7 @@ impl AppWindow for Window {
     }
 
     fn prepare(&mut self, state: &mut State) {
-        let emulator = &state.hemi;
+        let emulator = &state.lazuli;
         self.call_stack = system::eabi::current_call_stack(&emulator.sys);
         self.location = emulator
             .sys

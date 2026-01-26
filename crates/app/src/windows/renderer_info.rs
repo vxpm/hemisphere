@@ -8,14 +8,8 @@ use crate::windows::{AppWindow, Ctx};
 
 type RenderDoc = renderdoc::RenderDoc<renderdoc::V140>;
 
-thread_local! {
-    static COUNT: Cell<u32> = const { Cell::new(0) };
-}
-
 #[derive(Serialize, Deserialize)]
 pub struct Window {
-    #[serde(skip)]
-    is_canonical: bool,
     #[serde(skip)]
     renderdoc: Option<RenderDoc>,
     #[serde(skip)]
@@ -26,11 +20,7 @@ pub struct Window {
 
 impl Default for Window {
     fn default() -> Self {
-        let count = COUNT.get();
-        COUNT.set(count + 1);
-
         Self {
-            is_canonical: count == 0,
             renderdoc: RenderDoc::new().ok(),
             capture: false,
             is_capturing: false,
@@ -44,20 +34,10 @@ impl AppWindow for Window {
         "Renderer"
     }
 
-    fn prepare(&mut self, _: &mut State) {}
+    fn prepare(&mut self, state: &mut State) {}
 
     fn show(&mut self, ui: &mut egui::Ui, ctx: &mut Ctx) {
-        ui.set_max_width(150.0);
-
-        if !self.is_canonical {
-            if COUNT.get() == 0 {
-                COUNT.set(1);
-                self.is_canonical = true;
-            }
-
-            ui.label("Only one renderer window should exist!");
-            return;
-        }
+        let stats = ctx.renderer.stats();
 
         if let Some(renderdoc) = &mut self.renderdoc {
             ui.horizontal(|ui| {

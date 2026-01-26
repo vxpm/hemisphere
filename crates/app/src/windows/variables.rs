@@ -41,7 +41,7 @@ impl AppWindow for Window {
     }
 
     fn prepare(&mut self, state: &mut State) {
-        let emulator = &state.hemi;
+        let emulator = &state.lazuli;
         for variable in self.variables.iter_mut() {
             let physical = emulator
                 .sys

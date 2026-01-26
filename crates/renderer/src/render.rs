@@ -204,10 +204,7 @@ impl Renderer {
             pipeline_cache,
             texture_cache,
             sampler_cache,
-            textures_group_cache: LruMap::with_hasher(
-                ByLength::new(8192),
-                FxBuildHasher::default(),
-            ),
+            textures_group_cache: LruMap::with_hasher(ByLength::new(128), FxBuildHasher::default()),
 
             color_blitter,
             depth_blitter,

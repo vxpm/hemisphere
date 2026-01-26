@@ -204,7 +204,7 @@ impl AppWindow for Window {
     }
 
     fn prepare(&mut self, state: &mut State) {
-        self.cpu = state.hemi.sys.cpu.clone();
+        self.cpu = state.lazuli.sys.cpu.clone();
     }
 
     fn show(&mut self, ui: &mut egui::Ui, _: &mut Ctx) {
