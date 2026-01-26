@@ -147,6 +147,14 @@ fn base_module(settings: &ShaderSettings) -> wesl::syntax::TranslationUnit {
                 u32(value.a * 255.0),
             );
         }
+
+        fn concat_texgen_color(value: vec4f) -> vec3f {
+            let int = vec4f_to_vec4u(value);
+            let s = int.r;
+            // yagcd says to concat green and blue..?
+            let t = int.g;
+            return vec3f(f32(s) / 255, f32(t) / 255, 1.0);
+        }
     }
 }
 
@@ -334,7 +342,7 @@ fn vertex_stage(texgen: &TexGenSettings) -> wesl::syntax::GlobalDeclaration {
     for (index, stage) in texgen.stages.iter().enumerate() {
         let index = index as u32;
 
-        let source = texgen::get_source(stage.base.source());
+        let source = texgen::get_source(stage.base.source(), stage.base.kind());
         let input = texgen::get_input(stage.base.input_kind(), source);
         let transformed = texgen::transform(stage.base.kind(), input);
         let output = texgen::get_output(stage.base.output_kind(), transformed);

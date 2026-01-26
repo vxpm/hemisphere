@@ -1,13 +1,16 @@
 use lazuli::system::gx::xform::{TexGenInputKind, TexGenKind, TexGenOutputKind, TexGenSource};
 use wesl_quote::quote_expression;
 
-pub fn get_source(source: TexGenSource) -> wesl::syntax::Expression {
+pub fn get_source(source: TexGenSource, kind: TexGenKind) -> wesl::syntax::Expression {
     use wesl::syntax::*;
     match source {
         TexGenSource::Position => quote_expression! { vertex.position },
         TexGenSource::Normal => quote_expression! { vertex.normal },
-        // TODO: terrible stub
-        TexGenSource::Color => quote_expression! { vertex.chan0 },
+        TexGenSource::Color => match kind {
+            TexGenKind::ColorDiffuse => quote_expression! { vertex.chan0 },
+            TexGenKind::ColorSpecular => quote_expression! { vertex.chan1 },
+            _ => panic!("invalid texgen config"),
+        },
         TexGenSource::TexCoord0 => quote_expression! { vec3f(vertex.tex_coord[0], 1.0) },
         TexGenSource::TexCoord1 => quote_expression! { vec3f(vertex.tex_coord[1], 1.0) },
         TexGenSource::TexCoord2 => quote_expression! { vec3f(vertex.tex_coord[2], 1.0) },
@@ -37,10 +40,11 @@ pub fn transform(kind: TexGenKind, input: wesl::syntax::Expression) -> wesl::syn
     use wesl::syntax::*;
     match kind {
         TexGenKind::Transform => quote_expression! { (matrix * #input).xyz },
-        // TODO: terrible stubs
+        // TODO: terrible stub (emboss)
         TexGenKind::Emboss => quote_expression! { (#input).xyz },
-        TexGenKind::ColorDiffuse => quote_expression! { (#input).xyz },
-        TexGenKind::ColorSpecular => todo!(),
+        TexGenKind::ColorDiffuse | TexGenKind::ColorSpecular => quote_expression! {
+            base::concat_texgen_color(#input)
+        },
     }
 }
 
