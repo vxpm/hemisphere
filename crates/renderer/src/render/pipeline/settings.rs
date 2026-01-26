@@ -45,10 +45,95 @@ impl Default for DepthSettings {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AlphaCompareValue {
+    False,
+    True,
+    Unknown,
+}
+
+impl AlphaCompareValue {
+    pub fn new(alpha_compare: AlphaCompare) -> Self {
+        match alpha_compare {
+            AlphaCompare::Never => Self::False,
+            AlphaCompare::Always => Self::True,
+            _ => Self::Unknown,
+        }
+    }
+}
+
+impl std::ops::BitAnd for AlphaCompareValue {
+    type Output = Self;
+
+    fn bitand(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (Self::True, Self::True) => Self::True,
+            (Self::False, _) => Self::False,
+            (_, Self::False) => Self::False,
+            _ => Self::Unknown,
+        }
+    }
+}
+
+impl std::ops::BitOr for AlphaCompareValue {
+    type Output = Self;
+
+    fn bitor(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (Self::True, _) => Self::True,
+            (_, Self::True) => Self::True,
+            _ => Self::Unknown,
+        }
+    }
+}
+
+impl std::ops::BitXor for AlphaCompareValue {
+    type Output = Self;
+
+    fn bitxor(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (Self::True, Self::False) => Self::True,
+            (Self::False, Self::True) => Self::True,
+            (Self::True, Self::True) => Self::False,
+            (Self::False, Self::False) => Self::False,
+            _ => Self::Unknown,
+        }
+    }
+}
+
+impl std::ops::Not for AlphaCompareValue {
+    type Output = Self;
+
+    fn not(self) -> Self::Output {
+        match self {
+            Self::False => Self::True,
+            Self::True => Self::False,
+            Self::Unknown => Self::Unknown,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct AlphaFunctionSettings {
     pub comparison: [AlphaCompare; 2],
     pub logic: AlphaLogic,
+}
+
+impl AlphaFunctionSettings {
+    /// Returns whether this configuration is trivially passable (i.e. never discards).
+    pub fn is_noop(&self) -> bool {
+        let lhs = AlphaCompareValue::new(self.comparison[0]);
+        let rhs = AlphaCompareValue::new(self.comparison[1]);
+
+        let result = match self.logic {
+            AlphaLogic::And => lhs & rhs,
+            AlphaLogic::Or => lhs | rhs,
+            AlphaLogic::Xor => lhs ^ rhs,
+            AlphaLogic::Xnor => !(lhs ^ rhs),
+        };
+
+        result == AlphaCompareValue::True
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]

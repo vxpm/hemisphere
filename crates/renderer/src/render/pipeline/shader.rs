@@ -6,8 +6,22 @@ use wesl::{VirtualResolver, Wesl};
 use crate::render::pipeline::ShaderSettings;
 use crate::render::pipeline::settings::{TexEnvSettings, TexGenSettings};
 
-fn base_module() -> wesl::syntax::TranslationUnit {
+fn base_module(settings: &ShaderSettings) -> wesl::syntax::TranslationUnit {
     use wesl::syntax::*;
+
+    let interpolate = if settings.texenv.alpha_func.is_noop() {
+        InterpolateAttribute {
+            ty: InterpolationType::Perspective,
+            sampling: Some(InterpolationSampling::Centroid),
+        }
+    } else {
+        // although not needed, drastically improves the quality of alpha testing
+        InterpolateAttribute {
+            ty: InterpolationType::Perspective,
+            sampling: Some(InterpolationSampling::Sample),
+        }
+    };
+
     wesl_quote::quote_module! {
         alias MatIdx = u32;
 
@@ -103,16 +117,16 @@ fn base_module() -> wesl::syntax::TranslationUnit {
         struct VertexOutput {
             @builtin(position) clip: vec4f,
             @location(0) config_idx: u32,
-            @location(1) chan0: vec4f,
-            @location(2) chan1: vec4f,
-            @location(3) tex_coord0: vec3f,
-            @location(4) tex_coord1: vec3f,
-            @location(5) tex_coord2: vec3f,
-            @location(6) tex_coord3: vec3f,
-            @location(7) tex_coord4: vec3f,
-            @location(8) tex_coord5: vec3f,
-            @location(9) tex_coord6: vec3f,
-            @location(10) tex_coord7: vec3f,
+            @#interpolate @location(1) chan0: vec4f,
+            @#interpolate @location(2) chan1: vec4f,
+            @#interpolate @location(3) tex_coord0: vec3f,
+            @#interpolate @location(4) tex_coord1: vec3f,
+            @#interpolate @location(5) tex_coord2: vec3f,
+            @#interpolate @location(6) tex_coord3: vec3f,
+            @#interpolate @location(7) tex_coord4: vec3f,
+            @#interpolate @location(8) tex_coord5: vec3f,
+            @#interpolate @location(9) tex_coord6: vec3f,
+            @#interpolate @location(10) tex_coord7: vec3f,
         };
 
         struct FragmentOutput {
@@ -544,7 +558,7 @@ fn main_module(settings: &ShaderSettings) -> wesl::syntax::TranslationUnit {
 
 pub fn compile(settings: &ShaderSettings) -> String {
     let mut resolver = VirtualResolver::new();
-    resolver.add_translation_unit("package::base".parse().unwrap(), base_module());
+    resolver.add_translation_unit("package::base".parse().unwrap(), base_module(settings));
     resolver.add_translation_unit("package::main".parse().unwrap(), main_module(settings));
 
     let mut wesl = Wesl::new("shaders").set_custom_resolver(resolver);
