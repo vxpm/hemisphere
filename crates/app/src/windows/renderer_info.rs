@@ -1,5 +1,4 @@
-use std::cell::Cell;
-
+use bytesize::ByteSize;
 use eframe::egui;
 use serde::{Deserialize, Serialize};
 
@@ -34,35 +33,78 @@ impl AppWindow for Window {
         "Renderer"
     }
 
-    fn prepare(&mut self, state: &mut State) {}
+    fn prepare(&mut self, _: &mut State) {}
 
     fn show(&mut self, ui: &mut egui::Ui, ctx: &mut Ctx) {
         let stats = ctx.renderer.stats();
 
-        if let Some(renderdoc) = &mut self.renderdoc {
-            ui.horizontal(|ui| {
-                ui.checkbox(&mut self.capture, "Capture (Renderdoc)");
+        ui.vertical(|ui| {
+            ui.heading("Allocator Report");
+            if let Some(alloc) = &stats.alloc {
+                ui.label(format!(
+                    "Allocated: {}",
+                    ByteSize(alloc.total_allocated_bytes)
+                ));
 
-                let null = std::ptr::null();
-                if self.is_capturing {
-                    if ctx.renderer.rendered_anything() {
-                        renderdoc.end_frame_capture(null, null);
-                        self.is_capturing = false;
-                    } else {
-                        renderdoc.discard_frame_capture(null, null);
-                        renderdoc.start_frame_capture(null, null);
+                ui.label(format!(
+                    "Reserved: {}",
+                    ByteSize(alloc.total_reserved_bytes)
+                ));
+            } else {
+                ui.label("Report unavailable");
+            }
+
+            let counters = &stats.counters.hal;
+            ui.heading("Counters");
+            ui.label(format!(
+                "Buffers: {} ({})",
+                counters.buffers.read(),
+                ByteSize(counters.buffer_memory.read() as u64),
+            ));
+            ui.label(format!(
+                "Textures: {} ({})",
+                counters.textures.read(),
+                ByteSize(counters.texture_memory.read() as u64),
+            ));
+            ui.label(format!("Samplers: {}", counters.samplers.read(),));
+            ui.label(format!("Shaders: {}", counters.shader_modules.read(),));
+            ui.label(format!("Pipelines: {}", counters.render_pipelines.read(),));
+            ui.label(format!("Bind Groups: {}", counters.bind_groups.read(),));
+            ui.label(format!(
+                "Command Encoders: {}",
+                counters.command_encoders.read(),
+            ));
+            ui.label(format!(
+                "Memory Allocations: {}",
+                counters.memory_allocations.read(),
+            ));
+
+            ui.heading("Renderdoc");
+            if let Some(renderdoc) = &mut self.renderdoc {
+                ui.horizontal(|ui| {
+                    ui.checkbox(&mut self.capture, "Capture (Renderdoc)");
+
+                    let null = std::ptr::null();
+                    if self.is_capturing {
+                        if ctx.renderer.rendered_anything() {
+                            renderdoc.end_frame_capture(null, null);
+                            self.is_capturing = false;
+                        } else {
+                            renderdoc.discard_frame_capture(null, null);
+                            renderdoc.start_frame_capture(null, null);
+                        }
                     }
-                }
 
-                if self.capture && !self.is_capturing {
-                    ctx.renderer.rendered_anything();
-                    renderdoc.start_frame_capture(null, null);
-                    self.is_capturing = true;
-                }
-            });
-        } else {
-            self.renderdoc = RenderDoc::new().ok();
-            ui.label("Renderdoc not detected");
-        }
+                    if self.capture && !self.is_capturing {
+                        ctx.renderer.rendered_anything();
+                        renderdoc.start_frame_capture(null, null);
+                        self.is_capturing = true;
+                    }
+                });
+            } else {
+                self.renderdoc = RenderDoc::new().ok();
+                ui.label("Renderdoc not detected");
+            }
+        });
     }
 }
