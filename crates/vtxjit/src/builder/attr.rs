@@ -11,20 +11,6 @@ use zerocopy::IntoBytes;
 
 use crate::builder::{MEMFLAGS, MEMFLAGS_READONLY, ParserBuilder};
 
-fn split_i16(parser: &mut ParserBuilder, value: ir::Value) -> (ir::Value, ir::Value) {
-    let low = parser.bd.ins().ireduce(ir::types::I8, value);
-    let high = parser.bd.ins().ushr_imm(value, 8);
-    let high = parser.bd.ins().ireduce(ir::types::I8, high);
-    (low, high)
-}
-
-fn split_i32(parser: &mut ParserBuilder, value: ir::Value) -> (ir::Value, ir::Value) {
-    let low = parser.bd.ins().ireduce(ir::types::I16, value);
-    let high = parser.bd.ins().ushr_imm(value, 16);
-    let high = parser.bd.ins().ireduce(ir::types::I16, high);
-    (low, high)
-}
-
 /// Parses a single vector coordinate encoded as U8/I8/U16/I16.
 fn coord_int(
     parser: &mut ParserBuilder,
@@ -83,61 +69,53 @@ fn vec_int(
     triplet: bool,
     scale: ir::Value,
 ) -> [ir::Value; 3] {
-    // 01. load the integer values
-    let pair_ty = match ty {
-        ir::types::I8 => ir::types::I16,
-        ir::types::I16 => ir::types::I32,
-        _ => unreachable!(),
-    };
-    let pair = parser.bd.ins().load(pair_ty, MEMFLAGS_READONLY, ptr, 0);
+    // 01. load the packed value bytes
+    let bytes = parser
+        .bd
+        .ins()
+        .load(ir::types::I8X16, MEMFLAGS_READONLY, ptr, 0);
 
-    let (first, second) = if pair_ty == ir::types::I16 {
-        split_i16(parser, pair)
-    } else {
-        split_i32(parser, pair)
-    };
-
-    let third = if triplet {
-        parser
-            .bd
-            .ins()
-            .load(ty, MEMFLAGS_READONLY, ptr, pair_ty.bytes() as i32)
-    } else {
-        parser.bd.ins().iconst(ty, 0)
-    };
-
-    // 02. extend them to I32
-    let first = parser.bd.ins().uextend(ir::types::I32, first);
-    let second = parser.bd.ins().uextend(ir::types::I32, second);
-    let third = parser.bd.ins().uextend(ir::types::I32, third);
-
-    // 03. put them in a I32X4
-    let vector = parser.bd.ins().scalar_to_vector(ir::types::I32X4, first);
-    let vector = parser.bd.ins().insertlane(vector, second, 1);
-    let vector = parser.bd.ins().insertlane(vector, third, 2);
-
-    // 04. BE -> LE
+    // 02. convert to little endian and prepare for sign extension if needed
     let vector = if ty == ir::types::I16 {
         const ZEROED: u8 = 0xFF;
-        const SHUFFLE_CONST: [u8; 16] = [
+        const SHUFFLE_CONST_SIGNED_VEC2: [u8; 16] = [
+            ZEROED, ZEROED, 1, 0, // lane 0 (first value)
+            ZEROED, ZEROED, 3, 2, // lane 1 (second value)
+            ZEROED, ZEROED, ZEROED, ZEROED, // lane 2 (zeroed)
+            ZEROED, ZEROED, ZEROED, ZEROED, // lane 3 (dont care)
+        ];
+        const SHUFFLE_CONST_UNSIGNED_VEC2: [u8; 16] = [
             1, 0, ZEROED, ZEROED, // lane 0 (first value)
-            5, 4, ZEROED, ZEROED, // lane 1 (second value)
-            9, 8, ZEROED, ZEROED, // lane 2 (third value)
+            3, 2, ZEROED, ZEROED, // lane 1 (second value)
+            ZEROED, ZEROED, ZEROED, ZEROED, // lane 2 (zeroed)
+            ZEROED, ZEROED, ZEROED, ZEROED, // lane 3 (dont care)
+        ];
+        const SHUFFLE_CONST_SIGNED_VEC3: [u8; 16] = [
+            ZEROED, ZEROED, 1, 0, // lane 0 (first value)
+            ZEROED, ZEROED, 3, 2, // lane 1 (second value)
+            ZEROED, ZEROED, 5, 4, // lane 2 (third value)
+            ZEROED, ZEROED, ZEROED, ZEROED, // lane 3 (dont care)
+        ];
+        const SHUFFLE_CONST_UNSIGNED_VEC3: [u8; 16] = [
+            1, 0, ZEROED, ZEROED, // lane 0 (first value)
+            3, 2, ZEROED, ZEROED, // lane 1 (second value)
+            5, 4, ZEROED, ZEROED, // lane 2 (third value)
             ZEROED, ZEROED, ZEROED, ZEROED, // lane 3 (dont care)
         ];
 
-        let bytes = parser.bd.ins().bitcast(
-            ir::types::I8X16,
-            ir::MemFlags::new().with_endianness(ir::Endianness::Little),
-            vector,
-        );
+        let shuffle_const = match (signed, triplet) {
+            (true, true) => SHUFFLE_CONST_SIGNED_VEC3,
+            (true, false) => SHUFFLE_CONST_SIGNED_VEC2,
+            (false, true) => SHUFFLE_CONST_UNSIGNED_VEC3,
+            (false, false) => SHUFFLE_CONST_UNSIGNED_VEC2,
+        };
 
         let shuffle_const = parser
             .bd
             .func
             .dfg
             .constants
-            .insert(ir::ConstantData::from(SHUFFLE_CONST.as_bytes()));
+            .insert(ir::ConstantData::from(shuffle_const.as_bytes()));
 
         let shuffle_mask = parser.bd.ins().vconst(ir::types::I8X16, shuffle_const);
         let shuffled = parser.bd.ins().x86_pshufb(bytes, shuffle_mask);
@@ -148,28 +126,69 @@ fn vec_int(
             shuffled,
         )
     } else {
-        vector
+        const ZEROED: u8 = 0xFF;
+        const SHUFFLE_CONST_SIGNED_VEC2: [u8; 16] = [
+            ZEROED, ZEROED, ZEROED, 0, // lane 0 (first value)
+            ZEROED, ZEROED, ZEROED, 1, // lane 1 (second value)
+            ZEROED, ZEROED, ZEROED, ZEROED, // lane 2 (zeroed)
+            ZEROED, ZEROED, ZEROED, ZEROED, // lane 3 (dont care)
+        ];
+        const SHUFFLE_CONST_UNSIGNED_VEC2: [u8; 16] = [
+            0, ZEROED, ZEROED, ZEROED, // lane 0 (first value)
+            1, ZEROED, ZEROED, ZEROED, // lane 1 (second value)
+            ZEROED, ZEROED, ZEROED, ZEROED, // lane 2 (zeroed)
+            ZEROED, ZEROED, ZEROED, ZEROED, // lane 3 (dont care)
+        ];
+        const SHUFFLE_CONST_SIGNED_VEC3: [u8; 16] = [
+            ZEROED, ZEROED, ZEROED, 0, // lane 0 (first value)
+            ZEROED, ZEROED, ZEROED, 1, // lane 1 (second value)
+            ZEROED, ZEROED, ZEROED, 2, // lane 2 (third value)
+            ZEROED, ZEROED, ZEROED, ZEROED, // lane 3 (dont care)
+        ];
+        const SHUFFLE_CONST_UNSIGNED_VEC3: [u8; 16] = [
+            0, ZEROED, ZEROED, ZEROED, // lane 0 (first value)
+            1, ZEROED, ZEROED, ZEROED, // lane 1 (second value)
+            2, ZEROED, ZEROED, ZEROED, // lane 2 (third value)
+            ZEROED, ZEROED, ZEROED, ZEROED, // lane 3 (dont care)
+        ];
+
+        let shuffle_const = match (signed, triplet) {
+            (true, true) => SHUFFLE_CONST_SIGNED_VEC3,
+            (true, false) => SHUFFLE_CONST_SIGNED_VEC2,
+            (false, true) => SHUFFLE_CONST_UNSIGNED_VEC3,
+            (false, false) => SHUFFLE_CONST_UNSIGNED_VEC2,
+        };
+
+        let shuffle_const = parser
+            .bd
+            .func
+            .dfg
+            .constants
+            .insert(ir::ConstantData::from(shuffle_const.as_bytes()));
+
+        let shuffle_mask = parser.bd.ins().vconst(ir::types::I8X16, shuffle_const);
+        let shuffled = parser.bd.ins().x86_pshufb(bytes, shuffle_mask);
+
+        parser.bd.ins().bitcast(
+            ir::types::I32X4,
+            ir::MemFlags::new().with_endianness(ir::Endianness::Little),
+            shuffled,
+        )
     };
 
-    // 04. sign extend and convert to F32X4
+    // 03. sign extend if needed and convert to F32X4
     let vector = if signed {
-        let left = parser.bd.ins().ishl_imm(vector, 32 - ty.bits() as i64);
-        parser.bd.ins().sshr_imm(left, 32 - ty.bits() as i64)
-    } else {
-        vector
-    };
-
-    let vector = if signed {
+        let vector = parser.bd.ins().sshr_imm(vector, 32 - ty.bits() as i64);
         parser.bd.ins().fcvt_from_sint(ir::types::F32X4, vector)
     } else {
         parser.bd.ins().fcvt_from_uint(ir::types::F32X4, vector)
     };
 
-    // 05. multiply by scale
+    // 04. multiply by scale
     let scale = parser.bd.ins().splat(ir::types::F32X4, scale);
     let vector = parser.bd.ins().fmul(vector, scale);
 
-    // 06. split it
+    // 05. split it
     let first = parser.bd.ins().extractlane(vector, 0);
     let second = parser.bd.ins().extractlane(vector, 1);
     let third = parser.bd.ins().extractlane(vector, 2);
@@ -185,7 +204,7 @@ fn vec_float(parser: &mut ParserBuilder, ptr: ir::Value, triplet: bool) -> [ir::
         .ins()
         .load(ir::types::I32X4, MEMFLAGS_READONLY, ptr, 0);
 
-    // 02. BE -> LE
+    // 02. convert to little endian
     const ZEROED: u8 = 0xFF;
     const SHUFFLE_CONST_VEC2: [u8; 16] = [
         3, 2, 1, 0, // lane 0 (first value)
@@ -222,14 +241,14 @@ fn vec_float(parser: &mut ParserBuilder, ptr: ir::Value, triplet: bool) -> [ir::
     let shuffle_mask = parser.bd.ins().vconst(ir::types::I8X16, shuffle_const);
     let shuffled = parser.bd.ins().x86_pshufb(bytes, shuffle_mask);
 
-    // 04. convert to F32X4
+    // 03. convert to F32X4
     let vector = parser.bd.ins().bitcast(
         ir::types::F32X4,
         ir::MemFlags::new().with_endianness(ir::Endianness::Little),
         shuffled,
     );
 
-    // 05. split it
+    // 04. split it
     let first = parser.bd.ins().extractlane(vector, 0);
     let second = parser.bd.ins().extractlane(vector, 1);
     let third = parser.bd.ins().extractlane(vector, 2);
@@ -237,132 +256,255 @@ fn vec_float(parser: &mut ParserBuilder, ptr: ir::Value, triplet: bool) -> [ir::
     [first, second, third]
 }
 
-fn rgba_vector(
-    parser: &mut ParserBuilder,
-    r: ir::Value,
-    g: ir::Value,
-    b: ir::Value,
-    a: ir::Value,
-) -> ir::Value {
-    let (r, g, b, a) = if parser.bd.func.stencil.dfg.value_type(r) != ir::types::I32 {
-        (
-            parser.bd.ins().uextend(ir::types::I32, r),
-            parser.bd.ins().uextend(ir::types::I32, g),
-            parser.bd.ins().uextend(ir::types::I32, b),
-            parser.bd.ins().uextend(ir::types::I32, a),
-        )
-    } else {
-        (r, g, b, a)
-    };
+fn rgba4444(parser: &mut ParserBuilder, ptr: ir::Value) -> ir::Value {
+    // 01. load the packed bytes
+    let bytes = parser
+        .bd
+        .ins()
+        .load(ir::types::I8X16, MEMFLAGS_READONLY, ptr, 0);
 
-    let rgba = parser.bd.ins().scalar_to_vector(ir::types::I32X4, r);
-    let rgba = parser.bd.ins().insertlane(rgba, g, 1);
-    let rgba = parser.bd.ins().insertlane(rgba, b, 2);
-    parser.bd.ins().insertlane(rgba, a, 3)
+    // 02. unpack into lanes
+    const ZEROED: u8 = 0xFF;
+    const SHUFFLE_CONST: [u8; 16] = [
+        0, ZEROED, ZEROED, ZEROED, // lane 0 (rg)
+        0, ZEROED, ZEROED, ZEROED, // lane 1 (rg)
+        1, ZEROED, ZEROED, ZEROED, // lane 2 (ba)
+        1, ZEROED, ZEROED, ZEROED, // lane 3 (ba)
+    ];
+
+    let shuffle_const = parser
+        .bd
+        .func
+        .dfg
+        .constants
+        .insert(ir::ConstantData::from(SHUFFLE_CONST.as_bytes()));
+
+    let shuffle_mask = parser.bd.ins().vconst(ir::types::I8X16, shuffle_const);
+    let shuffled = parser.bd.ins().x86_pshufb(bytes, shuffle_mask);
+    let vector = parser.bd.ins().bitcast(
+        ir::types::I32X4,
+        ir::MemFlags::new().with_endianness(ir::Endianness::Little),
+        shuffled,
+    );
+
+    // 03. unpack nibbles
+    const LOW_LANE: u32 = 0;
+    const HIGH_LANE: u32 = u32::MAX;
+    const BLEND_CONST: [u32; 4] = [LOW_LANE, HIGH_LANE, LOW_LANE, HIGH_LANE];
+
+    let blend_const = parser
+        .bd
+        .func
+        .dfg
+        .constants
+        .insert(ir::ConstantData::from(BLEND_CONST.as_bytes()));
+
+    let blend_mask = parser.bd.ins().vconst(ir::types::I32X4, blend_const);
+    let band_value = parser.bd.ins().iconst(ir::types::I32, 15);
+    let band_value = parser
+        .bd
+        .ins()
+        .scalar_to_vector(ir::types::I32X4, band_value);
+    let low_nibbles = parser.bd.ins().band(vector, band_value);
+    let high_nibbles = parser.bd.ins().ushr_imm(vector, 4);
+    let rgba = parser
+        .bd
+        .ins()
+        .x86_blendv(blend_mask, high_nibbles, low_nibbles);
+
+    // 04. convert to F32X4
+    let vector = parser.bd.ins().fcvt_from_uint(ir::types::F32X4, rgba);
+    let recip = parser.bd.ins().f32const(1.0 / 15.0);
+    let recip = parser.bd.ins().splat(ir::types::F32X4, recip);
+    parser.bd.ins().fmul(vector, recip)
 }
 
-fn read_rgba(format: ColorFormat, parser: &mut ParserBuilder, ptr: ir::Value) -> ir::Value {
-    let to_float = |parser: &mut ParserBuilder, rgba, recip| {
-        let rgba = parser.bd.ins().fcvt_from_uint(ir::types::F32X4, rgba);
-        parser.bd.ins().fmul(rgba, recip)
-    };
+fn rgb6666(parser: &mut ParserBuilder, ptr: ir::Value) -> ir::Value {
+    // 01. load the packed bytes
+    let bytes = parser
+        .bd
+        .ins()
+        .load(ir::types::I8X16, MEMFLAGS_READONLY, ptr, 0);
 
+    // 02. unpack into lanes
+    const ZEROED: u8 = 0xFF;
+    const SHUFFLE_CONST: [u8; 16] = [
+        0, 1, 2, ZEROED, // lane 0 (r)
+        0, 1, 2, ZEROED, // lane 1 (g)
+        0, 1, 2, ZEROED, // lane 2 (b)
+        0, 1, 2, ZEROED, // lane 3 (a)
+    ];
+
+    let shuffle_const = parser
+        .bd
+        .func
+        .dfg
+        .constants
+        .insert(ir::ConstantData::from(SHUFFLE_CONST.as_bytes()));
+
+    let shuffle_mask = parser.bd.ins().vconst(ir::types::I8X16, shuffle_const);
+    let shuffled = parser.bd.ins().x86_pshufb(bytes, shuffle_mask);
+    let vector = parser.bd.ins().bitcast(
+        ir::types::I32X4,
+        ir::MemFlags::new().with_endianness(ir::Endianness::Little),
+        shuffled,
+    );
+
+    // 03. unpack nibbles
+    // since you can't shift each lane by differen amounts, we first multiply by powers of 2
+    // (shift left) by different amounts, then shift right by the same amount
+    //
+    // we could avoid the mul by instead using division by 2 (shift right), but i bet thats way
+    // slower than a mul
+    const MUL_CONST: [u32; 4] = [1 << (18 - 0), 1 << (18 - 6), 1 << (18 - 12), 1 << (18 - 18)];
+    let mul_const = parser
+        .bd
+        .func
+        .dfg
+        .constants
+        .insert(ir::ConstantData::from(MUL_CONST.as_bytes()));
+
+    let mul_const = parser.bd.ins().vconst(ir::types::I32X4, mul_const);
+    let vector = parser.bd.ins().imul(vector, mul_const);
+    let vector = parser.bd.ins().ushr_imm(vector, 18);
+
+    let mask = parser.bd.ins().iconst(ir::types::I32, 0x3F);
+    let mask = parser.bd.ins().splat(ir::types::I32X4, mask);
+    let vector = parser.bd.ins().band(vector, mask);
+
+    // 04. convert to F32X4
+    let vector = parser.bd.ins().fcvt_from_uint(ir::types::F32X4, vector);
+    let recip = parser.bd.ins().f32const(1.0 / 63.0);
+    let recip = parser.bd.ins().splat(ir::types::F32X4, recip);
+    parser.bd.ins().fmul(vector, recip)
+}
+
+fn rgba8888(parser: &mut ParserBuilder, ptr: ir::Value) -> ir::Value {
+    // 01. load the packed bytes
+    let bytes = parser
+        .bd
+        .ins()
+        .load(ir::types::I8X16, MEMFLAGS_READONLY, ptr, 0);
+
+    // 02. unpack into lanes
+    const ZEROED: u8 = 0xFF;
+    const SHUFFLE_CONST: [u8; 16] = [
+        0, ZEROED, ZEROED, ZEROED, // lane 0 (r)
+        1, ZEROED, ZEROED, ZEROED, // lane 1 (g)
+        2, ZEROED, ZEROED, ZEROED, // lane 2 (b)
+        3, ZEROED, ZEROED, ZEROED, // lane 3 (a)
+    ];
+
+    let shuffle_const = parser
+        .bd
+        .func
+        .dfg
+        .constants
+        .insert(ir::ConstantData::from(SHUFFLE_CONST.as_bytes()));
+
+    let shuffle_mask = parser.bd.ins().vconst(ir::types::I8X16, shuffle_const);
+    let shuffled = parser.bd.ins().x86_pshufb(bytes, shuffle_mask);
+
+    let vector = parser.bd.ins().bitcast(
+        ir::types::I32X4,
+        ir::MemFlags::new().with_endianness(ir::Endianness::Little),
+        shuffled,
+    );
+
+    // 03. convert to F32X4
+    let vector = parser.bd.ins().fcvt_from_uint(ir::types::F32X4, vector);
+    let recip = parser.bd.ins().f32const(1.0 / 255.0);
+    let recip = parser.bd.ins().splat(ir::types::F32X4, recip);
+    parser.bd.ins().fmul(vector, recip)
+}
+
+fn rgb565(parser: &mut ParserBuilder, ptr: ir::Value) -> ir::Value {
+    // 01. load the packed bytes
+    let bytes = parser
+        .bd
+        .ins()
+        .load(ir::types::I8X16, MEMFLAGS_READONLY, ptr, 0);
+
+    // 02. unpack into lanes
+    const ZEROED: u8 = 0xFF;
+    const SHUFFLE_CONST: [u8; 16] = [
+        0, 1, ZEROED, ZEROED, // lane 0 (r)
+        0, 1, ZEROED, ZEROED, // lane 1 (g)
+        0, 1, ZEROED, ZEROED, // lane 2 (b)
+        0, 1, ZEROED, ZEROED, // lane 3 (a)
+    ];
+
+    let shuffle_const = parser
+        .bd
+        .func
+        .dfg
+        .constants
+        .insert(ir::ConstantData::from(SHUFFLE_CONST.as_bytes()));
+
+    let shuffle_mask = parser.bd.ins().vconst(ir::types::I8X16, shuffle_const);
+    let shuffled = parser.bd.ins().x86_pshufb(bytes, shuffle_mask);
+
+    let vector = parser.bd.ins().bitcast(
+        ir::types::I32X4,
+        ir::MemFlags::new().with_endianness(ir::Endianness::Little),
+        shuffled,
+    );
+
+    // 03. unpack nibbles
+    // since you can't shift each lane by differen amounts, we first multiply by powers of 2
+    // (shift left) by different amounts, then shift right by the same amount
+    //
+    // we could avoid the mul by instead using division by 2 (shift right), but i bet thats way
+    // slower than a mul
+    const MUL_CONST: [u32; 4] = [1 << (11 - 0), 1 << (11 - 5), 1 << (11 - 11), 0];
+    const AND_CONST: [u32; 4] = [0x1F, 0x3F, 0x1F, 0];
+    const RECIP_CONST: [f32; 4] = [1.0 / 31.0, 1.0 / 63.0, 1.0 / 31.0, 0.0];
+
+    let mul_const = parser
+        .bd
+        .func
+        .dfg
+        .constants
+        .insert(ir::ConstantData::from(MUL_CONST.as_bytes()));
+    let and_const = parser
+        .bd
+        .func
+        .dfg
+        .constants
+        .insert(ir::ConstantData::from(AND_CONST.as_bytes()));
+    let recip_const = parser
+        .bd
+        .func
+        .dfg
+        .constants
+        .insert(ir::ConstantData::from(RECIP_CONST.as_bytes()));
+
+    let mul_const = parser.bd.ins().vconst(ir::types::I32X4, mul_const);
+    let and_const = parser.bd.ins().vconst(ir::types::I32X4, and_const);
+
+    let vector = parser.bd.ins().imul(vector, mul_const);
+    let vector = parser.bd.ins().ushr_imm(vector, 11);
+    let vector = parser.bd.ins().band(vector, and_const);
+
+    // 04. convert to F32X4
+    let vector = parser.bd.ins().fcvt_from_uint(ir::types::F32X4, vector);
+    let recip = parser.bd.ins().vconst(ir::types::F32X4, recip_const);
+    let vector = parser.bd.ins().fmul(vector, recip);
+    let max = parser.bd.ins().f32const(1.0);
+    parser.bd.ins().insertlane(vector, max, 3)
+}
+
+fn read_color(format: ColorFormat, parser: &mut ParserBuilder, ptr: ir::Value) -> ir::Value {
     match format {
-        ColorFormat::Rgb565 => {
-            let value = parser
-                .bd
-                .ins()
-                .load(ir::types::I16, MEMFLAGS_READONLY, ptr, 0);
-            let value = parser.bd.ins().bswap(value);
-
-            let r = parser.shift_mask(value, 0, 0x1F);
-            let g = parser.shift_mask(value, 5, 0x3F);
-            let b = parser.shift_mask(value, 11, 0x1F);
-            let a = parser.bd.ins().iconst(ir::types::I16, 255);
-            let rgba = rgba_vector(parser, r, g, b, a);
-
-            const RECIP_CONST: [f32; 4] = [1.0 / 31.0, 1.0 / 63.0, 1.0 / 31.0, 1.0 / 255.0];
-            let recip_const = parser
-                .bd
-                .func
-                .dfg
-                .constants
-                .insert(ir::ConstantData::from(RECIP_CONST.as_bytes()));
-            let recip = parser.bd.ins().vconst(ir::types::F32X4, recip_const);
-
-            to_float(parser, rgba, recip)
-        }
+        ColorFormat::Rgb565 => rgb565(parser, ptr),
         ColorFormat::Rgb888 | ColorFormat::Rgb888x => {
-            let rg = parser
-                .bd
-                .ins()
-                .load(ir::types::I16, MEMFLAGS_READONLY, ptr, 0);
-            let b = parser.bd.ins().load(ir::types::I8, MEMFLAGS, ptr, 2);
-            let a = parser.bd.ins().iconst(ir::types::I8, 255);
-            let r = parser.bd.ins().band_imm(rg, 255);
-            let g = parser.bd.ins().ushr_imm(rg, 8);
-
-            let rgba = rgba_vector(parser, r, g, b, a);
-            let recip = parser.bd.ins().f32const(1.0 / 255.0);
-            let recip = parser.bd.ins().splat(ir::types::F32X4, recip);
-
-            to_float(parser, rgba, recip)
+            let rgba = rgba8888(parser, ptr);
+            let max = parser.bd.ins().f32const(1.0);
+            parser.bd.ins().insertlane(rgba, max, 3)
         }
-        ColorFormat::Rgba4444 => {
-            let value = parser
-                .bd
-                .ins()
-                .load(ir::types::I16, MEMFLAGS_READONLY, ptr, 0);
-            let r = parser.shift_mask(value, 0, 15);
-            let g = parser.shift_mask(value, 4, 15);
-            let b = parser.shift_mask(value, 8, 15);
-            let a = parser.shift_mask(value, 12, 15);
-
-            let rgba = rgba_vector(parser, r, g, b, a);
-            let recip = parser.bd.ins().f32const(1.0 / 15.0);
-            let recip = parser.bd.ins().splat(ir::types::F32X4, recip);
-
-            to_float(parser, rgba, recip)
-        }
-        ColorFormat::Rgba6666 => {
-            let low = parser
-                .bd
-                .ins()
-                .load(ir::types::I16, MEMFLAGS_READONLY, ptr, 0);
-            let low = parser.bd.ins().uextend(ir::types::I32, low);
-
-            let high = parser.bd.ins().load(ir::types::I8, MEMFLAGS, ptr, 2);
-            let high = parser.bd.ins().uextend(ir::types::I32, high);
-            let high = parser.bd.ins().ishl_imm(high, 16);
-
-            let value = parser.bd.ins().bor(low, high);
-            let r = parser.shift_mask(value, 0, 63);
-            let g = parser.shift_mask(value, 6, 63);
-            let b = parser.shift_mask(value, 12, 63);
-            let a = parser.shift_mask(value, 18, 63);
-
-            let rgba = rgba_vector(parser, r, g, b, a);
-            let recip = parser.bd.ins().f32const(1.0 / 63.0);
-            let recip = parser.bd.ins().splat(ir::types::F32X4, recip);
-
-            to_float(parser, rgba, recip)
-        }
-        ColorFormat::Rgba8888 => {
-            let value = parser
-                .bd
-                .ins()
-                .load(ir::types::I32, MEMFLAGS_READONLY, ptr, 0);
-            let r = parser.shift_mask(value, 0, 255);
-            let g = parser.shift_mask(value, 8, 255);
-            let b = parser.shift_mask(value, 16, 255);
-            let a = parser.shift_mask(value, 24, 255);
-
-            let rgba = rgba_vector(parser, r, g, b, a);
-            let recip = parser.bd.ins().f32const(1.0 / 255.0);
-            let recip = parser.bd.ins().splat(ir::types::F32X4, recip);
-
-            to_float(parser, rgba, recip)
-        }
+        ColorFormat::Rgba4444 => rgba4444(parser, ptr),
+        ColorFormat::Rgba6666 => rgb6666(parser, ptr),
+        ColorFormat::Rgba8888 => rgba8888(parser, ptr),
         _ => panic!("reserved color format"),
     }
 }
@@ -415,7 +557,6 @@ impl<const N: usize> AttributeExt for attributes::TexMatrixIndex<N> {
             .ins()
             .load(ir::types::I8, MEMFLAGS_READONLY, ptr, 0);
 
-        parser.include_matrix(false, index);
         parser.include_matrix(true, index);
 
         parser.bd.ins().store(
@@ -527,9 +668,8 @@ impl AttributeExt for attributes::Chan0 {
     const ARRAY_OFFSET: usize = offset_of!(Arrays, chan0);
 
     fn parse(desc: &Self::Descriptor, parser: &mut ParserBuilder, ptr: ir::Value) -> u32 {
-        let rgba = read_rgba(desc.format(), parser, ptr);
-
-        let rgba = if desc.kind() == ColorKind::Rgb {
+        let rgba = read_color(desc.format(), parser, ptr);
+        let rgba = if desc.kind() == ColorKind::Rgb && desc.format().has_alpha() {
             let max = parser.bd.ins().f32const(1.0);
             parser.bd.ins().insertlane(rgba, max, 3)
         } else {
@@ -551,9 +691,8 @@ impl AttributeExt for attributes::Chan1 {
     const ARRAY_OFFSET: usize = offset_of!(Arrays, chan1);
 
     fn parse(desc: &Self::Descriptor, parser: &mut ParserBuilder, ptr: ir::Value) -> u32 {
-        let rgba = read_rgba(desc.format(), parser, ptr);
-
-        let rgba = if desc.kind() == ColorKind::Rgb {
+        let rgba = read_color(desc.format(), parser, ptr);
+        let rgba = if desc.kind() == ColorKind::Rgb && desc.format().has_alpha() {
             let max = parser.bd.ins().f32const(1.0);
             parser.bd.ins().insertlane(rgba, max, 3)
         } else {

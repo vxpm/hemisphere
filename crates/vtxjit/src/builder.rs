@@ -127,11 +127,6 @@ impl<'ctx> ParserBuilder<'ctx> {
         self.current_bb = bb;
     }
 
-    fn shift_mask(&mut self, value: ir::Value, shift: i64, mask: i64) -> ir::Value {
-        let shifted = self.bd.ins().ushr_imm(value, shift);
-        self.bd.ins().band_imm(shifted, mask)
-    }
-
     fn include_matrix(&mut self, is_normal: bool, mtx_idx: ir::Value) {
         let curr = self.vars.mtx_set_marked;
 
@@ -188,7 +183,7 @@ impl<'ctx> ParserBuilder<'ctx> {
         let addr = self.bd.ins().iadd(array.base, offset);
 
         // compute ptr
-        let addr = self.bd.ins().uextend(ir::types::I64, addr);
+        let addr = self.bd.ins().uextend(self.consts.ptr_type, addr);
         let ptr = self.bd.ins().iadd(self.consts.ram_ptr, addr);
 
         // parse
