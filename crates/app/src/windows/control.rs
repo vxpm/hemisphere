@@ -49,7 +49,7 @@ impl AppWindow for Window {
             .extend(state.breakpoints.iter().map(|b| b.value()));
         self.labels.retain(|b, _| self.breakpoints.contains(b));
 
-        self.current_pc = state.hemi.sys.cpu.pc.value();
+        self.current_pc = state.lazuli.sys.cpu.pc.value();
     }
 
     fn show(&mut self, ui: &mut egui::Ui, ctx: &mut Ctx) {

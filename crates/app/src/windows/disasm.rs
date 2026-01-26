@@ -66,7 +66,7 @@ impl AppWindow for Window {
             }
         }
 
-        let emulator = &state.hemi;
+        let emulator = &state.lazuli;
         self.pc = emulator.sys.cpu.pc.value();
 
         if self.follow_pc {

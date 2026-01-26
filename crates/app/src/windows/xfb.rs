@@ -37,7 +37,7 @@ impl AppWindow for Window {
     }
 
     fn prepare(&mut self, state: &mut State) {
-        let emulator = &state.hemi;
+        let emulator = &state.lazuli;
         if !emulator.sys.video.display_config.enable() {
             self.xfb_enabled = false;
             return;

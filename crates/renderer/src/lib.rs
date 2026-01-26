@@ -21,6 +21,11 @@ fn worker(mut renderer: RendererInner, receiver: Receiver<Action>) {
     }
 }
 
+pub struct Stats {
+    pub counters: wgpu::InternalCounters,
+    pub alloc: Option<wgpu::AllocatorReport>,
+}
+
 struct Inner {
     device: wgpu::Device,
     shared: Arc<render::Shared>,
@@ -79,6 +84,12 @@ impl Renderer {
             .shared
             .rendered_anything
             .swap(false, Ordering::Relaxed)
+    }
+
+    pub fn stats(&self) -> Box<Stats> {
+        let counters = self.inner.device.get_internal_counters();
+        let alloc = self.inner.device.generate_allocator_report();
+        Box::new(Stats { counters, alloc })
     }
 }
 

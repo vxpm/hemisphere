@@ -137,7 +137,8 @@ impl Cache {
         texture.create_view(&Default::default())
     }
 
-    pub fn update_raw(&mut self, id: TextureId, texture: Texture) {
+    /// Returns whether this is texture ID was already present in the cache.
+    pub fn update_raw(&mut self, id: TextureId, texture: Texture) -> bool {
         let old = self.raws.insert(
             id,
             WithDeps {
@@ -150,6 +151,10 @@ impl Cache {
             for dep in old.deps.into_iter() {
                 self.textures.remove(&dep);
             }
+
+            true
+        } else {
+            false
         }
     }
 

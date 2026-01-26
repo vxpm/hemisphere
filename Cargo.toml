@@ -177,7 +177,7 @@ wesl = { git = "https://github.com/wgsl-tooling-wg/wesl-rs", default-features = 
     "naga-ext",
 ] }
 wesl-quote = { git = "https://github.com/wgsl-tooling-wg/wesl-rs" }
-wgpu = { version = "27.0", default-features = false }
+wgpu = { version = "27.0", default-features = false, features = ["counters"] }
 zerocopy = { version = "0.8", features = ["derive"] }
 windows = { version = ">=0.59", features = [
     "Win32_System_Memory",

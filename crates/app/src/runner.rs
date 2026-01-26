@@ -11,7 +11,7 @@ use spin_sleep::SpinSleeper;
 use crate::runner::timer::Timer;
 
 pub struct State {
-    pub hemi: Lazuli,
+    pub lazuli: Lazuli,
     pub breakpoints: Vec<Address>,
     pub cycles_history: VecDeque<(Cycles, Duration)>,
 }
@@ -75,7 +75,7 @@ fn worker(runner_state: Arc<Shared>) {
         let state = &mut *lock;
 
         let executed = state
-            .hemi
+            .lazuli
             .exec(Cycles::from_duration(delta), &state.breakpoints);
 
         emulated += delta;
@@ -101,7 +101,7 @@ impl Runner {
     pub fn new(lazuli: Lazuli) -> Self {
         let state = Shared {
             state: Mutex::new(State {
-                hemi: lazuli,
+                lazuli,
                 breakpoints: vec![],
                 cycles_history: VecDeque::new(),
             }),
@@ -131,7 +131,7 @@ impl Runner {
     pub fn step(&mut self) {
         if !self.running() {
             let mut lock = self.shared.state.lock().unwrap();
-            lock.hemi.step();
+            lock.lazuli.step();
         }
     }
 

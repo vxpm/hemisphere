@@ -41,7 +41,7 @@ impl AppWindow for Window {
     }
 
     fn prepare(&mut self, state: &mut State) {
-        let Some(threads) = system::os::system_threads(&state.hemi.sys) else {
+        let Some(threads) = system::os::system_threads(&state.lazuli.sys) else {
             return;
         };
 
@@ -88,12 +88,12 @@ impl AppWindow for Window {
             thread.call_stack = if thread.orphan {
                 None
             } else if self.current.is_some_and(|c| c == thread.thread.addr) {
-                let sp = Address(state.hemi.sys.cpu.user.gpr[1]);
-                let pc = state.hemi.sys.cpu.pc;
-                Some(system::eabi::call_stack(&state.hemi.sys, sp, pc))
+                let sp = Address(state.lazuli.sys.cpu.user.gpr[1]);
+                let pc = state.lazuli.sys.cpu.pc;
+                Some(system::eabi::call_stack(&state.lazuli.sys, sp, pc))
             } else {
                 Some(system::eabi::call_stack(
-                    &state.hemi.sys,
+                    &state.lazuli.sys,
                     thread.thread.data.context.sp,
                     thread.thread.data.context.srr0,
                 ))

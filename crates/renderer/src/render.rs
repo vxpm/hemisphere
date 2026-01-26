@@ -1,6 +1,5 @@
 mod data;
 mod framebuffer;
-mod group;
 mod pipeline;
 mod sampler;
 mod texture;
@@ -204,10 +203,7 @@ impl Renderer {
             pipeline_cache,
             texture_cache,
             sampler_cache,
-            textures_group_cache: LruMap::with_hasher(
-                ByLength::new(8192),
-                FxBuildHasher::default(),
-            ),
+            textures_group_cache: LruMap::with_hasher(ByLength::new(512), FxBuildHasher::default()),
 
             color_blitter,
             depth_blitter,
@@ -553,7 +549,10 @@ impl Renderer {
     }
 
     pub fn load_texture(&mut self, id: TextureId, texture: Texture) {
-        self.texture_cache.update_raw(id, texture);
+        if self.texture_cache.update_raw(id, texture) {
+            // HACK: avoid keeping old textures alive with a dependent bind group
+            self.textures_group_cache.clear();
+        }
     }
 
     pub fn load_clut(&mut self, id: ClutAddress, clut: Clut) {
