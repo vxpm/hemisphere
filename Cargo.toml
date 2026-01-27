@@ -172,11 +172,11 @@ twox-hash = { version = "2.1", default-features = false, features = [
     "xxhash3_128",
     "std",
 ] }
-wesl = { git = "https://github.com/wgsl-tooling-wg/wesl-rs", default-features = false, features = [
+wesl = { git = "https://github.com/wgsl-tooling-wg/wesl-rs", rev = "c160f88", default-features = false, features = [
     "eval",
     "naga-ext",
 ] }
-wesl-quote = { git = "https://github.com/wgsl-tooling-wg/wesl-rs" }
+wesl-quote = { git = "https://github.com/wgsl-tooling-wg/wesl-rs", rev = "c160f88" }
 wgpu = { version = "27.0", default-features = false, features = ["counters"] }
 zerocopy = { version = "0.8", features = ["derive"] }
 windows = { version = ">=0.59", features = [
