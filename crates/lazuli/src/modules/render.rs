@@ -7,7 +7,7 @@ use ordered_float::OrderedFloat;
 use static_assertions::const_assert;
 
 use crate::system::gx::pix::{BlendMode, BufferFormat, ConstantAlpha, DepthMode};
-use crate::system::gx::tev::{AlphaFunction, Constant, StageOps, StageRefs};
+use crate::system::gx::tev::{AlphaFunction, Constant, DepthTexture, StageOps, StageRefs};
 use crate::system::gx::tex::{ClutFormat, Format, LodLimits, MipmapData, SamplerMode};
 use crate::system::gx::xform::{BaseTexGen, ChannelControl, Light, ProjectionMat};
 use crate::system::gx::{CullingMode, EFB_HEIGHT, EFB_WIDTH, Topology, VertexStream};
@@ -64,6 +64,7 @@ pub struct TexEnvStage {
 pub struct TexEnvConfig {
     pub stages: Vec<TexEnvStage>,
     pub constants: [Rgba16; 4],
+    pub depth_tex: DepthTexture,
 }
 
 #[derive(Debug, Clone, Default)]

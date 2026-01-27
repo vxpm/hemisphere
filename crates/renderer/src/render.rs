@@ -332,8 +332,7 @@ impl Renderer {
     }
 
     pub fn set_framebuffer_format(&mut self, format: pix::BufferFormat) {
-        self.debug(format!("set framebuffer format to {format:?}"));
-        self.flush("framebuffer format");
+        self.flush(format_args!("framebuffer format changed to {format:?}"));
 
         match format {
             pix::BufferFormat::RGB8Z24 | pix::BufferFormat::RGB565Z16 => {
@@ -360,7 +359,7 @@ impl Renderer {
 
     pub fn set_culling_mode(&mut self, mode: CullingMode) {
         if self.pipeline_settings.culling != mode {
-            self.flush("changed culling mode");
+            self.flush(format_args!("changed culling mode to {mode:?}"));
             self.pipeline_settings.culling = mode;
         }
     }
@@ -413,9 +412,8 @@ impl Renderer {
             alpha_write: mode.alpha_mask(),
         };
 
-        self.debug(format!("set blend settings to {blend:?}"));
         if self.pipeline_settings.blend != blend {
-            self.flush("changed blend settings");
+            self.flush(format_args!("set blend settings to {blend:?}"));
             self.pipeline_settings.blend = blend;
         }
     }
@@ -438,9 +436,8 @@ impl Renderer {
             compare,
         };
 
-        self.debug(format!("set depth settings to {depth:?}"));
         if self.pipeline_settings.depth != depth {
-            self.flush("depth settings changed");
+            self.flush(format_args!("set depth settings to {depth:?}"));
             self.pipeline_settings.depth = depth;
         }
     }
@@ -451,9 +448,8 @@ impl Renderer {
             logic: func.logic(),
         };
 
-        self.debug(format!("set alpha function to {func:?}"));
         if self.pipeline_settings.shader.texenv.alpha_func != settings {
-            self.flush("alpha function changed");
+            self.flush(format_args!("set alpha function to {func:?}"));
             self.pipeline_settings.shader.texenv.alpha_func = settings;
         }
 
@@ -513,20 +509,19 @@ impl Renderer {
     }
 
     pub fn set_texenv_config(&mut self, config: TexEnvConfig) {
-        self.debug("changed texenv");
-        self.flush("texenv changed");
+        self.flush(format_args!("texenv changed"));
         self.pipeline_settings
             .shader
             .texenv
             .stages
             .clone_from(&config.stages);
+        self.pipeline_settings.shader.texenv.depth_tex = config.depth_tex;
         self.current_config.consts = config.constants.map(Rgba::from);
         self.current_config_dirty = true;
     }
 
     pub fn set_texgen_config(&mut self, config: TexGenConfig) {
-        self.debug("changed texgen");
-        self.flush("texgen changed");
+        self.flush(format_args!("texgen changed"));
         self.pipeline_settings.shader.texgen.stages = config
             .stages
             .iter()
@@ -582,7 +577,7 @@ impl Renderer {
             return;
         }
 
-        self.flush("texture slot changed");
+        self.flush(format_args!("texture slot changed"));
         self.tex_slots[slot] = new;
     }
 
@@ -760,7 +755,7 @@ impl Renderer {
             .clone()
     }
 
-    pub fn flush(&mut self, reason: &str) {
+    pub fn flush(&mut self, reason: std::fmt::Arguments) {
         if self.vertices.is_empty() {
             return;
         }
@@ -838,7 +833,7 @@ impl Renderer {
 
     // Finishes the current render pass and starts the next one.
     pub fn next_pass(&mut self, clear: bool, copy_to_xfb: bool) {
-        self.flush("finishing pass");
+        self.flush(format_args!("finishing pass"));
 
         let color = self.framebuffer.color();
         let depth = self.framebuffer.depth();

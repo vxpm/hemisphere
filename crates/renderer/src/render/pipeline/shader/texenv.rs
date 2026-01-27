@@ -1,11 +1,11 @@
 use lazuli::modules::render::TexEnvStage;
 use lazuli::system::gx::tev::{
     AlphaCompare, AlphaInputSrc, AlphaLogic, ColorChannel, ColorInputSrc, CompareOp, CompareTarget,
-    Constant,
+    Constant, DepthTexOp,
 };
-use wesl_quote::quote_expression;
+use wesl_quote::{quote_expression, quote_statement};
 
-use crate::render::pipeline::AlphaFunctionSettings;
+use crate::render::pipeline::{AlphaFunctionSettings, TexEnvSettings};
 
 fn sample_tex(stage: &TexEnvStage) -> wesl::syntax::Expression {
     use wesl::syntax::*;
@@ -438,5 +438,17 @@ pub fn get_alpha_comparison(settings: &AlphaFunctionSettings) -> wesl::syntax::E
         AlphaLogic::Or => quote_expression! { (#a) || (#b) },
         AlphaLogic::Xor => quote_expression! { (#a) != (#b) },
         AlphaLogic::Xnor => quote_expression! { (#a) == (#b) },
+    }
+}
+
+pub fn get_depth_texture(settings: &TexEnvSettings) -> wesl::syntax::Statement {
+    use wesl::syntax::*;
+
+    if settings.depth_tex.mode.op() == DepthTexOp::Disabled {
+        return Statement::Void;
+    }
+
+    quote_statement! {
+        out.depth = 1.0;
     }
 }
