@@ -50,6 +50,7 @@ fn base_module(settings: &ShaderSettings) -> wesl::syntax::TranslationUnit {
     wesl_quote::quote_module! {
         alias MtxIdx = u32;
 
+        const DEPTH_MAX: u32 = (1 << 24) - 1;
         const PLACEHOLDER_RGB: vec3f = vec3f(1.0, 0.0, 0.8627);
         const PLACEHOLDER_RGBA: vec4f = vec4f(1.0, 0.0, 0.8627, 0.5);
 

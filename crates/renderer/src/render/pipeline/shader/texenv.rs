@@ -1,7 +1,7 @@
 use lazuli::modules::render::TexEnvStage;
 use lazuli::system::gx::tev::{
     AlphaCompare, AlphaInputSrc, AlphaLogic, ColorChannel, ColorInputSrc, CompareOp, CompareTarget,
-    Constant, DepthTexOp,
+    Constant, DepthTexFormat, DepthTexOp,
 };
 use wesl_quote::{quote_expression, quote_statement};
 
@@ -11,9 +11,11 @@ fn sample_tex(stage: &TexEnvStage) -> wesl::syntax::Expression {
     use wesl::syntax::*;
 
     let map = stage.refs.map().value() as u32;
+    let coord = stage.refs.coord().value() as u32;
+
     let tex_ident = wesl::syntax::Ident::new(format!("base::texture{map}"));
     let sampler_ident = wesl::syntax::Ident::new(format!("base::sampler{map}"));
-    let coord_ident = wesl::syntax::Ident::new(format!("in.tex_coord{map}"));
+    let coord_ident = wesl::syntax::Ident::new(format!("in.tex_coord{coord}"));
     let pipeline_immediates_ident = wesl::syntax::Ident::new("base::pipeline_immediates".into());
 
     let index = map / 2;
@@ -448,7 +450,23 @@ pub fn get_depth_texture(settings: &TexEnvSettings) -> wesl::syntax::Statement {
         return Statement::Void;
     }
 
+    let bias = settings.depth_tex.bias;
+    let sampled = self::sample_tex(settings.stages.last().unwrap());
+    let (depth_mid, depth_hi) = match settings.depth_tex.mode.format() {
+        DepthTexFormat::U8 => (quote_expression!(0), quote_expression!(0)),
+        DepthTexFormat::U16 => (quote_expression!(depth_tex_sample.y), quote_expression!(0)),
+        DepthTexFormat::U24 => (
+            quote_expression!(depth_tex_sample.y),
+            quote_expression!(depth_tex_sample.z),
+        ),
+        _ => panic!("reserved format"),
+    };
+
     quote_statement! {
-        out.depth = 1.0;
+        {
+            let depth_tex_sample = base::vec4f_to_vec4u(#sampled);
+            let depth_tex_value = pack4xU8(vec4u(depth_tex_sample.x, #depth_mid, #depth_hi, 0)) + #bias;
+            out.depth = clamp(f32(depth_tex_value) / f32(base::DEPTH_MAX), 0.0, 1.0);
+        }
     }
 }
