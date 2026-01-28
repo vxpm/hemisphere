@@ -339,8 +339,10 @@ impl System {
         let mmio_range = if cfg!(target_endian = "big") {
             offset..offset + size_of::<P>()
         } else {
-            let size = reg.size();
-            (size as usize - offset - size_of::<P>())..(size as usize - offset)
+            let size = reg.size() as usize;
+            let end = size.saturating_sub(offset);
+            let start = end.saturating_sub(size_of::<P>());
+            start..end
         };
 
         if !matches!(reg, Mmio::FakeStdout | Mmio::ProcessorFifo) {
@@ -523,7 +525,7 @@ impl System {
                     self.dsp.cpu_mailbox.set_status(status);
                 }
             }
-            Mmio::DspRecvMailbox => todo!("shouldnt be writing to recv mailbox"),
+            Mmio::DspRecvMailbox => panic!("shouldnt be writing to recv mailbox"),
             Mmio::DspControl => {
                 let mut written = self.dsp.control;
                 ne!(written.as_mut_bytes());

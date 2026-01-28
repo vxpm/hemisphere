@@ -12,6 +12,7 @@ enum Group {
     Gpr,
     Fpr,
     Cr,
+    Others,
 }
 
 #[derive(Default, Serialize, Deserialize)]
@@ -63,6 +64,59 @@ impl Window {
         });
     }
 
+    fn fpr(&self, ui: &mut egui::Ui) {
+        let builder = TableBuilder::new(ui)
+            .auto_shrink(egui::Vec2b::new(false, true))
+            .striped(true)
+            .resizable(false)
+            .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+            .column(Column::auto())
+            .column(Column::remainder().at_least(100.0))
+            .column(Column::remainder().at_least(100.0));
+
+        let table = builder.header(20.0, |mut header| {
+            header.col(|ui| {
+                ui.label("FPR");
+            });
+            header.col(|ui| {
+                ui.label("PS0");
+            });
+            header.col(|ui| {
+                ui.label("PS1");
+            });
+        });
+
+        table.body(|mut body| {
+            for (fpr, value) in self.cpu.user.fpr.iter().copied().enumerate() {
+                body.row(20.0, |mut row| {
+                    row.col(|ui| {
+                        let text = egui::RichText::new(format!("F{fpr:02}"))
+                            .family(egui::FontFamily::Monospace)
+                            .color(Color32::LIGHT_BLUE);
+
+                        ui.label(text);
+                    });
+
+                    row.col(|ui| {
+                        let text = egui::RichText::new(format!("{}", value.0[0]))
+                            .family(egui::FontFamily::Monospace)
+                            .color(Color32::LIGHT_GREEN);
+
+                        ui.label(text);
+                    });
+
+                    row.col(|ui| {
+                        let text = egui::RichText::new(format!("{}", value.0[1]))
+                            .family(egui::FontFamily::Monospace)
+                            .color(Color32::LIGHT_GREEN);
+
+                        ui.label(text);
+                    });
+                })
+            }
+        });
+    }
+
     fn cr(&self, ui: &mut egui::Ui) {
         let builder = TableBuilder::new(ui)
             .auto_shrink(egui::Vec2b::new(false, true))
@@ -74,10 +128,10 @@ impl Window {
 
         let table = builder.header(20.0, |mut header| {
             header.col(|ui| {
-                ui.label("Others");
+                ui.label("Reg");
             });
             header.col(|ui| {
-                ui.label("Hex");
+                ui.label("Value");
             });
         });
 
@@ -143,56 +197,43 @@ impl Window {
         });
     }
 
-    fn fpr(&self, ui: &mut egui::Ui) {
+    fn others(&self, ui: &mut egui::Ui) {
         let builder = TableBuilder::new(ui)
             .auto_shrink(egui::Vec2b::new(false, true))
             .striped(true)
             .resizable(false)
             .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
             .column(Column::auto())
-            .column(Column::remainder().at_least(100.0))
-            .column(Column::remainder().at_least(100.0));
+            .column(Column::remainder());
 
         let table = builder.header(20.0, |mut header| {
             header.col(|ui| {
-                ui.label("FPR");
+                ui.label("Reg");
             });
             header.col(|ui| {
-                ui.label("PS0");
-            });
-            header.col(|ui| {
-                ui.label("PS1");
+                ui.label("Value");
             });
         });
 
         table.body(|mut body| {
-            for (fpr, value) in self.cpu.user.fpr.iter().copied().enumerate() {
-                body.row(20.0, |mut row| {
-                    row.col(|ui| {
-                        let text = egui::RichText::new(format!("F{fpr:02}"))
-                            .family(egui::FontFamily::Monospace)
-                            .color(Color32::LIGHT_BLUE);
+            body.row(20.0, |mut row| {
+                let ctr = self.cpu.user.ctr;
+                row.col(|ui| {
+                    let text = egui::RichText::new("CTR".to_string())
+                        .family(egui::FontFamily::Monospace)
+                        .color(Color32::LIGHT_BLUE);
 
-                        ui.label(text);
-                    });
+                    ui.label(text);
+                });
 
-                    row.col(|ui| {
-                        let text = egui::RichText::new(format!("{}", value.0[0]))
-                            .family(egui::FontFamily::Monospace)
-                            .color(Color32::LIGHT_GREEN);
+                row.col(|ui| {
+                    let text = egui::RichText::new(format!("{ctr}"))
+                        .family(egui::FontFamily::Monospace)
+                        .color(Color32::LIGHT_GREEN);
 
-                        ui.label(text);
-                    });
-
-                    row.col(|ui| {
-                        let text = egui::RichText::new(format!("{}", value.0[1]))
-                            .family(egui::FontFamily::Monospace)
-                            .color(Color32::LIGHT_GREEN);
-
-                        ui.label(text);
-                    });
-                })
-            }
+                    ui.label(text);
+                });
+            });
         });
     }
 }
@@ -212,9 +253,10 @@ impl AppWindow for Window {
             egui::ComboBox::from_label("Group")
                 .selected_text(format!("{:?}", self.group))
                 .show_ui(ui, |ui| {
-                    ui.selectable_value(&mut self.group, Group::Gpr, "GPR");
-                    ui.selectable_value(&mut self.group, Group::Fpr, "FPR");
-                    ui.selectable_value(&mut self.group, Group::Cr, "CR");
+                    ui.selectable_value(&mut self.group, Group::Gpr, "Gpr");
+                    ui.selectable_value(&mut self.group, Group::Fpr, "Fpr");
+                    ui.selectable_value(&mut self.group, Group::Cr, "Cr");
+                    ui.selectable_value(&mut self.group, Group::Others, "Others");
                 });
 
             ui.separator();
@@ -223,6 +265,7 @@ impl AppWindow for Window {
                 Group::Gpr => self.gpr(ui),
                 Group::Fpr => self.fpr(ui),
                 Group::Cr => self.cr(ui),
+                Group::Others => self.others(ui),
             }
         });
     }
