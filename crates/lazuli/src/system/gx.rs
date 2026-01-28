@@ -260,8 +260,8 @@ pub enum Reg {
     TevFogColor         = 0xF2,
 
     TevAlphaFunc        = 0xF3,
-    TevZ0               = 0xF4,
-    TevZ1               = 0xF5,
+    TevDepthTexBias     = 0xF4,
+    TevDepthTexMode     = 0xF5,
     TevKSel0            = 0xF6,
     TevKSel1            = 0xF7,
     TevKSel2            = 0xF8,
@@ -350,6 +350,8 @@ impl Reg {
                 | Self::TevKSel5
                 | Self::TevKSel6
                 | Self::TevKSel7
+                | Self::TevDepthTexBias
+                | Self::TevDepthTexMode
         )
     }
 
@@ -580,6 +582,7 @@ pub fn update_texenv(sys: &mut System) {
     let config = render::TexEnvConfig {
         stages,
         constants: sys.gpu.env.constants,
+        depth_tex: sys.gpu.env.depth_tex,
     };
 
     sys.modules
@@ -922,6 +925,10 @@ pub fn set_register(sys: &mut System, reg: Reg, value: u32) {
                 sys.gpu.env.alpha_function.clone(),
             ));
         }
+
+        Reg::TevDepthTexBias => write_masked!(sys.gpu.env.depth_tex.bias),
+        Reg::TevDepthTexMode => write_masked!(sys.gpu.env.depth_tex.mode),
+
         Reg::TevKSel0 => write_masked!(sys.gpu.env.stage_consts[0]),
         Reg::TevKSel1 => write_masked!(sys.gpu.env.stage_consts[1]),
         Reg::TevKSel2 => write_masked!(sys.gpu.env.stage_consts[2]),

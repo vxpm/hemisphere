@@ -526,6 +526,41 @@ pub struct AlphaFunction {
     pub logic: AlphaLogic,
 }
 
+#[bitos(2)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum DepthTexFormat {
+    #[default]
+    U8       = 0b00,
+    U16      = 0b01,
+    U24      = 0b10,
+    Reserved = 0b11,
+}
+
+#[bitos(2)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum DepthTexOp {
+    #[default]
+    Disabled = 0b00,
+    Add      = 0b01,
+    Replace  = 0b10,
+    Reserved = 0b11,
+}
+
+#[bitos(32)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub struct DepthTexMode {
+    #[bits(0..2)]
+    pub format: DepthTexFormat,
+    #[bits(2..4)]
+    pub op: DepthTexOp,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub struct DepthTexture {
+    pub mode: DepthTexMode,
+    pub bias: u32,
+}
+
 #[derive(Debug, Default)]
 pub struct Interface {
     pub active_stages: u8,
@@ -535,5 +570,6 @@ pub struct Interface {
     pub stage_consts: [StageConstsPair; 8],
     pub constants: [Rgba16; 4],
     pub alpha_function: AlphaFunction,
+    pub depth_tex: DepthTexture,
     pub stages_dirty: bool,
 }

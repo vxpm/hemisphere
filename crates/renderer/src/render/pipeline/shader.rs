@@ -1,7 +1,9 @@
 mod texenv;
 mod texgen;
 
+use lazuli::system::gx::tev::DepthTexOp;
 use wesl::{VirtualResolver, Wesl};
+use wesl_quote::quote_declaration;
 
 use crate::render::pipeline::ShaderSettings;
 use crate::render::pipeline::settings::{TexEnvSettings, TexGenSettings};
@@ -22,9 +24,33 @@ fn base_module(settings: &ShaderSettings) -> wesl::syntax::TranslationUnit {
         }
     };
 
-    wesl_quote::quote_module! {
-        alias MatIdx = u32;
+    let has_frag_depth = match settings.texenv.depth_tex.mode.op() {
+        DepthTexOp::Disabled => false,
+        DepthTexOp::Add | DepthTexOp::Replace => true,
+        _ => panic!("reserved depth tex mode"),
+    };
 
+    let fragment_out_struct = if has_frag_depth {
+        quote_declaration! {
+            struct FragmentOutput {
+                @location(0) @blend_src(0) color: vec4f,
+                @location(0) @blend_src(1) blend: vec4f,
+                @builtin(frag_depth) depth: f32,
+            }
+        }
+    } else {
+        quote_declaration! {
+            struct FragmentOutput {
+                @location(0) @blend_src(0) color: vec4f,
+                @location(0) @blend_src(1) blend: vec4f,
+            }
+        }
+    };
+
+    wesl_quote::quote_module! {
+        alias MtxIdx = u32;
+
+        const DEPTH_MAX: u32 = (1 << 24) - 1;
         const PLACEHOLDER_RGB: vec3f = vec3f(1.0, 0.0, 0.8627);
         const PLACEHOLDER_RGBA: vec4f = vec4f(1.0, 0.0, 0.8627, 0.5);
 
@@ -75,8 +101,8 @@ fn base_module(settings: &ShaderSettings) -> wesl::syntax::TranslationUnit {
             normal: vec3f,
             _pad0: u32,
 
-            position_mat: MatIdx,
-            normal_mat: MatIdx,
+            position_mat: MtxIdx,
+            normal_mat: MtxIdx,
             _pad1: u32,
             _pad2: u32,
 
@@ -84,7 +110,7 @@ fn base_module(settings: &ShaderSettings) -> wesl::syntax::TranslationUnit {
             chan1: vec4f,
 
             tex_coord: array<vec2f, 8>,
-            tex_coord_mat: array<MatIdx, 8>,
+            tex_coord_mat: array<MtxIdx, 8>,
         };
 
         // Data group
@@ -134,10 +160,7 @@ fn base_module(settings: &ShaderSettings) -> wesl::syntax::TranslationUnit {
             @#interpolate @location(10) tex_coord7: vec3f,
         };
 
-        struct FragmentOutput {
-            @location(0) @blend_src(0) color: vec4f,
-            @location(0) @blend_src(1) blend: vec4f,
-        }
+        const #fragment_out_struct: u32 = 0;
 
         fn vec4f_to_vec4u(value: vec4f) -> vec4u {
             return vec4u(
@@ -501,6 +524,7 @@ fn fragment_stage(texenv: &TexEnvSettings) -> wesl::syntax::GlobalDeclaration {
     });
 
     let alpha_comparison = texenv::get_alpha_comparison(&texenv.alpha_func);
+    let depth_texture = texenv::get_depth_texture(&texenv);
 
     wesl_quote::quote_declaration! {
         @fragment
@@ -541,6 +565,8 @@ fn fragment_stage(texenv: &TexEnvSettings) -> wesl::syntax::GlobalDeclaration {
             } else {
                 out.color = out.blend;
             }
+
+            @#depth_texture {}
 
             return out;
         }

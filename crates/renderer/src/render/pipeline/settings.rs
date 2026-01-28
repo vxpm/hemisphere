@@ -1,6 +1,6 @@
 use lazuli::modules::render::TexEnvStage;
 use lazuli::system::gx::CullingMode;
-use lazuli::system::gx::tev::{AlphaCompare, AlphaLogic};
+use lazuli::system::gx::tev::{AlphaCompare, AlphaLogic, DepthTexture};
 use lazuli::system::gx::xform::BaseTexGen;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -140,6 +140,7 @@ impl AlphaFunctionSettings {
 pub struct TexEnvSettings {
     pub stages: Vec<TexEnvStage>,
     pub alpha_func: AlphaFunctionSettings,
+    pub depth_tex: DepthTexture,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
