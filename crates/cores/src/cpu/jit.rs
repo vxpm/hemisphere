@@ -10,20 +10,19 @@ use ppcjit::block::{BlockFn, Info, LinkData, Pattern};
 use ppcjit::hooks::*;
 use ppcjit::{Block, FastmemLut};
 use table::Table;
-use util::boxed_array;
 
 #[rustfmt::skip]
 pub use ppcjit;
 
-const TABLE_PRIMARY_BITS: usize = 12;
-const TABLE_PRIMARY_COUNT: usize = 1 << TABLE_PRIMARY_BITS;
-const TABLE_PRIMARY_MASK: usize = TABLE_PRIMARY_COUNT - 1;
-const TABLE_SECONDARY_BITS: usize = 8;
-const TABLE_SECONDARY_COUNT: usize = 1 << TABLE_SECONDARY_BITS;
-const TABLE_SECONDARY_MASK: usize = TABLE_SECONDARY_COUNT - 1;
-const TABLE_BLOCKS_BITS: usize = 10;
-const TABLE_BLOCKS_COUNT: usize = 1 << TABLE_BLOCKS_BITS;
-const TABLE_BLOCKS_MASK: usize = TABLE_BLOCKS_COUNT - 1;
+const MAP_TBL_L0_BITS: usize = 12;
+const MAP_TBL_L0_COUNT: usize = 1 << MAP_TBL_L0_BITS;
+const MAP_TBL_L0_MASK: usize = MAP_TBL_L0_COUNT - 1;
+const MAP_TBL_L1_BITS: usize = 8;
+const MAP_TBL_L1_COUNT: usize = 1 << MAP_TBL_L1_BITS;
+const MAP_TBL_L1_MASK: usize = MAP_TBL_L1_COUNT - 1;
+const MAP_TBL_L2_BITS: usize = 10;
+const MAP_TBL_L2_COUNT: usize = 1 << MAP_TBL_L2_BITS;
+const MAP_TBL_L2_MASK: usize = MAP_TBL_L2_COUNT - 1;
 
 /// Identifier for a block in a [`Blocks`] storage.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -44,34 +43,47 @@ pub struct Mapping {
 }
 
 type MappingTable =
-    Table<Table<Table<Mapping, TABLE_BLOCKS_COUNT>, TABLE_SECONDARY_COUNT>, TABLE_PRIMARY_COUNT>;
+    Table<Table<Table<Mapping, MAP_TBL_L2_COUNT>, MAP_TBL_L1_COUNT>, MAP_TBL_L0_COUNT>;
 
 #[inline(always)]
-fn addr_to_table_idx(addr: Address) -> (usize, usize, usize) {
+fn addr_to_mapping_idx(addr: Address) -> (usize, usize, usize) {
     let base = (addr.value() >> 2) as usize;
     (
-        base >> (30 - TABLE_PRIMARY_BITS) & TABLE_PRIMARY_MASK,
-        (base >> (30 - TABLE_PRIMARY_BITS - TABLE_SECONDARY_BITS)) & TABLE_SECONDARY_MASK,
-        (base >> (30 - TABLE_PRIMARY_BITS - TABLE_SECONDARY_BITS - TABLE_BLOCKS_BITS))
-            & TABLE_BLOCKS_MASK,
+        base >> (30 - MAP_TBL_L0_BITS) & MAP_TBL_L0_MASK,
+        (base >> (30 - MAP_TBL_L0_BITS - MAP_TBL_L1_BITS)) & MAP_TBL_L1_MASK,
+        (base >> (30 - MAP_TBL_L0_BITS - MAP_TBL_L1_BITS - MAP_TBL_L2_BITS)) & MAP_TBL_L2_MASK,
     )
 }
 
-const DEPS_TABLE_BITS: usize = 20;
-const DEPS_TABLE_COUNT: usize = 1 << DEPS_TABLE_BITS;
+const DEPS_TBL_L0_BITS: usize = 12;
+const DEPS_TBL_L0_COUNT: usize = 1 << DEPS_TBL_L0_BITS;
+const DEPS_TBL_L0_MASK: usize = DEPS_TBL_L0_COUNT - 1;
+const DEPS_TBL_L1_BITS: usize = 8;
+const DEPS_TBL_L1_COUNT: usize = 1 << DEPS_TBL_L1_BITS;
+const DEPS_TBL_L1_MASK: usize = DEPS_TBL_L1_COUNT - 1;
+
+fn deps_page_base(addr: Address) -> Address {
+    Address(addr.value() >> 12)
+}
 
 #[inline(always)]
-fn deps_page(addr: Address) -> usize {
-    (addr.value() >> (32 - DEPS_TABLE_BITS)) as usize
+fn addr_to_deps_idx(addr: Address) -> (usize, usize) {
+    let base = deps_page_base(addr).value() as usize;
+    (
+        base >> (20 - DEPS_TBL_L0_BITS) & DEPS_TBL_L0_MASK,
+        (base >> (20 - DEPS_TBL_L0_BITS - DEPS_TBL_L1_BITS)) & DEPS_TBL_L1_MASK,
+    )
 }
+
+type DepsTable = Table<Table<IndexSet<Address>, DEPS_TBL_L1_COUNT>, DEPS_TBL_L0_COUNT>;
 
 /// A structure which keeps tracks of compiled [`Block`]s.
 pub struct Blocks {
     storage: Vec<StoredBlock>,
     logical_mappings: MappingTable,
     physical_mappings: MappingTable,
-    logical_deps: Box<[IndexSet<Address>; DEPS_TABLE_COUNT]>,
-    physical_deps: Box<[IndexSet<Address>; DEPS_TABLE_COUNT]>,
+    logical_deps: DepsTable,
+    physical_deps: DepsTable,
     temp_deps: IndexSet<Address>,
 }
 
@@ -81,8 +93,8 @@ impl Default for Blocks {
             storage: Default::default(),
             logical_mappings: Default::default(),
             physical_mappings: Default::default(),
-            logical_deps: boxed_array(IndexSet::new()),
-            physical_deps: boxed_array(IndexSet::new()),
+            logical_deps: Default::default(),
+            physical_deps: Default::default(),
             temp_deps: IndexSet::new(),
         }
     }
@@ -98,16 +110,19 @@ impl Blocks {
             (&mut self.physical_mappings, &mut self.physical_deps)
         };
 
-        let (idx0, idx1, idx2) = addr_to_table_idx(addr);
+        let (idx0, idx1, idx2) = addr_to_mapping_idx(addr);
         let level1 = mappings.get_or_default(idx0);
         let level2 = level1.get_or_default(idx1);
         level2.insert(idx2, mapping);
 
-        let start_page = deps_page(addr);
-        let end_page = deps_page(addr + mapping.length);
-
-        for page in start_page..=end_page {
-            deps[page].insert(addr);
+        let count = mapping.length.div_ceil(4096);
+        let mut current = addr;
+        for _ in 0..count {
+            let (idx0, idx1) = addr_to_deps_idx(current);
+            let level1 = deps.get_or_default(idx0);
+            let deps = level1.get_or_default(idx1);
+            deps.insert(addr);
+            current += 4096;
         }
     }
 
@@ -123,7 +138,7 @@ impl Blocks {
             (&mut self.physical_mappings, &mut self.physical_deps)
         };
 
-        let (idx0, idx1, idx2) = addr_to_table_idx(addr);
+        let (idx0, idx1, idx2) = addr_to_mapping_idx(addr);
         let level1 = mappings.get_mut(idx0).ok_or(MappingNotFoundError)?;
         let level2 = level1.get_mut(idx1).ok_or(MappingNotFoundError)?;
         let mapping = level2.get(idx2).ok_or(MappingNotFoundError)?;
@@ -132,11 +147,14 @@ impl Blocks {
         let end = addr + mapping.length;
 
         if (start..=end).contains(&target) {
-            let start_page = deps_page(addr);
-            let end_page = deps_page(addr + mapping.length);
-
-            for page in start_page..=end_page {
-                deps[page].swap_remove(&addr);
+            let count = mapping.length.div_ceil(4096);
+            let mut current = addr;
+            for _ in 0..count {
+                let (idx0, idx1) = addr_to_deps_idx(current);
+                let level1 = deps.get_or_default(idx0);
+                let deps = level1.get_or_default(idx1);
+                deps.swap_remove(&addr);
+                current += 4096;
             }
 
             Ok(Some(level2.remove(idx2).unwrap()))
@@ -170,7 +188,7 @@ impl Blocks {
             &self.physical_mappings
         };
 
-        let (idx0, idx1, idx2) = addr_to_table_idx(addr);
+        let (idx0, idx1, idx2) = addr_to_mapping_idx(addr);
         let level1 = mappings.get(idx0)?;
         let level2 = level1.get(idx1)?;
         level2.get(idx2).copied()
@@ -190,18 +208,26 @@ impl Blocks {
             &mut self.physical_deps
         };
 
-        let page = deps_page(target);
-        if deps[page].is_empty() {
+        let (idx0, idx1) = addr_to_deps_idx(target);
+        let Some(level1) = deps.get(idx0) else {
+            return;
+        };
+        let Some(deps) = level1.get(idx1) else {
+            return;
+        };
+
+        if deps.is_empty() {
             return;
         }
 
         let mut temp_deps = std::mem::replace(&mut self.temp_deps, IndexSet::new());
-        deps[page].clone_into(&mut temp_deps);
+        deps.clone_into(&mut temp_deps);
 
         for dep in temp_deps.iter() {
             let mapping = match self.remove_mapping_if_contains(logical, *dep, target) {
                 Ok(mapping) => mapping,
                 Err(_) => {
+                    let page = deps_page_base(target);
                     panic!(
                         "mapping {dep} is listed as dependent on page {page} but it does not exist"
                     );
@@ -227,14 +253,8 @@ impl Blocks {
     pub fn clear(&mut self) {
         self.logical_mappings = Table::new();
         self.physical_mappings = Table::new();
-
-        for deps in self.logical_deps.iter_mut() {
-            deps.clear();
-        }
-
-        for deps in self.physical_deps.iter_mut() {
-            deps.clear();
-        }
+        self.logical_deps = Table::new();
+        self.physical_deps = Table::new();
     }
 }
 
