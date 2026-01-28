@@ -88,6 +88,8 @@ impl Default for Blocks {
     }
 }
 
+struct MappingNotFoundError;
+
 impl Blocks {
     fn insert_mapping(&mut self, logical: bool, addr: Address, mapping: Mapping) {
         let (mappings, deps) = if logical {
@@ -114,7 +116,7 @@ impl Blocks {
         logical: bool,
         addr: Address,
         target: Address,
-    ) -> Option<Mapping> {
+    ) -> Result<Option<Mapping>, MappingNotFoundError> {
         let (mappings, deps) = if logical {
             (&mut self.logical_mappings, &mut self.logical_deps)
         } else {
@@ -122,9 +124,9 @@ impl Blocks {
         };
 
         let (idx0, idx1, idx2) = addr_to_table_idx(addr);
-        let level1 = mappings.get_mut(idx0)?;
-        let level2 = level1.get_mut(idx1)?;
-        let mapping = level2.get(idx2)?;
+        let level1 = mappings.get_mut(idx0).ok_or(MappingNotFoundError)?;
+        let level2 = level1.get_mut(idx1).ok_or(MappingNotFoundError)?;
+        let mapping = level2.get(idx2).ok_or(MappingNotFoundError)?;
 
         let start = addr;
         let end = addr + mapping.length;
@@ -137,9 +139,9 @@ impl Blocks {
                 deps[page].swap_remove(&addr);
             }
 
-            level2.remove(idx2)
+            Ok(Some(level2.remove(idx2).unwrap()))
         } else {
-            None
+            Ok(None)
         }
     }
 
@@ -182,19 +184,31 @@ impl Blocks {
 
     /// Invalidate mappings that contain `addr`.
     pub fn invalidate(&mut self, logical: bool, target: Address) {
+        let deps = if logical {
+            &mut self.logical_deps
+        } else {
+            &mut self.physical_deps
+        };
+
         let page = deps_page(target);
-        if self.logical_deps[page].is_empty() {
+        if deps[page].is_empty() {
             return;
         }
 
         let mut temp_deps = std::mem::replace(&mut self.temp_deps, IndexSet::new());
-        self.logical_deps[page].clone_into(&mut temp_deps);
+        deps[page].clone_into(&mut temp_deps);
 
         for dep in temp_deps.iter() {
-            let Some(mapping) = self.remove_mapping_if_contains(logical, *dep, target) else {
-                tracing::warn!(
-                    "mapping {dep} is listed as dependent on page {page} but it does not exist"
-                );
+            let mapping = match self.remove_mapping_if_contains(logical, *dep, target) {
+                Ok(mapping) => mapping,
+                Err(_) => {
+                    panic!(
+                        "mapping {dep} is listed as dependent on page {page} but it does not exist"
+                    );
+                }
+            };
+
+            let Some(mapping) = mapping else {
                 continue;
             };
 
@@ -212,7 +226,13 @@ impl Blocks {
     /// Clears all mappings.
     pub fn clear(&mut self) {
         self.logical_mappings = Table::new();
+        self.physical_mappings = Table::new();
+
         for deps in self.logical_deps.iter_mut() {
+            deps.clear();
+        }
+
+        for deps in self.physical_deps.iter_mut() {
             deps.clear();
         }
     }
