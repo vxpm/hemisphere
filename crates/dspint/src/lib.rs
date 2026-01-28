@@ -726,15 +726,11 @@ impl Interpreter {
     pub fn reset(&mut self, sys: &mut System) {
         self.loop_counter = None;
 
-        self.regs.wrapping = [0xFFFF; 4];
-        self.regs.call_stack.clear();
-        self.regs.data_stack.clear();
-        self.regs.loop_stack.clear();
-        self.regs.loop_count.clear();
-
+        self.regs = Default::default();
         sys.dsp.dsp_mailbox = Mailbox::from_bits(0);
         sys.dsp.cpu_mailbox = Mailbox::from_bits(0);
 
+        self.cached.fill(None);
         self.pc = if sys.dsp.control.reset_high() {
             tracing::debug!("resetting at IROM (0x8000)");
             0x8000
