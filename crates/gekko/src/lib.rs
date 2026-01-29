@@ -57,6 +57,11 @@ impl Address {
         let rem = self.0 % alignment;
         Self(self.0 - rem)
     }
+
+    /// Aligns this address up to the given alignment.
+    pub const fn align_up(self, alignment: u32) -> Self {
+        Self(self.0.next_multiple_of(alignment))
+    }
 }
 
 impl std::ops::Add<u32> for Address {

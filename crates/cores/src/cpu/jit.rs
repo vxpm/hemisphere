@@ -1,3 +1,4 @@
+mod mapping;
 mod table;
 
 use indexmap::IndexSet;
@@ -6,6 +7,7 @@ use lazuli::gekko::disasm::{Extensions, Ins};
 use lazuli::gekko::{self, Cpu, DEQUANTIZATION_LUT, QUANTIZATION_LUT, QuantReg, QuantizedType};
 use lazuli::system::{self, System};
 use lazuli::{Address, Cycles, Primitive};
+use mapping::Mapping;
 use ppcjit::block::{BlockFn, Info, LinkData, Pattern};
 use ppcjit::hooks::*;
 use ppcjit::{Block, FastmemLut};
@@ -13,16 +15,6 @@ use table::Table;
 
 #[rustfmt::skip]
 pub use ppcjit;
-
-const MAP_TBL_L0_BITS: usize = 12;
-const MAP_TBL_L0_COUNT: usize = 1 << MAP_TBL_L0_BITS;
-const MAP_TBL_L0_MASK: usize = MAP_TBL_L0_COUNT - 1;
-const MAP_TBL_L1_BITS: usize = 8;
-const MAP_TBL_L1_COUNT: usize = 1 << MAP_TBL_L1_BITS;
-const MAP_TBL_L1_MASK: usize = MAP_TBL_L1_COUNT - 1;
-const MAP_TBL_L2_BITS: usize = 10;
-const MAP_TBL_L2_COUNT: usize = 1 << MAP_TBL_L2_BITS;
-const MAP_TBL_L2_MASK: usize = MAP_TBL_L2_COUNT - 1;
 
 /// Identifier for a block in a [`Blocks`] storage.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -35,25 +27,6 @@ pub struct StoredBlock {
 
 // TODO: this is problematic
 unsafe impl Send for StoredBlock {}
-
-#[derive(Debug, Clone, Copy)]
-pub struct Mapping {
-    pub id: BlockId,
-    pub length: u32,
-}
-
-type MappingTable =
-    Table<Table<Table<Mapping, MAP_TBL_L2_COUNT>, MAP_TBL_L1_COUNT>, MAP_TBL_L0_COUNT>;
-
-#[inline(always)]
-fn addr_to_mapping_idx(addr: Address) -> (usize, usize, usize) {
-    let base = (addr.value() >> 2) as usize;
-    (
-        base >> (30 - MAP_TBL_L0_BITS) & MAP_TBL_L0_MASK,
-        (base >> (30 - MAP_TBL_L0_BITS - MAP_TBL_L1_BITS)) & MAP_TBL_L1_MASK,
-        (base >> (30 - MAP_TBL_L0_BITS - MAP_TBL_L1_BITS - MAP_TBL_L2_BITS)) & MAP_TBL_L2_MASK,
-    )
-}
 
 const DEPS_TBL_L0_BITS: usize = 12;
 const DEPS_TBL_L0_COUNT: usize = 1 << DEPS_TBL_L0_BITS;
@@ -81,8 +54,8 @@ type DepsTable = Table<Table<IndexSet<Address>, DEPS_TBL_L1_COUNT>, DEPS_TBL_L0_
 /// A structure which keeps tracks of compiled [`Block`]s.
 pub struct Blocks {
     storage: Vec<StoredBlock>,
-    logical_mappings: MappingTable,
-    physical_mappings: MappingTable,
+    logical_mappings: mapping::Table,
+    physical_mappings: mapping::Table,
     logical_deps: DepsTable,
     physical_deps: DepsTable,
     temp_deps: IndexSet<Address>,
@@ -111,11 +84,7 @@ impl Blocks {
             (&mut self.physical_mappings, &mut self.physical_deps)
         };
 
-        let (idx0, idx1, idx2) = addr_to_mapping_idx(addr);
-        let level1 = mappings.get_or_default(idx0);
-        let level2 = level1.get_or_default(idx1);
-        level2.insert(idx2, mapping);
-
+        mappings.insert(addr, mapping);
         let count = mapping.length.div_ceil(4096);
         let mut current = addr;
         for _ in 0..count {
@@ -139,14 +108,10 @@ impl Blocks {
             (&mut self.physical_mappings, &mut self.physical_deps)
         };
 
-        let (idx0, idx1, idx2) = addr_to_mapping_idx(addr);
-        let level1 = mappings.get_mut(idx0).ok_or(MappingNotFoundError)?;
-        let level2 = level1.get_mut(idx1).ok_or(MappingNotFoundError)?;
-        let mapping = level2.get(idx2).ok_or(MappingNotFoundError)?;
+        let mapping = mappings.get(addr).ok_or(MappingNotFoundError)?;
 
         let start = addr;
         let end = addr + mapping.length;
-
         if (start..=end).contains(&target) {
             let count = mapping.length.div_ceil(4096);
             let mut current = addr;
@@ -158,7 +123,7 @@ impl Blocks {
                 current += 4096;
             }
 
-            Ok(Some(level2.remove(idx2).unwrap()))
+            Ok(mappings.remove(addr))
         } else {
             Ok(None)
         }
@@ -189,10 +154,7 @@ impl Blocks {
             &self.physical_mappings
         };
 
-        let (idx0, idx1, idx2) = addr_to_mapping_idx(addr);
-        let level1 = mappings.get(idx0)?;
-        let level2 = level1.get(idx1)?;
-        level2.get(idx2).copied()
+        mappings.get(addr).copied()
     }
 
     /// Returns the block mapped to `addr`.
@@ -252,8 +214,8 @@ impl Blocks {
 
     /// Clears all mappings.
     pub fn clear(&mut self) {
-        self.logical_mappings = Table::new();
-        self.physical_mappings = Table::new();
+        self.logical_mappings = mapping::Table::default();
+        self.physical_mappings = mapping::Table::default();
         self.logical_deps = Table::new();
         self.physical_deps = Table::new();
     }
@@ -446,12 +408,12 @@ const CTX_HOOKS: Hooks = {
     }
 
     extern "sysv64-unwind" fn invalidate_icache(ctx: &mut Context, addr: Address) {
-        let aligned = Address(addr.value() & !0x1F);
+        let line_addr = addr.align_down(32);
         let is_logical = ctx.sys.cpu.supervisor.config.msr.instr_addr_translation();
 
         if is_logical {
             for offset in 0..32 {
-                let logical = aligned + offset;
+                let logical = line_addr + offset;
                 let physical = ctx.sys.translate_inst_addr(logical);
 
                 ctx.blocks.invalidate(true, logical);
@@ -460,7 +422,7 @@ const CTX_HOOKS: Hooks = {
                 }
             }
 
-            if let Some(physical) = ctx.sys.translate_inst_addr(aligned) {
+            if let Some(physical) = ctx.sys.translate_inst_addr(line_addr) {
                 let (idx0, idx1, idx2) = addr_to_icache_idx(physical);
                 if let Some(level1) = ctx.icache.get_mut(idx0)
                     && let Some(level2) = level1.get_mut(idx1)
@@ -470,7 +432,7 @@ const CTX_HOOKS: Hooks = {
             }
         } else {
             for offset in 0..32 {
-                let physical = aligned + offset;
+                let physical = line_addr + offset;
                 ctx.blocks.invalidate(false, physical);
             }
 
