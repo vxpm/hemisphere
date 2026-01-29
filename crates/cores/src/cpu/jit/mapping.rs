@@ -1,3 +1,6 @@
+use std::ops::Range;
+
+use indexmap::IndexSet;
 use lazuli::Address;
 
 use crate::cpu::jit::BlockId;
@@ -13,6 +16,14 @@ const MAP_TBL_L2_BITS: usize = 10;
 const MAP_TBL_L2_COUNT: usize = 1 << MAP_TBL_L2_BITS;
 const MAP_TBL_L2_MASK: usize = MAP_TBL_L2_COUNT - 1;
 
+const DEPS_PAGE_LEN: usize = 1 << 12;
+const DEPS_TBL_L0_BITS: usize = 12;
+const DEPS_TBL_L0_COUNT: usize = 1 << DEPS_TBL_L0_BITS;
+const DEPS_TBL_L0_MASK: usize = DEPS_TBL_L0_COUNT - 1;
+const DEPS_TBL_L1_BITS: usize = 8;
+const DEPS_TBL_L1_COUNT: usize = 1 << DEPS_TBL_L1_BITS;
+const DEPS_TBL_L1_MASK: usize = DEPS_TBL_L1_COUNT - 1;
+
 #[inline(always)]
 fn addr_to_mapping_idx(addr: Address) -> (usize, usize, usize) {
     let base = (addr.value() >> 2) as usize;
@@ -20,6 +31,14 @@ fn addr_to_mapping_idx(addr: Address) -> (usize, usize, usize) {
         base >> (30 - MAP_TBL_L0_BITS) & MAP_TBL_L0_MASK,
         (base >> (30 - MAP_TBL_L0_BITS - MAP_TBL_L1_BITS)) & MAP_TBL_L1_MASK,
         (base >> (30 - MAP_TBL_L0_BITS - MAP_TBL_L1_BITS - MAP_TBL_L2_BITS)) & MAP_TBL_L2_MASK,
+    )
+}
+
+#[inline(always)]
+fn page_to_deps_idx(page: usize) -> (usize, usize) {
+    (
+        page >> (20 - DEPS_TBL_L0_BITS) & DEPS_TBL_L0_MASK,
+        (page >> (20 - DEPS_TBL_L0_BITS - DEPS_TBL_L1_BITS)) & DEPS_TBL_L1_MASK,
     )
 }
 
@@ -57,5 +76,47 @@ impl Table {
         let level1 = self.0.get(idx0)?;
         let level2 = level1.get(idx1)?;
         level2.get(idx2)
+    }
+}
+
+#[derive(Default)]
+pub struct DepsTable(BaseTable<BaseTable<IndexSet<Address>, DEPS_TBL_L1_COUNT>, DEPS_TBL_L0_COUNT>);
+
+impl DepsTable {
+    /// Marks address `addr` as dependent on the pages that cover the given range.
+    #[inline(always)]
+    pub fn mark(&mut self, addr: Address, range: Range<Address>) {
+        let start_page = range.start.value() as usize / DEPS_PAGE_LEN;
+        let end_page = range.end.value() as usize / DEPS_PAGE_LEN;
+
+        for page in start_page..=end_page {
+            let (idx0, idx1) = page_to_deps_idx(page);
+            let level1 = self.0.get_or_default(idx0);
+            let deps = level1.get_or_default(idx1);
+            deps.insert(addr);
+        }
+    }
+
+    /// Unmarks address `addr` as dependent on the pages that cover the given range.
+    #[inline(always)]
+    pub fn unmark(&mut self, addr: Address, range: Range<Address>) {
+        let start_page = range.start.value() as usize / DEPS_PAGE_LEN;
+        let end_page = range.end.value() as usize / DEPS_PAGE_LEN;
+
+        for page in start_page..=end_page {
+            let (idx0, idx1) = page_to_deps_idx(page);
+            let level1 = self.0.get_or_default(idx0);
+            let deps = level1.get_or_default(idx1);
+            deps.swap_remove(&addr);
+        }
+    }
+
+    /// Returns the set of dependencies of the page that contains the given address.
+    #[inline(always)]
+    pub fn get(&self, addr: Address) -> Option<&IndexSet<Address>> {
+        let page = addr.value() as usize / DEPS_PAGE_LEN;
+        let (idx0, idx1) = page_to_deps_idx(page);
+        let level1 = self.0.get(idx0)?;
+        level1.get(idx1)
     }
 }

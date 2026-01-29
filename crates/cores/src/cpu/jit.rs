@@ -28,36 +28,13 @@ pub struct StoredBlock {
 // TODO: this is problematic
 unsafe impl Send for StoredBlock {}
 
-const DEPS_TBL_L0_BITS: usize = 12;
-const DEPS_TBL_L0_COUNT: usize = 1 << DEPS_TBL_L0_BITS;
-const DEPS_TBL_L0_MASK: usize = DEPS_TBL_L0_COUNT - 1;
-const DEPS_TBL_L1_BITS: usize = 8;
-const DEPS_TBL_L1_COUNT: usize = 1 << DEPS_TBL_L1_BITS;
-const DEPS_TBL_L1_MASK: usize = DEPS_TBL_L1_COUNT - 1;
-
-#[inline(always)]
-fn deps_page_base(addr: Address) -> Address {
-    Address(addr.value() >> 12)
-}
-
-#[inline(always)]
-fn addr_to_deps_idx(addr: Address) -> (usize, usize) {
-    let base = deps_page_base(addr).value() as usize;
-    (
-        base >> (20 - DEPS_TBL_L0_BITS) & DEPS_TBL_L0_MASK,
-        (base >> (20 - DEPS_TBL_L0_BITS - DEPS_TBL_L1_BITS)) & DEPS_TBL_L1_MASK,
-    )
-}
-
-type DepsTable = Table<Table<IndexSet<Address>, DEPS_TBL_L1_COUNT>, DEPS_TBL_L0_COUNT>;
-
 /// A structure which keeps tracks of compiled [`Block`]s.
 pub struct Blocks {
     storage: Vec<StoredBlock>,
     logical_mappings: mapping::Table,
     physical_mappings: mapping::Table,
-    logical_deps: DepsTable,
-    physical_deps: DepsTable,
+    logical_deps: mapping::DepsTable,
+    physical_deps: mapping::DepsTable,
     temp_deps: IndexSet<Address>,
 }
 
@@ -85,15 +62,10 @@ impl Blocks {
         };
 
         mappings.insert(addr, mapping);
-        let count = mapping.length.div_ceil(4096);
-        let mut current = addr;
-        for _ in 0..count {
-            let (idx0, idx1) = addr_to_deps_idx(current);
-            let level1 = deps.get_or_default(idx0);
-            let deps = level1.get_or_default(idx1);
-            deps.insert(addr);
-            current += 4096;
-        }
+
+        let start = addr;
+        let end = addr + mapping.length;
+        deps.mark(addr, start..end);
     }
 
     fn remove_mapping_if_contains(
@@ -112,17 +84,10 @@ impl Blocks {
 
         let start = addr;
         let end = addr + mapping.length;
-        if (start..=end).contains(&target) {
-            let count = mapping.length.div_ceil(4096);
-            let mut current = addr;
-            for _ in 0..count {
-                let (idx0, idx1) = addr_to_deps_idx(current);
-                let level1 = deps.get_or_default(idx0);
-                let deps = level1.get_or_default(idx1);
-                deps.swap_remove(&addr);
-                current += 4096;
-            }
+        let range = start..end;
 
+        if range.contains(&target) {
+            deps.unmark(addr, range);
             Ok(mappings.remove(addr))
         } else {
             Ok(None)
@@ -171,14 +136,7 @@ impl Blocks {
             &mut self.physical_deps
         };
 
-        let (idx0, idx1) = addr_to_deps_idx(target);
-        let Some(level1) = deps.get(idx0) else {
-            return;
-        };
-        let Some(deps) = level1.get(idx1) else {
-            return;
-        };
-
+        let Some(deps) = deps.get(target) else { return };
         if deps.is_empty() {
             return;
         }
@@ -190,10 +148,7 @@ impl Blocks {
             let mapping = match self.remove_mapping_if_contains(logical, *dep, target) {
                 Ok(mapping) => mapping,
                 Err(_) => {
-                    let page = deps_page_base(target);
-                    panic!(
-                        "mapping {dep} is listed as dependent on page {page} but it does not exist"
-                    );
+                    panic!("mapping {dep} is listed as dependent on a page but it does not exist");
                 }
             };
 
@@ -216,8 +171,8 @@ impl Blocks {
     pub fn clear(&mut self) {
         self.logical_mappings = mapping::Table::default();
         self.physical_mappings = mapping::Table::default();
-        self.logical_deps = Table::new();
-        self.physical_deps = Table::new();
+        self.logical_deps = mapping::DepsTable::default();
+        self.physical_deps = mapping::DepsTable::default();
     }
 }
 
