@@ -51,6 +51,12 @@ impl Address {
     pub const fn is_null(self) -> bool {
         self.0 == 0
     }
+
+    /// Aligns this address down to the given alignment.
+    pub const fn align_down(self, alignment: u32) -> Self {
+        let rem = self.0 % alignment;
+        Self(self.0 - rem)
+    }
 }
 
 impl std::ops::Add<u32> for Address {
